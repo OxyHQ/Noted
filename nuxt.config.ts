@@ -26,7 +26,6 @@ export default defineNuxtConfig({
     "@nuxtjs/supabase",
     "@nuxtjs/i18n",
     "nuxt-icon",
-    "nuxt-headlessui",
     [
       "@pinia/nuxt",
       {
@@ -40,7 +39,7 @@ export default defineNuxtConfig({
     dirs: ["stores"],
   },
   piniaPersistedstate: {
-    storage: "localStorage",
+    storage: "cookies",
   },
   i18n: {
     locales: [
@@ -64,8 +63,6 @@ export default defineNuxtConfig({
     langDir: "locales",
     defaultLocale: "en-US",
     strategy: "no_prefix",
-    legacy: false,
-    globalInjection: true,
     vueI18n: {
       fallbackLocale: "en-US",
     },
@@ -77,9 +74,6 @@ export default defineNuxtConfig({
     },
   },
   css: ["@/assets/css/main.scss"],
-  headlessui: {
-    prefix: "Headless",
-  },
   colorMode: {
     preference: "system", // default value of $colorMode.preference
     fallback: "light", // fallback value if not system preference found

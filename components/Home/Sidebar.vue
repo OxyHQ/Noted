@@ -4,7 +4,7 @@
     <div
       class="fixed bottom-0 z-10 flex w-full flex-col justify-between border-t border-light-border bg-main-background py-0 dark:border-dark-border xs:top-0 xs:h-full xs:w-20 xs:border-0 xs:bg-transparent xs:px-2 xs:py-3 xs:pt-2 md:px-4 xl:w-72">
       <section class="flex flex-col justify-center gap-2 xs:items-center xl:items-stretch">
-        <h1 class="hidden xs:block">
+        <h1 class="hidden xs:flex">
           <NuxtLink
             class="custom-button main-tab text-accent-blue transition hover:bg-light-primary/10 focus-visible:bg-accent-blue/10 focus-visible:!ring-accent-blue/80 dark:text-twitter-icon dark:hover:bg-dark-primary/10"
             to="/">
@@ -54,49 +54,50 @@
       </div>
       <section class="relative hidden sm:block">
         <button
-          class="custom-button main-tab dark-bg-tab flex w-full items-center justify-between hover:bg-light-primary/10 active:bg-light-primary/20 dark:hover:bg-dark-primary/10 dark:active:bg-dark-primary/20">
+          class="custom-button main-tab dark-bg-tab flex w-full items-center justify-between hover:bg-light-primary/10 active:bg-light-primary/20 dark:hover:bg-dark-primary/10 dark:active:bg-dark-primary/20"
+          id="headlessui-menu-button-:r1:" type="button" aria-haspopup="true" aria-expanded="false">
           <div class="flex gap-3 truncate">
             <a class="blur-picture flex self-start pointer-events-none" tabindex="-1" to="">
               <figure class="w-[40px]">
                 <span style="
-                                                                    box-sizing: border-box;
-                                                                    display: block;
-                                                                    overflow: hidden;
-                                                                    width: initial;
-                                                                    height: initial;
-                                                                    background: none;
-                                                                    opacity: 1;
-                                                                    border: 0px;
-                                                                    margin: 0px;
-                                                                    padding: 0px;
-                                                                    position: relative;
-                                                                  "><span style="
-                                                                      box-sizing: border-box;
-                                                                      display: block;
-                                                                      width: initial;
-                                                                      height: initial;
-                                                                      background: none;
-                                                                      opacity: 1;
-                                                                      border: 0px;
-                                                                      margin: 0px;
-                                                                      padding: 100% 0px 0px;
-                                                                    "></span><img alt="Albert Isern Alvarez"
+                                                      box-sizing: border-box;
+                                                      display: block;
+                                                      overflow: hidden;
+                                                      width: initial;
+                                                      height: initial;
+                                                      background: none;
+                                                      opacity: 1;
+                                                      border: 0px;
+                                                      margin: 0px;
+                                                      padding: 0px;
+                                                      position: relative;
+                                                    "><span style="
+                                                        box-sizing: border-box;
+                                                        display: block;
+                                                        width: initial;
+                                                        height: initial;
+                                                        background: none;
+                                                        opacity: 1;
+                                                        border: 0px;
+                                                        margin: 0px;
+                                                        padding: 100% 0px 0px;
+                                                      "></span><img alt="Albert Isern Alvarez"
                     src="https://pbs.twimg.com/profile_images/1604802383162269698/MbMxGgB7_400x400.jpg" decoding="async"
                     data-nimg="responsive" class="rounded-full object-cover" style="
-                                                                      position: absolute;
-                                                                      inset: 0px;
-                                                                      box-sizing: border-box;
-                                                                      padding: 0px;
-                                                                      border: none;
-                                                                      margin: auto;
-                                                                      display: block;
-                                                                      width: 0px;
-                                                                      height: 0px;
-                                                                      min-width: 100%;
-                                                                      max-width: 100%;
-                                                                      min-height: 100%;
-                                                                      max-height: 100%;
-                                                                    " sizes="100vw" /></span>
+                                                        position: absolute;
+                                                        inset: 0px;
+                                                        box-sizing: border-box;
+                                                        padding: 0px;
+                                                        border: none;
+                                                        margin: auto;
+                                                        display: block;
+                                                        width: 0px;
+                                                        height: 0px;
+                                                        min-width: 100%;
+                                                        max-width: 100%;
+                                                        min-height: 100%;
+                                                        max-height: 100%;
+                                                      " sizes="100vw" /></span>
               </figure>
             </a>
             <div class="hidden truncate text-start leading-5 xl:block">
@@ -107,7 +108,7 @@
               <a class="truncate text-light-secondary dark:text-dark-secondary pointer-events-none">@AlbertIsernAl</a>
             </div>
           </div>
-          <Icon name="material-symbols:more-vert" size="25" class="!hidden h-6 w-6 xl:!block" />
+          <Icon name="material-symbols:more-vert" size="25" class="hidden h-6 w-6 xl:block" />
         </button>
       </section>
     </div>
@@ -123,12 +124,6 @@ export default {
           name: this.$t('sidebarNotes'),
           icon: "material-symbols:sticky-note-2-rounded",
           link: "/notes",
-          showInMobile: true,
-        },
-        {
-          name: this.$t('sidebarTasks'),
-          icon: "material-symbols:checklist",
-          link: "/tasks",
           showInMobile: true,
         },
         {

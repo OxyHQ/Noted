@@ -7,9 +7,8 @@
                     $t('createNote') }}</button>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-            <div v-for="note in notes" :key="note.id" :class="`bg-accent-${note.color}`"
-                class="w-full h-64 flex flex-col justify-between dark:border-gray-700 rounded-lg
-                                                                                                        border border-gray-400 mb-6 py-5 px-4">
+            <div v-for="note in notes" :key="note.id" :class="`bg-accent-${note.color}`" class="w-full h-64 flex flex-col justify-between dark:border-gray-700 rounded-lg
+                                                            border border-gray-400 py-5 px-4">
                 <div>
                     <h3 class="text-gray-800 dark:text-gray-100 leading-7 font-semibold w-11/12">{{ note.title }}</h3>
                     <p class="text-gray-800 dark:text-gray-100 text-sm">{{ note.text }}</p>
@@ -43,41 +42,41 @@
             <h2 class="text-xl font-bold mb-2">Create Note</h2>
             <form @submit.prevent="submitNote">
                 <div class="mb-4">
-                    <label class="block text-gray-700 font-bold mb-2" for="title">Title</label>
+                    <label class="block text-gray-700 font-bold mb-2 dark:text-white" for="title">Title</label>
                     <input v-model="newNote.title"
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-white"
                         id="title" type="text" placeholder="Title" required>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 font-bold mb-2" for="text">Text</label>
+                    <label class="block text-gray-700 font-bold mb-2 dark:text-white" for="text">Text</label>
                     <textarea v-model="newNote.text"
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-white"
                         id="text" placeholder="Text" required></textarea>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 font-bold mb-2" for="color">Color</label>
-                    <select v-model="newNote.color" type="color" id="color" class="h-10 w-full">
+                    <label class="block text-gray-700 font-bold mb-2 dark:text-white" for="color">Color</label>
+                    <select v-model="newNote.color" id="color" class="h-10 w-full dark:bg-gray-700 dark:text-white">
                         <option v-for="color in ['blue', 'orange', 'green', 'yellow', 'purple', 'pink']" :value="color">
                             {{ color }}
                         </option>
                     </select>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 font-bold mb-2" for="date">Date</label>
+                    <label class="block text-gray-700 font-bold mb-2 dark:text-white" for="date">Date</label>
                     <input v-model="selectedNote.date" id="date" type="datetime-local"
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-white">
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 font-bold mb-2" for="sharedWith">Shared With</label>
-                    <select v-model="newNote.sharedWith" id="sharedWith" multiple
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    <label class="block text-gray-700 font-bold mb-2 dark:text-white" for="sharedWith">Shared With</label>
+                    <select va-if="users" v-model="newNote.sharedWith" id="sharedWith" multiple
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-white">
                         <option v-for="user in users" :value="user.id">{{ user.name }}</option>
                     </select>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 font-bold mb-2" for="list">List</label>
+                    <label class="block text-gray-700 font-bold mb-2 dark:text-white" for="list">List</label>
                     <textarea v-model="newNote.list"
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-white"
                         id="list" placeholder="List"></textarea>
                 </div>
                 <div class="flex items-center justify-end">
@@ -85,8 +84,9 @@
                         class="px-4 py-2 bg-blue-500 text-white rounded-md shadow hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Create
                         Note</button>
                     <button type="button" @click="cancelCreateNote"
-                        class="px-4 py-2 ml-4 bg-gray-400 text-white rounded-md shadow hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50">Cancel</button>
+                        class="px-4 py-2 ml-4 bg-gray-400 text-white rounded-md shadow hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 dark:bg-gray-700 dark:text-white">Cancel</button>
                 </div>
+
             </form>
         </div>
         <div v-if="showEditNoteForm" class="mt-4">
@@ -166,28 +166,31 @@
 </template>
 
 <script setup>
-import { useNotesStore } from '@/stores/notes'
-
 const notesStore = useNotesStore()
+
+notesStore.fetchNotes();
+setInterval(() => {
+    notesStore.fetchNotes();
+}, 500);
 
 const showCreateNoteForm = ref(false)
 const showEditNoteForm = ref(false)
 const newNote = reactive({
-    title: '',
-    text: '',
-    color: '',
-    date: '',
+    title: null,
+    text: null,
+    color: null,
+    date: null,
     sharedWith: [],
-    list: ''
+    list: null
 })
 const selectedNote = reactive({
     id: null,
-    title: '',
-    text: '',
-    color: '',
-    date: '',
+    title: null,
+    text: null,
+    color: null,
+    date: null,
     sharedWith: [],
-    list: ''
+    list: null
 })
 
 const createNote = () => {
@@ -200,15 +203,16 @@ const cancelCreateNote = () => {
 }
 
 const clearNewNote = () => {
-    newNote.title = ''
-    newNote.text = ''
-    newNote.color = ''
-    newNote.date = ''
+    newNote.title = null
+    newNote.text = null
+    newNote.color = null
+    newNote.date = null
     newNote.sharedWith = []
-    newNote.list = ''
+    newNote.list = null
 }
 
 const submitNote = () => {
+    notesStore.fetchNotes(newNote)
     notesStore.addNote(newNote)
     showCreateNoteForm.value = false
     clearNewNote()
@@ -227,24 +231,24 @@ const editNote = (note) => {
 
 const cancelEditNote = () => {
     selectedNote.id = null
-    selectedNote.title = ''
-    selectedNote.text = ''
-    selectedNote.color = ''
-    selectedNote.date = ''
+    selectedNote.title = null
+    selectedNote.text = null
+    selectedNote.color = null
+    selectedNote.date = null
     selectedNote.sharedWith = []
-    selectedNote.list = ''
+    selectedNote.list = null
     showEditNoteForm.value = false
 }
 
 const updateNote = () => {
     notesStore.updateNote(selectedNote)
     selectedNote.id = null
-    selectedNote.title = ''
-    selectedNote.text = ''
-    selectedNote.color = ''
-    selectedNote.date = ''
+    selectedNote.title = null
+    selectedNote.text = null
+    selectedNote.color = null
+    selectedNote.date = null
     selectedNote.sharedWith = []
-    selectedNote.list = ''
+    selectedNote.list = null
     showEditNoteForm.value = false
 }
 
