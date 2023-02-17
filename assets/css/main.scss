@@ -37,7 +37,7 @@
   }
 
   body {
-    @apply hover-animation bg-main-background text-light-primary dark:text-dark-primary;
+    @apply hover-animation bg-main-background text-light-primary dark:text-dark-primary dark:bg-black;
   }
 }
 
@@ -92,4 +92,16 @@
   }
 }
 
-:root{--main-background:var(--light-background); --main-search-background:var(--light-search-background); --main-sidebar-background:var(--light-sidebar-background); --main-accent:var(--accent-green);}
+:root.light {
+  --main-background:var(--light-background); 
+  --main-search-background:var(--light-search-background); 
+  --main-sidebar-background:var(--light-sidebar-background); 
+  --main-accent:var(--accent-blue);
+}
+
+:root.sepia {
+  --main-background: 241 231 208;
+  --main-search-background: var(--light-search-background);
+  --main-sidebar-background: var(--light-sidebar-background);
+  --main-accent: 67 52 34;
+}

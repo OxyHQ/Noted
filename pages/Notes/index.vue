@@ -7,8 +7,9 @@
                     $t('createNote') }}</button>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-            <div v-for="note in notes" :key="note.id" :style="{ backgroundColor: note.color }"
-                class="w-full h-64 flex flex-col justify-between dark:bg-gray-800 bg-white dark:border-gray-700 rounded-lg border border-gray-400 mb-6 py-5 px-4">
+            <div v-for="note in notes" :key="note.id" :class="`bg-accent-${note.color}`"
+                class="w-full h-64 flex flex-col justify-between dark:border-gray-700 rounded-lg
+                                                                                                        border border-gray-400 mb-6 py-5 px-4">
                 <div>
                     <h3 class="text-gray-800 dark:text-gray-100 leading-7 font-semibold w-11/12">{{ note.title }}</h3>
                     <p class="text-gray-800 dark:text-gray-100 text-sm">{{ note.text }}</p>
@@ -23,7 +24,7 @@
                         </div>
                     </div>
                     <div class="flex items-center justify-between text-gray-800">
-                        <p class="dark:text-gray-100 text-sm">{{ formatDate(note.date) }}</p>
+                        <p v-if="note.date.length" class="dark:text-gray-100 text-sm">{{ formatDate(note.date) }}</p>
                         <button
                             class="w-8 h-8 rounded-full dark:bg-gray-100 dark:text-gray-800 bg-gray-800 text-white flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-offset-2  focus:ring-black"
                             @click="editNote(note)">
@@ -55,7 +56,11 @@
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 font-bold mb-2" for="color">Color</label>
-                    <input v-model="newNote.color" type="color" id="color" class="h-10 w-full">
+                    <select v-model="newNote.color" type="color" id="color" class="h-10 w-full">
+                        <option v-for="color in ['blue', 'orange', 'green', 'yellow', 'purple', 'pink']" :value="color">
+                            {{ color }}
+                        </option>
+                    </select>
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 font-bold mb-2" for="date">Date</label>
@@ -101,7 +106,11 @@
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 font-bold mb-2" for="color">Color</label>
-                    <input v-model="selectedNote.color" type="color" id="color" class="h-10 w-full">
+                    <select v-model="selectedNote.color" type="color" id="color" class="h-10 w-full">
+                        <option v-for="color in ['blue', 'orange', 'green', 'yellow', 'purple', 'pink']" :value="color">
+                            {{ color }}
+                        </option>
+                    </select>
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 font-bold mb-2" for="date">Date</label>
@@ -130,6 +139,29 @@
                 </div>
             </form>
         </div>
+        <section v-if="!notes.length && !showCreateNoteForm && !showEditNoteForm" class="justify-center flex flex-col">
+            <div class="m-auto flex justify-center p-8">
+                <div class="w-full max-w-sm">
+                    <div class="flex flex-col items-center gap-6">
+                        <figure style="width: 336px;">
+                            <span
+                                style="box-sizing: border-box; display: block; overflow: hidden; width: initial; height: initial; background: none; opacity: 1; border: 0px; margin: 0px; padding: 0px; position: relative;">
+                                <span
+                                    style="box-sizing: border-box; display: block; width: initial; height: initial; background: none; opacity: 1; border: 0px; margin: 0px; padding: 50% 0px 0px;"></span>
+                                <img alt="No bookmarks" src="~/assets/images/emptyPages/Bookmarks.png" decoding="async"
+                                    data-nimg="responsive" class="object-cover" sizes="100vw"
+                                    style="position: absolute; inset: 0px; box-sizing: border-box; padding: 0px; border: none; margin: auto; display: block; width: 0px; height: 0px; min-width: 100%; max-width: 100%; min-height: 100%; max-height: 100%;">
+                            </span>
+                        </figure>
+                        <div class="flex flex-col gap-2 text-center">
+                            <p class="text-3xl font-extrabold">{{ $t('notesEmptyTitle') }}</p>
+                            <p class="text-light-secondary dark:text-dark-secondary">{{ $t('notesEmptyDescription') }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 </div>
 </template>
 
@@ -143,7 +175,7 @@ const showEditNoteForm = ref(false)
 const newNote = reactive({
     title: '',
     text: '',
-    color: '#FFFFFF',
+    color: '',
     date: '',
     sharedWith: [],
     list: ''
@@ -170,7 +202,7 @@ const cancelCreateNote = () => {
 const clearNewNote = () => {
     newNote.title = ''
     newNote.text = ''
-    newNote.color = '#FFFFFF'
+    newNote.color = ''
     newNote.date = ''
     newNote.sharedWith = []
     newNote.list = ''

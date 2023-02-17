@@ -76,7 +76,7 @@ export default defineNuxtConfig({
       autoprefixer: {},
     },
   },
-  css: ["@/assets/css/main.css", "@/assets/css/main.scss"],
+  css: ["@/assets/css/main.scss"],
   headlessui: {
     prefix: "Headless",
   },

@@ -25,44 +25,44 @@
                   <NuxtLink class="blur-picture flex self-start pointer-events-none" tabindex="-1" to="/home">
                     <figure style="width: 48px">
                       <span style="
-                                                                                    box-sizing: border-box;
-                                                                                    display: block;
-                                                                                    overflow: hidden;
-                                                                                    width: initial;
-                                                                                    height: initial;
-                                                                                    background: none;
-                                                                                    opacity: 1;
-                                                                                    border: 0px;
-                                                                                    margin: 0px;
-                                                                                    padding: 0px;
-                                                                                    position: relative;
-                                                                                  "><span style="
-                                                                                      box-sizing: border-box;
-                                                                                      display: block;
-                                                                                      width: initial;
-                                                                                      height: initial;
-                                                                                      background: none;
-                                                                                      opacity: 1;
-                                                                                      border: 0px;
-                                                                                      margin: 0px;
-                                                                                      padding: 100% 0px 0px;
-                                                                                    "></span><img alt="Mention"
+                                                            box-sizing: border-box;
+                                                            display: block;
+                                                            overflow: hidden;
+                                                            width: initial;
+                                                            height: initial;
+                                                            background: none;
+                                                            opacity: 1;
+                                                            border: 0px;
+                                                            margin: 0px;
+                                                            padding: 0px;
+                                                            position: relative;
+                                                            "><span style="
+                                                            box-sizing: border-box;
+                                                            display: block;
+                                                            width: initial;
+                                                            height: initial;
+                                                            background: none;
+                                                            opacity: 1;
+                                                            border: 0px;
+                                                            margin: 0px;
+                                                            padding: 100% 0px 0px;
+                                                            "></span><img alt="Mention"
                           src="~/assets/images/Logo/Logo.png" decoding="async" data-nimg="responsive"
                           class="rounded-full object-cover" style="
-                                                                                      position: absolute;
-                                                                                      inset: 0px;
-                                                                                      box-sizing: border-box;
-                                                                                      padding: 0px;
-                                                                                      border: none;
-                                                                                      margin: auto;
-                                                                                      display: block;
-                                                                                      width: 0px;
-                                                                                      height: 0px;
-                                                                                      min-width: 100%;
-                                                                                      max-width: 100%;
-                                                                                      min-height: 100%;
-                                                                                      max-height: 100%;
-                                                                                    " /></span>
+                                                            position: absolute;
+                                                            inset: 0px;
+                                                            box-sizing: border-box;
+                                                            padding: 0px;
+                                                            border: none;
+                                                            margin: auto;
+                                                            display: block;
+                                                            width: 0px;
+                                                            height: 0px;
+                                                            min-width: 100%;
+                                                            max-width: 100%;
+                                                            min-height: 100%;
+                                                            max-height: 100%;
+                                                            " /></span>
                     </figure>
                   </NuxtLink>
                   <div>
@@ -101,74 +101,12 @@
                 </p>
                 <div
                   class="hover-animation grid grid-cols-3 grid-rows-2 justify-items-center gap-3 rounded-2xl bg-main-sidebar-background py-3 xs:grid-cols-6 xs:grid-rows-none">
-                  <label
-                    class="hover-animation flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:ring bg-accent-blue hover:ring-accent-blue/10 active:ring-accent-blue/20"
-                    for="blue">
-                    <input class="peer absolute h-0 w-0 opacity-0" id="blue" type="radio" name="accent" value="blue"
-                      checked="" tabindex="0" />
-                    <i class="text-white peer-checked:inner:opacity-100">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" aria-hidden="true"
-                        class="h-6 w-6 opacity-0 transition-opacity duration-200">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path>
-                      </svg>
-                    </i>
-                  </label>
-                  <label
-                    class="hover-animation flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:ring bg-accent-yellow hover:ring-accent-yellow/10 active:ring-accent-yellow/20"
-                    for="yellow">
-                    <input class="peer absolute h-0 w-0 opacity-0" id="yellow" type="radio" name="accent"
-                      value="yellow" />
-                    <i class="text-white peer-checked:inner:opacity-100">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" aria-hidden="true"
-                        class="h-6 w-6 opacity-0 transition-opacity duration-200">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path>
-                      </svg>
-                    </i>
-                  </label>
-                  <label
-                    class="hover-animation flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:ring bg-accent-pink hover:ring-accent-pink/10 active:ring-accent-pink/20"
-                    for="pink">
-                    <input class="peer absolute h-0 w-0 opacity-0" id="pink" type="radio" name="accent" value="pink" />
-                    <i class="text-white peer-checked:inner:opacity-100">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" aria-hidden="true"
-                        class="h-6 w-6 opacity-0 transition-opacity duration-200">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path>
-                      </svg>
-                    </i>
-                  </label>
-                  <label
-                    class="hover-animation flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:ring bg-accent-purple hover:ring-accent-purple/10 active:ring-accent-purple/20"
-                    for="purple">
-                    <input class="peer absolute h-0 w-0 opacity-0" id="purple" type="radio" name="accent"
-                      value="purple" />
-                    <i class="text-white peer-checked:inner:opacity-100">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" aria-hidden="true"
-                        class="h-6 w-6 opacity-0 transition-opacity duration-200">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path>
-                      </svg>
-                    </i>
-                  </label>
-                  <label
-                    class="hover-animation flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:ring bg-accent-orange hover:ring-accent-orange/10 active:ring-accent-orange/20"
-                    for="orange">
-                    <input class="peer absolute h-0 w-0 opacity-0" id="orange" type="radio" name="accent"
-                      value="orange" />
-                    <i class="text-white peer-checked:inner:opacity-100">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" aria-hidden="true"
-                        class="h-6 w-6 opacity-0 transition-opacity duration-200">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path>
-                      </svg>
-                    </i>
-                  </label>
-                  <label
-                    class="hover-animation flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:ring bg-accent-green hover:ring-accent-green/10 active:ring-accent-green/20"
-                    for="green">
-                    <input class="peer absolute h-0 w-0 opacity-0" id="green" type="radio" name="accent" value="green" />
+                  <label v-for="color in ['blue', 'orange', 'green', 'yellow', 'purple', 'pink']"
+                    :class="`bg-accent-${color} hover:ring-accent-${color}/10 active:ring-accent-${color}/20`"
+                    class="hover-animation flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:ring"
+                    :for="color">
+                    <input class="peer absolute h-0 w-0 opacity-0" :id="color" type="radio" name="accent" value="blue"
+                      :checked="color === 'blue'" tabindex="0" />
                     <i class="text-white peer-checked:inner:opacity-100">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                         stroke="currentColor" aria-hidden="true"
