@@ -1,6 +1,6 @@
-# 📝 Noted by Kaana
+# 📝 Noted by Peable
 
-Noted by Kaana is a web-based note-taking app built with Yarn, Nuxt 3, and Supabase.
+Noted by Peable is a web-based note-taking app built with Yarn, Nuxt 3, and Supabase.
 
 ## Features 🚀
 
@@ -16,7 +16,7 @@ Noted by Kaana is a web-based note-taking app built with Yarn, Nuxt 3, and Supab
 
 ## Getting started 🚀
 
-1. Clone this repository to your local machine using `git clone https://github.com/KaanaOfficial/Noted.git`
+1. Clone this repository to your local machine using `git clone https://github.com/PeableOfficial/Noted.git`
 2. Navigate to the project directory using `cd Noted`
 3. Install dependencies with `yarn install`
 4. Create a `.env` file based on the `.env.example` file and fill in your Supabase credentials
@@ -29,4 +29,4 @@ We welcome contributions from the community! If you have an idea for a new featu
 
 - [AlbertIsernAlvarez](https://github.com/AlbertIsernAlvarez)
 
-> You can find TODOs from: [TODO.md](https://github.com/KaanaOfficial/Noted/blob/master/TODO.md)
+> You can find TODOs from: [TODO.md](https://github.com/PeableOfficial/Noted/blob/master/TODO.md)
