@@ -1,0 +1,30 @@
+{
+  // ---------------------------------------------------------------------------
+  // @noted/shared-types
+  //
+  // Single source of truth for the Note/Label contract shared between the
+  // Noted backend (Node/Bun, ESM) and the frontend (Metro/Expo). It is the one
+  // emitting leaf both runtimes consume, so its output must be safe for each.
+  //
+  // It emits ESM to `dist/` with `.d.ts` declarations. The backend bundles this
+  // package inline at build time (esbuild, see packages/backend/build.ts) and
+  // Metro consumes the same ESM + declarations, so a single ESM build serves
+  // both. This tsconfig is self-contained (Noted has no root base tsconfig).
+  // ---------------------------------------------------------------------------
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": false
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
