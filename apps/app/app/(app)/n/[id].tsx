@@ -1,0 +1,494 @@
+import React from "react";
+import {
+  View,
+  ScrollView,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  useWindowDimensions,
+} from "react-native";
+import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { useOxy } from "@oxyhq/services";
+import {
+  ArrowLeft,
+  Pin,
+  PinOff,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  Palette,
+  Tag,
+  ImagePlus,
+  Bell,
+  CheckSquare,
+  Type,
+  X,
+} from "lucide-react-native";
+import { Text } from "@/components/ui/text";
+import { NoteColorPicker } from "@/components/notes/note-color-picker";
+import { ChecklistEditor } from "@/components/notes/checklist-editor";
+import { LabelChips } from "@/components/notes/label-chips";
+import { LabelAssignDialog } from "@/components/notes/label-assign-dialog";
+import { useColorScheme } from "@/lib/useColorScheme";
+import { useTranslation } from "@/hooks/useTranslation";
+import { useImagePicker } from "@/hooks/useImagePicker";
+import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
+import {
+  useNote,
+  useCreateNote,
+  useUpdateNote,
+  useTrashNote,
+  useUploadNoteImage,
+  makeDraftNote,
+} from "@/lib/hooks/use-notes";
+import { useLabels } from "@/lib/hooks/use-labels";
+import { getNoteColorTint } from "@/lib/note-colors";
+import { generateUUID } from "@/lib/utils";
+import type { ChecklistItem, Note, NoteColor } from "@/lib/types/note";
+
+const AUTOSAVE_MS = 600;
+
+type ReminderPreset = "laterToday" | "tomorrow" | "nextWeek";
+
+function presetDate(preset: ReminderPreset): Date {
+  const d = new Date();
+  if (preset === "laterToday") {
+    d.setHours(18, 0, 0, 0);
+    if (d.getTime() < Date.now()) d.setTime(Date.now() + 60 * 60 * 1000);
+  } else if (preset === "tomorrow") {
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+  } else {
+    d.setDate(d.getDate() + 7);
+    d.setHours(9, 0, 0, 0);
+  }
+  return d;
+}
+
+export default function NoteEditorScreen() {
+  const params = useLocalSearchParams<{ id: string; mode?: string }>();
+  const router = useRouter();
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const { colors, colorScheme } = useColorScheme();
+  const { t } = useTranslation();
+  const { width } = useWindowDimensions();
+  const { isAuthenticated } = useOxy();
+  const { pickImage } = useImagePicker();
+
+  const isNew = params.id === "new";
+  const startInChecklist = params.mode === "checklist";
+
+  const { data: fetchedNote, isLoading } = useNote(isNew ? undefined : params.id);
+  const { data: labels } = useLabels();
+  const createNote = useCreateNote();
+  const updateNote = useUpdateNote();
+  const trashNote = useTrashNote();
+  const uploadImage = useUploadNoteImage();
+
+  // The note id we PATCH against. Starts null for `n/new` until the first save
+  // creates a server note; thereafter all edits PATCH this id.
+  const noteIdRef = React.useRef<string | null>(isNew ? null : params.id);
+  const creatingRef = React.useRef(false);
+
+  // Local draft is the source of truth while editing; autosave pushes it up.
+  // A ref mirrors the draft so handlers can read the latest value and call the
+  // persist side-effect outside of the state updater (no effects-in-setState).
+  const [draft, setDraftState] = React.useState<Note>(() => makeDraftNote());
+  const draftRef = React.useRef(draft);
+  const [hydrated, setHydrated] = React.useState(isNew);
+  const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
+  const [showColors, setShowColors] = React.useState(false);
+  const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
+  const [showReminders, setShowReminders] = React.useState(false);
+
+  const setDraft = React.useCallback((next: Note) => {
+    draftRef.current = next;
+    setDraftState(next);
+  }, []);
+
+  // Hydrate the draft once the fetched note arrives (existing notes only).
+  // Calling setState during render is React's documented pattern for syncing
+  // state to changed props (here: the async-loaded note).
+  if (!isNew && !hydrated && fetchedNote) {
+    draftRef.current = fetchedNote;
+    setDraftState(fetchedNote);
+    setShowChecklist(fetchedNote.checklist.length > 0);
+    setHydrated(true);
+  }
+
+  const persist = React.useCallback(
+    (next: Note) => {
+      if (!isAuthenticated) return;
+
+      const id = noteIdRef.current;
+      if (id) {
+        updateNote.mutate({
+          id,
+          patch: {
+            title: next.title,
+            body: next.body,
+            checklist: next.checklist,
+            color: next.color,
+            labels: next.labels,
+            pinned: next.pinned,
+            archived: next.archived,
+            reminderAt: next.reminderAt,
+            images: next.images,
+          },
+        });
+        return;
+      }
+
+      // First save for a brand-new note: create once, then route to its id so
+      // subsequent edits PATCH the real server note.
+      const isEmpty =
+        !next.title.trim() &&
+        !next.body.trim() &&
+        next.checklist.length === 0 &&
+        next.images.length === 0;
+      if (isEmpty || creatingRef.current) return;
+
+      creatingRef.current = true;
+      createNote.mutate(
+        {
+          title: next.title,
+          body: next.body,
+          checklist: next.checklist,
+          color: next.color,
+          labels: next.labels,
+          pinned: next.pinned,
+          reminderAt: next.reminderAt,
+        },
+        {
+          onSuccess: (created) => {
+            noteIdRef.current = created.id;
+            creatingRef.current = false;
+            router.setParams({ id: created.id });
+          },
+          onError: () => {
+            creatingRef.current = false;
+          },
+        }
+      );
+    },
+    [isAuthenticated, updateNote, createNote, router]
+  );
+
+  const autosave = useDebouncedCallback(persist, AUTOSAVE_MS);
+
+  // Commit any pending autosave when leaving the editor.
+  React.useEffect(() => {
+    const unsub = navigation.addListener("beforeRemove", () => {
+      autosave.flush();
+    });
+    return unsub;
+  }, [navigation, autosave]);
+
+  // Apply a draft change locally and schedule a debounced autosave (typing).
+  const update = React.useCallback(
+    (patch: Partial<Note>) => {
+      const next = { ...draftRef.current, ...patch };
+      setDraft(next);
+      autosave.run(next);
+    },
+    [autosave, setDraft]
+  );
+
+  // A field change that should save immediately (toggles), not debounced.
+  const updateNow = React.useCallback(
+    (patch: Partial<Note>) => {
+      const next = { ...draftRef.current, ...patch };
+      setDraft(next);
+      autosave.cancel();
+      persist(next);
+    },
+    [autosave, persist, setDraft]
+  );
+
+  const handleToggleChecklist = React.useCallback(() => {
+    const prev = draftRef.current;
+    let next: Note;
+    if (showChecklist) {
+      // checklist -> body: join items back into lines
+      const body = [prev.body, ...prev.checklist.map((c) => c.text)]
+        .filter(Boolean)
+        .join("\n");
+      next = { ...prev, body, checklist: [] };
+    } else {
+      // body -> checklist: split body lines into items
+      const items: ChecklistItem[] = prev.body
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((text) => ({ id: generateUUID(), text, checked: false }));
+      next = { ...prev, body: "", checklist: items };
+    }
+    setDraft(next);
+    autosave.run(next);
+    setShowChecklist((s) => !s);
+  }, [showChecklist, autosave, setDraft]);
+
+  const handleToggleLabel = React.useCallback(
+    (labelId: string) => {
+      const prev = draftRef.current;
+      const has = prev.labels.includes(labelId);
+      const nextLabels = has
+        ? prev.labels.filter((l) => l !== labelId)
+        : [...prev.labels, labelId];
+      updateNow({ labels: nextLabels });
+    },
+    [updateNow]
+  );
+
+  const handleAttachImage = React.useCallback(async () => {
+    const picked = await pickImage();
+    const asset = picked?.[0];
+    if (!asset) return;
+    // Ensure the note exists first so we have an id to attach to.
+    let id = noteIdRef.current;
+    if (!id) {
+      const current = draftRef.current;
+      const created = await createNote.mutateAsync({
+        title: current.title,
+        body: current.body,
+        checklist: current.checklist,
+        color: current.color,
+      });
+      id = created.id;
+      noteIdRef.current = id;
+      router.setParams({ id });
+    }
+    const { url } = await uploadImage.mutateAsync({
+      noteId: id,
+      file: { uri: asset.uri, name: asset.name, type: asset.mimeType },
+    });
+    updateNow({ images: [...draftRef.current.images, { url }] });
+  }, [pickImage, createNote, uploadImage, router, updateNow]);
+
+  const handleRemoveImage = React.useCallback(
+    (url: string) => {
+      updateNow({
+        images: draftRef.current.images.filter((i) => i.url !== url),
+      });
+    },
+    [updateNow]
+  );
+
+  const handleSetReminder = React.useCallback(
+    (preset: ReminderPreset) => {
+      updateNow({ reminderAt: presetDate(preset).toISOString() });
+      setShowReminders(false);
+    },
+    [updateNow]
+  );
+
+  const handleClearReminder = React.useCallback(() => {
+    updateNow({ reminderAt: null });
+    setShowReminders(false);
+  }, [updateNow]);
+
+  const handleTrash = React.useCallback(() => {
+    autosave.flush();
+    const id = noteIdRef.current;
+    if (id) trashNote.mutate(id);
+    router.back();
+  }, [autosave, trashNote, router]);
+
+  if (!isNew && isLoading && !hydrated) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  const tint = getNoteColorTint(draft.color, colorScheme);
+  const backgroundColor = tint ? tint.background : colors.background;
+  const allLabels = labels ?? [];
+  const isLargeScreen = width >= 768;
+
+  const IconButton = ({
+    icon: Icon,
+    label,
+    onPress,
+    active,
+  }: {
+    icon: typeof Pin;
+    label: string;
+    onPress: () => void;
+    active?: boolean;
+  }) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel={label}
+      className="h-10 w-10 items-center justify-center rounded-full active:bg-foreground/10"
+      style={active ? { backgroundColor: colors.foreground + "1a" } : undefined}
+    >
+      <Icon size={20} color={colors.foreground} />
+    </Pressable>
+  );
+
+  return (
+    <View className="flex-1" style={{ backgroundColor }}>
+      {/* Top bar */}
+      <View
+        className="flex-row items-center px-1"
+        style={{ paddingTop: insets.top }}
+      >
+        <View className="h-14 flex-row items-center">
+          <IconButton icon={ArrowLeft} label={t("common.back")} onPress={() => router.back()} />
+        </View>
+        <View className="ml-auto flex-row items-center">
+          <IconButton
+            icon={draft.pinned ? PinOff : Pin}
+            label={draft.pinned ? t("notes.unpin") : t("notes.pin")}
+            onPress={() => updateNow({ pinned: !draft.pinned })}
+            active={draft.pinned}
+          />
+          <IconButton icon={Bell} label={t("notes.reminder")} onPress={() => setShowReminders((s) => !s)} />
+          <IconButton
+            icon={draft.archived ? ArchiveRestore : Archive}
+            label={draft.archived ? t("notes.unarchive") : t("notes.archive")}
+            onPress={() => updateNow({ archived: !draft.archived })}
+          />
+          <IconButton icon={Trash2} label={t("common.delete")} onPress={handleTrash} />
+        </View>
+      </View>
+
+      {/* Reminder presets */}
+      {showReminders && (
+        <View className="mx-3 mb-1 flex-row flex-wrap gap-2 rounded-xl border border-border bg-card p-2">
+          <ReminderChip label={t("notes.laterToday")} onPress={() => handleSetReminder("laterToday")} />
+          <ReminderChip label={t("notes.tomorrow")} onPress={() => handleSetReminder("tomorrow")} />
+          <ReminderChip label={t("notes.nextWeek")} onPress={() => handleSetReminder("nextWeek")} />
+          {draft.reminderAt && (
+            <ReminderChip label={t("notes.clearReminder")} onPress={handleClearReminder} destructive />
+          )}
+        </View>
+      )}
+
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-4 pb-32 pt-1"
+        keyboardShouldPersistTaps="handled"
+        style={isLargeScreen ? { maxWidth: 720, width: "100%", alignSelf: "center" } : undefined}
+      >
+        {draft.images.length > 0 && (
+          <View className="mb-3 gap-2">
+            {draft.images.map((img) => (
+              <View key={img.url} className="overflow-hidden rounded-xl">
+                <Image
+                  source={{ uri: img.url }}
+                  style={{ width: "100%", aspectRatio: 4 / 3 }}
+                  contentFit="cover"
+                  transition={150}
+                />
+                <Pressable
+                  onPress={() => handleRemoveImage(img.url)}
+                  accessibilityLabel={t("common.delete")}
+                  className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-black/50"
+                >
+                  <X size={16} color="#fff" />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <TextInput
+          value={draft.title}
+          onChangeText={(title) => update({ title })}
+          placeholder={t("notes.titlePlaceholder")}
+          placeholderTextColor={colors.mutedForeground}
+          className="py-2 text-xl font-semibold text-foreground"
+          multiline
+        />
+
+        {showChecklist ? (
+          <ChecklistEditor
+            items={draft.checklist}
+            onChange={(checklist) => update({ checklist })}
+          />
+        ) : (
+          <TextInput
+            value={draft.body}
+            onChangeText={(body) => update({ body })}
+            placeholder={t("notes.takeANote")}
+            placeholderTextColor={colors.mutedForeground}
+            className="min-h-[160px] py-1 text-base text-foreground"
+            multiline
+            textAlignVertical="top"
+          />
+        )}
+
+        {draft.labels.length > 0 && (
+          <LabelChips labelIds={draft.labels} allLabels={allLabels} />
+        )}
+      </ScrollView>
+
+      {/* Color picker strip */}
+      {showColors && (
+        <View className="border-t border-border bg-card px-2 py-2">
+          <NoteColorPicker
+            selected={draft.color}
+            onSelect={(color: NoteColor) => updateNow({ color })}
+          />
+        </View>
+      )}
+
+      {/* Bottom toolbar */}
+      <View
+        className="flex-row items-center gap-1 border-t border-border px-2"
+        style={{ paddingBottom: insets.bottom, backgroundColor }}
+      >
+        <View className="h-12 flex-row items-center gap-1">
+          <IconButton icon={ImagePlus} label={t("notes.addImage")} onPress={handleAttachImage} />
+          <IconButton icon={Palette} label={t("notes.color")} onPress={() => setShowColors((s) => !s)} active={showColors} />
+          <IconButton icon={Tag} label={t("notes.labels")} onPress={() => setLabelDialogOpen(true)} />
+          <IconButton
+            icon={showChecklist ? Type : CheckSquare}
+            label={showChecklist ? t("notes.convertToText") : t("notes.convertToChecklist")}
+            onPress={handleToggleChecklist}
+          />
+        </View>
+      </View>
+
+      <LabelAssignDialog
+        open={labelDialogOpen}
+        onOpenChange={setLabelDialogOpen}
+        assigned={draft.labels}
+        onToggle={handleToggleLabel}
+      />
+    </View>
+  );
+}
+
+function ReminderChip({
+  label,
+  onPress,
+  destructive,
+}: {
+  label: string;
+  onPress: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="rounded-full border border-border px-3 py-1.5 active:bg-muted"
+    >
+      <Text
+        className={
+          destructive
+            ? "text-sm font-medium text-destructive"
+            : "text-sm font-medium text-foreground"
+        }
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}

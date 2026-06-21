@@ -1,0 +1,11 @@
+{
+  "package": "noted",
+  "displayName": "Noted",
+  "shortName": "noted",
+  "repo": "https://github.com/OxyHQ/Noted",
+  "category": "app",
+  "versions": ["master"],
+  "defaultVersion": "master",
+  "docsPath": "docs/",
+  "description": "Noted — notes app by Oxy."
+}
