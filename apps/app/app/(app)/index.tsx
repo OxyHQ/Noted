@@ -1,33 +1,45 @@
 import React from "react";
-import { View, ScrollView, ActivityIndicator } from "react-native";
+import { View, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } from "react-native";
 import Head from "expo-router/head";
 import { useRouter } from "expo-router";
 import { useOxy } from "@oxyhq/services";
-import { NotebookPen } from "lucide-react-native";
+import { Lightbulb, Plus } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { NotesHeader } from "@/components/notes/notes-header";
 import { QuickCapture } from "@/components/notes/quick-capture";
 import { NoteGrid } from "@/components/notes/note-grid";
 import { BulkActionBar } from "@/components/notes/bulk-action-bar";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
+import { UndoSnackbar } from "@/components/notes/undo-snackbar";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useNotes, useCreateNote, useUpdateNote, useTrashNote } from "@/lib/hooks/use-notes";
+import {
+  useNotes,
+  useCreateNote,
+  useUpdateNote,
+  useTrashNote,
+  useRestoreNote,
+} from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
 import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import type { Note, NoteColor, NoteListParams } from "@/lib/types/note";
 
+/** How long the undo snackbar stays before auto-dismissing. */
+const UNDO_TIMEOUT_MS = 5000;
+
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   const { isAuthenticated } = useOxy();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
 
   const activeLabel = useNotesUIStore((s) => s.activeLabel);
   const searchQuery = useNotesUIStore((s) => s.searchQuery);
@@ -52,8 +64,47 @@ export default function HomeScreen() {
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
   const trashNote = useTrashNote();
+  const restoreNote = useRestoreNote();
 
-  const [colorDialogOpen, setColorDialogOpen] = React.useState(false);
+  // Color popover: in bulk mode it targets the selection; from a card's hover
+  // palette it targets a single note id.
+  const [colorTarget, setColorTarget] = React.useState<"selection" | string | null>(
+    null
+  );
+
+  // Keep-style undo snackbar: one transient toast with an undo handler. The
+  // auto-dismiss timer lives in a ref so a new action resets it cleanly.
+  const [undo, setUndo] = React.useState<{ message: string; onUndo: () => void } | null>(
+    null
+  );
+  const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearUndoTimer = React.useCallback(() => {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+  }, []);
+
+  const showUndo = React.useCallback(
+    (message: string, onUndo: () => void) => {
+      clearUndoTimer();
+      setUndo({ message, onUndo });
+      undoTimerRef.current = setTimeout(() => {
+        setUndo(null);
+        undoTimerRef.current = null;
+      }, UNDO_TIMEOUT_MS);
+    },
+    [clearUndoTimer]
+  );
+
+  const dismissUndo = React.useCallback(() => {
+    clearUndoTimer();
+    setUndo(null);
+  }, [clearUndoTimer]);
+
+  // Clear the pending timer if the screen unmounts mid-countdown.
+  React.useEffect(() => clearUndoTimer, [clearUndoTimer]);
 
   const allLabels = labels ?? [];
   const allNotes = notes ?? [];
@@ -79,7 +130,7 @@ export default function HomeScreen() {
   );
 
   const handleCreate = React.useCallback(
-    (input: { title: string; body: string }) => {
+    (input: { title: string; body: string; color?: NoteColor }) => {
       createNote.mutate(input);
     },
     [createNote]
@@ -89,7 +140,65 @@ export default function HomeScreen() {
     router.push("/(app)/n/new?mode=checklist");
   }, [router]);
 
-  // Bulk actions operate on the selected ids.
+  const handleCreateImage = React.useCallback(() => {
+    router.push("/(app)/n/new");
+  }, [router]);
+
+  // ── Per-card hover actions (web) ───────────────────────────────────────────
+  const handleCardTogglePin = React.useCallback(
+    (note: Note) => {
+      updateNote.mutate({ id: note.id, patch: { pinned: !note.pinned } });
+    },
+    [updateNote]
+  );
+
+  const handleCardToggleSelect = React.useCallback(
+    (note: Note) => {
+      if (selectionMode) {
+        toggleSelected(note.id);
+      } else {
+        enterSelection(note.id);
+      }
+    },
+    [selectionMode, toggleSelected, enterSelection]
+  );
+
+  const handleCardArchive = React.useCallback(
+    (note: Note) => {
+      updateNote.mutate({ id: note.id, patch: { archived: true } });
+      showUndo(t("notes.archived"), () => {
+        updateNote.mutate({ id: note.id, patch: { archived: false } });
+        dismissUndo();
+      });
+    },
+    [updateNote, showUndo, dismissUndo, t]
+  );
+
+  const handleCardDelete = React.useCallback(
+    (note: Note) => {
+      trashNote.mutate(note.id);
+      showUndo(t("notes.trashed"), () => {
+        restoreNote.mutate(note.id);
+        dismissUndo();
+      });
+    },
+    [trashNote, restoreNote, showUndo, dismissUndo, t]
+  );
+
+  const handleCardColor = React.useCallback((note: Note) => {
+    setColorTarget(note.id);
+  }, []);
+
+  // Reminder and add-image both route into the editor, where the full picker /
+  // reminder flow lives (a quick inline picker on the card is out of scope).
+  const handleCardOpenEditor = React.useCallback(
+    (note: Note) => {
+      router.push(`/(app)/n/${note.id}`);
+    },
+    [router]
+  );
+
+  // ── Bulk actions (selection mode) ──────────────────────────────────────────
   const selectedNotes = allNotes.filter((n) => selectedIds.has(n.id));
 
   const handleBulkPin = React.useCallback(() => {
@@ -100,30 +209,54 @@ export default function HomeScreen() {
     clearSelection();
   }, [selectedNotes, updateNote, clearSelection]);
 
-  const handleBulkColor = React.useCallback(
-    (color: NoteColor) => {
-      for (const note of selectedNotes) {
-        updateNote.mutate({ id: note.id, patch: { color } });
-      }
-      setColorDialogOpen(false);
-      clearSelection();
-    },
-    [selectedNotes, updateNote, clearSelection]
-  );
-
   const handleBulkArchive = React.useCallback(() => {
-    for (const note of selectedNotes) {
-      updateNote.mutate({ id: note.id, patch: { archived: true } });
+    const affected = selectedNotes.map((n) => n.id);
+    for (const id of affected) {
+      updateNote.mutate({ id, patch: { archived: true } });
     }
     clearSelection();
-  }, [selectedNotes, updateNote, clearSelection]);
+    showUndo(t("notes.archived"), () => {
+      for (const id of affected) {
+        updateNote.mutate({ id, patch: { archived: false } });
+      }
+      dismissUndo();
+    });
+  }, [selectedNotes, updateNote, clearSelection, showUndo, dismissUndo, t]);
 
   const handleBulkDelete = React.useCallback(() => {
-    for (const note of selectedNotes) {
-      trashNote.mutate(note.id);
+    const affected = selectedNotes.map((n) => n.id);
+    for (const id of affected) {
+      trashNote.mutate(id);
     }
     clearSelection();
-  }, [selectedNotes, trashNote, clearSelection]);
+    showUndo(t("notes.trashed"), () => {
+      for (const id of affected) {
+        restoreNote.mutate(id);
+      }
+      dismissUndo();
+    });
+  }, [selectedNotes, trashNote, restoreNote, clearSelection, showUndo, dismissUndo, t]);
+
+  // Color picker: applies to either the bulk selection or a single card.
+  const handleColorSelect = React.useCallback(
+    (color: NoteColor) => {
+      if (colorTarget === "selection") {
+        for (const note of selectedNotes) {
+          updateNote.mutate({ id: note.id, patch: { color } });
+        }
+        clearSelection();
+      } else if (colorTarget) {
+        updateNote.mutate({ id: colorTarget, patch: { color } });
+      }
+      setColorTarget(null);
+    },
+    [colorTarget, selectedNotes, updateNote, clearSelection]
+  );
+
+  const colorSelected: NoteColor =
+    colorTarget && colorTarget !== "selection"
+      ? allNotes.find((n) => n.id === colorTarget)?.color ?? "default"
+      : "default";
 
   return (
     <View className="flex-1 bg-background">
@@ -137,7 +270,7 @@ export default function HomeScreen() {
           count={selectedIds.size}
           onClose={clearSelection}
           onPin={handleBulkPin}
-          onColor={() => setColorDialogOpen(true)}
+          onColor={() => setColorTarget("selection")}
           onArchive={handleBulkArchive}
           onDelete={handleBulkDelete}
         />
@@ -151,10 +284,11 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {!selectionMode && (
-          <View className="mb-4">
+          <View className="mb-6">
             <QuickCapture
               onCreate={handleCreate}
               onCreateChecklist={handleCreateChecklist}
+              onCreateImage={handleCreateImage}
             />
           </View>
         )}
@@ -184,6 +318,13 @@ export default function HomeScreen() {
                   viewMode={viewMode}
                   onPressNote={handlePressNote}
                   onLongPressNote={handleLongPressNote}
+                  onTogglePin={handleCardTogglePin}
+                  onToggleSelect={handleCardToggleSelect}
+                  onReminder={handleCardOpenEditor}
+                  onColor={handleCardColor}
+                  onArchive={handleCardArchive}
+                  onAddImage={handleCardOpenEditor}
+                  onDelete={handleCardDelete}
                 />
               </View>
             )}
@@ -196,6 +337,13 @@ export default function HomeScreen() {
                   viewMode={viewMode}
                   onPressNote={handlePressNote}
                   onLongPressNote={handleLongPressNote}
+                  onTogglePin={handleCardTogglePin}
+                  onToggleSelect={handleCardToggleSelect}
+                  onReminder={handleCardOpenEditor}
+                  onColor={handleCardColor}
+                  onArchive={handleCardArchive}
+                  onAddImage={handleCardOpenEditor}
+                  onDelete={handleCardDelete}
                 />
               </View>
             )}
@@ -203,14 +351,30 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      <Dialog open={colorDialogOpen} onOpenChange={setColorDialogOpen}>
-        <DialogContent>
+      {/* Mobile FAB */}
+      {!isLargeScreen && !selectionMode && isAuthenticated && (
+        <Pressable
+          onPress={handleCreateImage}
+          accessibilityLabel={t("notes.takeANote")}
+          className="absolute bottom-6 right-6 h-14 w-14 items-center justify-center rounded-full bg-primary shadow-lg active:opacity-90"
+        >
+          <Plus size={26} color={colors.primaryForeground} />
+        </Pressable>
+      )}
+
+      {undo && <UndoSnackbar message={undo.message} onUndo={undo.onUndo} />}
+
+      <Dialog
+        open={colorTarget !== null}
+        onOpenChange={(open) => !open && setColorTarget(null)}
+      >
+        <DialogContent className="max-w-xs">
           <DialogHeader>
             <DialogTitle>{t("notes.pickColor")}</DialogTitle>
           </DialogHeader>
           <NoteColorPicker
-            selected="default"
-            onSelect={handleBulkColor}
+            selected={colorSelected}
+            onSelect={handleColorSelect}
             scroll={false}
           />
         </DialogContent>
@@ -231,7 +395,7 @@ function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useColorScheme();
   return (
     <View className="items-center justify-center py-20">
-      <NotebookPen size={48} color={colors.mutedForeground} strokeWidth={1.5} />
+      <Lightbulb size={64} color={colors.mutedForeground} strokeWidth={1.5} />
       <Text className="mt-4 text-base font-semibold text-foreground">{title}</Text>
       <Text className="mt-1 text-center text-sm text-muted-foreground">{subtitle}</Text>
     </View>

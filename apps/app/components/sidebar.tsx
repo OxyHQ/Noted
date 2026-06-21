@@ -70,8 +70,8 @@ function NavItem({ icon: Icon, label, onPress, isActive, collapsed }: NavItemPro
         onPress={onPress}
         accessibilityLabel={label}
         className={cn(
-          "h-10 w-10 items-center justify-center rounded-full",
-          isActive ? "bg-muted" : "active:bg-muted"
+          "h-12 w-12 items-center justify-center rounded-full web:transition",
+          isActive ? "bg-primary/10" : "active:bg-muted web:hover:bg-muted"
         )}
       >
         <Icon size={20} color={isActive ? colors.primary : colors.foreground} />
@@ -83,15 +83,15 @@ function NavItem({ icon: Icon, label, onPress, isActive, collapsed }: NavItemPro
     <Pressable
       onPress={onPress}
       className={cn(
-        "h-11 flex-row items-center gap-4 rounded-r-full pl-5 pr-4",
-        isActive ? "bg-muted" : "active:bg-muted"
+        "mx-2 h-12 flex-row items-center gap-4 rounded-full px-4 web:transition",
+        isActive ? "bg-primary/10" : "active:bg-muted web:hover:bg-muted"
       )}
     >
       <Icon size={20} color={isActive ? colors.primary : colors.foreground} />
       <Text
         className={cn(
           "flex-1 text-sm",
-          isActive ? "font-semibold text-foreground" : "text-foreground"
+          isActive ? "font-semibold text-primary" : "text-foreground"
         )}
         numberOfLines={1}
       >
@@ -264,7 +264,7 @@ const NotesSidebar = React.memo(function NotesSidebar() {
       </View>
 
       {/* Nav */}
-      <ScrollView className="flex-1" contentContainerClassName="pr-2 py-1">
+      <ScrollView className="flex-1" contentContainerClassName="py-1">
         <NavItem
           icon={NotebookPen}
           label={t("notes.title")}
@@ -276,7 +276,7 @@ const NotesSidebar = React.memo(function NotesSidebar() {
         {/* Labels */}
         {allLabels.length > 0 && (
           <>
-            <View className="mb-1 mt-3 pl-5">
+            <View className="mb-1 mt-3 pl-6">
               <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("notes.labelsTitle")}
               </Text>
@@ -295,13 +295,13 @@ const NotesSidebar = React.memo(function NotesSidebar() {
 
         <Pressable
           onPress={goLabels}
-          className="h-11 flex-row items-center gap-4 rounded-r-full pl-5 pr-4 active:bg-muted"
+          className="mx-2 h-12 flex-row items-center gap-4 rounded-full px-4 web:transition active:bg-muted web:hover:bg-muted"
         >
           <Plus size={20} color={colors.mutedForeground} />
           <Text className="text-sm text-muted-foreground">{t("notes.editLabels")}</Text>
         </Pressable>
 
-        <View className="my-2 mx-3 border-t border-border/40" />
+        <View className="my-2 mx-4 border-t border-border/40" />
 
         <NavItem icon={Archive} label={t("notes.archiveTitle")} onPress={goArchive} isActive={pathname.includes("/archive")} />
         <NavItem icon={Trash2} label={t("notes.trashTitle")} onPress={goTrash} isActive={pathname.includes("/trash")} />

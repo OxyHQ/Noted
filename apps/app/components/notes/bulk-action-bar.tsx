@@ -1,8 +1,10 @@
 import { View, Pressable } from "react-native";
+import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, Pin, Palette, Archive, Trash2 } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 
 interface BulkActionBarProps {
   count: number;
@@ -24,6 +26,7 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();
+  const reduceMotion = useReducedMotion();
 
   const Action = ({
     icon: Icon,
@@ -44,7 +47,9 @@ export function BulkActionBar({
   );
 
   return (
-    <View
+    <Animated.View
+      entering={reduceMotion ? undefined : FadeInDown.duration(200)}
+      exiting={reduceMotion ? undefined : FadeOutUp.duration(150)}
       className="flex-row items-center border-b border-border bg-background px-2"
       style={{ paddingTop: insets.top }}
     >
@@ -64,6 +69,6 @@ export function BulkActionBar({
         <Action icon={Archive} label="Archive" onPress={onArchive} />
         <Action icon={Trash2} label="Delete" onPress={onDelete} />
       </View>
-    </View>
+    </Animated.View>
   );
 }

@@ -6,7 +6,15 @@ import {
   Pressable,
   ActivityIndicator,
   useWindowDimensions,
+  Platform,
+  Modal,
 } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  FadeInDown,
+  FadeOutDown,
+} from "react-native-reanimated";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
@@ -44,6 +52,7 @@ import {
   makeDraftNote,
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { generateUUID } from "@/lib/utils";
 import type { ChecklistItem, Note, NoteColor } from "@/lib/types/note";
@@ -77,6 +86,7 @@ export default function NoteEditorScreen() {
   const { width } = useWindowDimensions();
   const { isAuthenticated } = useOxy();
   const { pickImage } = useImagePicker();
+  const reduceMotion = useReducedMotion();
 
   const isNew = params.id === "new";
   const startInChecklist = params.mode === "checklist";
@@ -309,6 +319,9 @@ export default function NoteEditorScreen() {
   const backgroundColor = tint ? tint.background : colors.background;
   const allLabels = labels ?? [];
   const isLargeScreen = width >= 768;
+  // On web at desktop widths the editor renders as a centered modal overlay
+  // (Keep-style); native and small web keep the full-screen editor.
+  const isWebModal = Platform.OS === "web" && isLargeScreen;
 
   const IconButton = ({
     icon: Icon,
@@ -331,12 +344,12 @@ export default function NoteEditorScreen() {
     </Pressable>
   );
 
-  return (
-    <View className="flex-1" style={{ backgroundColor }}>
+  const editorContent = (
+    <>
       {/* Top bar */}
       <View
         className="flex-row items-center px-1"
-        style={{ paddingTop: insets.top }}
+        style={{ paddingTop: isWebModal ? 0 : insets.top }}
       >
         <View className="h-14 flex-row items-center">
           <IconButton icon={ArrowLeft} label={t("common.back")} onPress={() => router.back()} />
@@ -374,7 +387,11 @@ export default function NoteEditorScreen() {
         className="flex-1"
         contentContainerClassName="px-4 pb-32 pt-1"
         keyboardShouldPersistTaps="handled"
-        style={isLargeScreen ? { maxWidth: 720, width: "100%", alignSelf: "center" } : undefined}
+        style={
+          isLargeScreen && !isWebModal
+            ? { maxWidth: 720, width: "100%", alignSelf: "center" }
+            : undefined
+        }
       >
         {draft.images.length > 0 && (
           <View className="mb-3 gap-2">
@@ -442,7 +459,7 @@ export default function NoteEditorScreen() {
       {/* Bottom toolbar */}
       <View
         className="flex-row items-center gap-1 border-t border-border px-2"
-        style={{ paddingBottom: insets.bottom, backgroundColor }}
+        style={{ paddingBottom: isWebModal ? 0 : insets.bottom, backgroundColor }}
       >
         <View className="h-12 flex-row items-center gap-1">
           <IconButton icon={ImagePlus} label={t("notes.addImage")} onPress={handleAttachImage} />
@@ -455,13 +472,56 @@ export default function NoteEditorScreen() {
           />
         </View>
       </View>
+    </>
+  );
 
-      <LabelAssignDialog
-        open={labelDialogOpen}
-        onOpenChange={setLabelDialogOpen}
-        assigned={draft.labels}
-        onToggle={handleToggleLabel}
-      />
+  const labelDialog = (
+    <LabelAssignDialog
+      open={labelDialogOpen}
+      onOpenChange={setLabelDialogOpen}
+      assigned={draft.labels}
+      onToggle={handleToggleLabel}
+    />
+  );
+
+  if (isWebModal) {
+    return (
+      <Modal
+        visible
+        transparent
+        animationType={reduceMotion ? "none" : "fade"}
+        statusBarTranslucent
+        onRequestClose={() => router.back()}
+      >
+        <Animated.View
+          entering={reduceMotion ? undefined : FadeIn.duration(150)}
+          exiting={reduceMotion ? undefined : FadeOut.duration(150)}
+          className="flex-1 items-center justify-center bg-black/50 px-4"
+          style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+        >
+          <Pressable
+            className="absolute inset-0"
+            accessibilityLabel={t("common.close")}
+            onPress={() => router.back()}
+          />
+          <Animated.View
+            entering={reduceMotion ? undefined : FadeInDown.duration(200)}
+            exiting={reduceMotion ? undefined : FadeOutDown.duration(150)}
+            className="w-full max-w-[600px] overflow-hidden rounded-2xl shadow-lg"
+            style={{ backgroundColor, maxHeight: "85%" }}
+          >
+            {editorContent}
+          </Animated.View>
+          {labelDialog}
+        </Animated.View>
+      </Modal>
+    );
+  }
+
+  return (
+    <View className="flex-1" style={{ backgroundColor }}>
+      {editorContent}
+      {labelDialog}
     </View>
   );
 }

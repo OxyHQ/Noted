@@ -27,7 +27,8 @@
     "user": "User",
     "done": "Done",
     "authorize": "Authorize",
-    "tryAgain": "Try Again"
+    "tryAgain": "Try Again",
+    "undo": "Undo"
   },
   "login": {
     "title": "Sign in or sign up",
@@ -1116,6 +1117,8 @@
     "unpin": "Unpin",
     "archive": "Archive",
     "unarchive": "Unarchive",
+    "archived": "Note archived",
+    "trashed": "Note deleted",
     "reminder": "Reminder",
     "color": "Color",
     "labels": "Labels",

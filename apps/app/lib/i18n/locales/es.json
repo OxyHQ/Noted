@@ -27,7 +27,8 @@
     "user": "User",
     "done": "Done",
     "authorize": "Authorize",
-    "tryAgain": "Try Again"
+    "tryAgain": "Try Again",
+    "undo": "Deshacer"
   },
   "login": {
     "title": "Sign in or sign up",
@@ -1116,6 +1117,8 @@
     "unpin": "Dejar de fijar",
     "archive": "Archivar",
     "unarchive": "Desarchivar",
+    "archived": "Nota archivada",
+    "trashed": "Nota eliminada",
     "reminder": "Recordatorio",
     "color": "Color",
     "labels": "Etiquetas",
