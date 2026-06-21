@@ -1,7 +1,6 @@
 import React from "react";
 import { View, Pressable, Platform } from "react-native";
 import Animated, { ZoomIn, ZoomOut } from "react-native-reanimated";
-import { Image } from "expo-image";
 import {
   Check,
   Pin,
@@ -13,14 +12,12 @@ import {
   Archive,
   Trash2,
 } from "lucide-react-native";
-import { useOxy } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
 import { LabelChips } from "@/components/notes/label-chips";
+import { AttachmentsRow } from "@/components/notes/attachments/AttachmentsRow";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
-import { useFileMetadata } from "@/lib/hooks/use-file-metadata";
-import { categorizeContentType } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
 import type { Label, Note } from "@/lib/types/note";
 
@@ -98,7 +95,6 @@ export const NoteCard = React.memo(function NoteCard({
   onDelete,
 }: NoteCardProps) {
   const { colorScheme, colors } = useColorScheme();
-  const { oxyServices } = useOxy();
   const reduceMotion = useReducedMotion();
   const tint = getNoteColorTint(note.color, colorScheme);
 
@@ -112,20 +108,13 @@ export const NoteCard = React.memo(function NoteCard({
   const shownChecklist = note.checklist.slice(0, CHECKLIST_PREVIEW);
   const remainingChecklist = note.checklist.length - shownChecklist.length;
 
-  // The card only resolves metadata for the FIRST attachment (bounded: one query
-  // per card). If it's an image we show it as the top thumbnail; otherwise the
-  // card shows a compact paperclip + count indicator. Full per-type chips live
-  // in the editor/detail view.
-  const firstAttachment = note.attachments?.[0];
-  const { data: firstMeta } = useFileMetadata(firstAttachment ?? "");
-  const firstIsImage =
-    !!firstAttachment &&
-    categorizeContentType(firstMeta?.contentType) === "image";
-  const thumbnailId = firstIsImage ? firstAttachment : undefined;
-  const attachmentCount = note.attachments?.length ?? 0;
+  // Attachments render through the shared `AttachmentsRow` card variant (cheap:
+  // thumbnails via `getFileDownloadUrl` + a generic count chip, no per-item
+  // metadata queries). The card only needs to know whether any exist.
+  const hasAttachments = (note.attachments?.length ?? 0) > 0;
 
   const isEmpty =
-    !note.title && !note.body && !hasChecklist && attachmentCount === 0;
+    !note.title && !note.body && !hasChecklist && !hasAttachments;
 
   // Top-right corner control: pin (web hover) / pin indicator (pinned) / nothing.
   const showPinControl =
@@ -208,14 +197,10 @@ export const NoteCard = React.memo(function NoteCard({
         </Pressable>
       )}
 
-      {thumbnailId && (
-        <Image
-          source={{ uri: oxyServices.getFileDownloadUrl(thumbnailId, "thumb") }}
-          style={{ width: "100%", aspectRatio: 4 / 3 }}
-          className="rounded-t-xl"
-          contentFit="cover"
-          transition={150}
-        />
+      {hasAttachments && (
+        <View className="px-4 pt-4">
+          <AttachmentsRow attachments={note.attachments ?? []} variant="card" />
+        </View>
       )}
 
       <View className="p-4">
@@ -272,27 +257,16 @@ export const NoteCard = React.memo(function NoteCard({
 
         <LabelChips labelIds={note.labels} allLabels={allLabels} max={3} />
 
-        <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
-          {note.reminderAt ? (
+        {note.reminderAt ? (
+          <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
             <View className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5">
               <Bell size={10} className="text-muted-foreground" />
               <Text className="text-[11px] text-muted-foreground">
                 {formatReminder(note.reminderAt)}
               </Text>
             </View>
-          ) : null}
-
-          {/* Compact attachment indicator. When the top thumbnail already shows
-              an image we only surface the count if there are additional files. */}
-          {attachmentCount > 0 && (!thumbnailId || attachmentCount > 1) ? (
-            <View className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5">
-              <Paperclip size={10} className="text-muted-foreground" />
-              <Text className="text-[11px] text-muted-foreground">
-                {attachmentCount}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
       </View>
 
       {/* Bottom hover action row (web only) */}

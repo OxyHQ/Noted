@@ -36,7 +36,7 @@ import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import { ChecklistEditor } from "@/components/notes/checklist-editor";
 import { LabelChips } from "@/components/notes/label-chips";
 import { LabelAssignDialog } from "@/components/notes/label-assign-dialog";
-import { NoteAttachments } from "@/components/notes/note-attachments";
+import { AttachmentsRow } from "@/components/notes/attachments/AttachmentsRow";
 import type { FileMetadata } from "@oxyhq/core";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -417,8 +417,9 @@ export default function NoteEditorScreen() {
       >
         {(draft.attachments?.length ?? 0) > 0 && (
           <View className="mb-3">
-            <NoteAttachments
+            <AttachmentsRow
               attachments={draft.attachments ?? []}
+              variant="editor"
               onRemove={handleRemoveAttachment}
             />
           </View>
