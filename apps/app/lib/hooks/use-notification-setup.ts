@@ -98,7 +98,7 @@ export function useNotificationSetup() {
         if (!isAuthenticated) return;
         const data = response.notification.request.content.data;
         if (data?.noteId) {
-          router.push(`/(app)/n/${data.noteId}`);
+          router.push(`/n/${data.noteId}`);
         }
       },
     );

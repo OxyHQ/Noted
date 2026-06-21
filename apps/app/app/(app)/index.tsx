@@ -117,7 +117,7 @@ export default function HomeScreen() {
         toggleSelected(note.id);
         return;
       }
-      router.push(`/(app)/n/${note.id}`);
+      router.push(`/n/${note.id}`);
     },
     [selectionMode, toggleSelected, router]
   );
@@ -137,11 +137,11 @@ export default function HomeScreen() {
   );
 
   const handleCreateChecklist = React.useCallback(() => {
-    router.push("/(app)/n/new?mode=checklist");
+    router.push("/n/new?mode=checklist");
   }, [router]);
 
   const handleCreateImage = React.useCallback(() => {
-    router.push("/(app)/n/new");
+    router.push("/n/new");
   }, [router]);
 
   // ── Per-card hover actions (web) ───────────────────────────────────────────
@@ -193,7 +193,7 @@ export default function HomeScreen() {
   // reminder flow lives (a quick inline picker on the card is out of scope).
   const handleCardOpenEditor = React.useCallback(
     (note: Note) => {
-      router.push(`/(app)/n/${note.id}`);
+      router.push(`/n/${note.id}`);
     },
     [router]
   );

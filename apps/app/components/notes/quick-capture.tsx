@@ -14,7 +14,7 @@ import { getNoteColorTint } from "@/lib/note-colors";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { NoteColor } from "@/lib/types/note";
+import { DEFAULT_NEW_NOTE_COLOR, type NoteColor } from "@/lib/types/note";
 
 interface QuickCaptureProps {
   /** Create a plain note from the composed title/body/color. */
@@ -69,7 +69,7 @@ export function QuickCapture({
   const [expanded, setExpanded] = React.useState(false);
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
-  const [color, setColor] = React.useState<NoteColor>("default");
+  const [color, setColor] = React.useState<NoteColor>(DEFAULT_NEW_NOTE_COLOR);
   const [colorOpen, setColorOpen] = React.useState(false);
   const bodyRef = React.useRef<TextInput>(null);
 
@@ -78,7 +78,7 @@ export function QuickCapture({
   const reset = React.useCallback(() => {
     setTitle("");
     setBody("");
-    setColor("default");
+    setColor(DEFAULT_NEW_NOTE_COLOR);
     setColorOpen(false);
     setExpanded(false);
   }, []);
@@ -87,11 +87,8 @@ export function QuickCapture({
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
     if (trimmedTitle || trimmedBody) {
-      onCreate({
-        title: trimmedTitle,
-        body: trimmedBody,
-        ...(color !== "default" ? { color } : {}),
-      });
+      // `color` is always a real color now (default is yellow), so always send it.
+      onCreate({ title: trimmedTitle, body: trimmedBody, color });
     }
     reset();
   }, [title, body, color, onCreate, reset]);
@@ -182,7 +179,7 @@ export function QuickCapture({
             label={t("notes.color")}
             color={colors.mutedForeground}
             onPress={() => setColorOpen(true)}
-            active={color !== "default"}
+            active={color !== DEFAULT_NEW_NOTE_COLOR}
             activeColor={colors.foreground}
           />
           <ToolButton

@@ -10,7 +10,7 @@ import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { generateUUID } from "@/lib/utils";
-import type { Note, NoteListParams } from "@/lib/types/note";
+import { DEFAULT_NEW_NOTE_COLOR, type Note, type NoteListParams } from "@/lib/types/note";
 
 /* ============================================================
    Fetchers
@@ -340,7 +340,7 @@ export function makeDraftNote(): Note {
     title: "",
     body: "",
     checklist: [],
-    color: "default",
+    color: DEFAULT_NEW_NOTE_COLOR,
     labels: [],
     pinned: false,
     archived: false,

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
-import { Note, NOTE_COLORS } from '../models/note.js';
+import { Note, normalizeNoteColor } from '../models/note.js';
 import { serializeNote } from '../lib/serializers.js';
 import { uploadToS3 } from '../lib/s3.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
@@ -57,7 +57,10 @@ const noteWriteSchema = z
     title: z.string().max(1000),
     body: z.string().max(100_000),
     checklist: z.array(checklistItemSchema),
-    color: z.enum(NOTE_COLORS),
+    // Tolerant of legacy palette values: any string is coerced to a valid
+    // NoteColor (darkblue→blue, brown→amber, gray/unknown→default) instead of
+    // being rejected, so a client echoing an old color in a PATCH never 400s.
+    color: z.string().transform(normalizeNoteColor),
     labels: z.array(z.string()),
     pinned: z.boolean(),
     archived: z.boolean(),

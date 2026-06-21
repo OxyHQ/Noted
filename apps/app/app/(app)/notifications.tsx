@@ -104,7 +104,7 @@ export default function NotificationsScreen() {
     }
     // If the notification references a note, open that note.
     if (notification.noteId) {
-      router.push(`/(app)/n/${notification.noteId}`);
+      router.push(`/n/${notification.noteId}`);
     }
   }, [markAsRead, router]);
 

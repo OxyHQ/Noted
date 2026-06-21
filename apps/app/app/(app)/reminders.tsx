@@ -28,7 +28,7 @@ export default function RemindersScreen() {
   );
 
   const handlePressNote = React.useCallback(
-    (note: Note) => router.push(`/(app)/n/${note.id}`),
+    (note: Note) => router.push(`/n/${note.id}`),
     [router]
   );
   const noop = React.useCallback(() => {}, []);

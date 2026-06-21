@@ -6,7 +6,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
 import { Label } from '../models/label.js';
 import { Note } from '../models/note.js';
-import { NOTE_COLORS } from '../models/note.js';
+import { normalizeNoteColor } from '../models/note.js';
 import { serializeLabel } from '../lib/serializers.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
 import {
@@ -18,7 +18,12 @@ import { log } from '../lib/logger.js';
 
 const router = Router();
 
-const colorSchema = z.enum(NOTE_COLORS).nullable();
+// `null` means "no color"; any non-null string is coerced to a valid
+// NoteColor (tolerant of the legacy palette — see normalizeNoteColor).
+const colorSchema = z
+  .string()
+  .transform(normalizeNoteColor)
+  .nullable();
 
 router.use(makeRateLimiter('labels'), authenticateToken, requireOxyAuth);
 

@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Platform,
-  Modal,
 } from "react-native";
 import Animated, {
   FadeIn,
@@ -484,40 +483,39 @@ export default function NoteEditorScreen() {
     />
   );
 
+  // On web at desktop widths the editor floats as a centered card over a dim
+  // backdrop (Keep-style). The route is itself a transparentModal, so the
+  // grid + sidebar stay mounted and visible behind this overlay — no inner
+  // RN <Modal> is needed.
   if (isWebModal) {
     return (
-      <Modal
-        visible
-        transparent
-        animationType={reduceMotion ? "none" : "fade"}
-        statusBarTranslucent
-        onRequestClose={() => router.back()}
+      <Animated.View
+        entering={reduceMotion ? undefined : FadeIn.duration(150)}
+        exiting={reduceMotion ? undefined : FadeOut.duration(150)}
+        className="flex-1 items-center justify-center bg-black/50 px-4"
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
+        <Pressable
+          className="absolute inset-0"
+          accessibilityLabel={t("common.close")}
+          onPress={() => router.back()}
+        />
         <Animated.View
-          entering={reduceMotion ? undefined : FadeIn.duration(150)}
-          exiting={reduceMotion ? undefined : FadeOut.duration(150)}
-          className="flex-1 items-center justify-center bg-black/50 px-4"
-          style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+          entering={reduceMotion ? undefined : FadeInDown.duration(200)}
+          exiting={reduceMotion ? undefined : FadeOutDown.duration(150)}
+          className="max-h-[85%] w-full max-w-[600px] overflow-hidden rounded-2xl shadow-lg"
+          style={{ backgroundColor }}
         >
-          <Pressable
-            className="absolute inset-0"
-            accessibilityLabel={t("common.close")}
-            onPress={() => router.back()}
-          />
-          <Animated.View
-            entering={reduceMotion ? undefined : FadeInDown.duration(200)}
-            exiting={reduceMotion ? undefined : FadeOutDown.duration(150)}
-            className="w-full max-w-[600px] overflow-hidden rounded-2xl shadow-lg"
-            style={{ backgroundColor, maxHeight: "85%" }}
-          >
-            {editorContent}
-          </Animated.View>
-          {labelDialog}
+          {editorContent}
         </Animated.View>
-      </Modal>
+        {labelDialog}
+      </Animated.View>
     );
   }
 
+  // Native and small-web: the editor fills the screen with the note's tint.
+  // The transparentModal route still presents it full-bleed (no dim) on top
+  // of the grid.
   return (
     <View className="flex-1" style={{ backgroundColor }}>
       {editorContent}

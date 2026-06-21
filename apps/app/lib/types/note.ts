@@ -5,22 +5,31 @@
  * import from here rather than redefining note/label shapes locally.
  */
 
+/**
+ * The 12 note colors — identical to the backend `NOTE_COLORS` enum (this is a
+ * stored API contract; the two MUST stay in sync). `default` means "no tint /
+ * app surface"; the other 11 are exactly the standard (non-premium) Bloom color
+ * presets, so a note's tint derives from the canonical Bloom color system.
+ */
 export const NOTE_COLORS = [
   "default",
-  "red",
-  "orange",
-  "yellow",
-  "green",
   "teal",
   "blue",
-  "darkblue",
+  "green",
+  "amber",
+  "yellow",
+  "red",
   "purple",
   "pink",
-  "brown",
-  "gray",
+  "sky",
+  "orange",
+  "mint",
 ] as const;
 
 export type NoteColor = (typeof NOTE_COLORS)[number];
+
+/** The color a brand-new note is created with (Keep-style yellow default). */
+export const DEFAULT_NEW_NOTE_COLOR: NoteColor = "yellow";
 
 export interface ChecklistItem {
   id: string;

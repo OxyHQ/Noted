@@ -5,7 +5,8 @@
  * never leak Mongo internals (`_id`, `__v`, `oxyUserId`).
  */
 
-import type { INote } from '../models/note.js';
+import type { INote, NoteColor } from '../models/note.js';
+import { normalizeNoteColor } from '../models/note.js';
 import type { ILabel } from '../models/label.js';
 
 export interface NoteDTO {
@@ -13,7 +14,7 @@ export interface NoteDTO {
   title: string;
   body: string;
   checklist: { id: string; text: string; checked: boolean }[];
-  color: string;
+  color: NoteColor;
   labels: string[];
   pinned: boolean;
   archived: boolean;
@@ -28,7 +29,7 @@ export interface NoteDTO {
 export interface LabelDTO {
   id: string;
   name: string;
-  color: string | null;
+  color: NoteColor | null;
 }
 
 export function serializeNote(note: INote): NoteDTO {
@@ -41,7 +42,9 @@ export function serializeNote(note: INote): NoteDTO {
       text: item.text,
       checked: item.checked,
     })),
-    color: note.color,
+    // Coerce legacy colors (e.g. darkblue/brown/gray) to a valid value so a
+    // GET of an old note never returns an out-of-enum color to the client.
+    color: normalizeNoteColor(note.color),
     labels: note.labels,
     pinned: note.pinned,
     archived: note.archived,
@@ -62,6 +65,7 @@ export function serializeLabel(label: ILabel): LabelDTO {
   return {
     id: label._id.toString(),
     name: label.name,
-    color: label.color ?? null,
+    // A label with no color stays null; a legacy color is coerced to a valid one.
+    color: label.color === null || label.color === undefined ? null : normalizeNoteColor(label.color),
   };
 }

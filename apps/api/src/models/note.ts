@@ -1,22 +1,52 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-/** The 12 Google-Keep-style note colors shared with the client. */
+/**
+ * The 12 note colors shared with the client. `default` means "no tint / app
+ * surface"; the other 11 are exactly the standard (non-premium) Bloom color
+ * presets (`@oxyhq/bloom/theme` `APP_COLOR_PRESETS`), so a note's tint is
+ * derived from the canonical Bloom color system on the client.
+ */
 export const NOTE_COLORS = [
   'default',
-  'red',
-  'orange',
-  'yellow',
-  'green',
   'teal',
   'blue',
-  'darkblue',
+  'green',
+  'amber',
+  'yellow',
+  'red',
   'purple',
   'pink',
-  'brown',
-  'gray',
+  'sky',
+  'orange',
+  'mint',
 ] as const;
 
 export type NoteColor = (typeof NOTE_COLORS)[number];
+
+/**
+ * Coerce any stored/incoming color string to a valid {@link NoteColor}.
+ *
+ * Legacy notes/labels may hold colors from the previous palette
+ * (`darkblue`, `brown`, `gray`) that are no longer in the enum. Narrowing the
+ * enum would otherwise make a `.save()`/PATCH of such a document fail
+ * validation, so reads and writes funnel through here: legacy values map to
+ * their closest current hue, and anything unrecognised falls back to
+ * `default`. This keeps the API tolerant of old data without a migration.
+ */
+export function normalizeNoteColor(color: unknown): NoteColor {
+  if (typeof color === 'string') {
+    if ((NOTE_COLORS as readonly string[]).includes(color)) {
+      return color as NoteColor;
+    }
+    const legacy: Record<string, NoteColor> = {
+      darkblue: 'blue',
+      brown: 'amber',
+      gray: 'default',
+    };
+    if (color in legacy) return legacy[color];
+  }
+  return 'default';
+}
 
 export interface IChecklistItem {
   id: string;

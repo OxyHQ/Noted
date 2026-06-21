@@ -18,7 +18,6 @@ const SELF_INSET_ROUTES = new Set([
   "archive",
   "trash",
   "labels",
-  "n/[id]",
 ]);
 
 // Routes shown as items in the drawer sidebar list. The Sidebar component
