@@ -45,7 +45,6 @@
     "plugins": [
       "expo-router",
       "expo-localization",
-      "expo-audio",
       "expo-font",
       "expo-image",
       "expo-secure-store",
