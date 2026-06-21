@@ -14,7 +14,6 @@ import Animated, {
   FadeInDown,
   FadeOutDown,
 } from "react-native-reanimated";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { useOxy } from "@oxyhq/services";
@@ -27,27 +26,26 @@ import {
   Trash2,
   Palette,
   Tag,
-  ImagePlus,
+  Paperclip,
   Bell,
   CheckSquare,
   Type,
-  X,
 } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import { ChecklistEditor } from "@/components/notes/checklist-editor";
 import { LabelChips } from "@/components/notes/label-chips";
 import { LabelAssignDialog } from "@/components/notes/label-assign-dialog";
+import { NoteAttachments } from "@/components/notes/note-attachments";
+import type { FileMetadata } from "@oxyhq/core";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";
-import { useImagePicker } from "@/hooks/useImagePicker";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
 import {
   useNote,
   useCreateNote,
   useUpdateNote,
   useTrashNote,
-  useUploadNoteImage,
   makeDraftNote,
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
@@ -83,8 +81,7 @@ export default function NoteEditorScreen() {
   const { colors, colorScheme } = useColorScheme();
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
-  const { isAuthenticated } = useOxy();
-  const { pickImage } = useImagePicker();
+  const { isAuthenticated, showBottomSheet } = useOxy();
   const reduceMotion = useReducedMotion();
 
   const isNew = params.id === "new";
@@ -95,7 +92,6 @@ export default function NoteEditorScreen() {
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
   const trashNote = useTrashNote();
-  const uploadImage = useUploadNoteImage();
 
   // The note id we PATCH against. Starts null for `n/new` until the first save
   // creates a server note; thereafter all edits PATCH this id.
@@ -145,7 +141,7 @@ export default function NoteEditorScreen() {
             pinned: next.pinned,
             archived: next.archived,
             reminderAt: next.reminderAt,
-            images: next.images,
+            attachments: next.attachments,
           },
         });
         return;
@@ -157,7 +153,7 @@ export default function NoteEditorScreen() {
         !next.title.trim() &&
         !next.body.trim() &&
         next.checklist.length === 0 &&
-        next.images.length === 0;
+        next.attachments.length === 0;
       if (isEmpty || creatingRef.current) return;
 
       creatingRef.current = true;
@@ -252,35 +248,49 @@ export default function NoteEditorScreen() {
     [updateNow]
   );
 
-  const handleAttachImage = React.useCallback(async () => {
-    const picked = await pickImage();
-    const asset = picked?.[0];
-    if (!asset) return;
-    // Ensure the note exists first so we have an id to attach to.
-    let id = noteIdRef.current;
-    if (!id) {
-      const current = draftRef.current;
-      const created = await createNote.mutateAsync({
-        title: current.title,
-        body: current.body,
-        checklist: current.checklist,
-        color: current.color,
-      });
-      id = created.id;
-      noteIdRef.current = id;
-      router.setParams({ id });
-    }
-    const { url } = await uploadImage.mutateAsync({
-      noteId: id,
-      file: { uri: asset.uri, name: asset.name, type: asset.mimeType },
-    });
-    updateNow({ images: [...draftRef.current.images, { url }] });
-  }, [pickImage, createNote, uploadImage, router, updateNow]);
+  // Append Oxy file IDs to the draft, deduped, and persist immediately. The
+  // attachments are just file IDs of any type (no per-note upload), so
+  // autosave/create carries them up like any other field.
+  const attachFileIds = React.useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const existing = new Set(draftRef.current.attachments);
+      const next = [...draftRef.current.attachments];
+      for (const id of ids) {
+        if (!existing.has(id)) {
+          existing.add(id);
+          next.push(id);
+        }
+      }
+      if (next.length !== draftRef.current.attachments.length) {
+        updateNow({ attachments: next });
+      }
+    },
+    [updateNow]
+  );
 
-  const handleRemoveImage = React.useCallback(
-    (url: string) => {
+  const handleAttachFile = React.useCallback(() => {
+    showBottomSheet?.({
+      screen: "FileManagement",
+      props: {
+        selectMode: true,
+        multiSelect: true,
+        afterSelect: "back",
+        initialSelectedIds: draftRef.current.attachments,
+        onSelect: (file: FileMetadata) => {
+          attachFileIds([file.id]);
+        },
+        onConfirmSelection: (files: FileMetadata[]) => {
+          attachFileIds(files.map((f) => f.id));
+        },
+      },
+    });
+  }, [showBottomSheet, attachFileIds]);
+
+  const handleRemoveAttachment = React.useCallback(
+    (id: string) => {
       updateNow({
-        images: draftRef.current.images.filter((i) => i.url !== url),
+        attachments: draftRef.current.attachments.filter((i) => i !== id),
       });
     },
     [updateNow]
@@ -392,25 +402,12 @@ export default function NoteEditorScreen() {
             : undefined
         }
       >
-        {draft.images.length > 0 && (
-          <View className="mb-3 gap-2">
-            {draft.images.map((img) => (
-              <View key={img.url} className="overflow-hidden rounded-xl">
-                <Image
-                  source={{ uri: img.url }}
-                  style={{ width: "100%", aspectRatio: 4 / 3 }}
-                  contentFit="cover"
-                  transition={150}
-                />
-                <Pressable
-                  onPress={() => handleRemoveImage(img.url)}
-                  accessibilityLabel={t("common.delete")}
-                  className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-black/50"
-                >
-                  <X size={16} color="#fff" />
-                </Pressable>
-              </View>
-            ))}
+        {draft.attachments.length > 0 && (
+          <View className="mb-3">
+            <NoteAttachments
+              attachments={draft.attachments}
+              onRemove={handleRemoveAttachment}
+            />
           </View>
         )}
 
@@ -461,7 +458,7 @@ export default function NoteEditorScreen() {
         style={{ paddingBottom: isWebModal ? 0 : insets.bottom, backgroundColor }}
       >
         <View className="h-12 flex-row items-center gap-1">
-          <IconButton icon={ImagePlus} label={t("notes.addImage")} onPress={handleAttachImage} />
+          <IconButton icon={Paperclip} label={t("notes.attachFile")} onPress={handleAttachFile} />
           <IconButton icon={Palette} label={t("notes.color")} onPress={() => setShowColors((s) => !s)} active={showColors} />
           <IconButton icon={Tag} label={t("notes.labels")} onPress={() => setLabelDialogOpen(true)} />
           <IconButton

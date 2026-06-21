@@ -2,9 +2,10 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
@@ -34,7 +35,21 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 
   setTokenGetter(() => oxyServices.getAccessToken() || null);
 
-  return <>{children}</>;
+  // Resolve Oxy file IDs to thumbnail download URLs for any Bloom component
+  // that reads useImageResolver() (e.g. Avatar with a raw file id `source`).
+  const resolveImageSource = useCallback(
+    (fileId: string): string | undefined => {
+      const url = oxyServices.getFileDownloadUrl(fileId, 'thumb');
+      return url && url.startsWith('http') ? url : undefined;
+    },
+    [oxyServices]
+  );
+
+  return (
+    <ImageResolverProvider value={resolveImageSource}>
+      {children}
+    </ImageResolverProvider>
+  );
 }
 
 function AppContent() {
@@ -60,6 +75,15 @@ function AppContent() {
               presentation: "transparentModal",
               animation: "fade",
               headerShown: false,
+              // Override the global opaque contentStyle so the modal screen's
+              // content container does NOT paint a solid background. Without this
+              // the inherited `colors.background` covers the (app) grid → solid
+              // black behind the dialog on web. The native-stack web renderer
+              // already (a) sets the transparentModal screen's own wrapper to
+              // transparent and (b) keeps the previous (app) screen mounted and
+              // displayed because the next screen is a transparent presentation,
+              // so the grid + sidebar stay visible behind the dim backdrop.
+              contentStyle: { backgroundColor: "transparent" },
             }}
           />
         </Stack>

@@ -14,7 +14,6 @@ export const API_ROUTES = {
     trash: (id: string) => `/notes/${id}/trash`,
     restore: (id: string) => `/notes/${id}/restore`,
     reorder: "/notes/reorder",
-    images: (id: string) => `/notes/${id}/images`,
   },
 
   // Labels

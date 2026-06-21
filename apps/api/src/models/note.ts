@@ -54,12 +54,6 @@ export interface IChecklistItem {
   checked: boolean;
 }
 
-export interface INoteImage {
-  url: string;
-  width?: number;
-  height?: number;
-}
-
 export interface INote extends Document {
   oxyUserId: mongoose.Types.ObjectId;
   title: string;
@@ -70,7 +64,8 @@ export interface INote extends Document {
   pinned: boolean;
   archived: boolean;
   trashed: boolean;
-  images: INoteImage[];
+  /** Oxy file-manager file IDs (any file type). Bytes live in Oxy storage, not Noted. */
+  attachments: string[];
   reminderAt: Date | null;
   /** Set once the current reminder has been delivered — keeps the sweep idempotent. */
   reminderSentAt: Date | null;
@@ -84,15 +79,6 @@ const ChecklistItemSchema = new Schema<IChecklistItem>(
     id: { type: String, required: true },
     text: { type: String, default: '' },
     checked: { type: Boolean, default: false },
-  },
-  { _id: false },
-);
-
-const NoteImageSchema = new Schema<INoteImage>(
-  {
-    url: { type: String, required: true },
-    width: { type: Number },
-    height: { type: Number },
   },
   { _id: false },
 );
@@ -114,7 +100,8 @@ const NoteSchema = new Schema<INote>(
     pinned: { type: Boolean, default: false },
     archived: { type: Boolean, default: false },
     trashed: { type: Boolean, default: false },
-    images: { type: [NoteImageSchema], default: [] },
+    // Oxy file-manager file IDs (any file type: image, PDF, doc, audio, video, …).
+    attachments: { type: [String], default: [] },
     reminderAt: { type: Date, default: null },
     reminderSentAt: { type: Date, default: null },
     order: { type: Number, default: 0 },

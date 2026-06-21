@@ -9,15 +9,18 @@ import {
   CheckSquare,
   Bell,
   Palette,
-  ImagePlus,
+  Paperclip,
   Archive,
   Trash2,
 } from "lucide-react-native";
+import { useOxy } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
 import { LabelChips } from "@/components/notes/label-chips";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import { useFileMetadata } from "@/lib/hooks/use-file-metadata";
+import { categorizeContentType } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
 import type { Label, Note } from "@/lib/types/note";
 
@@ -42,8 +45,8 @@ interface NoteCardProps {
   onColor?: (note: Note) => void;
   /** Archive the note (web hover action row). */
   onArchive?: (note: Note) => void;
-  /** Add an image (web hover action row). */
-  onAddImage?: (note: Note) => void;
+  /** Attach a file (web hover action row). */
+  onAttach?: (note: Note) => void;
   /** Send the note to trash (web hover action row). */
   onDelete?: (note: Note) => void;
 }
@@ -91,10 +94,11 @@ export const NoteCard = React.memo(function NoteCard({
   onReminder,
   onColor,
   onArchive,
-  onAddImage,
+  onAttach,
   onDelete,
 }: NoteCardProps) {
   const { colorScheme, colors } = useColorScheme();
+  const { oxyServices } = useOxy();
   const reduceMotion = useReducedMotion();
   const tint = getNoteColorTint(note.color, colorScheme);
 
@@ -107,10 +111,21 @@ export const NoteCard = React.memo(function NoteCard({
   const hasChecklist = note.checklist.length > 0;
   const shownChecklist = note.checklist.slice(0, CHECKLIST_PREVIEW);
   const remainingChecklist = note.checklist.length - shownChecklist.length;
-  const firstImage = note.images[0];
+
+  // The card only resolves metadata for the FIRST attachment (bounded: one query
+  // per card). If it's an image we show it as the top thumbnail; otherwise the
+  // card shows a compact paperclip + count indicator. Full per-type chips live
+  // in the editor/detail view.
+  const firstAttachment = note.attachments[0];
+  const { data: firstMeta } = useFileMetadata(firstAttachment ?? "");
+  const firstIsImage =
+    !!firstAttachment &&
+    categorizeContentType(firstMeta?.contentType) === "image";
+  const thumbnailId = firstIsImage ? firstAttachment : undefined;
+  const attachmentCount = note.attachments.length;
 
   const isEmpty =
-    !note.title && !note.body && !hasChecklist && note.images.length === 0;
+    !note.title && !note.body && !hasChecklist && attachmentCount === 0;
 
   // Top-right corner control: pin (web hover) / pin indicator (pinned) / nothing.
   const showPinControl =
@@ -122,7 +137,7 @@ export const NoteCard = React.memo(function NoteCard({
   const hasActionRow =
     Boolean(onReminder) ||
     Boolean(onColor) ||
-    Boolean(onAddImage) ||
+    Boolean(onAttach) ||
     Boolean(onArchive) ||
     Boolean(onDelete);
   const showActionRow = showHoverAffordances && !selectionMode && hasActionRow;
@@ -193,9 +208,9 @@ export const NoteCard = React.memo(function NoteCard({
         </Pressable>
       )}
 
-      {firstImage && (
+      {thumbnailId && (
         <Image
-          source={{ uri: firstImage.url }}
+          source={{ uri: oxyServices.getFileDownloadUrl(thumbnailId, "thumb") }}
           style={{ width: "100%", aspectRatio: 4 / 3 }}
           className="rounded-t-xl"
           contentFit="cover"
@@ -257,14 +272,27 @@ export const NoteCard = React.memo(function NoteCard({
 
         <LabelChips labelIds={note.labels} allLabels={allLabels} max={3} />
 
-        {note.reminderAt ? (
-          <View className="mt-2 flex-row items-center gap-1 self-start rounded-full bg-foreground/10 px-2 py-0.5">
-            <Bell size={10} className="text-muted-foreground" />
-            <Text className="text-[11px] text-muted-foreground">
-              {formatReminder(note.reminderAt)}
-            </Text>
-          </View>
-        ) : null}
+        <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
+          {note.reminderAt ? (
+            <View className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5">
+              <Bell size={10} className="text-muted-foreground" />
+              <Text className="text-[11px] text-muted-foreground">
+                {formatReminder(note.reminderAt)}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Compact attachment indicator. When the top thumbnail already shows
+              an image we only surface the count if there are additional files. */}
+          {attachmentCount > 0 && (!thumbnailId || attachmentCount > 1) ? (
+            <View className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5">
+              <Paperclip size={10} className="text-muted-foreground" />
+              <Text className="text-[11px] text-muted-foreground">
+                {attachmentCount}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       {/* Bottom hover action row (web only) */}
@@ -286,12 +314,12 @@ export const NoteCard = React.memo(function NoteCard({
               onPress={() => onColor(note)}
             />
           )}
-          {onAddImage && (
+          {onAttach && (
             <HoverIconButton
-              icon={ImagePlus}
-              label="Add image"
+              icon={Paperclip}
+              label="Attach file"
               color={colors.mutedForeground}
-              onPress={() => onAddImage(note)}
+              onPress={() => onAttach(note)}
             />
           )}
           {onArchive && (

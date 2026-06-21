@@ -19,7 +19,8 @@ export interface NoteDTO {
   pinned: boolean;
   archived: boolean;
   trashed: boolean;
-  images: { url: string; width?: number; height?: number }[];
+  /** Oxy file-manager file IDs (any file type). */
+  attachments: string[];
   reminderAt: string | null;
   order: number;
   createdAt: string;
@@ -49,11 +50,7 @@ export function serializeNote(note: INote): NoteDTO {
     pinned: note.pinned,
     archived: note.archived,
     trashed: note.trashed,
-    images: note.images.map((img) => ({
-      url: img.url,
-      ...(img.width !== undefined ? { width: img.width } : {}),
-      ...(img.height !== undefined ? { height: img.height } : {}),
-    })),
+    attachments: note.attachments ?? [],
     reminderAt: note.reminderAt ? note.reminderAt.toISOString() : null,
     order: note.order,
     createdAt: note.createdAt.toISOString(),

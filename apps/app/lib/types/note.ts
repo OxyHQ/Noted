@@ -37,12 +37,6 @@ export interface ChecklistItem {
   checked: boolean;
 }
 
-export interface NoteImage {
-  url: string;
-  width?: number;
-  height?: number;
-}
-
 export interface Note {
   id: string;
   title: string;
@@ -53,7 +47,13 @@ export interface Note {
   pinned: boolean;
   archived: boolean;
   trashed: boolean;
-  images: NoteImage[];
+  /**
+   * Oxy file IDs of attached files of any type (image, pdf, doc, audio, video,
+   * etc.). Stored as plain file IDs; per-file metadata (filename/contentType/
+   * size) is fetched by ID at render time. Images resolve via
+   * `getFileDownloadUrl`; non-image attachments render as type chips.
+   */
+  attachments: string[];
   reminderAt: string | null;
   order: number;
   createdAt: string;

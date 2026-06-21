@@ -1,13 +1,11 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import multer from 'multer';
 import { z } from 'zod';
 import type { Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
 import { Note, normalizeNoteColor } from '../models/note.js';
 import { serializeNote } from '../lib/serializers.js';
-import { uploadToS3 } from '../lib/s3.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
 import {
   emitNoteCreated,
@@ -21,22 +19,6 @@ const router = Router();
 // Scoped limiters — each gets a distinct `rl:<scope>:` Redis prefix.
 const readLimiter = makeRateLimiter('notes:read');
 const writeLimiter = makeRateLimiter('notes:write');
-// Uploads are heavier; cap them tighter than ordinary writes.
-const uploadLimiter = makeRateLimiter('notes:upload', { authenticatedMax: 120, anonymousMax: 20 });
-
-// In-memory upload — buffers go straight to S3, never touch disk.
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_IMAGE_BYTES },
-  fileFilter: (_req, file, cb) => {
-    if (/^image\/(jpeg|png|gif|webp)$/.test(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
-    }
-  },
-});
 
 // ── Validation schemas ─────────────────────────────────────────────
 
@@ -44,12 +26,6 @@ const checklistItemSchema = z.object({
   id: z.string(),
   text: z.string().default(''),
   checked: z.boolean().default(false),
-});
-
-const imageSchema = z.object({
-  url: z.string(),
-  width: z.number().optional(),
-  height: z.number().optional(),
 });
 
 const noteWriteSchema = z
@@ -65,7 +41,8 @@ const noteWriteSchema = z
     pinned: z.boolean(),
     archived: z.boolean(),
     trashed: z.boolean(),
-    images: z.array(imageSchema),
+    // Oxy file-manager file IDs (any file type).
+    attachments: z.array(z.string()),
     reminderAt: z.string().datetime().nullable(),
     order: z.number(),
   })
@@ -287,50 +264,8 @@ router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
   }
 });
 
-// POST /notes/:id/images — multipart field 'file'; uploads to S3 and appends to note.images
-router.post('/:id/images', uploadLimiter, upload.single('file'), async (req: Request, res: Response) => {
-  try {
-    const userId = getRequiredOxyUserId(req);
-    const oxyUserId = new mongoose.Types.ObjectId(userId);
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid note id' });
-    }
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
-    }
-
-    const owns = await Note.exists({ _id: req.params.id, oxyUserId });
-    if (!owns) return res.status(404).json({ error: 'Note not found' });
-
-    // multer's fileFilter has already validated mimetype ∈ {jpeg,png,gif,webp};
-    // the S3 key + extension are derived from this server-trusted value, not the filename.
-    const url = await uploadToS3(req.file.buffer, req.file.mimetype, 'notes', 'image');
-
-    const note = await Note.findOneAndUpdate(
-      { _id: req.params.id, oxyUserId },
-      { $push: { images: { url } } },
-      { new: true },
-    );
-    if (!note) return res.status(404).json({ error: 'Note not found' });
-
-    emitNoteUpdated(userId, serializeNote(note));
-    res.status(201).json({ url });
-  } catch (error: unknown) {
-    log.notes.error({ err: error }, 'Error attaching image to note');
-    res.status(500).json({ error: 'Failed to attach image' });
-  }
-});
-
-// Multer errors (file too large, wrong type) surface as a clean 400.
-router.use((err: unknown, _req: Request, res: Response, next: (e?: unknown) => void) => {
-  if (err instanceof multer.MulterError) {
-    const message = err.code === 'LIMIT_FILE_SIZE' ? 'Image exceeds the 10 MB limit' : err.message;
-    return res.status(400).json({ error: message });
-  }
-  if (err instanceof Error && /images are allowed/.test(err.message)) {
-    return res.status(400).json({ error: err.message });
-  }
-  next(err);
-});
+// Attachment bytes (any file type) are uploaded by the Oxy file manager on the
+// client; Noted only stores the resulting file IDs via PATCH /notes/:id
+// (note.attachments). There is no server-side file upload endpoint.
 
 export default router;

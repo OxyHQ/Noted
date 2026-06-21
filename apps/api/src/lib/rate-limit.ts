@@ -22,7 +22,6 @@ export type RateLimitScope =
   | 'general'
   | 'notes:read'
   | 'notes:write'
-  | 'notes:upload'
   | 'labels'
   | 'feedback';
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Pressable, TextInput } from "react-native";
 import Animated, { LinearTransition, FadeIn } from "react-native-reanimated";
-import { CheckSquare, X, Palette, ImagePlus, Archive } from "lucide-react-native";
+import { CheckSquare, X, Palette, Paperclip, Archive } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import {
@@ -21,8 +21,8 @@ interface QuickCaptureProps {
   onCreate: (input: { title: string; body: string; color?: NoteColor }) => void;
   /** Open the full editor in checklist mode for a new note. */
   onCreateChecklist: () => void;
-  /** Open the full editor for a new image note. */
-  onCreateImage: () => void;
+  /** Open the full editor for a new note with an attachment. */
+  onCreateAttachment: () => void;
 }
 
 /** Small circular toolbar button used in the expanded composer. */
@@ -61,7 +61,7 @@ function ToolButton({
 export function QuickCapture({
   onCreate,
   onCreateChecklist,
-  onCreateImage,
+  onCreateAttachment,
 }: QuickCaptureProps) {
   const { t } = useTranslation();
   const { colors, colorScheme } = useColorScheme();
@@ -128,11 +128,11 @@ export function QuickCapture({
           <CheckSquare size={20} className="text-muted-foreground" />
         </Pressable>
         <Pressable
-          onPress={onCreateImage}
-          accessibilityLabel={t("notes.addImage")}
+          onPress={onCreateAttachment}
+          accessibilityLabel={t("notes.attachFile")}
           className="h-10 w-10 items-center justify-center rounded-full web:transition active:bg-muted web:hover:bg-muted"
         >
-          <ImagePlus size={20} className="text-muted-foreground" />
+          <Paperclip size={20} className="text-muted-foreground" />
         </Pressable>
       </Animated.View>
     );
@@ -183,10 +183,10 @@ export function QuickCapture({
             activeColor={colors.foreground}
           />
           <ToolButton
-            icon={ImagePlus}
-            label={t("notes.addImage")}
+            icon={Paperclip}
+            label={t("notes.attachFile")}
             color={colors.mutedForeground}
-            onPress={onCreateImage}
+            onPress={onCreateAttachment}
           />
           <ToolButton
             icon={Archive}

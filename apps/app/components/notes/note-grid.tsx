@@ -22,7 +22,7 @@ interface NoteGridProps {
   onReminder?: (note: Note) => void;
   onColor?: (note: Note) => void;
   onArchive?: (note: Note) => void;
-  onAddImage?: (note: Note) => void;
+  onAttach?: (note: Note) => void;
   onDelete?: (note: Note) => void;
 }
 
@@ -49,7 +49,7 @@ function columnsForWidth(width: number, viewMode: ViewMode): number {
  */
 function estimateHeight(note: Note): number {
   let h = 56; // base padding + chrome
-  if (note.images.length > 0) h += 150; // image thumbnail (4:3)
+  if (note.attachments.length > 0) h += 48; // attachment thumbnail / chip row
   if (note.title) h += 24;
   if (note.checklist.length > 0) {
     h += Math.min(note.checklist.length, 6) * 22;
@@ -87,7 +87,7 @@ export function NoteGrid({
   onReminder,
   onColor,
   onArchive,
-  onAddImage,
+  onAttach,
   onDelete,
 }: NoteGridProps) {
   const { width } = useWindowDimensions();
@@ -135,7 +135,7 @@ export function NoteGrid({
                 onReminder={onReminder}
                 onColor={onColor}
                 onArchive={onArchive}
-                onAddImage={onAddImage}
+                onAttach={onAttach}
                 onDelete={onDelete}
               />
             </Animated.View>

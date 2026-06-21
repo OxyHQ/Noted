@@ -140,7 +140,7 @@ export default function HomeScreen() {
     router.push("/n/new?mode=checklist");
   }, [router]);
 
-  const handleCreateImage = React.useCallback(() => {
+  const handleCreateNote = React.useCallback(() => {
     router.push("/n/new");
   }, [router]);
 
@@ -189,7 +189,7 @@ export default function HomeScreen() {
     setColorTarget(note.id);
   }, []);
 
-  // Reminder and add-image both route into the editor, where the full picker /
+  // Reminder and attach both route into the editor, where the full picker /
   // reminder flow lives (a quick inline picker on the card is out of scope).
   const handleCardOpenEditor = React.useCallback(
     (note: Note) => {
@@ -288,7 +288,7 @@ export default function HomeScreen() {
             <QuickCapture
               onCreate={handleCreate}
               onCreateChecklist={handleCreateChecklist}
-              onCreateImage={handleCreateImage}
+              onCreateAttachment={handleCreateNote}
             />
           </View>
         )}
@@ -323,7 +323,7 @@ export default function HomeScreen() {
                   onReminder={handleCardOpenEditor}
                   onColor={handleCardColor}
                   onArchive={handleCardArchive}
-                  onAddImage={handleCardOpenEditor}
+                  onAttach={handleCardOpenEditor}
                   onDelete={handleCardDelete}
                 />
               </View>
@@ -342,7 +342,7 @@ export default function HomeScreen() {
                   onReminder={handleCardOpenEditor}
                   onColor={handleCardColor}
                   onArchive={handleCardArchive}
-                  onAddImage={handleCardOpenEditor}
+                  onAttach={handleCardOpenEditor}
                   onDelete={handleCardDelete}
                 />
               </View>
@@ -354,7 +354,7 @@ export default function HomeScreen() {
       {/* Mobile FAB */}
       {!isLargeScreen && !selectionMode && isAuthenticated && (
         <Pressable
-          onPress={handleCreateImage}
+          onPress={handleCreateNote}
           accessibilityLabel={t("notes.takeANote")}
           className="absolute bottom-6 right-6 h-14 w-14 items-center justify-center rounded-full bg-primary shadow-lg active:opacity-90"
         >

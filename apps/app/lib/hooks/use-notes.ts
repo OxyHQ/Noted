@@ -293,41 +293,6 @@ export function useReorderNotes() {
   });
 }
 
-/**
- * Upload an image to a note. Returns the stored image URL. The caller is
- * responsible for PATCHing the note's `images` array with the result.
- */
-export function useUploadNoteImage() {
-  return useMutation({
-    mutationFn: async ({
-      noteId,
-      file,
-    }: {
-      noteId: string;
-      file: { uri: string; name: string; type: string };
-    }): Promise<{ url: string }> => {
-      const form = new FormData();
-      // React Native FormData file shape.
-      const filePart = {
-        uri: file.uri,
-        name: file.name,
-        type: file.type,
-      } as unknown as Blob;
-      form.append("file", filePart);
-
-      const res = await apiClient.post<{ url: string }>(
-        API_ROUTES.notes.images(noteId),
-        form,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
-      return res.data;
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to upload image");
-    },
-  });
-}
-
 /* ============================================================
    Optimistic-create helper for `n/new`
    ============================================================ */
@@ -345,7 +310,7 @@ export function makeDraftNote(): Note {
     pinned: false,
     archived: false,
     trashed: false,
-    images: [],
+    attachments: [],
     reminderAt: null,
     order: 0,
     createdAt: now,
