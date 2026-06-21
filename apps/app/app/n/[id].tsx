@@ -118,9 +118,19 @@ export default function NoteEditorScreen() {
   // Calling setState during render is React's documented pattern for syncing
   // state to changed props (here: the async-loaded note).
   if (!isNew && !hydrated && fetchedNote) {
-    draftRef.current = fetchedNote;
-    setDraftState(fetchedNote);
-    setShowChecklist(fetchedNote.checklist.length > 0);
+    // Belt-and-suspenders: `useNote` already normalizes via `fetchNote`, but a
+    // legacy note that reached the cache by any other path could still lack
+    // `attachments`. Guarantee an array before it becomes the editor draft so
+    // every read below (filter/spread/length) is safe.
+    const hydratedNote: Note = {
+      ...fetchedNote,
+      attachments: Array.isArray(fetchedNote.attachments)
+        ? fetchedNote.attachments
+        : [],
+    };
+    draftRef.current = hydratedNote;
+    setDraftState(hydratedNote);
+    setShowChecklist(hydratedNote.checklist.length > 0);
     setHydrated(true);
   }
 
@@ -153,7 +163,7 @@ export default function NoteEditorScreen() {
         !next.title.trim() &&
         !next.body.trim() &&
         next.checklist.length === 0 &&
-        next.attachments.length === 0;
+        (next.attachments?.length ?? 0) === 0;
       if (isEmpty || creatingRef.current) return;
 
       creatingRef.current = true;
@@ -254,15 +264,16 @@ export default function NoteEditorScreen() {
   const attachFileIds = React.useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return;
-      const existing = new Set(draftRef.current.attachments);
-      const next = [...draftRef.current.attachments];
+      const current = draftRef.current.attachments ?? [];
+      const existing = new Set(current);
+      const next = [...current];
       for (const id of ids) {
         if (!existing.has(id)) {
           existing.add(id);
           next.push(id);
         }
       }
-      if (next.length !== draftRef.current.attachments.length) {
+      if (next.length !== current.length) {
         updateNow({ attachments: next });
       }
     },
@@ -276,7 +287,7 @@ export default function NoteEditorScreen() {
         selectMode: true,
         multiSelect: true,
         afterSelect: "back",
-        initialSelectedIds: draftRef.current.attachments,
+        initialSelectedIds: draftRef.current.attachments ?? [],
         onSelect: (file: FileMetadata) => {
           attachFileIds([file.id]);
         },
@@ -290,7 +301,9 @@ export default function NoteEditorScreen() {
   const handleRemoveAttachment = React.useCallback(
     (id: string) => {
       updateNow({
-        attachments: draftRef.current.attachments.filter((i) => i !== id),
+        attachments: (draftRef.current.attachments ?? []).filter(
+          (i) => i !== id
+        ),
       });
     },
     [updateNow]
@@ -402,10 +415,10 @@ export default function NoteEditorScreen() {
             : undefined
         }
       >
-        {draft.attachments.length > 0 && (
+        {(draft.attachments?.length ?? 0) > 0 && (
           <View className="mb-3">
             <NoteAttachments
-              attachments={draft.attachments}
+              attachments={draft.attachments ?? []}
               onRemove={handleRemoveAttachment}
             />
           </View>

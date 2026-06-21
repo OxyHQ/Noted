@@ -49,7 +49,7 @@ function columnsForWidth(width: number, viewMode: ViewMode): number {
  */
 function estimateHeight(note: Note): number {
   let h = 56; // base padding + chrome
-  if (note.attachments.length > 0) h += 48; // attachment thumbnail / chip row
+  if ((note.attachments?.length ?? 0) > 0) h += 48; // attachment thumbnail / chip row
   if (note.title) h += 24;
   if (note.checklist.length > 0) {
     h += Math.min(note.checklist.length, 6) * 22;

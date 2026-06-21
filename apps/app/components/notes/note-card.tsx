@@ -116,13 +116,13 @@ export const NoteCard = React.memo(function NoteCard({
   // per card). If it's an image we show it as the top thumbnail; otherwise the
   // card shows a compact paperclip + count indicator. Full per-type chips live
   // in the editor/detail view.
-  const firstAttachment = note.attachments[0];
+  const firstAttachment = note.attachments?.[0];
   const { data: firstMeta } = useFileMetadata(firstAttachment ?? "");
   const firstIsImage =
     !!firstAttachment &&
     categorizeContentType(firstMeta?.contentType) === "image";
   const thumbnailId = firstIsImage ? firstAttachment : undefined;
-  const attachmentCount = note.attachments.length;
+  const attachmentCount = note.attachments?.length ?? 0;
 
   const isEmpty =
     !note.title && !note.body && !hasChecklist && attachmentCount === 0;

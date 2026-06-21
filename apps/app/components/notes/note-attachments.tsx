@@ -134,7 +134,11 @@ function AttachmentChip({ fileId, onRemove }: AttachmentChipProps) {
 }
 
 interface NoteAttachmentsProps {
-  attachments: string[];
+  /**
+   * Optional/defaulted so an undefined value (e.g. a legacy note missing the
+   * `attachments` field) can never crash the `.length`/`.map` reads below.
+   */
+  attachments?: string[];
   /** Editor mode: pass an `onRemove` to show per-attachment remove buttons. */
   onRemove?: (id: string) => void;
 }
@@ -144,7 +148,10 @@ interface NoteAttachmentsProps {
  * either an image thumbnail or a typed file chip. Used by the editor / detail
  * view (the card uses a compact count indicator instead — see `note-card`).
  */
-export function NoteAttachments({ attachments, onRemove }: NoteAttachmentsProps) {
+export function NoteAttachments({
+  attachments = [],
+  onRemove,
+}: NoteAttachmentsProps) {
   if (attachments.length === 0) return null;
   return (
     <View className="gap-2">

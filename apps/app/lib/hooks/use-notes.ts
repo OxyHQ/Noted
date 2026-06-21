@@ -13,6 +13,26 @@ import { generateUUID } from "@/lib/utils";
 import { DEFAULT_NEW_NOTE_COLOR, type Note, type NoteListParams } from "@/lib/types/note";
 
 /* ============================================================
+   Normalization
+   ============================================================ */
+
+/**
+ * Guarantee a note's array fields are always populated arrays, regardless of
+ * what the server/cache/socket payload carries. Legacy documents predating the
+ * `images`→`attachments` rename have no `attachments` field, so a raw note can
+ * arrive with `attachments === undefined`; every render path reads it as an
+ * array (`.length`/`.map`/`[0]`/`.filter`). Normalizing at the data boundary —
+ * the moment a note enters the client — keeps `Note.attachments: string[]`
+ * honest so consumers never have to guard.
+ */
+export function normalizeNote(note: Note): Note {
+  return {
+    ...note,
+    attachments: Array.isArray(note.attachments) ? note.attachments : [],
+  };
+}
+
+/* ============================================================
    Fetchers
    ============================================================ */
 
@@ -29,12 +49,12 @@ async function fetchNotes(params: NoteListParams): Promise<Note[]> {
   const res = await apiClient.get<{ data: Note[] }>(API_ROUTES.notes.list, {
     params: listParamsToQuery(params),
   });
-  return res.data.data;
+  return res.data.data.map(normalizeNote);
 }
 
 async function fetchNote(id: string): Promise<Note> {
   const res = await apiClient.get<Note>(API_ROUTES.notes.get(id));
-  return res.data;
+  return normalizeNote(res.data);
 }
 
 /* ============================================================
@@ -117,7 +137,7 @@ export function useCreateNote() {
   return useMutation({
     mutationFn: async (input: Partial<Note>): Promise<Note> => {
       const res = await apiClient.post<Note>(API_ROUTES.notes.create, input);
-      return res.data;
+      return normalizeNote(res.data);
     },
     onSuccess: (note) => {
       queryClient.setQueryData(queryKeys.notes.detail(note.id), note);
@@ -144,7 +164,7 @@ export function useUpdateNote() {
       patch: Partial<Note>;
     }): Promise<Note> => {
       const res = await apiClient.patch<Note>(API_ROUTES.notes.update(id), patch);
-      return res.data;
+      return normalizeNote(res.data);
     },
     onMutate: async ({ id, patch }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.all });

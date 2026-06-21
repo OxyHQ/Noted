@@ -24,6 +24,7 @@ import { useOxy } from "@oxyhq/services";
 import { io as socketIO, type Socket } from "socket.io-client";
 import config from "@/lib/config";
 import { queryKeys } from "@/lib/hooks/query-keys";
+import { normalizeNote } from "@/lib/hooks/use-notes";
 import type { Label, Note } from "@/lib/types/note";
 
 export function useNotesRealtime() {
@@ -48,8 +49,12 @@ export function useNotesRealtime() {
     });
 
     const onNoteUpsert = (payload: { note?: Note }) => {
-      const note = payload?.note;
-      if (!note?.id) return;
+      const raw = payload?.note;
+      if (!raw?.id) return;
+      // The socket payload is the most likely source of an unnormalized note
+      // (legacy docs without `attachments`), so normalize before writing it to
+      // any cache the renderers read from.
+      const note = normalizeNote(raw);
       queryClient.setQueryData(queryKeys.notes.detail(note.id), note);
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
     };
