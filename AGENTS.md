@@ -1,100 +1,44 @@
-# Clarity - Project Conventions
+# Noted — Notes App by Oxy
 
-## Model Abstraction Architecture
+Noted is a notes-and-labels app by Oxy with real-time sync, reminders, push notifications, and web push support.
 
-**CRITICAL RULE: Users and developers must ONLY see Clarity-branded model names. Never expose internal provider names.**
-
-### How it works
-
-- **User-facing models**: `clarity-fast`, `clarity-v1`, `clarity-pro`, `clarity-thinking`, `clarity-pro-max`
-- **Internal providers**: OpenAI, Anthropic, Google, Groq, DeepSeek, xAI, Mistral, and others. These are strictly internal and must never be exposed.
-- **Routing**: Each Clarity model maps to multiple provider models with automatic fallback (cheapest/free tier first, then progressively more expensive).
-
-### What to NEVER do
-
-- Never show provider names (OpenAI, Anthropic, Google, Groq, etc.) in UI, API responses, error messages, SEO metadata, or documentation
-- Never show provider model IDs (gpt-4o, claude-sonnet-4, gemini-2.5-flash, etc.) to users
-- Never reference specific provider models in feature descriptions or marketing copy
-
-### What to ALWAYS do
-
-- Use Clarity model names: `clarity-v1`, `clarity-fast`, `clarity-pro`, `clarity-thinking`, etc.
-- Use `sanitizeMessage()` from `apps/api/src/lib/errors/sanitize.ts` for all user-facing error messages
-- When displaying analytics/model usage, resolve to Clarity model names via `getClarityModel()` and skip entries that can't be resolved
-
-### Key files
-
-- `apps/api/src/internal/providers/lib/clarity-models.ts` - Clarity model definitions
-- `apps/api/src/internal/providers/lib/generate-model-mappings.ts` - Provider routing config
-- `apps/api/src/routes/v1/models.ts` - Public models API (returns only Clarity models)
-- `apps/api/src/lib/errors/sanitize.ts` - Error message sanitization (strips provider names)
-- `apps/api/src/internal/` - All provider logic (internal only, CORS-restricted)
-
-## MongoDB Database Naming
-
-All Oxy ecosystem apps share the same MongoDB cluster on DigitalOcean. Each app uses its own database named `{appName}-{NODE_ENV}` (e.g., `clarity-production`). The `dbName` is passed to `mongoose.connect()`, not embedded in `MONGODB_URI`.
+Note: the README.md in this repo still says "Clarity" — that branding is stale. The codebase, package names (`@noted/*`), and product are **Noted**.
 
 ## Monorepo Structure
 
-- `apps/app/` - Main Expo app (React Native + Web)
-- `apps/api/` - Express backend API
+- `packages/frontend/` (`@noted/frontend`) — Expo app (React Native + Web)
+- `packages/backend/` (`@noted/backend`) — Express API
+- `packages/shared-types/` (`@noted/shared-types`) — Shared TypeScript types
 
 ## Tech Stack
 
-- **Frontend**: Expo 55, React Native 0.83, TypeScript, NativeWind (Tailwind), Reanimated v4, Zustand, TanStack Query
-- **Backend**: Express, TypeScript, MongoDB/Mongoose, Socket.IO
-- **Auth**: `@oxyhq/core ^3.4.13`, `@oxyhq/services ^10.2.10` (OxyProvider, useAuth, OxySignInButton)
-- **Routing**: expo-router (file-based)
+- **Frontend**: Expo SDK 56, NativeWind 5, Reanimated, Zustand, TanStack Query, expo-router
+- **Backend**: Express, TypeScript, MongoDB/Mongoose, Socket.IO, Redis
+- **Auth**: `@oxyhq/core` (incl. `@oxyhq/core/server`), `@oxyhq/services`
 
-## Search-First Architecture
+## MongoDB
 
-Clarity is an AI-powered search engine by Oxy. Key principles:
-- **Always search first**: The AI searches the web before answering factual questions
-- **Source citations**: Every factual claim includes numbered source references [1], [2], etc.
-- **Deep research mode**: Multi-step research with decomposition, parallel search, extraction, synthesis
-- **Follow-up suggestions**: After each answer, suggest 3 related follow-up questions
-- **SSE streaming**: All search responses stream via Server-Sent Events with custom events (clarity.research_progress, clarity.reasoning, clarity.tool_result, clarity.title, clarity.follow_ups, clarity.source_card)
+Database: `noted-production` (passed to `mongoose.connect()` via `dbName`, NOT embedded in `MONGODB_URI`). See `packages/backend/src/lib/db.ts`.
 
-## Oxy Auth / Session Contract
+## Backend Routes
 
-- Frontend auth/session state belongs to `OxyProvider` with a registered `clientId`; SDK cold boot owns `/__oxy/sso-callback`, stored-session restore, FedCM/silent restore, and SSO bounce.
-- Do not add local SSO helpers, callback routes, token providers, auth interceptors, manual `Authorization` plumbing, refresh retries, or app-local session invalidation.
-- Backend APIs use `@oxyhq/core/server` (`createOxyAuthMiddleware`, `createOptionalOxyAuth`, `createOxyRateLimit`, `requireOxyAuth`, `getRequiredOxyUserId`, `authSocket`) and must not define local `AuthRequest`, `requireAuth`, `getUserId`, bearer parsers, or token-decoding middleware.
-- Bearer-authenticated writes do not fetch app-local CSRF tokens; CSRF remains for ambient cookie credentials and cookie-only writes.
+- `packages/backend/src/routes/notes.ts` — Note CRUD
+- `packages/backend/src/routes/labels.ts` — Label management
+- `packages/backend/src/routes/notifications.ts` — Push notification delivery
+- `packages/backend/src/routes/auth.ts` — Oxy auth webhook
+- `packages/backend/src/routes/feedback.ts` — In-app feedback
 
-## Oxy Service Connector Protocol
+## Key Models
 
-Clarity integrates with Oxy ecosystem apps (and future third-party services) via the **Oxy Service Connector** — a manifest-driven protocol where apps register tool definitions that Clarity auto-discovers and exposes to the AI.
+- `packages/backend/src/models/note.ts` — Note (color, label associations, reminder)
+- `packages/backend/src/models/label.ts` — Label
+- `packages/backend/src/models/notification.ts` — Notification record
+- `packages/backend/src/models/web-push-subscription.ts` — Web Push subscription
 
-### How it works
+## Reminders
 
-1. **Service manifests** are stored in MongoDB (`OxyService` model). Each defines the service's tools, events, and optional context endpoint.
-2. **`buildOxyServiceTools()`** reads manifests at chat time, generates AI SDK `tool()` wrappers with Zod schemas (via `jsonSchemaToZod()`), and forwards the user's OxyHQ JWT to the service API.
-3. **Events** flow from services to Clarity via `POST /webhooks/oxy/:serviceId` with HMAC signature verification. Events trigger notifications, context updates, or autonomous agent sessions.
-4. **Context endpoints** (optional) provide brief user summaries injected into the system prompt at chat start.
+`packages/backend/src/lib/reminders.ts` — `startReminderScheduler()` / `stopReminderScheduler()` manage the reminder cron; started in `src/index.ts`.
 
-### Adding a new service
+## Shared Types
 
-Insert an `OxyService` document — zero changes to Clarity's codebase needed:
-```json
-{
-  "serviceId": "oxy-notes",
-  "displayName": "Notes",
-  "tools": [{ "name": "searchNotes", "endpoint": { "method": "GET", "path": "/notes/search" }, ... }]
-}
-```
-
-### Key files
-
-- `apps/api/src/models/oxy-service.ts` - OxyService Mongoose model (manifest schema)
-- `apps/api/src/lib/tools/oxy-services.ts` - Tool builder (`buildOxyServiceTools`, `callOxyService`, `getOxyServiceContext`, `getOxyServicePromptFragment`)
-- `apps/api/src/routes/oxy-service-events.ts` - Event webhook endpoint
-- `apps/api/src/scripts/seed-oxy-services.ts` - Seed script for email service manifest
-- `apps/api/src/routes/v1/chat-completions.ts` - Integration point (~line 615)
-
-### Patterns to follow
-
-- Same `safeExecute()` + cache pattern as `integrations.ts` and `mcp.ts`
-- Same `jsonSchemaToZod()` from `mcp-schema.ts` for runtime schema conversion
-- Auth: forward `req.accessToken` (user's OxyHQ JWT) — no OAuth needed for first-party
-- Tool naming: `oxy_{serviceId}__{toolName}` (e.g., `oxy_inbox__searchEmails`)
+`@noted/shared-types` exports `normalizeNoteColor` and domain DTOs. Build: `bun run build:shared-types`.
