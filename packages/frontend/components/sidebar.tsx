@@ -29,7 +29,7 @@ import { useRouter, usePathname, useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { UserAvatar } from "@/components/user-avatar";
-import { useOxy, showSignInModal } from "@oxyhq/services";
+import { useOxy, openAccountDialog } from "@oxyhq/services";
 import { NotedWordmark } from "@/components/ui/noted-wordmark";
 import { useLabels } from "@/lib/hooks/use-labels";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -180,7 +180,7 @@ const NotesSidebar = React.memo(function NotesSidebar() {
     logout();
     router.replace("/(app)");
   }, [router, logout]);
-  const handleLogin = React.useCallback(() => showSignInModal(), []);
+  const handleLogin = React.useCallback(() => openAccountDialog(), []);
 
   const isHome = pathname === "/" || pathname === "/(app)" || (pathname.startsWith("/(app)") && !pathname.includes("/"));
   const allLabels = labels ?? [];
