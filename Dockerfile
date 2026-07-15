@@ -22,11 +22,6 @@
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS builder
 
-# Toolchain for any dependency that needs a node-gyp fallback when a prebuilt
-# binary is unavailable for the target arch. Confined to the builder stage so it
-# never reaches the runtime image.
-RUN apk add --no-cache python3 make g++ libc6-compat
-
 # Bun is the package manager / script runner at build time; the runtime stays
 # Node. The musl build from the matching alpine image works on amd64 and arm64.
 COPY --from=oven/bun:1.3.14-alpine /usr/local/bin/bun /usr/local/bin/bun
@@ -47,7 +42,18 @@ COPY packages/shared-types/package.json ./packages/shared-types/package.json
 
 # Deterministic install from the lockfile, including devDependencies (esbuild,
 # TypeScript) required to bundle the backend.
-RUN bun install --frozen-lockfile
+#
+# --ignore-scripts: skip dependency lifecycle scripts. There is no first-party
+# postinstall to skip; the only lifecycle scripts in this graph are the native
+# install scripts of `bufferutil` / `utf-8-validate` (OPTIONAL C++ speedups for
+# `ws`, pulled in transitively by socket.io) and `msgpackr-extract` (an OPTIONAL
+# accelerator for msgpackr, pulled in by bullmq). None ship a linux/arm64
+# prebuild, so running them forces a from-source `node-gyp` compile on Graviton
+# that also downloads Node headers over the network at build time — a fragile
+# step that breaks the arm64 image build. Each consumer transparently falls back
+# to its pure-JS path when the native addon is absent, so skipping the scripts is
+# behaviour-preserving and matches the sibling Oxy backends (Mention, Allo).
+RUN bun install --frozen-lockfile --ignore-scripts
 
 # Copy the source needed to build the backend. @noted/shared-types is a build
 # dependency: `build:backend` runs `build:types` first (tsc -> dist) and esbuild
@@ -67,9 +73,10 @@ RUN test -f packages/backend/dist/index.js \
 
 # Strip devDependencies so only production modules are carried into the runtime
 # image (bun has no `prune`; a clean production install from the same lockfile is
-# the deterministic equivalent).
+# the deterministic equivalent). --ignore-scripts for the same reason as the
+# install above (optional ws native optimizations, no first-party postinstall).
 RUN rm -rf node_modules \
- && bun install --frozen-lockfile --production
+ && bun install --frozen-lockfile --production --ignore-scripts
 
 # ---------------------------------------------------------------------------
 # Stage 2: runner — minimal runtime with production deps and the bundle.
