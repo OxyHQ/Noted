@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@noted/shared-types": "workspace:*",
-    "@oxyhq/core": "^9.0.0",
+    "@oxyhq/core": "^12.2.1",
     "@socket.io/redis-adapter": "^8.3.0",
     "bullmq": "^5.70.1",
     "cors": "^2.8.5",
