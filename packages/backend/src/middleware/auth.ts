@@ -4,11 +4,22 @@ import { OxyServices } from '@oxyhq/core';
 import {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  OXY_SERVICE_ENVIRONMENTS,
   type OxyRequestUser,
   type OxyServiceAppContext,
+  type OxyServiceEnvironment,
 } from '@oxyhq/core/server';
 import { log } from '../lib/logger.js';
 import { getClientIp } from '../lib/net-utils.js';
+
+/**
+ * The internal SERVICE_SECRET path has no `ApplicationCredential` behind it, so
+ * the environment it reports as its service context is this process's own.
+ * `NODE_ENV` also carries values outside Oxy's union (`test`), so anything
+ * unrecognised reads as `development` — the least-trusted of the three.
+ */
+const SERVICE_ENVIRONMENT: OxyServiceEnvironment =
+  OXY_SERVICE_ENVIRONMENTS.find((env) => env === process.env.NODE_ENV) ?? 'development';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -99,6 +110,7 @@ export function authenticateTokenOrApiKey(
       appName: 'internal',
       credentialId: 'service-secret',
       scopes: ['internal'],
+      environment: SERVICE_ENVIRONMENT,
     };
     return next();
   }

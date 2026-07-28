@@ -1,26 +1,26 @@
-import { APP_COLOR_PRESETS, type AppColorName } from "@oxyhq/bloom/theme";
+import { APP_COLOR_PRESETS, getPresetVars, type AppColorName } from "@oxyhq/bloom/theme";
 import type { NoteColor } from "@noted/shared-types";
 
 /**
  * Per-note background + border colors, derived from the canonical Bloom color
- * system (`@oxyhq/bloom/theme` `APP_COLOR_PRESETS`).
+ * system (`@oxyhq/bloom/theme`).
  *
  * The 11 non-`default` note colors ARE the standard (non-premium) Bloom preset
- * names, so instead of shipping a hand-tuned hex palette we read each preset's
- * designer-authored tokens and reuse them as a soft per-note tint:
+ * names, so instead of shipping a hand-tuned hex palette we resolve each preset
+ * through Bloom's own token engine and reuse the result as a soft per-note tint:
  *
  *   - Card background → the preset's `--surface` token (a soft, low-saturation
- *     tint of the hue: `H 58% 94%` in light, `H 20% 18%` in dark). Text stays
- *     on the theme `foreground` token, which Bloom tunes to read on `--surface`
- *     in both modes, so contrast/readability is preserved.
+ *     tint of the hue). Text stays on the theme `foreground` token, which Bloom
+ *     tunes to read on `--surface` in both modes, so contrast/readability is
+ *     preserved.
  *   - Card border → the preset's `--border` token (a touch darker than the
- *     surface at the same hue: `H 40% 87%` light, `H 12% 20%` dark).
+ *     surface at the same hue).
  *   - Swatch dot → the preset's identity `hex` (the saturated brand color), so
  *     the picker reads as the recognisable Bloom hue rather than the soft tint.
  *
- * The preset tokens are raw HSL triples (e.g. `'46 58% 94%'`), so they are
- * wrapped in `hsl(...)` here. `default` returns `null`, meaning "use the theme
- * card token" (so default notes follow the app surface in both modes).
+ * `getPresetVars` returns full CSS colors (`rgb(...)`), so the values are used
+ * as-is. `default` returns `null`, meaning "use the theme card token" (so
+ * default notes follow the app surface in both modes).
  */
 
 export interface NoteColorTint {
@@ -32,35 +32,43 @@ export interface NoteColorTint {
 
 type Scheme = "light" | "dark";
 
-/** Wrap a Bloom raw HSL triple (e.g. `'46 58% 94%'`) in a CSS `hsl(...)`. */
-function hsl(triple: string): string {
-  return `hsl(${triple})`;
-}
-
 /**
- * Resolve a note color to the Bloom preset that backs it, or `null` for
+ * Resolve a note color to the Bloom preset name that backs it, or `null` for
  * `default` / any value not in the standard Bloom palette (caller falls back to
  * the theme card token). The 11 non-`default` colors are exactly the standard
  * Bloom names, so this lookup is total in practice; the guard keeps it type-safe
  * and tolerant of unexpected stored values.
  */
-function presetFor(color: NoteColor) {
+function presetNameFor(color: NoteColor): AppColorName | null {
   if (color === "default") return null;
-  return APP_COLOR_PRESETS[color as AppColorName] ?? null;
+  const name = color as AppColorName;
+  return APP_COLOR_PRESETS[name] ? name : null;
 }
+
+/**
+ * `getPresetVars` runs Bloom's full role-derivation engine, and every note card
+ * asks for its tint on each render. The output is a pure function of
+ * (preset, scheme) over at most 13 × 2 combinations, so resolve each once.
+ */
+const tintCache = new Map<string, NoteColorTint>();
 
 /**
  * Resolve a note color to a concrete tint, or `null` for `default`
  * (caller should fall back to the theme card token).
  */
 export function getNoteColorTint(color: NoteColor, scheme: Scheme): NoteColorTint | null {
-  const preset = presetFor(color);
-  if (!preset) return null;
-  const tokens = scheme === "dark" ? preset.dark : preset.light;
-  return {
-    background: hsl(tokens["--surface"]),
-    border: hsl(tokens["--border"]),
+  const name = presetNameFor(color);
+  if (!name) return null;
+  const key = `${name}:${scheme}`;
+  const cached = tintCache.get(key);
+  if (cached) return cached;
+  const tokens = getPresetVars(name, scheme);
+  const tint: NoteColorTint = {
+    background: tokens["--surface"],
+    border: tokens["--border"],
   };
+  tintCache.set(key, tint);
+  return tint;
 }
 
 /**
@@ -69,6 +77,6 @@ export function getNoteColorTint(color: NoteColor, scheme: Scheme): NoteColorTin
  * `null` for `default` (rendered as a bordered theme-card dot).
  */
 export function getNoteColorSwatch(color: NoteColor, _scheme: Scheme): string | null {
-  const preset = presetFor(color);
-  return preset ? preset.hex : null;
+  const name = presetNameFor(color);
+  return name ? APP_COLOR_PRESETS[name].hex : null;
 }
