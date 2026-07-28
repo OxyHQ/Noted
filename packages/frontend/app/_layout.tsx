@@ -10,7 +10,6 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
-import { Toaster } from '@/components/sonner';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
@@ -89,7 +88,6 @@ function AppContent() {
           />
         </Stack>
       </KeyboardProvider>
-      <Toaster />
     </AuthSetup>
   );
 }

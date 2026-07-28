@@ -5,7 +5,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { useOxy } from "@oxyhq/services";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { queryKeys } from "@/lib/hooks/query-keys";
