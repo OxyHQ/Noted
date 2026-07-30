@@ -42,3 +42,11 @@ Database: `noted-production` (passed to `mongoose.connect()` via `dbName`, NOT e
 ## Shared Types
 
 `@noted/shared-types` exports `normalizeNoteColor` and domain DTOs. Build: `bun run build:shared-types`.
+
+## Content moderation: Noted is deliberately NOT integrated with CrowdSource
+
+Every other Oxy app reports to CrowdSource; Noted does not, and that is a decision rather than an oversight. **Noted has no public or shared surface at all** — every `Note` query is filtered by `oxyUserId` (list, get, patch, trash, restore, delete, and each `updateOne` inside the bulk reorder), socket rooms are joined only from the server-verified id (`user:${userId}`; clients cannot name a room), and no document carries a visibility, audience, collaborator or share-link field. So there is no stranger who could file a report, and no material a jury could be shown. Integrating anyway would mean an outbox, a dispatcher, a webhook receiver and a subject registry with **zero registered providers**: dead plumbing, plus a new deploy-time secret requirement and a `POST /reports` route with no caller, which every future reader has to understand before concluding it does nothing.
+
+Two things that look like hooks and are not. `feedback` is a support inbox (user→operator, with its own `pending|reviewed|resolved` triage), so routing it to a jury of strangers would expose a user's bug report and device metadata to people with no reason to see it. And `note.attachments` holding bare Oxy file ids is exactly the shape moderation evidence wants — but the bytes live in Oxy storage under Oxy's credential, and Noted holds nothing but the id; if Oxy ever moderates stored files, that is oxy-api's job.
+
+**The trigger to revisit:** the day Noted grows a genuinely shared surface — a published note, a public link, a collaborator on a note — the integration becomes one subject-provider file plus one line in a registry, consuming `@oxyhq/crowdsource-app`. Building the plumbing before that surface exists buys nothing and costs a subsystem.
