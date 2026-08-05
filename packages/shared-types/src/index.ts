@@ -25,7 +25,6 @@ export const NOTE_COLORS = [
   'teal',
   'blue',
   'green',
-  'amber',
   'yellow',
   'red',
   'purple',
@@ -33,6 +32,8 @@ export const NOTE_COLORS = [
   'sky',
   'orange',
   'mint',
+  'pumpkin',
+  'brown',
 ] as const;
 
 export type NoteColor = (typeof NOTE_COLORS)[number];
@@ -43,8 +44,8 @@ export const DEFAULT_NEW_NOTE_COLOR: NoteColor = 'yellow';
 /**
  * Coerce any stored/incoming color string to a valid {@link NoteColor}.
  *
- * Legacy notes/labels may hold colors from the previous palette
- * (`darkblue`, `brown`, `gray`) that are no longer in the enum. Narrowing the
+ * Legacy notes/labels may hold colors that are not in the enum (`darkblue`,
+ * `gray`), or that Bloom has since removed (`amber`). Narrowing the
  * enum would otherwise make a `.save()`/PATCH of such a document fail
  * validation, so reads and writes funnel through here: legacy values map to
  * their closest current hue, and anything unrecognised falls back to
@@ -58,9 +59,17 @@ export function normalizeNoteColor(color: unknown): NoteColor {
     if ((NOTE_COLORS as readonly string[]).includes(color)) {
       return color as NoteColor;
     }
+    // `amber` was a Bloom preset until it was removed there: at the tones a white
+    // label needs it flattened to the same gold as `pumpkin`, so the picker was
+    // offering a choice that did nothing. `pumpkin` is what it became, which is
+    // why it is the target rather than a neighbour chosen by eye.
+    //
+    // `brown` is NOT in this table any more: it used to be coerced to `amber`
+    // because Bloom had no brown of its own, and now it does — so it is a real
+    // enum member above and the check before this one already returns it.
     const legacy: Record<string, NoteColor> = {
       darkblue: 'blue',
-      brown: 'amber',
+      amber: 'pumpkin',
       gray: 'default',
     };
     if (color in legacy) return legacy[color];
