@@ -1,101 +1,69 @@
-# Contributing to Clarity
+# Contributing to Noted
+
+Noted is a notes and labels app by Oxy, with real time sync, reminders, push notifications and web push.
+
+**The contribution process lives in the [Oxy organisation CONTRIBUTING guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md)**: reporting an issue, filing a feature request, opening a pull request, code review, licensing. It applies here unchanged. This file layers on top of it the same way `AGENTS.md` files layer, so it is short on purpose: it carries only what is different about this repository.
+
+## Stale Clarity branding
+
+Noted was started from the Clarity codebase and some of that branding has outlived the fork. `README.md` still says "Clarity", and until this file was rewritten so did the whole of it. The product, the package names (`@noted/*`) and the code are **Noted**. Anything you find still saying Clarity in this repository is a leftover, not a second product, and is worth fixing where you see it.
 
 ## Prerequisites
 
-- **Node.js 22** (use [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm))
-- **MongoDB** (local or Atlas)
-- **Redis** (optional, falls back gracefully)
+- **Bun.** The package manager for every Oxy repository, never npm or yarn. The pinned version is `packageManager` in the root `package.json`, and CI installs that exact version.
+- **Node.js 22.** The runtime the backend is built and deployed on. CI pins it alongside bun.
+- **MongoDB**, local or remote, to run the backend. The test suite does not need one.
+- **Redis**, optional. Caching and Socket.IO scaling fall back gracefully without it.
 
-## Getting Started
+## Setup
 
 ```bash
-git clone <repo-url> && cd Clarity
-npm install              # installs all workspaces
-cp apps/api/.env.example apps/api/.env   # fill in your values
-npm run dev              # starts all services
+git clone https://github.com/OxyHQ/Noted.git && cd Noted
+bun install
+cp packages/backend/.env.example packages/backend/.env   # fill in your values
+bun run dev                                              # every package at once
 ```
 
 Focused commands:
 
 ```bash
-npm run dev:api          # API only
-npm run dev:app          # Expo app only
+bun run dev:backend    # API only
+bun run dev:frontend   # Expo app only (runs with --clear --tunnel)
 ```
 
-## Monorepo Structure
+`packages/frontend` has its own `.env.example`; copy that too if you are working on the app.
 
-This is an **npm workspaces** monorepo (no Turborepo/Nx).
+## Layout
 
-| App | Stack | Purpose |
+A bun workspaces monorepo on the standard Oxy three package shape:
+
+| Package | Stack | Purpose |
 | --- | --- | --- |
-| `apps/api` | Express + TypeScript | Core API runtime |
-| `apps/app` | Expo 55 (React Native + Web) | Main app (web + iOS + Android) |
-| `apps/clarity-api` | (deprecated) | (removed) |
+| `packages/backend` (`@noted/backend`) | Express + TypeScript | Core API runtime |
+| `packages/frontend` (`@noted/frontend`) | Expo (React Native and Web) | Main app: web, iOS, Android |
+| `packages/shared-types` (`@noted/shared-types`) | TypeScript | Note and label DTOs, `normalizeNoteColor` |
 
-## Branch Naming
+`shared-types` has to be built before either consumer, which is why `build:frontend` and `build:backend` both build it first. Run `bun run build:types` after changing a shared type.
 
-```
-feat/short-description
-fix/short-description
-refactor/short-description
-```
-
-Always branch from `main`.
-
-## Commit Messages
-
-Use [conventional commits](https://www.conventionalcommits.org/):
-
-```
-feat: add trigger scheduling UI
-fix: correct token refresh race condition
-refactor: extract chat handler into shared module
-docs: update deployment guide
-test: add integration tests for context graph
-chore: bump dependencies
-```
-
-## Pull Request Process
-
-1. Create a branch from `main` with the naming convention above.
-2. Keep PRs focused -- one feature or fix per PR.
-3. Write a descriptive PR summary (what changed and why).
-4. Ensure CI passes before requesting review.
-5. Request review from at least one team member.
-
-## Code Style
-
-- **TypeScript strict mode** encouraged. Avoid `any` -- use proper types.
-- **Frontend styling**: NativeWind (Tailwind). No inline style objects unless necessary.
-- **State management**: Zustand stores. Data fetching via TanStack Query.
-- **Routing**: expo-router (file-based) in `apps/app`.
-- Follow existing patterns in the codebase. When in doubt, look at neighboring files.
-
-## Testing
-
-Run API tests before submitting:
+## Tests
 
 ```bash
-npm test -w @clarity/api
+bun run --filter @noted/backend test
 ```
 
-Tests use **Vitest**. Place test files next to source as `*.test.ts`.
+Vitest. Place test files next to the source as `*.test.ts`. `packages/backend` is the only package with a suite today, and it mocks its data layer, so nothing needs to be running.
 
-## Key Conventions
+CI runs the following on every pull request, and each line runs locally as written:
 
-### Model Abstraction (Critical)
+```bash
+bun run --filter @noted/backend lint
+bun run --filter @noted/backend test
+bun run build:backend
+bun run build:frontend
+```
 
-Clarity wraps multiple AI providers behind branded model names. **Never expose provider names or model IDs** (OpenAI, Anthropic, `gpt-4o`, `claude-sonnet-4`, etc.) in:
+## Conventions
 
-- UI text, error messages, API responses
-- Documentation, comments, or marketing copy
+Coding standards for this repository are in `AGENTS.md` at the repository root, including the route and model map and the reasoning behind Noted deliberately not integrating with CrowdSource. `AGENTS.md` is read directly by Claude Code, Codex, Cursor and Copilot, and it is the file to update when a convention changes.
 
-Always use Clarity model names: `clarity-v1`, `clarity-fast`, `clarity-v1-pro`, `clarity-v1-thinking`, etc.
-
-### Error Handling
-
-Use `sanitizeMessage()` from `apps/api/src/lib/errors/sanitize.ts` for all user-facing error messages. This strips any leaked provider names.
-
-### Database
-
-MongoDB with Mongoose. Database name follows `clarity-{NODE_ENV}` convention. Connection URI is shared across the Oxy ecosystem -- the `dbName` is passed to `mongoose.connect()`, not embedded in the URI.
+One thing worth knowing before your first pull request: **Noted has no shared or public surface.** Every note query is scoped to the owning `oxyUserId` and socket rooms are derived server side from the verified user id, never named by the client. If you add a feature that changes that, say so explicitly in the pull request, because a good deal of the design in `AGENTS.md` rests on it.
