@@ -1,0 +1,53 @@
+##
+## Local PostgreSQL for Noted.
+##
+## Only the database — the app itself runs on the host via `bun run dev:backend`,
+## so there is nothing else in this compose file.
+##
+## Usage:
+##   docker compose -f docker-compose.postgres.yml up -d postgres
+##   docker compose -f docker-compose.postgres.yml logs -f postgres
+##   docker compose -f docker-compose.postgres.yml down -v   # wipe (data is disposable)
+##
+## Then in packages/backend/.env (copy it from .env.example):
+##   DATABASE_URL=postgres://noted:noted@127.0.0.1:5438/noted_dev
+##
+## and apply the schema:
+##   bun run db:migrate --target-database=noted_dev
+##
+
+services:
+  postgres:
+    # Plain Postgres, pinned to 17 to match the managed instance Oxy backends
+    # run against — a floating major is a floating set of behaviours to debug.
+    #
+    # NOT the PostGIS image: nothing in Noted's schema names an extension-provided
+    # type, and `src/db/migrate.ts` ships an empty extension list. Full-text
+    # search uses the built-in `tsvector`, which needs no extension.
+    image: postgres:17-alpine
+    container_name: noted-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noted
+      POSTGRES_PASSWORD: noted
+      POSTGRES_DB: noted_dev
+    ports:
+      # 5438, and loopback-only. An Oxy developer machine routinely has several
+      # backends' local databases up at once: 5432 through 5436 are already
+      # spoken for (oxy-api, Mention, Homiio, Mercaria, CrowdSource) and 5437 is
+      # what `create-oxy-app` gives every freshly scaffolded app, so Noted takes
+      # the next one. A port collision does not fail loudly once the container is
+      # running — it connects to somebody else's database — so if 5438 is taken
+      # too, pick the next free port here AND in packages/backend/.env.
+      - '127.0.0.1:5438:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U noted -d noted_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - noted-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  noted-postgres-data:

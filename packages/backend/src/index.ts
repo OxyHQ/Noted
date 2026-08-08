@@ -4,7 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { connectDB } from './lib/db.js';
+import { connectPostgres, closePostgres } from './db/postgres.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
 
@@ -170,8 +170,9 @@ process.on('uncaughtException', (error) => {
   setTimeout(() => process.exit(1), 5000).unref();
 });
 
-// Connect to MongoDB before starting the server
-connectDB()
+// Connect to PostgreSQL before starting the server. There is no second store
+// to fall back to, so a task that cannot reach it must not start.
+connectPostgres()
   .then(() => {
     server.listen(PORT, '0.0.0.0', () => {
       log.general.info({ port: PORT }, `API Server running on http://0.0.0.0:${PORT}`);
@@ -227,10 +228,9 @@ connectDB()
         await closeRedis();
         log.general.info('Redis connections closed');
 
-        // Close MongoDB connection
-        const mongoose = await import('mongoose');
-        await mongoose.default.connection.close();
-        log.general.info('MongoDB connection closed');
+        // Close the database pool
+        await closePostgres();
+        log.general.info('PostgreSQL pool closed');
 
         clearTimeout(forceTimeout);
         log.general.info('Graceful shutdown complete');

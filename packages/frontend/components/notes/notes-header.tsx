@@ -1,8 +1,9 @@
-import { View, Pressable, TextInput, useWindowDimensions } from "react-native";
+import { View, Pressable, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
-import { Menu, Search, X, LayoutGrid, Rows3 } from "lucide-react-native";
+import { Menu, LayoutGrid, Rows3 } from "lucide-react-native";
+import { Search } from "@oxyhq/bloom/search";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -50,25 +51,18 @@ export function NotesHeader({ title, searchable = false }: NotesHeaderProps) {
         )}
 
         {searchable ? (
-          <View className="ml-1 h-10 flex-1 flex-row items-center gap-2 rounded-full bg-muted px-3">
-            <Search size={18} color={colors.mutedForeground} />
-            <TextInput
+          // Bloom's Search rather than a hand-rolled field: it already carries
+          // the magnifier, the pill shape, the clear button, the search return
+          // key and the `search` accessibility role, and it follows the Bloom
+          // theme everywhere else in the ecosystem does. `label` is what Bloom
+          // renders as the placeholder.
+          <View className="ml-1 flex-1">
+            <Search
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder={t("notes.searchPlaceholder")}
-              placeholderTextColor={colors.mutedForeground}
-              className="h-10 flex-1 text-base text-foreground"
-              returnKeyType="search"
+              label={t("notes.searchPlaceholder")}
+              onClearText={() => setSearchQuery("")}
             />
-            {searchQuery.length > 0 && (
-              <Pressable
-                onPress={() => setSearchQuery("")}
-                accessibilityLabel={t("common.close")}
-                hitSlop={8}
-              >
-                <X size={16} color={colors.mutedForeground} />
-              </Pressable>
-            )}
           </View>
         ) : (
           <Text className="ml-1 flex-1 text-lg font-bold text-foreground">

@@ -1,41 +1,45 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useOxy } from "@oxyhq/services";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "@oxyhq/bloom/toast";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
-import { queryKeys } from "@/lib/hooks/query-keys";
+import { useLiveQuery } from "@/lib/db/live-query";
+import { LABEL_LIST_SQL, rowsToLabels, type LabelRow } from "@/lib/db/labels-repo";
+import { requestSync } from "@/lib/db/use-local-store";
 import type { Label, NoteColor } from "@noted/shared-types";
 
-async function fetchLabels(): Promise<Label[]> {
-  const res = await apiClient.get<{ data: Label[] }>(API_ROUTES.labels.list);
-  return res.data.data;
-}
+const EMPTY_LABELS: Label[] = [];
 
+/**
+ * The user's labels, read from the local store.
+ *
+ * Local rather than fetched because a note's chips resolve their names and
+ * colours here: served from the network, every note would lose its labels the
+ * moment there is no connection.
+ */
 export function useLabels() {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: queryKeys.labels.all,
-    queryFn: fetchLabels,
-    enabled: isAuthenticated,
-    staleTime: 1000 * 60,
+  const { data, isLoading, error } = useLiveQuery<LabelRow, Label[]>({
+    sql: LABEL_LIST_SQL,
+    mapRows: rowsToLabels,
   });
+  return { data: data ?? EMPTY_LABELS, isLoading, error };
 }
 
+/**
+ * Creating, renaming and deleting a label go straight to the server, and the
+ * local copy is refreshed from the response.
+ *
+ * No outbox: unlike a note, a label change is rare, always user-initiated, and
+ * its failure is immediately visible to the person who asked for it. Queueing it
+ * offline would mean reconciling two sides that can both rename the same label,
+ * for an operation nobody performs while disconnected.
+ */
 export function useCreateLabel() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      name: string;
-      color?: NoteColor | null;
-    }): Promise<Label> => {
+    mutationFn: async (input: { name: string; color?: NoteColor | null }): Promise<Label> => {
       const res = await apiClient.post<Label>(API_ROUTES.labels.create, input);
       return res.data;
     },
-    onSuccess: (label) => {
-      queryClient.setQueryData<Label[]>(queryKeys.labels.all, (old) =>
-        old ? [...old, label] : [label]
-      );
-    },
+    onSuccess: () => requestSync(),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to create label");
     },
@@ -43,7 +47,6 @@ export function useCreateLabel() {
 }
 
 export function useUpdateLabel() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       id,
@@ -52,57 +55,27 @@ export function useUpdateLabel() {
       id: string;
       patch: { name?: string; color?: NoteColor | null };
     }): Promise<Label> => {
-      const res = await apiClient.patch<Label>(
-        API_ROUTES.labels.update(id),
-        patch
-      );
+      const res = await apiClient.patch<Label>(API_ROUTES.labels.update(id), patch);
       return res.data;
     },
-    onMutate: async ({ id, patch }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.labels.all });
-      const previous = queryClient.getQueryData<Label[]>(queryKeys.labels.all);
-      queryClient.setQueryData<Label[]>(queryKeys.labels.all, (old) =>
-        old?.map((l) => (l.id === id ? { ...l, ...patch } : l))
-      );
-      return { previous };
-    },
-    onError: (error: Error, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.labels.all, context.previous);
-      }
+    onSuccess: () => requestSync(),
+    onError: (error: Error) => {
       toast.error(error.message || "Failed to update label");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.labels.all });
     },
   });
 }
 
 export function useDeleteLabel() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string): Promise<string> => {
       await apiClient.delete(API_ROUTES.labels.delete(id));
       return id;
     },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.labels.all });
-      const previous = queryClient.getQueryData<Label[]>(queryKeys.labels.all);
-      queryClient.setQueryData<Label[]>(queryKeys.labels.all, (old) =>
-        old?.filter((l) => l.id !== id)
-      );
-      return { previous };
-    },
-    onError: (error: Error, _id, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.labels.all, context.previous);
-      }
+    // Deleting a label also strips its id from every note that carried it, so
+    // the notes have to be pulled again too — which the full sync does.
+    onSuccess: () => requestSync(),
+    onError: (error: Error) => {
       toast.error(error.message || "Failed to delete label");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.labels.all });
-      // Deleting a label removes its chips from notes.
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
     },
   });
 }

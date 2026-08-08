@@ -95,7 +95,7 @@ jobs:
       # Adding a new one means adding it here, or it never reaches SSM.
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
-          APP_MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           APP_SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
@@ -114,7 +114,7 @@ jobs:
             echo "synced -> $path"
           }
 
-          sync_secret MONGODB_URI "$APP_MONGODB_URI" "/oxy/$APP/MONGODB_URI"
+          sync_secret DATABASE_URL "$APP_DATABASE_URL" "/oxy/$APP/DATABASE_URL"
           sync_secret SERVICE_SECRET "$APP_SERVICE_SECRET" "/oxy/$APP/SERVICE_SECRET"
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
@@ -149,6 +149,61 @@ jobs:
             -t "$IMG:latest" \
             --push \
             .
+
+      # Migrations run BEFORE the rollout, as a one-shot task on the image that
+      # is about to serve — so the schema the new tasks expect is already there
+      # when the first of them starts.
+      #
+      # `--phase=pre` only: those migrations are additive and correct against
+      # both the image still serving and the one arriving. Anything that drops,
+      # renames or narrows is marked `post` and is NOT applied here; run it
+      # deliberately once the rollout is live.
+      #
+      # `/health/ready` asserts the same journal independently. Neither replaces
+      # the other: this step applies the migrations, that one survives the case
+      # where a task somehow starts against a database this step never reached.
+      #
+      # The network configuration is read back from the running service rather
+      # than written out here, so there is one place subnets and security groups
+      # are defined and this cannot drift from it.
+      - name: Apply pre-deploy migrations (skipped until the service exists)
+        run: |
+          STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
+          if [ "$STATUS" != "ACTIVE" ]; then
+            echo "ECS service $APP not created yet — nothing to migrate against, skipping"
+            exit 0
+          fi
+
+          TASK_DEF=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
+            --query 'services[0].taskDefinition' --output text)
+          NETWORK=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
+            --query 'services[0].networkConfiguration' --output json)
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK" \
+            --overrides "$(jq -nc --arg app "$APP" '{
+              containerOverrides: [{
+                name: $app,
+                command: ["node", "packages/backend/dist/migrate.js", "--target-database=noted", "--phase=pre"]
+              }]
+            }')" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          if [ "$EXIT_CODE" != "0" ]; then
+            REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+              --query 'tasks[0].stoppedReason' --output text)
+            echo "::error::migration task exited $EXIT_CODE ($REASON) — not rolling out"
+            exit 1
+          fi
+          echo "migrations applied"
 
       - name: Deploy to ECS (rolling; skipped until the service exists)
         run: |

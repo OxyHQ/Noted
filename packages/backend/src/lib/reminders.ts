@@ -9,8 +9,12 @@
  */
 
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
+import { and, eq, isNotNull, isNull, lte } from 'drizzle-orm';
+
 import { getRedisConnection } from './redis.js';
-import { Note } from '../models/note.js';
+import { getDb } from '../db/postgres.js';
+import { sweepExpired } from '../db/expiry.js';
+import { notes } from '../db/schema/notes.js';
 import { sendNotification } from './notification-service.js';
 import { log } from './logger.js';
 
@@ -22,30 +26,51 @@ const SWEEP_EVERY_MS = 60_000;
 let queue: Queue | null = null;
 let worker: Worker | null = null;
 
+/** How many reminders one sweep delivers before leaving the rest for the next. */
+const SWEEP_BATCH = 500;
+
+/** Longest preview of a note's body a reminder carries. */
+const REMINDER_BODY_LENGTH = 200;
+
 /** Find and deliver all due, undelivered reminders. */
 async function sweepDueReminders(): Promise<number> {
-  const now = new Date();
-  const due = await Note.find({
-    reminderAt: { $ne: null, $lte: now },
-    reminderSentAt: null,
-    trashed: false,
-  }).limit(500);
+  const db = getDb();
+  const due = await db
+    .select({ id: notes.id, oxyUserId: notes.oxyUserId, title: notes.title, body: notes.body })
+    .from(notes)
+    .where(
+      and(
+        isNotNull(notes.reminderAt),
+        lte(notes.reminderAt, new Date()),
+        isNull(notes.reminderSentAt),
+        eq(notes.trashed, false),
+        // Deleting a note clears its reminder, so this is redundant today — and
+        // stated anyway, because "a deleted note never notifies" should hold no
+        // matter what a future delete path forgets to clear.
+        isNull(notes.deletedAt),
+      ),
+    )
+    .limit(SWEEP_BATCH);
 
   let delivered = 0;
   for (const note of due) {
     try {
       await sendNotification({
-        userId: note.oxyUserId.toString(),
+        userId: note.oxyUserId,
         type: 'reminder',
         title: note.title || 'Note reminder',
-        body: note.body.slice(0, 200) || 'You have a note reminder.',
-        data: { noteId: note._id.toString() },
+        body: note.body.slice(0, REMINDER_BODY_LENGTH) || 'You have a note reminder.',
+        data: { noteId: note.id },
       });
-      note.reminderSentAt = new Date();
-      await note.save();
+      // Guarded on `reminderSentAt` still being null: two workers picking up the
+      // same row must not both count it, and the user must not get it twice.
+      await db
+        .update(notes)
+        .set({ reminderSentAt: new Date() })
+        .where(and(eq(notes.id, note.id), isNull(notes.reminderSentAt)));
       delivered += 1;
     } catch (error: unknown) {
-      log.notes.error({ err: error, noteId: note._id.toString() }, 'Failed to deliver note reminder');
+      log.notes.error({ err: error, noteId: note.id }, 'Failed to deliver note reminder');
     }
   }
   return delivered;
@@ -76,6 +101,12 @@ export async function startReminderScheduler(): Promise<boolean> {
     async () => {
       const delivered = await sweepDueReminders();
       if (delivered > 0) log.notes.info({ delivered }, 'Delivered note reminders');
+      // Postgres has no TTL index, so expired rows are only removed because
+      // something calls the sweep. This is the service's one periodic job, so
+      // it is where that call belongs. A failure here must not stop reminders.
+      await sweepExpired().catch((error: unknown) => {
+        log.general.error({ err: error }, 'Expiry sweep failed');
+      });
     },
     { connection: bullConnection },
   );
