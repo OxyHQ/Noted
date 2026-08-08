@@ -43,16 +43,30 @@ COPY packages/shared-types/package.json ./packages/shared-types/package.json
 # Deterministic install from the lockfile, including devDependencies (esbuild,
 # TypeScript) required to bundle the backend.
 #
-# --ignore-scripts: skip dependency lifecycle scripts. There is no first-party
-# postinstall to skip; the only lifecycle scripts in this graph are the native
-# install scripts of `bufferutil` / `utf-8-validate` (OPTIONAL C++ speedups for
-# `ws`, pulled in transitively by socket.io) and `msgpackr-extract` (an OPTIONAL
-# accelerator for msgpackr, pulled in by bullmq). None ship a linux/arm64
-# prebuild, so running them forces a from-source `node-gyp` compile on Graviton
-# that also downloads Node headers over the network at build time — a fragile
-# step that breaks the arm64 image build. Each consumer transparently falls back
-# to its pure-JS path when the native addon is absent, so skipping the scripts is
-# behaviour-preserving and matches the sibling Oxy backends (Mention, Allo).
+# --ignore-scripts: skip dependency lifecycle scripts. No first-party package in
+# this repo declares one, so none of ours is skipped.
+#
+# SEVEN dependencies declare an install/postinstall script, but only two are the
+# reason for this flag. `bufferutil` and `utf-8-validate` are OPTIONAL C++
+# speedups for `ws` (transitive via socket.io) whose tarballs carry linux-x64,
+# darwin and win32 prebuilds but NO linux-arm64 — so `node-gyp-build` falls back
+# to a from-source `node-gyp` compile that also downloads Node headers over the
+# network, the fragile step that breaks the arm64 image build. `ws` uses its
+# pure-JS path when the addon is absent, so skipping them is behaviour-preserving.
+#
+# The other five are already arm64-safe and are skipped only as a side effect:
+# `esbuild`, `@swc/core`, `msgpackr-extract` and `@parcel/watcher` each load a
+# PREBUILT binary from a per-platform optionalDependency that bun installs
+# directly (`@esbuild/linux-arm64`, `@swc/core-linux-arm64-gnu`,
+# `@msgpackr-extract/msgpackr-extract-linux-arm64` and
+# `@parcel/watcher-linux-arm64-glibc` are all in bun.lock), so their scripts only
+# locate a binary that is already present; `msw` is test-only (a vitest peer) and
+# its postinstall already swallows its own errors. Note that `msgpackr-extract`
+# is therefore NOT one of the offenders — it resolves through
+# `node-gyp-build-optional-packages` and never needs a compile on Graviton.
+#
+# Matches the sibling Oxy backends (Mention, Allo), and the arm64 CI install in
+# .github/workflows/deploy-aws.yml skips scripts for the same reason.
 RUN bun install --frozen-lockfile --ignore-scripts
 
 # Copy the source needed to build the backend. @noted/shared-types is a build
