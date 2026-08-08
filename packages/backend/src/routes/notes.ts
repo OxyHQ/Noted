@@ -1,18 +1,17 @@
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import { z } from 'zod';
 import type { Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { and, arrayContains, asc, desc, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
+import { isLiveEntityId } from '@oxyhq/db';
 import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
-import { Note } from '../models/note.js';
 import { normalizeNoteColor } from '@noted/shared-types';
+
+import { authenticateToken } from '../middleware/auth.js';
+import { getDb } from '../db/postgres.js';
+import { notes } from '../db/schema/notes.js';
 import { serializeNote } from '../lib/serializers.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
-import {
-  emitNoteCreated,
-  emitNoteUpdated,
-  emitNoteDeleted,
-} from '../socket.js';
+import { emitNoteCreated, emitNoteUpdated, emitNoteDeleted } from '../socket.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -29,13 +28,26 @@ const checklistItemSchema = z.object({
   checked: z.boolean().default(false),
 });
 
+/**
+ * A note id chosen by the client (offline creation).
+ *
+ * Strict UUIDv7, not `isLiveEntityId`: that helper also accepts a 24-character
+ * ObjectId so repositories mid-migration keep working, and this database has
+ * never held one. Accepting both here would let a client decide which id format
+ * the table stores.
+ */
+const clientNoteIdSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+  .optional();
+
 const noteWriteSchema = z
   .object({
     title: z.string().max(1000),
     body: z.string().max(100_000),
     checklist: z.array(checklistItemSchema),
     // Tolerant of legacy palette values: any string is coerced to a valid
-    // NoteColor (darkblue→blue, brown→amber, gray/unknown→default) instead of
+    // NoteColor (darkblue→blue, amber→pumpkin, gray/unknown→default) instead of
     // being rejected, so a client echoing an old color in a PATCH never 400s.
     color: z.string().transform(normalizeNoteColor),
     labels: z.array(z.string()),
@@ -49,40 +61,81 @@ const noteWriteSchema = z
   })
   .partial();
 
+type NoteWrite = z.infer<typeof noteWriteSchema>;
+
+/**
+ * Map the wire contract onto columns.
+ *
+ * `order` → `sortOrder` and `reminderAt` → a `Date` are the only shape changes;
+ * everything else is named identically on both sides. Fields the caller did not
+ * send stay absent so a PATCH never overwrites what it did not mention.
+ */
+function toColumns(input: NoteWrite): Record<string, unknown> {
+  const columns: Record<string, unknown> = {};
+  if (input.title !== undefined) columns.title = input.title;
+  if (input.body !== undefined) columns.body = input.body;
+  if (input.checklist !== undefined) columns.checklist = input.checklist;
+  if (input.color !== undefined) columns.color = input.color;
+  if (input.labels !== undefined) columns.labels = input.labels;
+  if (input.pinned !== undefined) columns.pinned = input.pinned;
+  if (input.archived !== undefined) columns.archived = input.archived;
+  if (input.trashed !== undefined) columns.trashed = input.trashed;
+  if (input.attachments !== undefined) columns.attachments = input.attachments;
+  if (input.order !== undefined) columns.sortOrder = input.order;
+  if (input.reminderAt !== undefined) {
+    columns.reminderAt = input.reminderAt ? new Date(input.reminderAt) : null;
+    // A new or changed reminder must be eligible for delivery again.
+    columns.reminderSentAt = null;
+  }
+  return columns;
+}
+
+/** `updatedAt` is ours to move, not the caller's — every write touches it. */
+function touched(columns: Record<string, unknown>): Record<string, unknown> {
+  return { ...columns, updatedAt: new Date() };
+}
+
 router.use(authenticateToken, requireOxyAuth);
 
 // GET /notes?view=active|archived|trashed&label=<id>&pinned=<bool>&q=<text>
 router.get('/', readLimiter, async (req: Request, res: Response) => {
   try {
-    const oxyUserId = new mongoose.Types.ObjectId(getRequiredOxyUserId(req));
+    const oxyUserId = getRequiredOxyUserId(req);
 
-    const view = req.query.view === 'archived' || req.query.view === 'trashed'
-      ? req.query.view
-      : 'active';
+    const view =
+      req.query.view === 'archived' || req.query.view === 'trashed' ? req.query.view : 'active';
 
-    const filter: Record<string, unknown> = { oxyUserId };
+    const filters = [eq(notes.oxyUserId, oxyUserId), isNull(notes.deletedAt)];
     if (view === 'trashed') {
-      filter.trashed = true;
+      filters.push(eq(notes.trashed, true));
     } else if (view === 'archived') {
-      filter.trashed = false;
-      filter.archived = true;
+      filters.push(eq(notes.trashed, false), eq(notes.archived, true));
     } else {
-      filter.trashed = false;
-      filter.archived = false;
+      filters.push(eq(notes.trashed, false), eq(notes.archived, false));
     }
 
     if (typeof req.query.label === 'string' && req.query.label) {
-      filter.labels = req.query.label;
+      filters.push(arrayContains(notes.labels, [req.query.label]));
     }
     if (req.query.pinned === 'true' || req.query.pinned === 'false') {
-      filter.pinned = req.query.pinned === 'true';
+      filters.push(eq(notes.pinned, req.query.pinned === 'true'));
     }
     if (typeof req.query.q === 'string' && req.query.q.trim()) {
-      filter.$text = { $search: req.query.q.trim() };
+      // `plainto_tsquery` treats the input as words to match, never as query
+      // syntax, so a user typing `&` or `!` searches for that character instead
+      // of tripping a syntax error.
+      filters.push(
+        sql`${notes.searchVector} @@ plainto_tsquery('simple', ${req.query.q.trim()})`,
+      );
     }
 
-    const notes = await Note.find(filter).sort({ pinned: -1, order: 1, updatedAt: -1 });
-    res.json({ data: notes.map(serializeNote) });
+    const rows = await getDb()
+      .select()
+      .from(notes)
+      .where(and(...filters))
+      .orderBy(desc(notes.pinned), asc(notes.sortOrder), desc(notes.updatedAt));
+
+    res.json({ data: rows.map(serializeNote) });
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error listing notes');
     res.status(500).json({ error: 'Failed to list notes' });
@@ -90,24 +143,66 @@ router.get('/', readLimiter, async (req: Request, res: Response) => {
 });
 
 // POST /notes — create a note
+//
+// The client may supply the `id`. A note written while offline already exists on
+// the device under an id the user's screens are rendering, so letting the client
+// choose it keeps that id stable through the upload and makes the request
+// idempotent: a retry after a response that never arrived finds its own note
+// rather than creating a second copy.
 router.post('/', writeLimiter, async (req: Request, res: Response) => {
   try {
-    const oxyUserId = new mongoose.Types.ObjectId(getRequiredOxyUserId(req));
+    const userId = getRequiredOxyUserId(req);
 
     const parsed = noteWriteSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid note payload' });
     }
-    const { reminderAt, ...rest } = parsed.data;
 
-    const note = await Note.create({
-      oxyUserId,
-      ...rest,
-      ...(reminderAt !== undefined ? { reminderAt: reminderAt ? new Date(reminderAt) : null, reminderSentAt: null } : {}),
-    });
+    // Parsed apart from the field schema: `id` addresses the note, it is not one
+    // of its fields, and PATCH must never be able to move a note to a new id.
+    const idResult = clientNoteIdSchema.safeParse(req.body?.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'id must be a UUIDv7' });
+    }
+    const requestedId = idResult.data;
+
+    if (requestedId) {
+      const [existing] = await getDb().select().from(notes).where(eq(notes.id, requestedId));
+      if (existing) {
+        // An id already taken by THIS user is the retry case: return the note as
+        // it now stands. An id taken by anyone else must not be distinguishable
+        // from a plain conflict, or this route becomes an oracle for which note
+        // ids exist.
+        if (existing.oxyUserId !== userId) {
+          return res.status(409).json({ error: 'Note id is already in use' });
+        }
+        return res.status(200).json(serializeNote(existing));
+      }
+    }
+
+    const [note] = await getDb()
+      .insert(notes)
+      .values({
+        ...(requestedId ? { id: requestedId } : {}),
+        oxyUserId: userId,
+        ...toColumns(parsed.data),
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    // Two devices racing the same client-generated id: the loser's insert hits
+    // the conflict clause and returns nothing, so it reads the winner's note.
+    if (!note) {
+      const [winner] = await getDb()
+        .select()
+        .from(notes)
+        .where(and(eq(notes.id, requestedId ?? ''), eq(notes.oxyUserId, userId)));
+      if (!winner) return res.status(409).json({ error: 'Note id is already in use' });
+      return res.status(200).json(serializeNote(winner));
+    }
 
     const dto = serializeNote(note);
-    emitNoteCreated(getRequiredOxyUserId(req), dto);
+    emitNoteCreated(userId, dto);
     res.status(201).json(dto);
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error creating note');
@@ -115,24 +210,73 @@ router.post('/', writeLimiter, async (req: Request, res: Response) => {
   }
 });
 
+// GET /notes/sync?since=<iso> — everything this user changed since `since`,
+// tombstones included. Declared before '/:id' so the literal path wins.
+//
+// Separate from `GET /notes` on purpose: the list route answers "what does this
+// screen show" (one view, filtered, sorted for display), while this one answers
+// "what changed" and must cross every view — a note archived since the last pull
+// is a change the client needs even though it left the active list.
+router.get('/sync', readLimiter, async (req: Request, res: Response) => {
+  try {
+    const oxyUserId = getRequiredOxyUserId(req);
+
+    const filters = [eq(notes.oxyUserId, oxyUserId)];
+    if (typeof req.query.since === 'string' && req.query.since) {
+      const since = new Date(req.query.since);
+      if (Number.isNaN(since.getTime())) {
+        return res.status(400).json({ error: 'since must be an ISO timestamp' });
+      }
+      filters.push(gt(notes.updatedAt, since));
+    }
+
+    // Read the clock BEFORE querying. A note written between the query and the
+    // response would otherwise fall in the gap: its updatedAt precedes a cursor
+    // taken afterwards, so the next pull would skip it permanently. Overlapping
+    // instead means a note can arrive twice, which an upsert absorbs.
+    const serverTime = new Date().toISOString();
+    const rows = await getDb()
+      .select()
+      .from(notes)
+      .where(and(...filters))
+      .orderBy(asc(notes.updatedAt));
+
+    res.json({
+      data: rows.filter((row) => !row.deletedAt).map(serializeNote),
+      deleted: rows.filter((row) => row.deletedAt).map((row) => row.id),
+      serverTime,
+    });
+  } catch (error: unknown) {
+    log.notes.error({ err: error }, 'Error syncing notes');
+    res.status(500).json({ error: 'Failed to sync notes' });
+  }
+});
+
 // POST /notes/reorder — set order by array index (must precede '/:id' routes)
 router.post('/reorder', writeLimiter, async (req: Request, res: Response) => {
   try {
-    const oxyUserId = new mongoose.Types.ObjectId(getRequiredOxyUserId(req));
+    const oxyUserId = getRequiredOxyUserId(req);
 
-    const ids = req.body?.ids;
-    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || !mongoose.isValidObjectId(id))) {
+    const ids: unknown = req.body?.ids;
+    if (!Array.isArray(ids) || ids.some((id) => !isLiveEntityId(id))) {
       return res.status(400).json({ error: 'ids must be an array of note ids' });
     }
+    if (ids.length === 0) return res.json({ success: true });
 
-    await Note.bulkWrite(
-      ids.map((id: string, index: number) => ({
-        updateOne: {
-          filter: { _id: id, oxyUserId },
-          update: { $set: { order: index } },
-        },
-      })),
+    // One statement rather than a write per id: the positions are a single
+    // rearrangement, and applying them one by one leaves the list visibly
+    // half-reordered to a concurrent reader.
+    const positions = sql.join(
+      ids.map((id: string, index: number) => sql`(${id}, ${index}::double precision)`),
+      sql`, `,
     );
+    await getDb().execute(sql`
+      update ${notes} set sort_order = ordering.position, updated_at = now()
+      from (values ${positions}) as ordering(id, position)
+      where ${notes.id} = ordering.id
+        and ${notes.oxyUserId} = ${oxyUserId}
+        and ${notes.deletedAt} is null
+    `);
 
     res.json({ success: true });
   } catch (error: unknown) {
@@ -144,12 +288,18 @@ router.post('/reorder', writeLimiter, async (req: Request, res: Response) => {
 // GET /notes/:id
 router.get('/:id', readLimiter, async (req: Request, res: Response) => {
   try {
-    const oxyUserId = new mongoose.Types.ObjectId(getRequiredOxyUserId(req));
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const oxyUserId = getRequiredOxyUserId(req);
+    const noteId = req.params.id;
+    if (typeof noteId !== 'string' || !isLiveEntityId(noteId)) {
       return res.status(400).json({ error: 'Invalid note id' });
     }
 
-    const note = await Note.findOne({ _id: req.params.id, oxyUserId });
+    const [note] = await getDb()
+      .select()
+      .from(notes)
+      .where(
+        and(eq(notes.id, noteId), eq(notes.oxyUserId, oxyUserId), isNull(notes.deletedAt)),
+      );
     if (!note) return res.status(404).json({ error: 'Note not found' });
     res.json(serializeNote(note));
   } catch (error: unknown) {
@@ -162,8 +312,8 @@ router.get('/:id', readLimiter, async (req: Request, res: Response) => {
 router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
   try {
     const userId = getRequiredOxyUserId(req);
-    const oxyUserId = new mongoose.Types.ObjectId(userId);
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const noteId = req.params.id;
+    if (typeof noteId !== 'string' || !isLiveEntityId(noteId)) {
       return res.status(400).json({ error: 'Invalid note id' });
     }
 
@@ -171,19 +321,14 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid note payload' });
     }
-    const { reminderAt, ...rest } = parsed.data;
-    const update: Record<string, unknown> = { ...rest };
-    if (reminderAt !== undefined) {
-      update.reminderAt = reminderAt ? new Date(reminderAt) : null;
-      // A new/changed reminder must be eligible for delivery again.
-      update.reminderSentAt = null;
-    }
 
-    const note = await Note.findOneAndUpdate(
-      { _id: req.params.id, oxyUserId },
-      { $set: update },
-      { new: true },
-    );
+    const [note] = await getDb()
+      .update(notes)
+      .set(touched(toColumns(parsed.data)))
+      .where(
+        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+      )
+      .returning();
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     const dto = serializeNote(note);
@@ -199,16 +344,18 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
 router.post('/:id/trash', writeLimiter, async (req: Request, res: Response) => {
   try {
     const userId = getRequiredOxyUserId(req);
-    const oxyUserId = new mongoose.Types.ObjectId(userId);
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const noteId = req.params.id;
+    if (typeof noteId !== 'string' || !isLiveEntityId(noteId)) {
       return res.status(400).json({ error: 'Invalid note id' });
     }
 
-    const note = await Note.findOneAndUpdate(
-      { _id: req.params.id, oxyUserId },
-      { $set: { trashed: true } },
-      { new: true },
-    );
+    const [note] = await getDb()
+      .update(notes)
+      .set({ trashed: true, updatedAt: new Date() })
+      .where(
+        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+      )
+      .returning();
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     const dto = serializeNote(note);
@@ -224,16 +371,18 @@ router.post('/:id/trash', writeLimiter, async (req: Request, res: Response) => {
 router.post('/:id/restore', writeLimiter, async (req: Request, res: Response) => {
   try {
     const userId = getRequiredOxyUserId(req);
-    const oxyUserId = new mongoose.Types.ObjectId(userId);
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const noteId = req.params.id;
+    if (typeof noteId !== 'string' || !isLiveEntityId(noteId)) {
       return res.status(400).json({ error: 'Invalid note id' });
     }
 
-    const note = await Note.findOneAndUpdate(
-      { _id: req.params.id, oxyUserId },
-      { $set: { trashed: false, archived: false } },
-      { new: true },
-    );
+    const [note] = await getDb()
+      .update(notes)
+      .set({ trashed: false, archived: false, updatedAt: new Date() })
+      .where(
+        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+      )
+      .returning();
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     const dto = serializeNote(note);
@@ -245,25 +394,61 @@ router.post('/:id/restore', writeLimiter, async (req: Request, res: Response) =>
   }
 });
 
-// DELETE /notes/:id — hard purge (from trash)
+// DELETE /notes/:id — delete forever (from trash)
+//
+// Tombstoned rather than removed: a client that was offline when this ran has no
+// other way to learn the note is gone, and would keep pushing it back. The note's
+// content is cleared right here — only the fact of the deletion is retained — and
+// the expiry sweep (`db/expiry.ts`) drops the row entirely a month later.
 router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
   try {
     const userId = getRequiredOxyUserId(req);
-    const oxyUserId = new mongoose.Types.ObjectId(userId);
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    const noteId = req.params.id;
+    if (typeof noteId !== 'string' || !isLiveEntityId(noteId)) {
       return res.status(400).json({ error: 'Invalid note id' });
     }
 
-    const note = await Note.findOneAndDelete({ _id: req.params.id, oxyUserId });
+    const now = new Date();
+    const [note] = await getDb()
+      .update(notes)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+        title: '',
+        body: '',
+        checklist: [],
+        attachments: [],
+        labels: [],
+        reminderAt: null,
+        reminderSentAt: null,
+      })
+      .where(
+        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+      )
+      .returning({ id: notes.id });
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
-    emitNoteDeleted(userId, note._id.toString());
+    emitNoteDeleted(userId, note.id);
     res.json({ success: true });
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error deleting note');
     res.status(500).json({ error: 'Failed to delete note' });
   }
 });
+
+/** Notes with a reminder due and not yet delivered — the scheduler's read. */
+export function dueReminderFilter(now: Date) {
+  return and(
+    isNotNull(notes.reminderAt),
+    sql`${notes.reminderAt} <= ${now}`,
+    isNull(notes.reminderSentAt),
+    eq(notes.trashed, false),
+    // Deleting a note clears its reminder, so this is redundant today — and
+    // stated anyway, because "a deleted note never notifies" should hold no
+    // matter what a future delete path forgets to clear.
+    isNull(notes.deletedAt),
+  );
+}
 
 // Attachment bytes (any file type) are uploaded by the Oxy file manager on the
 // client; Noted only stores the resulting file IDs via PATCH /notes/:id

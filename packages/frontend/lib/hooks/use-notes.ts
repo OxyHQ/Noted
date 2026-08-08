@@ -1,15 +1,35 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
-import { useOxy } from "@oxyhq/services";
+/**
+ * Notes, read from and written to the device's own store.
+ *
+ * Reads are live SQL subscriptions, so a write anywhere in the app re-renders
+ * every screen showing the affected note without a refetch or a cache patch.
+ * Writes land locally and enqueue an outbox entry; `lib/db/sync.ts` sends them
+ * whenever there is a connection. Nothing on this path awaits the network.
+ *
+ * The mutations stay `useMutation` even though they never make a request: the
+ * screens use `mutate`, `mutateAsync`, `isPending` and the `onSuccess` callback,
+ * and TanStack Query provides all of that around any async function.
+ */
+
+import { useMemo } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "@oxyhq/bloom/toast";
-import apiClient from "@/lib/api/client";
-import { API_ROUTES } from "@/lib/api/routes";
-import { queryKeys } from "@/lib/hooks/query-keys";
-import { generateUUID } from "@/lib/utils";
+import { useLiveQuery } from "@/lib/db/live-query";
+import { newNoteId } from "@/lib/db/ids";
+import {
+  createNote as createNoteLocally,
+  deleteNote as deleteNoteLocally,
+  firstRowToNote,
+  NOTE_DETAIL_SQL,
+  noteListQuery,
+  reorderNotes as reorderNotesLocally,
+  restoreNote as restoreNoteLocally,
+  rowsToNotes,
+  trashNote as trashNoteLocally,
+  updateNote as updateNoteLocally,
+  type NoteInput,
+  type NoteRow,
+} from "@/lib/db/notes-repo";
 import { DEFAULT_NEW_NOTE_COLOR, type Note, type NoteListParams } from "@noted/shared-types";
 
 /* ============================================================
@@ -17,114 +37,51 @@ import { DEFAULT_NEW_NOTE_COLOR, type Note, type NoteListParams } from "@noted/s
    ============================================================ */
 
 /**
- * Guarantee a note's array fields are always populated arrays, regardless of
- * what the server/cache/socket payload carries. Legacy documents predating the
- * `images`→`attachments` rename have no `attachments` field, so a raw note can
- * arrive with `attachments === undefined`; every render path reads it as an
- * array (`.length`/`.map`/`[0]`/`.filter`). Normalizing at the data boundary —
- * the moment a note enters the client — keeps `Note.attachments: string[]`
- * honest so consumers never have to guard.
+ * Guarantee a note's array fields are always populated arrays.
+ *
+ * The local store already writes them as arrays, so this only has to defend the
+ * one boundary that can still deliver something else: a note arriving from the
+ * server over the socket.
  */
 export function normalizeNote(note: Note): Note {
   return {
     ...note,
     attachments: Array.isArray(note.attachments) ? note.attachments : [],
+    checklist: Array.isArray(note.checklist) ? note.checklist : [],
+    labels: Array.isArray(note.labels) ? note.labels : [],
   };
-}
-
-/* ============================================================
-   Fetchers
-   ============================================================ */
-
-function listParamsToQuery(params: NoteListParams): Record<string, string> {
-  const q: Record<string, string> = {};
-  if (params.view) q.view = params.view;
-  if (params.label) q.label = params.label;
-  if (typeof params.pinned === "boolean") q.pinned = String(params.pinned);
-  if (params.q) q.q = params.q;
-  return q;
-}
-
-async function fetchNotes(params: NoteListParams): Promise<Note[]> {
-  const res = await apiClient.get<{ data: Note[] }>(API_ROUTES.notes.list, {
-    params: listParamsToQuery(params),
-  });
-  return res.data.data.map(normalizeNote);
-}
-
-async function fetchNote(id: string): Promise<Note> {
-  const res = await apiClient.get<Note>(API_ROUTES.notes.get(id));
-  return normalizeNote(res.data);
 }
 
 /* ============================================================
    Queries
    ============================================================ */
 
+const EMPTY_NOTES: Note[] = [];
+
 /** A filtered list of notes (home / archive / trash / label / search). */
 export function useNotes(params: NoteListParams) {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: queryKeys.notes.list(params),
-    queryFn: () => fetchNotes(params),
-    enabled: isAuthenticated,
-    staleTime: 1000 * 30,
+  // The SQL text and its parameters are derived from the filters, so a changed
+  // filter resubscribes rather than filtering an already-fetched list.
+  const query = useMemo(
+    () => noteListQuery(params),
+    [params.view, params.label, params.pinned, params.q],
+  );
+  const { data, isLoading, error } = useLiveQuery<NoteRow, Note[]>({
+    sql: query.sql,
+    params: query.params,
+    mapRows: rowsToNotes,
   });
+  return { data: data ?? EMPTY_NOTES, isLoading, error };
 }
 
 /** A single note's full detail. */
 export function useNote(id: string | undefined) {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: queryKeys.notes.detail(id ?? ""),
-    queryFn: () => fetchNote(id ?? ""),
-    enabled: isAuthenticated && !!id,
-    staleTime: 1000 * 30,
+  const { data, isLoading, error } = useLiveQuery<NoteRow, Note | null>({
+    sql: NOTE_DETAIL_SQL,
+    params: [id ?? ""],
+    mapRows: firstRowToNote,
   });
-}
-
-export function prefetchNote(queryClient: QueryClient, id: string) {
-  queryClient.prefetchQuery({
-    queryKey: queryKeys.notes.detail(id),
-    queryFn: () => fetchNote(id),
-    staleTime: 1000 * 30,
-  });
-}
-
-/* ============================================================
-   Cache helpers
-   ============================================================ */
-
-/**
- * Apply `patch` to every cached note list that currently holds `id`, plus the
- * detail cache. Returns a snapshot of the touched list entries so the caller
- * can roll back on error.
- */
-function patchNoteInCaches(
-  queryClient: QueryClient,
-  id: string,
-  patch: (note: Note) => Note
-) {
-  queryClient.setQueriesData<Note[]>(
-    { queryKey: queryKeys.notes.all },
-    (old) => {
-      if (!Array.isArray(old)) return old;
-      return old.map((n) => (n.id === id ? patch(n) : n));
-    }
-  );
-  queryClient.setQueryData<Note>(queryKeys.notes.detail(id), (old) =>
-    old ? patch(old) : old
-  );
-}
-
-function removeNoteFromListCaches(queryClient: QueryClient, id: string) {
-  queryClient.setQueriesData<Note[]>(
-    { queryKey: queryKeys.notes.all },
-    (old) => {
-      if (!Array.isArray(old)) return old;
-      return old.filter((n) => n.id !== id);
-    }
-  );
+  return { data: id ? data : null, isLoading: id ? isLoading : false, error };
 }
 
 /* ============================================================
@@ -133,182 +90,61 @@ function removeNoteFromListCaches(queryClient: QueryClient, id: string) {
 
 /** Create a note. Used both for `n/new` first-edit and quick-capture. */
 export function useCreateNote() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: Partial<Note>): Promise<Note> => {
-      const res = await apiClient.post<Note>(API_ROUTES.notes.create, input);
-      return normalizeNote(res.data);
-    },
-    onSuccess: (note) => {
-      queryClient.setQueryData(queryKeys.notes.detail(note.id), note);
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
-    },
+    mutationFn: (input: NoteInput): Promise<Note> => createNoteLocally(newNoteId(), input),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to create note");
     },
   });
 }
 
-/**
- * Patch a note (body/title/color/pin/labels/checklist/etc). Optimistic: the
- * change is applied to every cache immediately and rolled back on failure.
- */
+/** Patch a note (body/title/color/pin/labels/checklist/etc). */
 export function useUpdateNote() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      id,
-      patch,
-    }: {
-      id: string;
-      patch: Partial<Note>;
-    }): Promise<Note> => {
-      const res = await apiClient.patch<Note>(API_ROUTES.notes.update(id), patch);
-      return normalizeNote(res.data);
-    },
-    onMutate: async ({ id, patch }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.notes.all });
-      const previousLists = queryClient.getQueriesData<Note[]>({
-        queryKey: queryKeys.notes.all,
-      });
-      const previousDetail = queryClient.getQueryData<Note>(
-        queryKeys.notes.detail(id)
-      );
-      patchNoteInCaches(queryClient, id, (n) => ({
-        ...n,
-        ...patch,
-        updatedAt: new Date().toISOString(),
-      }));
-      return { previousLists, previousDetail, id };
-    },
-    onError: (error: Error, _vars, context) => {
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          queryClient.setQueryData(key, data);
-        }
-      }
-      if (context?.previousDetail) {
-        queryClient.setQueryData(
-          queryKeys.notes.detail(context.id),
-          context.previousDetail
-        );
-      }
+    mutationFn: ({ id, patch }: { id: string; patch: NoteInput }) =>
+      updateNoteLocally(id, patch),
+    onError: (error: Error) => {
       toast.error(error.message || "Failed to save note");
-    },
-    onSuccess: (note) => {
-      queryClient.setQueryData(queryKeys.notes.detail(note.id), note);
-    },
-    onSettled: (_data, _err, vars) => {
-      // Re-derive list membership (color/pin/label/archive can move the note).
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
-      void vars;
     },
   });
 }
 
-/** Send a note to the trash. Optimistic removal from active lists. */
+/** Send a note to the trash. */
 export function useTrashNote() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string): Promise<Note> => {
-      const res = await apiClient.post<Note>(API_ROUTES.notes.trash(id));
-      return res.data;
-    },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.notes.all });
-      const previousLists = queryClient.getQueriesData<Note[]>({
-        queryKey: queryKeys.notes.all,
-      });
-      removeNoteFromListCaches(queryClient, id);
-      return { previousLists };
-    },
-    onError: (error: Error, _id, context) => {
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          queryClient.setQueryData(key, data);
-        }
-      }
+    mutationFn: (id: string) => trashNoteLocally(id),
+    onError: (error: Error) => {
       toast.error(error.message || "Failed to delete note");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
     },
   });
 }
 
 /** Restore a note from the trash. */
 export function useRestoreNote() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string): Promise<Note> => {
-      const res = await apiClient.post<Note>(API_ROUTES.notes.restore(id));
-      return res.data;
-    },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.notes.all });
-      const previousLists = queryClient.getQueriesData<Note[]>({
-        queryKey: queryKeys.notes.all,
-      });
-      removeNoteFromListCaches(queryClient, id);
-      return { previousLists };
-    },
-    onError: (error: Error, _id, context) => {
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          queryClient.setQueryData(key, data);
-        }
-      }
+    mutationFn: (id: string) => restoreNoteLocally(id),
+    onError: (error: Error) => {
       toast.error(error.message || "Failed to restore note");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
     },
   });
 }
 
 /** Permanently delete a note (delete forever). */
 export function useDeleteNote() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string): Promise<string> => {
-      await apiClient.delete(API_ROUTES.notes.delete(id));
-      return id;
-    },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.notes.all });
-      const previousLists = queryClient.getQueriesData<Note[]>({
-        queryKey: queryKeys.notes.all,
-      });
-      removeNoteFromListCaches(queryClient, id);
-      return { previousLists };
-    },
-    onError: (error: Error, _id, context) => {
-      if (context?.previousLists) {
-        for (const [key, data] of context.previousLists) {
-          queryClient.setQueryData(key, data);
-        }
-      }
+    mutationFn: (id: string) => deleteNoteLocally(id),
+    onError: (error: Error) => {
       toast.error(error.message || "Failed to delete note");
-    },
-    onSuccess: (id) => {
-      queryClient.removeQueries({ queryKey: queryKeys.notes.detail(id) });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
     },
   });
 }
 
 /** Persist a new ordering of note ids (drag-reorder). */
 export function useReorderNotes() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (ids: string[]): Promise<void> => {
-      await apiClient.post(API_ROUTES.notes.reorder, { ids });
-    },
+    mutationFn: (ids: string[]) => reorderNotesLocally(ids),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to reorder notes");
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
     },
   });
 }
@@ -317,11 +153,11 @@ export function useReorderNotes() {
    Optimistic-create helper for `n/new`
    ============================================================ */
 
-/** Build a blank, client-side note for the editor before the first POST. */
+/** Build a blank, client-side note for the editor before the first save. */
 export function makeDraftNote(): Note {
   const now = new Date().toISOString();
   return {
-    id: generateUUID(),
+    id: newNoteId(),
     title: "",
     body: "",
     checklist: [],

@@ -10,6 +10,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import i18n from "@/lib/i18n";
 import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
+import { useLocalStore } from "@/lib/db/use-local-store";
 
 // Top-level list routes that render their own header (and own top inset).
 const SELF_INSET_ROUTES = new Set([
@@ -36,7 +37,12 @@ export default function AppLayout() {
 
   // Push notification registration + tap handling.
   useNotificationSetup();
-  // Real-time note/label sync into the React Query cache.
+  // Open this account's local database and keep it synchronised. Must be
+  // mounted before anything queries notes — a query with no active account has
+  // no database file to open.
+  useLocalStore();
+  // Server-side changes arrive here and are pulled in through the same
+  // reconciliation path as any other sync.
   useNotesRealtime();
 
   const renderDrawerContent = useCallback(() => <Sidebar />, []);

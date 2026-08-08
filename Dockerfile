@@ -70,6 +70,11 @@ RUN bun run build:backend
 # Fail fast if the expected entry point was not emitted.
 RUN test -f packages/backend/dist/index.js \
  || (echo "ERROR: packages/backend/dist/index.js was not produced by the build" && exit 1)
+# The migrator ships in the same image as the server it migrates for. Asserted
+# here because its absence has no symptom until a deploy: the image builds, the
+# service starts, and only the migration task fails — after the rollout has begun.
+RUN test -f packages/backend/dist/migrate.js \
+ || (echo "ERROR: packages/backend/dist/migrate.js was not produced by the build" && exit 1)
 
 # Strip devDependencies so only production modules are carried into the runtime
 # image (bun has no `prune`; a clean production install from the same lockfile is
@@ -104,6 +109,15 @@ COPY --from=builder --chown=node:node /app/packages/backend/package.json ./packa
 # The bundled backend (shared-types is inlined into this bundle, so its dist is
 # intentionally NOT carried into the runtime image).
 COPY --from=builder --chown=node:node /app/packages/backend/dist ./packages/backend/dist
+
+# The SQL migrations, beside packages/backend/package.json because that is what
+# `src/db/migrationsFolder.ts` walks up to find.
+#
+# Needed by BOTH the one-shot migration task and every serving task: readiness
+# reads this folder's journal to decide whether a task may take traffic, and
+# `readJournal` runs at module load — so without this the container does not
+# merely fail its probe, it fails to boot.
+COPY --from=builder --chown=node:node /app/packages/backend/drizzle ./packages/backend/drizzle
 
 EXPOSE 3001
 

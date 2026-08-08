@@ -14,6 +14,8 @@ export const API_ROUTES = {
     trash: (id: string) => `/notes/${id}/trash`,
     restore: (id: string) => `/notes/${id}/restore`,
     reorder: "/notes/reorder",
+    /** Everything changed since a cursor, tombstones included. */
+    sync: "/notes/sync",
   },
 
   // Labels

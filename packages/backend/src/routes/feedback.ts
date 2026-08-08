@@ -1,13 +1,49 @@
 import { Router } from 'express';
-import { Feedback } from '../models/feedback.js';
+import { z } from 'zod';
+import { and, desc, eq } from 'drizzle-orm';
+import { isLiveEntityId } from '@oxyhq/db';
+import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
+
 import { authenticateToken } from '../middleware/auth.js';
+import { getDb } from '../db/postgres.js';
+import { feedback, FEEDBACK_TYPES, type FeedbackRow } from '../db/schema/feedback.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
 
+/** How many past submissions the history screen shows. */
+const HISTORY_LIMIT = 50;
+
+const feedbackSchema = z.object({
+  type: z.enum(FEEDBACK_TYPES),
+  rating: z.number().int().min(1).max(5).optional(),
+  message: z.string().trim().min(1).max(10_000),
+  email: z.string().email().optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
+});
+
+/**
+ * The wire shape, listed field by field.
+ *
+ * The previous implementation returned the raw document, which leaked
+ * `oxyUserId` and Mongo's own bookkeeping to the client. Feedback carries device
+ * metadata and whatever the user chose to write, so it is exactly the payload
+ * that should not gain fields by accident.
+ */
+function serializeFeedback(row: FeedbackRow) {
+  return {
+    id: row.id,
+    type: row.type,
+    rating: row.rating,
+    message: row.message,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 // All feedback routes are rate-limited and require authentication.
-router.use(makeRateLimiter('feedback'), authenticateToken);
+router.use(makeRateLimiter('feedback'), authenticateToken, requireOxyAuth);
 
 /**
  * POST /feedback
@@ -15,45 +51,24 @@ router.use(makeRateLimiter('feedback'), authenticateToken);
  */
 router.post('/', async (req, res) => {
   try {
-    const { type, rating, message, email, metadata } = req.body;
-
-    if (!type || !message) {
-      res.status(400).json({ error: 'Type and message are required' });
-      return;
+    const parsed = feedbackSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid feedback payload' });
     }
 
-    const validTypes = ['bug', 'feature', 'improvement', 'other'];
-    if (!validTypes.includes(type)) {
-      res.status(400).json({ error: 'Invalid feedback type' });
-      return;
-    }
+    const [row] = await getDb()
+      .insert(feedback)
+      .values({
+        oxyUserId: getRequiredOxyUserId(req),
+        type: parsed.data.type,
+        rating: parsed.data.rating,
+        message: parsed.data.message,
+        email: parsed.data.email,
+        metadata: parsed.data.metadata ?? {},
+      })
+      .returning();
 
-    if (rating !== undefined && (rating < 1 || rating > 5)) {
-      res.status(400).json({ error: 'Rating must be between 1 and 5' });
-      return;
-    }
-
-    const feedback = new Feedback({
-      oxyUserId: req.user!.id,
-      type,
-      rating,
-      message,
-      email,
-      metadata,
-      status: 'pending'
-    });
-
-    await feedback.save();
-
-    res.status(201).json({
-      success: true,
-      feedback: {
-        id: feedback._id,
-        type: feedback.type,
-        message: feedback.message,
-        createdAt: feedback.createdAt
-      }
-    });
+    res.status(201).json({ success: true, feedback: serializeFeedback(row) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error submitting feedback');
     res.status(500).json({ error: 'Failed to submit feedback' });
@@ -66,11 +81,14 @@ router.post('/', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const feedback = await Feedback.find({ oxyUserId: req.user!.id })
-      .sort({ createdAt: -1 })
-      .limit(50);
+    const rows = await getDb()
+      .select()
+      .from(feedback)
+      .where(eq(feedback.oxyUserId, getRequiredOxyUserId(req)))
+      .orderBy(desc(feedback.createdAt))
+      .limit(HISTORY_LIMIT);
 
-    res.json(feedback);
+    res.json(rows.map(serializeFeedback));
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error fetching feedback');
     res.status(500).json({ error: 'Failed to fetch feedback' });
@@ -83,17 +101,20 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const feedback = await Feedback.findOne({
-      _id: req.params.id,
-      oxyUserId: req.user!.id
-    });
-
-    if (!feedback) {
-      res.status(404).json({ error: 'Feedback not found' });
-      return;
+    const feedbackId = req.params.id;
+    if (typeof feedbackId !== 'string' || !isLiveEntityId(feedbackId)) {
+      return res.status(400).json({ error: 'Invalid feedback id' });
     }
 
-    res.json(feedback);
+    const [row] = await getDb()
+      .select()
+      .from(feedback)
+      .where(
+        and(eq(feedback.id, feedbackId), eq(feedback.oxyUserId, getRequiredOxyUserId(req))),
+      );
+    if (!row) return res.status(404).json({ error: 'Feedback not found' });
+
+    res.json(serializeFeedback(row));
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error fetching feedback');
     res.status(500).json({ error: 'Failed to fetch feedback' });

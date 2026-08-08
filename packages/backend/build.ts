@@ -1,12 +1,17 @@
 import * as esbuild from 'esbuild';
 
 await esbuild.build({
-  entryPoints: ['src/index.ts'],
+  // Two entry points, not one. `src/db/migrate.ts` is what the deploy runs as a
+  // one-shot task before the rollout, and it has to be in the SAME image as the
+  // server it migrates for — otherwise the image ships a service whose readiness
+  // probe asserts a migration nothing in that image can apply.
+  entryPoints: ['src/index.ts', 'src/db/migrate.ts'],
   bundle: true,
   platform: 'node',
   target: 'node20',
   format: 'esm',
-  outfile: 'dist/index.js',
+  outdir: 'dist',
+  entryNames: '[name]',
   // Keep node_modules external except @oxyhq/* (their ESM builds have broken
   // imports) and @noted/* workspace packages (e.g. @noted/shared-types — a
   // private workspace dep that is NOT published, so it must be inlined into the

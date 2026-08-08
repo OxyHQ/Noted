@@ -12,24 +12,21 @@
  *   label:updated { label }
  *   label:deleted { id }
  *
- * On receipt we patch the React Query caches directly (so the change is instant
- * and does not depend on a refetch) and then invalidate the affected list keys
- * so any active list query re-derives membership (a color/pin/label change can
- * move a note in or out of a filtered list).
+ * Every one of them means the same thing here: "the server has changed, come and
+ * look". The payload is deliberately NOT applied directly. The local store may
+ * hold edits the server has not seen, and only the pull path knows how to
+ * reconcile the two — writing a pushed note straight into the database would
+ * silently overwrite whatever the user typed while offline.
  */
 
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useOxy } from "@oxyhq/services";
 import { io as socketIO, type Socket } from "socket.io-client";
 import config from "@/lib/config";
-import { queryKeys } from "@/lib/hooks/query-keys";
-import { normalizeNote } from "@/lib/hooks/use-notes";
-import type { Label, Note } from "@noted/shared-types";
+import { requestSync } from "@/lib/db/use-local-store";
 
 export function useNotesRealtime() {
   const { oxyServices, isAuthenticated } = useOxy();
-  const queryClient = useQueryClient();
   // Re-establish the socket when the access token changes (sign-in/out, refresh)
   // so the handshake always carries a valid token.
   const accessToken = oxyServices.getAccessToken();
@@ -48,45 +45,27 @@ export function useNotesRealtime() {
       auth: (cb) => cb({ token: oxyServices.getAccessToken() ?? "" }),
     });
 
-    const onNoteUpsert = (payload: { note?: Note }) => {
-      const raw = payload?.note;
-      if (!raw?.id) return;
-      // The socket payload is the most likely source of an unnormalized note
-      // (legacy docs without `attachments`), so normalize before writing it to
-      // any cache the renderers read from.
-      const note = normalizeNote(raw);
-      queryClient.setQueryData(queryKeys.notes.detail(note.id), note);
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
-    };
+    const onServerChange = () => requestSync();
 
-    const onNoteDeleted = (payload: { id?: string }) => {
-      const id = payload?.id;
-      if (!id) return;
-      queryClient.removeQueries({ queryKey: queryKeys.notes.detail(id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
-    };
-
-    const onLabelChange = (_payload: { label?: Label; id?: string }) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.labels.all });
-      // Notes embed label ids; a renamed/recolored/deleted label affects chips.
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.all });
-    };
-
-    socket.on("note:created", onNoteUpsert);
-    socket.on("note:updated", onNoteUpsert);
-    socket.on("note:deleted", onNoteDeleted);
-    socket.on("label:created", onLabelChange);
-    socket.on("label:updated", onLabelChange);
-    socket.on("label:deleted", onLabelChange);
+    // A reconnect means this client was out of touch for a while, so whatever
+    // happened during the gap arrives through the same pull.
+    socket.on("connect", onServerChange);
+    socket.on("note:created", onServerChange);
+    socket.on("note:updated", onServerChange);
+    socket.on("note:deleted", onServerChange);
+    socket.on("label:created", onServerChange);
+    socket.on("label:updated", onServerChange);
+    socket.on("label:deleted", onServerChange);
 
     return () => {
-      socket.off("note:created", onNoteUpsert);
-      socket.off("note:updated", onNoteUpsert);
-      socket.off("note:deleted", onNoteDeleted);
-      socket.off("label:created", onLabelChange);
-      socket.off("label:updated", onLabelChange);
-      socket.off("label:deleted", onLabelChange);
+      socket.off("connect", onServerChange);
+      socket.off("note:created", onServerChange);
+      socket.off("note:updated", onServerChange);
+      socket.off("note:deleted", onServerChange);
+      socket.off("label:created", onServerChange);
+      socket.off("label:updated", onServerChange);
+      socket.off("label:deleted", onServerChange);
       socket.disconnect();
     };
-  }, [isAuthenticated, accessToken, oxyServices, queryClient]);
+  }, [isAuthenticated, accessToken, oxyServices]);
 }
