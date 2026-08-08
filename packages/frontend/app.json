@@ -20,7 +20,8 @@
         "UIBackgroundModes": [
           "audio",
           "remote-notification"
-        ]
+        ],
+        "NSMicrophoneUsageDescription": "Noted uses the microphone to record meetings and voice notes. Recording only happens while you start it, and the audio is transcribed on this device."
       }
     },
     "android": {
@@ -34,7 +35,10 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {

@@ -1155,5 +1155,12 @@
     "editLabels": "Editar etiquetas",
     "deleteLabel": "Eliminar etiqueta",
     "deleteLabelConfirm": "Esta etiqueta se quitará de todas las notas. Las notas no se eliminan."
+  },
+  "capture": {
+    "start": "Grabar una reunión",
+    "stop": "Detener la grabación",
+    "unavailable": "No se puede grabar: revisa el permiso del micrófono",
+    "recording": "Grabando",
+    "notificationBody": "Noted está grabando esta reunión"
   }
 }

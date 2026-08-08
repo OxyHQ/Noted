@@ -1,0 +1,17 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'so.oxy.noted.capture'
+version = '0.1.0'
+
+android {
+  namespace 'so.oxy.noted.capture'
+  defaultConfig {
+    minSdkVersion safeExtGet('minSdkVersion', 24)
+  }
+}
+
+dependencies {
+  implementation 'androidx.core:core-ktx:1.13.1'
+}

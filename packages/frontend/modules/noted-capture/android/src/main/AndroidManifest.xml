@@ -1,0 +1,29 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Declared by the module rather than by a config plugin, so the permissions
+      and the service that need each other cannot drift apart: anything that
+      links this module gets all of it, and nothing that does not link it carries
+      a microphone permission it never uses.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Android 13+ will not show the ongoing notification without this, and a
+         recording the user cannot see is one they cannot stop. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <!--
+          `android:foregroundServiceType="microphone"` is the load-bearing
+          attribute. Android 14+ throws MissingForegroundServiceTypeException
+          from startForeground when it is absent — at the exact moment the user
+          presses record — and passing the type in code without declaring it
+          here is not enough.
+        -->
+        <service
+            android:name="so.oxy.noted.capture.NotedCaptureService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
+    </application>
+
+</manifest>
