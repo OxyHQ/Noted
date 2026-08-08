@@ -32,7 +32,29 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - run: bun install --frozen-lockfile
+      # --ignore-scripts, for the same reason the Dockerfile passes it.
+      #
+      # `bufferutil` and `utf-8-validate` are OPTIONAL C++ accelerators for `ws`
+      # (pulled in transitively by socket.io). Neither ships a linux-arm64
+      # prebuild — both carry linux-x64, darwin and win32 only — so on THIS
+      # arm64 runner their `node-gyp-build` install script always falls back to
+      # a from-source `node-gyp` compile. No manifest in this repo depends on
+      # `node-gyp`, so bun has to fetch one on the fly, and that fetch is what
+      # fails, intermittently:
+      #
+      #   error: could not determine executable to run for package node-gyp
+      #   error: install script from "bufferutil" exited with 1
+      #
+      # `ws` falls back to its pure-JS path when the addon is absent, so
+      # skipping the script is behaviour-preserving. The other scripts skipped
+      # here install PREBUILT binaries that bun already places via platform
+      # optionalDependencies (`@esbuild/linux-arm64` is in bun.lock), or belong
+      # to frontend-only tooling this job never runs.
+      #
+      # x86_64 never reaches any of this — it matches prebuilds/linux-x64 — so
+      # `ci.yml` stayed green throughout and needs no equivalent change unless
+      # it is ever moved to arm64 runners.
+      - run: bun install --frozen-lockfile --ignore-scripts
 
       - run: bun run --filter @noted/backend lint
 
