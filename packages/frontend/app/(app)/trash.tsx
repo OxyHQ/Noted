@@ -4,7 +4,7 @@ import { Trash2, RotateCcw, X } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { NotesHeader } from "@/components/notes/notes-header";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { alert } from "@oxyhq/bloom/dialog";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { useNotes, useRestoreNote, useDeleteNote } from "@/lib/hooks/use-notes";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -19,17 +19,39 @@ export default function TrashScreen() {
   const restoreNote = useRestoreNote();
   const deleteNote = useDeleteNote();
 
-  const [confirmTarget, setConfirmTarget] = React.useState<string | null>(null);
-  const [emptyOpen, setEmptyOpen] = React.useState(false);
-
   const allNotes = notes ?? [];
 
-  const handleEmptyTrash = React.useCallback(async () => {
-    for (const note of allNotes) {
-      deleteNote.mutate(note.id);
-    }
-    setEmptyOpen(false);
-  }, [allNotes, deleteNote]);
+  // Both confirmations are Bloom's: the dialog is drawn by the
+  // `BloomDialogProvider` the Oxy SDK already mounts at the root, so a screen
+  // asks the question and holds no dialog state of its own.
+  const askEmptyTrash = React.useCallback(() => {
+    alert(t("notes.emptyTrash"), t("notes.emptyTrashConfirm"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("notes.emptyTrash"),
+        style: "destructive",
+        onPress: () => {
+          for (const note of allNotes) {
+            deleteNote.mutate(note.id);
+          }
+        },
+      },
+    ]);
+  }, [allNotes, deleteNote, t]);
+
+  const askDeleteForever = React.useCallback(
+    (id: string) => {
+      alert(t("notes.deleteForever"), t("notes.deleteForeverConfirm"), [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("notes.deleteForever"),
+          style: "destructive",
+          onPress: () => deleteNote.mutate(id),
+        },
+      ]);
+    },
+    [deleteNote, t]
+  );
 
   return (
     <View className="flex-1 bg-background">
@@ -56,7 +78,7 @@ export default function TrashScreen() {
               <Text className="text-xs text-muted-foreground">
                 {t("notes.trashHint")}
               </Text>
-              <Button variant="ghost" size="sm" onPress={() => setEmptyOpen(true)}>
+              <Button variant="ghost" size="sm" onPress={askEmptyTrash}>
                 <Text className="text-sm font-semibold text-destructive">
                   {t("notes.emptyTrash")}
                 </Text>
@@ -72,7 +94,7 @@ export default function TrashScreen() {
                   cardColor={colors.card}
                   borderColor={colors.border}
                   onRestore={() => restoreNote.mutate(note.id)}
-                  onDelete={() => setConfirmTarget(note.id)}
+                  onDelete={() => askDeleteForever(note.id)}
                   restoreLabel={t("notes.restore")}
                   deleteLabel={t("notes.deleteForever")}
                 />
@@ -81,29 +103,6 @@ export default function TrashScreen() {
           </>
         )}
       </ScrollView>
-
-      <ConfirmationDialog
-        open={confirmTarget !== null}
-        onOpenChange={(open) => !open && setConfirmTarget(null)}
-        title={t("notes.deleteForever")}
-        description={t("notes.deleteForeverConfirm")}
-        confirmText={t("notes.deleteForever")}
-        confirmVariant="destructive"
-        onConfirm={() => {
-          if (confirmTarget) deleteNote.mutate(confirmTarget);
-          setConfirmTarget(null);
-        }}
-      />
-
-      <ConfirmationDialog
-        open={emptyOpen}
-        onOpenChange={setEmptyOpen}
-        title={t("notes.emptyTrash")}
-        description={t("notes.emptyTrashConfirm")}
-        confirmText={t("notes.emptyTrash")}
-        confirmVariant="destructive"
-        onConfirm={handleEmptyTrash}
-      />
     </View>
   );
 }
