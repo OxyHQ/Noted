@@ -20,9 +20,10 @@ import {
 } from 'expo-audio';
 import { createLogger } from '@oxyhq/core/logger';
 
-import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';
+import { beginCapture } from '@/lib/capture/captures-repo';
 import { captureDirectory } from '@/lib/capture/use-recorder';
-import { enhanceNote, restructureNote } from '@/lib/capture/restructure';
+import type { CaptureCoordinator } from '@/lib/capture/coordinator';
+import { createLiveCoordinator } from '@/lib/capture/live-coordinator';
 import {
   dbToLevel,
   pushLevel,
@@ -61,6 +62,9 @@ export function useRealtimeRecorder(
   const startRef = useRef<Promise<void> | null>(null);
   const startedAtRef = useRef<Date | null>(null);
   const audioPathRef = useRef<string>('');
+  // Who owns this capture: the lifecycle, the one processing queue, and the
+  // finalisation barrier. This file owns the microphone and nothing else.
+  const coordinatorRef = useRef<CaptureCoordinator | null>(null);
 
   // The newest reading, published on a timer rather than on arrival: audio
   // chunks land far faster than a screen can usefully redraw, and setting state
@@ -111,6 +115,14 @@ export function useRealtimeRecorder(
         // transcriber is told where to write.
         await beginCapture({ id: captureId, noteId, audioPath });
 
+        const coordinator = createLiveCoordinator({
+          captureId,
+          noteId,
+          startedAt,
+          language: optionsRef.current.language,
+        });
+        coordinatorRef.current = coordinator;
+
         // Started from the foreground, before the microphone opens: Android
         // refuses to start a microphone-typed foreground service from the
         // background, so there is no later moment at which this would work.
@@ -128,8 +140,11 @@ export function useRealtimeRecorder(
             latestDbRef.current = db;
           },
           onTranscriptChanged: () => {
-            void restructureNote(captureId, noteId, startedAt).catch((error: unknown) => {
-              logger.error('Could not structure the note', { error: String(error) });
+            // Handed to the coordinator rather than started here. The old code
+            // began a full rebuild per callback with nothing tracking them, so a
+            // long meeting ran dozens at once and the slowest one won.
+            void coordinator.transcriptChanged().catch((error: unknown) => {
+              logger.error('Could not queue the transcript revision', { error: String(error) });
             });
           },
           onError: (message) => {
@@ -145,11 +160,12 @@ export function useRealtimeRecorder(
           return;
         }
         sessionRef.current = session;
+        await coordinator.markRecording();
         setPhase('recording');
       } catch (error) {
         stopBackgroundCapture();
         logger.error('Could not start recording', { error: String(error) });
-        await failCapture(captureId, 'capture_start').catch(() => undefined);
+        await coordinatorRef.current?.markFailed('capture_start').catch(() => undefined);
         if (active) setPhase('error');
       }
     })();
@@ -185,42 +201,31 @@ export function useRealtimeRecorder(
 
     setPhase('saving');
     try {
+      const coordinator = coordinatorRef.current;
+      await coordinator?.markStopping();
+
+      // The session finishes its last slice before returning, so the tail — the
+      // part carrying whatever was agreed at the end — is in the transcript
+      // before anything reads it.
       await sessionRef.current?.stop();
       sessionRef.current = null;
       stopBackgroundCapture();
 
-      await finishCapture(captureId, durationRef.current, audioPathRef.current);
-
-      // One last pass: the final slice usually lands during `stop`, and it is
-      // the one carrying whatever was agreed at the end of the meeting.
-      const startedAt = startedAtRef.current;
-      if (startedAt) {
-        await restructureNote(captureId, noteId, startedAt).catch((error: unknown) => {
-          logger.error('Could not structure the note', { error: String(error) });
-        });
-
-        // The model reads the whole meeting once, here, and only if the user
-        // downloaded one. Awaited so the note is finished before the recorder
-        // reports `saved`; every failure inside is swallowed because the
-        // structured note is already written and losing the better version is
-        // not worth losing the recording over.
-        await enhanceNote(captureId, noteId, startedAt, optionsRef.current.language).catch(
-          (error: unknown) => {
-            logger.error('Could not enhance the note', { error: String(error) });
-          },
-        );
-      }
+      // The recording is safe from here. Finalisation is started inside and NOT
+      // awaited: the microphone is closed and the audio is written, and making
+      // the stop button wait for a model to load is what made it look broken.
+      await coordinator?.markStopped(durationRef.current, audioPathRef.current);
 
       setPhase('saved');
       return 'saved';
     } catch (error) {
       stopBackgroundCapture();
       logger.error('Could not save the recording', { error: String(error) });
-      await failCapture(captureId, 'persist_audio').catch(() => undefined);
+      await coordinatorRef.current?.markFailed('persist_audio').catch(() => undefined);
       setPhase('error');
       return 'failed';
     }
-  }, [captureId, noteId]);
+  }, []);
 
   // A gesture or the hardware back button unmounts the screen without reaching
   // its own handler, so the recorder tears itself down — otherwise the

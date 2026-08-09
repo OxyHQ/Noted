@@ -32,10 +32,9 @@ import { Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { createLogger } from '@oxyhq/core/logger';
 
-import { appendSegments, type TranscriptSegment } from '@/lib/capture/captures-repo';
+import { makeSegment, upsertSegments, type TranscriptSegment } from '@/lib/capture/captures-repo';
 import type { RealtimeSession } from '@/lib/stt/realtime';
 import { pcmToDb } from '@/lib/capture/recording';
-import { newNoteId } from '@/lib/db/ids';
 import { isModelPresent, modelFile, STT_MODELS, type SttModelId } from '@/lib/stt/models';
 
 const logger = createLogger('NotedSTT');
@@ -162,24 +161,41 @@ interface WhisperSegment {
  */
 const NON_SPEECH = /^\[.*\]$/;
 
+/**
+ * whisper re-emits a slice as it fills, each time a little longer.
+ *
+ * The id is therefore derived from WHERE the segment sits — which slice, and
+ * which segment inside it — so the second reading updates the row the first one
+ * wrote. With a minted id each reading became its own row and the note carried
+ * the same sentence back in four increasingly complete versions.
+ *
+ * `sliceIndex` is also the revision. Every emission of one slice carries the same
+ * number, so each longer reading is allowed to replace the shorter one before it
+ * (the store's guard is `>=`), while a late arrival from an earlier slice can
+ * only ever touch its own rows. The phone has no provisional line — that is what
+ * this mechanism replaces — so every row it writes is committed transcript.
+ */
 function toSegments(
   segments: readonly WhisperSegment[],
   captureId: string,
+  sliceIndex: number,
   offsetMs: number,
 ): TranscriptSegment[] {
   return segments
-    .map((segment) => ({
-      id: newNoteId(),
-      captureId,
-      // Slice times restart at zero, so each slice's offset in the recording is
-      // added back — without it every paragraph would look simultaneous and the
-      // grouping by silence would collapse.
-      startMs: offsetMs + segment.t0 * CENTISECONDS_TO_MS,
-      endMs: offsetMs + segment.t1 * CENTISECONDS_TO_MS,
-      text: segment.text.trim(),
-      confidence: null,
-      speakerHint: null,
-    }))
+    .map((segment, index) =>
+      makeSegment({
+        captureId,
+        sliceIndex,
+        segmentIndex: index,
+        revision: sliceIndex,
+        // Slice times restart at zero, so each slice's offset in the recording is
+        // added back — without it every paragraph would look simultaneous and the
+        // grouping by silence would collapse.
+        startMs: offsetMs + segment.t0 * CENTISECONDS_TO_MS,
+        endMs: offsetMs + segment.t1 * CENTISECONDS_TO_MS,
+        text: segment.text.trim(),
+      }),
+    )
     .filter((segment) => segment.text !== '' && !NON_SPEECH.test(segment.text));
 }
 
@@ -218,12 +234,13 @@ export async function startRealtimeTranscription(
         const segments = toSegments(
           event.data?.segments ?? [],
           options.captureId,
+          slice,
           slice * SLICE_SECONDS * 1000,
         );
         if (segments.length === 0) return;
         // Persisted as they stabilise rather than at the end: a meeting that
         // ends in a crash keeps everything understood up to that point.
-        void appendSegments(segments)
+        void upsertSegments(segments)
           .then(() => options.onTranscriptChanged?.())
           .catch((error: unknown) => {
             logger.error('Could not store transcript segments', { error: String(error) });

@@ -11,8 +11,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createLogger } from '@oxyhq/core/logger';
 
-import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';
-import { enhanceNote, restructureNote } from '@/lib/capture/restructure';
+import { beginCapture } from '@/lib/capture/captures-repo';
+import type { CaptureCoordinator } from '@/lib/capture/coordinator';
+import { createLiveCoordinator } from '@/lib/capture/live-coordinator';
 import {
   dbToLevel,
   pushLevel,
@@ -65,6 +66,9 @@ export function useRealtimeRecorder(
   const startRef = useRef<Promise<void> | null>(null);
   const startedAtRef = useRef<Date | null>(null);
   const latestDbRef = useRef<number | null>(null);
+  // The same owner the phone uses. What differs between the two files is opening
+  // a microphone, and that is all that should differ.
+  const coordinatorRef = useRef<CaptureCoordinator | null>(null);
 
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -84,6 +88,14 @@ export function useRealtimeRecorder(
         // The path is empty because a blob has no URL until it is finished.
         await beginCapture({ id: captureId, noteId, audioPath: '' });
 
+        const coordinator = createLiveCoordinator({
+          captureId,
+          noteId,
+          startedAt,
+          language: optionsRef.current.language,
+        });
+        coordinatorRef.current = coordinator;
+
         const session = await startRealtimeTranscription({
           captureId,
           model: optionsRef.current.model,
@@ -96,8 +108,8 @@ export function useRealtimeRecorder(
             setPartialText(text);
           },
           onTranscriptChanged: () => {
-            void restructureNote(captureId, noteId, startedAt).catch((error: unknown) => {
-              logger.error('Could not structure the note', { error: String(error) });
+            void coordinator.transcriptChanged().catch((error: unknown) => {
+              logger.error('Could not queue the transcript revision', { error: String(error) });
             });
           },
           onError: (message) => {
@@ -112,13 +124,14 @@ export function useRealtimeRecorder(
           return;
         }
         sessionRef.current = session;
+        await coordinator.markRecording();
         setPhase('recording');
       } catch (error) {
         // The usual cause is the user declining the microphone, which the
         // browser reports as a `NotAllowedError` rather than a permission API.
         const denied = error instanceof DOMException && error.name === 'NotAllowedError';
         logger.error('Could not start recording', { error: String(error) });
-        await failCapture(captureId, denied ? 'permission' : 'capture_start').catch(
+        await coordinatorRef.current?.markFailed(denied ? 'permission' : 'capture_start').catch(
           () => undefined,
         );
         if (active) setPhase(denied ? 'denied' : 'error');
@@ -154,38 +167,27 @@ export function useRealtimeRecorder(
 
     setPhase('saving');
     try {
+      const coordinator = coordinatorRef.current;
+      await coordinator?.markStopping();
+
       // The session finishes its last slice before returning, so the audio and
       // the transcript end at the same moment.
       const audioPath = (await sessionRef.current?.stop()) ?? '';
       sessionRef.current = null;
 
-      await finishCapture(captureId, durationRef.current, audioPath);
-
-      const startedAt = startedAtRef.current;
-      if (startedAt) {
-        await restructureNote(captureId, noteId, startedAt).catch((error: unknown) => {
-          logger.error('Could not structure the note', { error: String(error) });
-        });
-
-        // The model reads the whole meeting once, here, exactly as on the
-        // phone. Swallowed because the structured note is already written:
-        // losing the better version is not worth losing the recording.
-        await enhanceNote(captureId, noteId, startedAt, optionsRef.current.language).catch(
-          (error: unknown) => {
-            logger.error('Could not enhance the note', { error: String(error) });
-          },
-        );
-      }
+      // Returns once the recording is safe. The final pass runs afterwards, on
+      // its own, exactly as on the phone.
+      await coordinator?.markStopped(durationRef.current, audioPath);
 
       setPhase('saved');
       return 'saved';
     } catch (error) {
       logger.error('Could not save the recording', { error: String(error) });
-      await failCapture(captureId, 'persist_audio').catch(() => undefined);
+      await coordinatorRef.current?.markFailed('persist_audio').catch(() => undefined);
       setPhase('error');
       return 'failed';
     }
-  }, [captureId, noteId]);
+  }, []);
 
   // Navigating away unmounts this without reaching the stop button, and a tab
   // that keeps its microphone open after the user left is the worst outcome
