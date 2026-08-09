@@ -1189,6 +1189,13 @@
         "name": "Small",
         "note": "Most accurate, heaviest"
       }
+    },
+    "understanding": {
+      "title": "Understanding",
+      "label": "Read the meeting, not just transcribe it",
+      "note": "Optional {{size}} download. Without it, notes are built from patterns — commitments, decisions, open questions.",
+      "ready": "Downloaded. Notes are written by a model on this device.",
+      "download": "Download the language model"
     }
   }
 }

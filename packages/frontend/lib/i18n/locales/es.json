@@ -1189,6 +1189,13 @@
         "name": "Small",
         "note": "El más preciso, el más pesado"
       }
+    },
+    "understanding": {
+      "title": "Comprensión",
+      "label": "Entender la reunión, no solo transcribirla",
+      "note": "Descarga opcional de {{size}}. Sin ella, las notas salen de patrones: compromisos, decisiones, preguntas abiertas.",
+      "ready": "Descargado. Las notas las escribe un modelo en este dispositivo.",
+      "download": "Descargar el modelo de lenguaje"
     }
   }
 }

@@ -7,6 +7,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { isTranscriptionSupported } from "@/lib/capture/support";
 import { DEFAULT_STT_MODEL, type SttModelId } from "@/lib/stt/models";
 import { useSttModels, type ModelEntry } from "@/lib/stt/use-models";
+import { useLlmModel } from "@/lib/enhance/use-llm-model";
 import {
   readSetting,
   SETTING_KEYS,
@@ -102,6 +103,67 @@ function ModelRow({
   );
 }
 
+/**
+ * The optional download that turns pattern-matching into reading.
+ *
+ * Presented as what it is: an improvement with a real cost, not a requirement.
+ * The note gets written either way, and saying so is what makes 469 MB an
+ * honest offer rather than a toll.
+ */
+function UnderstandingRow() {
+  const { t } = useTranslation();
+  const { colors } = useColorScheme();
+  const model = useLlmModel();
+  const isDownloading = model.state === "downloading";
+
+  return (
+    <View className="gap-2">
+      <Text className="text-sm font-medium text-muted-foreground">
+        {t("transcription.understanding.title")}
+      </Text>
+      <View className="flex-row items-center gap-3 rounded-2xl border border-border px-4 py-3">
+        <View className="flex-1">
+          <Text className="text-base text-foreground">
+            {t("transcription.understanding.label")}
+          </Text>
+          <Text className="text-sm text-muted-foreground">
+            {model.state === "ready"
+              ? t("transcription.understanding.ready")
+              : t("transcription.understanding.note", { size: formatSize(model.bytes) })}
+          </Text>
+        </View>
+
+        {isDownloading ? (
+          <View className="flex-row items-center gap-2">
+            <ActivityIndicator size="small" />
+            <Text className="font-mono text-sm tabular-nums text-muted-foreground">
+              {String(Math.round((model.progress ?? 0) * 100))}%
+            </Text>
+          </View>
+        ) : model.state === "ready" ? (
+          <Pressable
+            onPress={() => void model.remove()}
+            accessibilityLabel={t("transcription.remove")}
+            hitSlop={8}
+            className="active:opacity-70"
+          >
+            <Trash2 size={18} color={colors.mutedForeground} />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => void model.download().catch(() => undefined)}
+            accessibilityLabel={t("transcription.understanding.download")}
+            hitSlop={8}
+            className="active:opacity-70"
+          >
+            <Download size={18} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export function TranscriptionSection() {
   const { t } = useTranslation();
   const { entries, isLoading, download, remove } = useSttModels();
@@ -161,6 +223,8 @@ export function TranscriptionSection() {
           {live ? <Text className="text-xs text-primary-foreground">✓</Text> : null}
         </View>
       </Pressable>
+
+      <UnderstandingRow />
 
       <View className="gap-2">
         <Text className="text-sm font-medium text-muted-foreground">

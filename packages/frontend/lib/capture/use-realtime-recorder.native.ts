@@ -22,7 +22,7 @@ import { createLogger } from '@oxyhq/core/logger';
 
 import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';
 import { captureDirectory } from '@/lib/capture/use-recorder';
-import { restructureNote } from '@/lib/capture/restructure';
+import { enhanceNote, restructureNote } from '@/lib/capture/restructure';
 import {
   dbToLevel,
   pushLevel,
@@ -198,6 +198,17 @@ export function useRealtimeRecorder(
         await restructureNote(captureId, noteId, startedAt).catch((error: unknown) => {
           logger.error('Could not structure the note', { error: String(error) });
         });
+
+        // The model reads the whole meeting once, here, and only if the user
+        // downloaded one. Awaited so the note is finished before the recorder
+        // reports `saved`; every failure inside is swallowed because the
+        // structured note is already written and losing the better version is
+        // not worth losing the recording over.
+        await enhanceNote(captureId, noteId, startedAt, optionsRef.current.language).catch(
+          (error: unknown) => {
+            logger.error('Could not enhance the note', { error: String(error) });
+          },
+        );
       }
 
       setPhase('saved');

@@ -24,6 +24,8 @@ import {
 import { newNoteId } from '@/lib/db/ids';
 import { getNote, updateNote } from '@/lib/db/notes-repo';
 import { structureTranscript, toNotePatch } from '@/lib/structure/structure';
+import { enhancementToNotePatch } from '@/lib/enhance/apply';
+import { getSummarizer } from '@/lib/enhance/summarizer';
 
 const logger = createLogger('NotedCapture');
 
@@ -59,4 +61,66 @@ export async function restructureNote(
   });
 
   await updateNote(noteId, toNotePatch(structured));
+}
+
+/**
+ * Have a language model read the meeting and rewrite the note.
+ *
+ * Runs once, when the recording stops — not per slice like `restructureNote`. A
+ * model that has read the whole meeting writes a better note than one that has
+ * read the first two minutes, and running it repeatedly would spend a phone's
+ * battery producing drafts nobody reads.
+ *
+ * The deterministic note is already written by the time this runs, which is what
+ * makes every failure here survivable: no model, no download, a refused reply, a
+ * crash — the user still has their note. Nothing about this is on the critical
+ * path.
+ */
+export async function enhanceNote(
+  captureId: string,
+  noteId: string,
+  startedAt: Date,
+  language: string,
+): Promise<boolean> {
+  const summarizer = getSummarizer();
+  if ((await summarizer.availability()) !== 'ready') return false;
+
+  const rows = await execute<TranscriptSegmentRow>(SEGMENTS_BY_CAPTURE_SQL, [captureId]);
+  const segments = rowsToSegments(rows);
+  if (segments.length === 0) return false;
+
+  const note = await getNote(noteId);
+  if (!note) return false;
+
+  // Reuse the deterministic pass for its cleaned, block-grouped transcript
+  // rather than handing whisper's raw segments to the model: the filler and the
+  // repetitions it removes are tokens the model would otherwise spend context
+  // on, and a phone's context window is the scarce thing here.
+  const existing = { title: note.title, body: note.body, checklist: note.checklist };
+  const structured = structureTranscript(segments, {
+    startedAt,
+    makeId: newNoteId,
+    existing,
+  });
+
+  const enhancement = await summarizer.enhance({
+    transcript: structured.transcript,
+    existing,
+    language,
+  });
+  if (!enhancement) {
+    logger.info('The model had nothing to add; keeping the structured note');
+    return false;
+  }
+
+  await updateNote(
+    noteId,
+    enhancementToNotePatch(enhancement, {
+      makeId: newNoteId,
+      existing,
+      fallbackTitle: structured.title,
+    }),
+  );
+  logger.info('Note rewritten by the on-device model', { noteId });
+  return true;
 }

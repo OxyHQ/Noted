@@ -151,6 +151,16 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       value TEXT NOT NULL
     )`,
   ],
+
+  // Speech is no longer the only thing this device downloads weights for: a
+  // language model reads the transcript and writes the note. The table held
+  // exactly what both need — a file, its size, its digest, its state — so it is
+  // renamed for what it now holds rather than copied, and `kind` keeps the two
+  // apart for callers that only care about one.
+  [
+    `ALTER TABLE stt_models RENAME TO model_files`,
+    `ALTER TABLE model_files ADD COLUMN kind TEXT NOT NULL DEFAULT 'stt'`,
+  ],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
@@ -163,7 +173,7 @@ export const LOCAL_TABLES: readonly string[] = [
   'outbox',
   'sync_state',
   'app_settings',
-  'stt_models',
+  'model_files',
   'cache_metadata',
 ];
 
