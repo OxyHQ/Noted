@@ -4,7 +4,7 @@ import { Check, Download, Trash2 } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { isTranscriptionSupported } from "@/lib/capture/support";
+import { hasDownloadableModels } from "@/lib/capture/support";
 import { DEFAULT_STT_MODEL, type SttModelId } from "@/lib/stt/models";
 import { useSttModels, type ModelEntry } from "@/lib/stt/use-models";
 import { useLlmModel } from "@/lib/enhance/use-llm-model";
@@ -177,14 +177,18 @@ export function TranscriptionSection() {
   );
   const live = readSetting(settings, SETTING_KEYS.liveNotes, isBoolean, true);
 
-  if (!isTranscriptionSupported()) {
+  // The browser transcribes too, but it has nothing to manage: transformers.js
+  // fetches and caches its own model, there is no file on disk to size or
+  // delete, and there is no live mode to switch off. Showing the phone's
+  // controls here would offer choices that do nothing.
+  if (!hasDownloadableModels()) {
     return (
       <View className="gap-2">
         <Text className="text-base font-semibold text-foreground">
           {t("transcription.title")}
         </Text>
         <Text className="text-sm text-muted-foreground">
-          {t("transcription.unsupported")}
+          {t("transcription.browser")}
         </Text>
       </View>
     );

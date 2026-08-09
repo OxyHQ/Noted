@@ -22,6 +22,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@fugood/react-native-audio-pcm-stream": "1.1.4",
     "@hugeicons/react-native": "^1.0.11",
+    "@huggingface/transformers": "^4.2.0",
     "@noted/shared-types": "workspace:*",
     "@oxyhq/app-preset": "^0.1.0",
     "@oxyhq/bloom": "^0.87.0",

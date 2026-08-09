@@ -1196,6 +1196,7 @@
       "note": "Optional {{size}} download. Without it, notes are built from patterns — commitments, decisions, open questions.",
       "ready": "Downloaded. Notes are written by a model on this device.",
       "download": "Download the language model"
-    }
+    },
+    "browser": "This browser transcribes recordings once they stop, using a model it downloads and caches itself — nothing is uploaded. The Noted app transcribes while you record instead."
   }
 }

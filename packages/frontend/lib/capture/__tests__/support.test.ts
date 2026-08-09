@@ -17,10 +17,20 @@ describe('capture support', () => {
     }
   });
 
-  it('transcribes only where whisper.cpp can run', async () => {
-    expect((await loadFor('ios')).isTranscriptionSupported()).toBe(true);
-    expect((await loadFor('android')).isTranscriptionSupported()).toBe(true);
-    expect((await loadFor('web')).isTranscriptionSupported()).toBe(false);
+  it('transcribes everywhere, by two different routes', async () => {
+    // whisper.cpp on a phone, an ONNX build of the same model in the browser.
+    for (const os of ['ios', 'android', 'web']) {
+      expect((await loadFor(os)).isTranscriptionSupported()).toBe(true);
+    }
+  });
+
+  it('stores model weights only where there is a file system to store them in', async () => {
+    // The distinction that took a crash to learn: the browser transcribes with
+    // a model transformers.js fetches and caches itself, and asking
+    // `expo-file-system` about it throws rather than reporting absence.
+    expect((await loadFor('ios')).hasDownloadableModels()).toBe(true);
+    expect((await loadFor('android')).hasDownloadableModels()).toBe(true);
+    expect((await loadFor('web')).hasDownloadableModels()).toBe(false);
   });
 
   it('keeps recordings past a restart only where there is a file system', async () => {
