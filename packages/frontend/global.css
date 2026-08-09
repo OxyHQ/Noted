@@ -1,14 +1,28 @@
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/preflight.css" layer(base);
-@import "tailwindcss/utilities.css";
-@import "nativewind/theme";
+/* The shared Oxy CSS header: the Tailwind v4 layer imports, NativeWind's theme,
+   Bloom's canonical design tokens, and the `@source` globs that scan the Oxy SDK
+   packages for class names.
+
+   The design tokens are the load-bearing part. Every `@oxyhq/bloom` and
+   `@oxyhq/services` component styles itself with utilities that resolve against
+   Bloom's own theme namespaces — `rounded-radius-28`, `p-space-16`, `text-body`,
+   `bg-fill`, `text-text-secondary`, `border-hairline`, `font-bloom-sans` — and
+   Tailwind only emits a utility whose theme token exists. Hand-maintaining this
+   header meant those tokens were simply absent, so 92 SDK utility classes
+   compiled to nothing and every Bloom-rendered surface lost its radii, spacing
+   and typography while the app's own classNames kept working. Importing the
+   preset instead of copying its contents is what keeps a token added upstream
+   reaching Noted on a version bump.
+
+   App-local colour aliases (`--color-card`, `--color-primary`, …) are NOT
+   re-declared below: they all come from Bloom's theme.css, and per-app
+   duplication is exactly how a value drifts from the one the SDK renders
+   against. */
+@import "@oxyhq/app-preset/base.css";
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";
 @source "./lib/**/*.{js,jsx,ts,tsx}";
 @source "./hooks/**/*.{js,jsx,ts,tsx}";
-@source "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
-@source "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
 
 @theme {
   --font-sans: Inter, sans-serif;
@@ -16,36 +30,6 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: hsl(0 0% 100%);
-
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-
-  --color-surface: var(--surface);
-  --color-surface-foreground: var(--surface-foreground);
 }
 
 @layer base {
