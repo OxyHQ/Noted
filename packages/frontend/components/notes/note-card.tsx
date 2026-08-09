@@ -60,11 +60,14 @@ function HoverIconButton({
   label,
   color,
   onPress,
+  focusable,
 }: {
   icon: typeof Pin;
   label: string;
   color: string;
   onPress: () => void;
+  /** False while the row is invisible, so it is not a blind tab stop. */
+  focusable: boolean;
 }) {
   return (
     <Pressable
@@ -73,6 +76,7 @@ function HoverIconButton({
         onPress();
       }}
       accessibilityLabel={label}
+      focusable={focusable}
       className="h-8 w-8 items-center justify-center rounded-full web:transition web:duration-150 web:hover:bg-foreground/10"
     >
       <Icon size={16} color={color} />
@@ -130,7 +134,16 @@ export const NoteCard = React.memo(function NoteCard({
     Boolean(onAttach) ||
     Boolean(onArchive) ||
     Boolean(onDelete);
-  const showActionRow = showHoverAffordances && !selectionMode && hasActionRow;
+  // The row is MOUNTED whenever it could be used and only fades in on hover,
+  // rather than mounting on hover. Mounting it would change the card's height,
+  // and the card's layout transition animates a height change on web with a
+  // `scale` about the element's centre — so for the length of that animation
+  // the card is drawn SHORTER than its final box, its bottom edge sitting above
+  // the row the pointer is travelling towards. The pointer lands outside the
+  // card, hover ends, the row unmounts, the card shrinks back under the pointer
+  // and hover starts again: the icons flicker and cannot be clicked. Keeping the
+  // height constant means there is no layout change to animate.
+  const renderActionRow = isWeb && !selectionMode && hasActionRow;
 
   return (
     <Pressable
@@ -274,14 +287,19 @@ export const NoteCard = React.memo(function NoteCard({
       </View>
 
       {/* Bottom hover action row (web only) */}
-      {showActionRow && (
-        <View className="flex-row items-center gap-0.5 px-2 pb-1.5">
+      {renderActionRow && (
+        <View
+          pointerEvents={hovered ? "auto" : "none"}
+          style={{ opacity: hovered ? 1 : 0 }}
+          className="flex-row items-center gap-0.5 px-2 pb-1.5 web:transition web:duration-150"
+        >
           {onReminder && (
             <HoverIconButton
               icon={Bell}
               label="Reminder"
               color={colors.mutedForeground}
               onPress={() => onReminder(note)}
+              focusable={hovered}
             />
           )}
           {onColor && (
@@ -290,6 +308,7 @@ export const NoteCard = React.memo(function NoteCard({
               label="Color"
               color={colors.mutedForeground}
               onPress={() => onColor(note)}
+              focusable={hovered}
             />
           )}
           {onAttach && (
@@ -298,6 +317,7 @@ export const NoteCard = React.memo(function NoteCard({
               label="Attach file"
               color={colors.mutedForeground}
               onPress={() => onAttach(note)}
+              focusable={hovered}
             />
           )}
           {onArchive && (
@@ -306,6 +326,7 @@ export const NoteCard = React.memo(function NoteCard({
               label="Archive"
               color={colors.mutedForeground}
               onPress={() => onArchive(note)}
+              focusable={hovered}
             />
           )}
           {onDelete && (
@@ -314,6 +335,7 @@ export const NoteCard = React.memo(function NoteCard({
               label="Delete"
               color={colors.mutedForeground}
               onPress={() => onDelete(note)}
+              focusable={hovered}
             />
           )}
         </View>
