@@ -58,12 +58,15 @@ export function RecordingPill() {
         : null;
 
   return (
-    // `box-none` so the pill floats over the list without swallowing taps meant
-    // for the notes behind it. It goes in `style` rather than as a prop: the
-    // prop form is deprecated and warns on every render.
+    // Centred by `self-center` rather than by stretching across the screen and
+    // centring its contents. A full-width container would be an invisible layer
+    // over the whole app — sidebar included — and everything under it would
+    // depend on `pointerEvents: 'box-none'` surviving every future style change
+    // and platform quirk. Hugging the pill means there is nothing to see
+    // through in the first place.
     <View
-      className="absolute inset-x-0 bottom-0 items-center"
-      style={{ pointerEvents: 'box-none', paddingBottom: insets.bottom + BOTTOM_MARGIN }}
+      className="absolute bottom-0 self-center"
+      style={{ paddingBottom: insets.bottom + BOTTOM_MARGIN }}
     >
       {isRecording ? (
         <View className="max-w-[92%] flex-row items-center gap-3 rounded-full border border-border bg-background px-4 py-2.5 shadow-lg">
