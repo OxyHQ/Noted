@@ -7,7 +7,7 @@
  * one keeps it. Either way the note is never empty and never waits.
  */
 
-import type { ChecklistItem, Note } from '@noted/shared-types';
+import type { ChecklistItem } from '@noted/shared-types';
 import type { TranscriptSegment } from '@/lib/capture/captures-repo';
 
 import { cleanSpeech } from '@/lib/structure/clean';
@@ -57,6 +57,20 @@ export interface ExistingNote {
   title: string;
   body: string;
   checklist: readonly ChecklistItem[];
+}
+
+/**
+ * What a writer contributes to a note.
+ *
+ * `body` here is that writer's own output and nothing else — never the note's
+ * body. Both writers are handed an empty `existing.body` precisely so this field
+ * carries their contribution alone, which is what the store then composes with
+ * the user's half.
+ */
+export interface NoteFields {
+  title: string;
+  body: string;
+  checklist: ChecklistItem[];
 }
 
 function byKind(highlights: readonly Highlight[], kind: Highlight['kind']): Highlight[] {
@@ -195,7 +209,7 @@ export function structureTranscript(
 }
 
 /** The fields {@link structureTranscript} contributes to a note. */
-export function toNotePatch(structured: StructuredNote): Partial<Note> {
+export function toNotePatch(structured: StructuredNote): NoteFields {
   return {
     title: structured.title,
     body: structured.markdown,

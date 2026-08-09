@@ -100,7 +100,9 @@ export default function HomeScreen() {
 
   const handleCreate = React.useCallback(
     (input: { title: string; body: string; color?: NoteColor }) => {
-      createNote.mutate(input);
+      // Nothing has been recorded into a note born here, so every word of it is
+      // the user's half.
+      createNote.mutate({ title: input.title, userBody: input.body, color: input.color });
     },
     [createNote]
   );

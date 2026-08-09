@@ -15,10 +15,15 @@
  *   meeting; no heading reads as what it is.
  */
 
-import type { ChecklistItem, Note } from '@noted/shared-types';
+import type { ChecklistItem } from '@noted/shared-types';
 
 import type { Enhancement } from '@/lib/enhance/contract';
-import { DEFAULT_LABELS, type ExistingNote, type StructureLabels } from '@/lib/structure/structure';
+import {
+  DEFAULT_LABELS,
+  type ExistingNote,
+  type NoteFields,
+  type StructureLabels,
+} from '@/lib/structure/structure';
 
 /** Compare the way a reader would: case and trailing punctuation are not content. */
 function normalise(text: string): string {
@@ -41,13 +46,13 @@ export interface ApplyOptions {
 /**
  * Build the note fields from an enhancement.
  *
- * Returns the same `Partial<Note>` the deterministic path returns, so the caller
- * writes one of them without caring which.
+ * Returns the same {@link NoteFields} the deterministic path returns, so the
+ * caller writes one of them without caring which.
  */
 export function enhancementToNotePatch(
   enhancement: Enhancement,
   options: ApplyOptions,
-): Partial<Note> {
+): NoteFields {
   const labels = options.labels ?? DEFAULT_LABELS;
   const existing = options.existing;
 

@@ -24,8 +24,7 @@ import {
 import { newNoteId } from '@/lib/db/ids';
 import { getNote, updateNote } from '@/lib/db/notes-repo';
 import { userAuthoredPart } from '@/lib/capture/placeholder-title';
-import { composeNoteBody, userBodyOf } from '@/lib/capture/generated-body';
-import { readGeneratedBody, writeGeneratedBody } from '@/lib/capture/generated-body-repo';
+import { userBodyOf } from '@/lib/notes/generated-body';
 import { structureTranscript, toNotePatch } from '@/lib/structure/structure';
 import { enhancementToNotePatch } from '@/lib/enhance/apply';
 import { getSummarizer } from '@/lib/enhance/summarizer';
@@ -60,9 +59,8 @@ export async function restructureNote(
   // What the app wrote last time comes out before anything is rebuilt.
   // Without this the note keeps its own previous output as if the user had
   // typed it, and every slice appends another copy of the same sections.
-  const previouslyGenerated = await readGeneratedBody(noteId);
   const authored = userAuthoredPart(note, startedAt);
-  const userBody = userBodyOf(note.body, previouslyGenerated);
+  const userBody = userBodyOf(note.body, note.generatedBody);
 
   const structured = structureTranscript(segments, {
     startedAt,
@@ -73,11 +71,10 @@ export async function restructureNote(
     existing: { ...authored, body: '' },
   });
 
-  await updateNote(noteId, {
-    ...toNotePatch(structured),
-    body: composeNoteBody(userBody, structured.markdown),
-  });
-  await writeGeneratedBody(noteId, structured.markdown);
+  // Both halves, in one write. The store composes them — this pass never
+  // assembles a body itself, so it cannot assemble one from a stale half.
+  const { body: generated, ...patch } = toNotePatch(structured);
+  await updateNote(noteId, { ...patch, userBody, generatedBody: generated });
 }
 
 /**
@@ -113,9 +110,8 @@ export async function enhanceNote(
   // rather than handing whisper's raw segments to the model: the filler and the
   // repetitions it removes are tokens the model would otherwise spend context
   // on, and a phone's context window is the scarce thing here.
-  const previouslyGenerated = await readGeneratedBody(noteId);
   const authored = userAuthoredPart(note, startedAt);
-  const userBody = userBodyOf(note.body, previouslyGenerated);
+  const userBody = userBodyOf(note.body, note.generatedBody);
   // Same rule as the deterministic pass: the model is shown what the USER
   // wrote, never the app's own previous output, or it summarises itself.
   const existing = { ...authored, body: userBody };
@@ -136,17 +132,15 @@ export async function enhanceNote(
     return false;
   }
 
-  const patch = enhancementToNotePatch(enhancement, {
+  const { body: generated, ...patch } = enhancementToNotePatch(enhancement, {
     makeId: newNoteId,
     // Empty body for the same reason: what comes back is the model's
     // contribution alone, which is what gets remembered and replaced.
     existing: { ...existing, body: '' },
     fallbackTitle: structured.title,
   });
-  const generated = patch.body ?? '';
 
-  await updateNote(noteId, { ...patch, body: composeNoteBody(userBody, generated) });
-  await writeGeneratedBody(noteId, generated);
+  await updateNote(noteId, { ...patch, userBody, generatedBody: generated });
   logger.info('Note rewritten by the on-device model', { noteId });
   return true;
 }

@@ -43,6 +43,12 @@ jobs:
       - name: Run API tests
         run: bun run --filter @noted/backend test
 
+      # The app's suite was not run here, so every guard in it — including the
+      # source checks that are the only thing standing between a refactor and
+      # the two-writers bug coming back — passed by never executing.
+      - name: Run app tests
+        run: bun run --filter @noted/frontend test
+
   build-api:
     name: Build API
     runs-on: ubuntu-latest
