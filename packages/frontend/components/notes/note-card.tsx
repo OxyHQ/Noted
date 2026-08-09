@@ -135,22 +135,32 @@ export const NoteCard = React.memo(function NoteCard({
     Boolean(onArchive) ||
     Boolean(onDelete);
   // The row is MOUNTED whenever it could be used and only fades in on hover,
-  // rather than mounting on hover. Mounting it would change the card's height,
-  // and the card's layout transition animates a height change on web with a
-  // `scale` about the element's centre — so for the length of that animation
-  // the card is drawn SHORTER than its final box, its bottom edge sitting above
-  // the row the pointer is travelling towards. The pointer lands outside the
-  // card, hover ends, the row unmounts, the card shrinks back under the pointer
-  // and hover starts again: the icons flicker and cannot be clicked. Keeping the
-  // height constant means there is no layout change to animate.
+  // rather than mounting on hover. Mounting it changes the card's height, which
+  // the grid's layout transition then animates, so every card the pointer
+  // crossed would grow and shove its column around. Hover changing nothing but
+  // opacity keeps the masonry still.
   const renderActionRow = isWeb && !selectionMode && hasActionRow;
 
   return (
     <Pressable
       onPress={() => onPress(note)}
       onLongPress={() => onLongPress(note)}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
+      // Raw pointer events, NOT `onHoverIn`/`onHoverOut`. Every RNW `Pressable`
+      // passes `contain: true` to `useHover`, which makes a hovered Pressable
+      // dispatch a BUBBLING `react-gui:hover:lock` event; every ancestor
+      // Pressable listening for it calls its own `hoverEnd`. So hovering one of
+      // the icons below — each its own Pressable — forcibly ended the card's
+      // hover, which hid the icon, which un-hovered it, which restored the
+      // card's hover, which showed the icon again: one flip per mouse movement,
+      // and the click never landed. `onPointerEnter`/`onPointerLeave` are
+      // forwarded straight to the DOM node and do not fire when the pointer
+      // moves between an element and its own descendants.
+      onPointerEnter={(e) => {
+        // A tap on a touchscreen also produces a pointer enter; hover
+        // affordances are for a real pointing device, as `useHover` had it.
+        if (e.nativeEvent.pointerType !== "touch") setHovered(true);
+      }}
+      onPointerLeave={() => setHovered(false)}
       delayLongPress={250}
       className={cn(
         "overflow-hidden rounded-xl border web:transition web:duration-150",
