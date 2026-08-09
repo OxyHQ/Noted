@@ -13,6 +13,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { useOxy } from '@oxyhq/services';
 import { createLogger } from '@oxyhq/core/logger';
 
+import { recoverInterruptedCaptures } from '@/lib/capture/captures-repo';
 import { clearActiveViewer, setActiveViewer } from '@/lib/db/client';
 import { newNoteId } from '@/lib/db/ids';
 import { syncNotes } from '@/lib/db/sync';
@@ -46,7 +47,13 @@ export function useLocalStore(): { isReady: boolean } {
     let active = true;
     setIsReady(false);
     void setActiveViewer(viewerId)
-      .then(() => {
+      .then(async () => {
+        // A capture still marked `recording` belongs to a process that no longer
+        // exists — nothing else will ever move it forward, so it would sit there
+        // claiming to be recording. Its audio is untouched on disk, which is what
+        // makes transcribing it after the fact possible.
+        const recovered = await recoverInterruptedCaptures();
+        if (recovered > 0) logger.info('Recovered interrupted captures', { recovered });
         if (active) setIsReady(true);
       })
       .catch((error: unknown) => {

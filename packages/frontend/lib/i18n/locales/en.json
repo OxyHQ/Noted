@@ -1155,5 +1155,12 @@
     "editLabels": "Edit labels",
     "deleteLabel": "Delete label",
     "deleteLabelConfirm": "This label will be removed from all notes. The notes are not deleted."
+  },
+  "capture": {
+    "start": "Record a meeting",
+    "stop": "Stop recording",
+    "unavailable": "Recording is unavailable — check the microphone permission",
+    "recording": "Recording",
+    "notificationBody": "Noted is recording this meeting"
   }
 }
