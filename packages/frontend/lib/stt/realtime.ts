@@ -15,7 +15,14 @@
 import type { SttModelId } from '@/lib/stt/models';
 
 export interface RealtimeSession {
-  stop: () => Promise<void>;
+  /**
+   * Stop, and report where the recording ended up.
+   *
+   * The path is returned rather than assumed because the two platforms differ:
+   * a phone is told where to write and writes there, while a browser produces a
+   * blob whose URL exists only once the recording is finished.
+   */
+  stop: () => Promise<string | null>;
 }
 
 export interface RealtimeOptions {
