@@ -1,6 +1,7 @@
 import { View, Pressable } from "react-native";
 import { Mic, Square } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePathname } from "expo-router";
 
 import { Text } from "@/components/ui/text";
 import { Waveform } from "@/components/capture/waveform";
@@ -10,6 +11,7 @@ import { useCaptureStore } from "@/lib/stores/capture-store";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
+import { showsRecordButton } from "@/lib/capture/surfaces";
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -41,6 +43,7 @@ export function RecordingPill() {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
 
   const recorder = useCaptureEngine(captureId ?? "", noteId ?? "", captureId !== null, {
     title: t("capture.recording"),
@@ -50,6 +53,12 @@ export function RecordingPill() {
   if (!isSupported) return null;
 
   const isRecording = captureId !== null;
+
+  // Offering to start a recording belongs with the notes, not on top of
+  // settings or a sign-in screen. A recording ALREADY RUNNING is the opposite:
+  // it stays visible everywhere, because hiding it would leave the microphone
+  // open with no reachable way to stop it.
+  if (!isRecording && !showsRecordButton(pathname)) return null;
   const failure =
     recorder.phase === "denied"
       ? t("capture.denied")
