@@ -32,13 +32,17 @@ const makeId = (): string => 'id';
 /** Consecutive speech: no gap long enough to break a paragraph on its own. */
 function talk(lines: readonly string[]): TranscriptSegment[] {
   return lines.map((text, index) => ({
-    id: `s${String(index)}`,
+    id: `c1#0.${String(index)}`,
     captureId: 'c1',
+    sliceIndex: 0,
+    segmentIndex: index,
+    revision: 0,
     startMs: index * 6_000,
     endMs: index * 6_000 + 5_500,
     text,
     confidence: null,
     speakerHint: null,
+    isFinal: true,
   }));
 }
 

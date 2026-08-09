@@ -13,7 +13,21 @@ function segment(
   text: string,
   speakerHint: string | null = null,
 ): TranscriptSegment {
-  return { id: `s-${String(startMs)}`, captureId: 'c1', startMs, endMs, text, confidence: null, speakerHint };
+  return {
+    // The shape `lib/stt/segment-id.ts` writes: a segment is named by where it
+    // sits, so a re-emitted slice updates the row it already wrote.
+    id: `c1#0.${String(startMs)}`,
+    captureId: 'c1',
+    sliceIndex: 0,
+    segmentIndex: startMs,
+    revision: 0,
+    startMs,
+    endMs,
+    text,
+    confidence: null,
+    speakerHint,
+    isFinal: true,
+  };
 }
 
 describe('groupIntoBlocks', () => {

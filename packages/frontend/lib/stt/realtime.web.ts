@@ -45,7 +45,7 @@
 
 import { createLogger } from '@oxyhq/core/logger';
 
-import { appendSegments } from '@/lib/capture/captures-repo';
+import { upsertSegments } from '@/lib/capture/captures-repo';
 import { SAMPLE_RATE, transcribeSamples } from '@/lib/stt/engine.web';
 import type { RealtimeOptions, RealtimeSession } from '@/lib/stt/realtime';
 
@@ -129,6 +129,10 @@ export async function startRealtimeTranscription(
   let pending: Float32Array[] = [];
   let pendingLength = 0;
   let transcribedSamples = 0;
+  // Which slice is being settled. It is what a committed segment's id is built
+  // from, so the number has to be taken when the span is CUT, not when its
+  // transcription happens to finish.
+  let sliceIndex = 0;
   let stopped = false;
   // One transcription at a time: whisper on a slice takes longer than a slice
   // takes to fill on a slow machine, and starting a second would fall further
@@ -162,13 +166,14 @@ export async function startRealtimeTranscription(
   }
 
   /** Settle a span: transcribe it once, keep it, and start the next span. */
-  function commit(samples: Float32Array, offsetSamples: number): void {
+  function commit(samples: Float32Array, offsetSamples: number, slice: number): void {
     run(async () => {
       const segments = await transcribeSamples(
         samples,
         options.captureId,
         options.language,
         Math.round((offsetSamples / SAMPLE_RATE) * 1000),
+        slice,
       );
       // The provisional text covered exactly this span, and the span is settled
       // now — leaving it up would show the same words twice, once as a guess.
@@ -176,15 +181,26 @@ export async function startRealtimeTranscription(
       if (segments.length === 0) return;
       // Persisted as they stabilise: a tab closed mid-meeting keeps everything
       // understood up to that point.
-      await appendSegments(segments);
+      await upsertSegments(segments);
       options.onTranscriptChanged?.();
     });
   }
 
-  /** Re-read the unsettled span, for the screen only. */
+  /**
+   * Re-read the unsettled span, for the screen only.
+   *
+   * Nothing here is persisted, which is why the slice number it passes does not
+   * matter: the segments are read for their text and thrown away.
+   */
   function refreshPartial(samples: Float32Array): void {
     run(async () => {
-      const segments = await transcribeSamples(samples, options.captureId, options.language, 0);
+      const segments = await transcribeSamples(
+        samples,
+        options.captureId,
+        options.language,
+        0,
+        sliceIndex,
+      );
       if (stopped) return;
       options.onPartial?.(segments.map((segment) => segment.text).join(' ').trim());
     });
@@ -213,7 +229,8 @@ export async function startRealtimeTranscription(
       transcribedSamples += pendingLength;
       pendingLength = 0;
       partialAtSamples = 0;
-      commit(slice, offset);
+      commit(slice, offset, sliceIndex);
+      sliceIndex += 1;
       return;
     }
 
@@ -235,7 +252,8 @@ export async function startRealtimeTranscription(
         const tail = pendingSamples();
         const offset = transcribedSamples;
         await inFlight;
-        commit(tail, offset);
+        commit(tail, offset, sliceIndex);
+        sliceIndex += 1;
       }
 
       const recorded = new Promise<void>((resolve) => {

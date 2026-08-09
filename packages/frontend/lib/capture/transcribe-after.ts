@@ -15,7 +15,12 @@
 
 import { createLogger } from '@oxyhq/core/logger';
 
-import { appendSegments, completeCapture, failCapture } from '@/lib/capture/captures-repo';
+import {
+  completeCapture,
+  failCapture,
+  setCaptureLifecycle,
+  upsertSegments,
+} from '@/lib/capture/captures-repo';
 import { enhanceNote, restructureNote } from '@/lib/capture/restructure';
 import { loadSetting, SETTING_KEYS } from '@/lib/db/settings-repo';
 import { getSttEngine } from '@/lib/stt/engine';
@@ -51,6 +56,11 @@ export async function transcribeAfterStop(request: DeferredTranscription): Promi
   const language = await loadSetting(SETTING_KEYS.sttLanguage, isLanguage, 'auto');
 
   try {
+    // Said out loud before the work starts, so a process that dies half-way
+    // leaves a row describing what it was doing rather than one that still looks
+    // untouched.
+    await setCaptureLifecycle(request.captureId, { transcription: 'running' });
+
     const segments = await engine.transcribe({
       audioPath: request.audioPath,
       captureId: request.captureId,
@@ -65,9 +75,12 @@ export async function transcribeAfterStop(request: DeferredTranscription): Promi
       return;
     }
 
-    await appendSegments(segments);
+    await upsertSegments(segments);
+    await setCaptureLifecycle(request.captureId, {
+      transcription: 'complete',
+      generation: 'finalizing',
+    });
     await restructureNote(request.captureId, request.noteId, request.startedAt);
-    await completeCapture(request.captureId);
 
     // Only after the note exists: the model is the improvement, never the
     // thing standing between the user and having a note at all.
@@ -76,6 +89,7 @@ export async function transcribeAfterStop(request: DeferredTranscription): Promi
         logger.error('Could not enhance the note', { error: String(error) });
       },
     );
+    await setCaptureLifecycle(request.captureId, { generation: 'complete', errorCode: null });
   } catch (error) {
     logger.error('Could not transcribe the recording', { error: String(error) });
     // The audio is still on disk (or still in the page), so this is recoverable

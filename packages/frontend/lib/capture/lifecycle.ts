@@ -54,7 +54,9 @@ const CAPTURE_TRANSITIONS: Readonly<Record<CaptureStatus, readonly CaptureStatus
 const TRANSCRIPTION_TRANSITIONS: Readonly<
   Record<TranscriptionStatus, readonly TranscriptionStatus[]>
 > = {
-  idle: ['live', 'pending', 'failed'],
+  // `running` directly, and not only through `pending`: a recording transcribed
+  // after the fact starts the moment the file is closed, with nothing queued.
+  idle: ['live', 'pending', 'running', 'failed'],
   // Live transcription still has a tail to finish once the microphone closes,
   // which is why it goes to `pending` rather than straight to `complete`.
   live: ['pending', 'running', 'complete', 'failed'],

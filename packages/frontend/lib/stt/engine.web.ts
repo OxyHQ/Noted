@@ -23,8 +23,7 @@
 
 import { createLogger } from '@oxyhq/core/logger';
 
-import type { TranscriptSegment } from '@/lib/capture/captures-repo';
-import { newNoteId } from '@/lib/db/ids';
+import { makeSegment, type TranscriptSegment } from '@/lib/capture/captures-repo';
 import type { SttEngine, TranscribeRequest } from '@/lib/stt/engine';
 
 const logger = createLogger('NotedSTT');
@@ -242,20 +241,20 @@ function toSegments(
   chunks: readonly TimestampedChunk[],
   captureId: string,
   offsetMs = 0,
+  sliceIndex = 0,
 ): TranscriptSegment[] {
   return chunks
-    .map((chunk) => {
+    .map((chunk, index) => {
       const [start, end] = chunk.timestamp;
-      return {
-        id: newNoteId(),
+      return makeSegment({
         captureId,
+        sliceIndex,
+        segmentIndex: index,
         startMs: offsetMs + Math.round(start * SECONDS_TO_MS),
         // The final chunk of a recording has no end timestamp.
         endMs: offsetMs + Math.round((end ?? start) * SECONDS_TO_MS),
         text: chunk.text.trim(),
-        confidence: null,
-        speakerHint: null,
-      };
+      });
     })
     .filter((segment) => segment.text !== '' && !NON_SPEECH.test(segment.text));
 }
@@ -268,12 +267,17 @@ function toSegments(
  * decode it again. `offsetMs` is added to every timestamp, because a slice
  * transcribed on its own starts counting from zero and the note needs to know
  * when in the meeting it was said.
+ *
+ * `sliceIndex` names WHICH slice, which is what makes a segment's id stable: the
+ * same slice transcribed again — a correction, a retry — lands on the rows it
+ * already wrote rather than beside them.
  */
 export async function transcribeSamples(
   samples: Float32Array,
   captureId: string,
   language: string,
   offsetMs: number,
+  sliceIndex: number,
 ): Promise<TranscriptSegment[]> {
   const transcribe = await getTranscriber();
   const output = await transcribe(samples, {
@@ -281,7 +285,7 @@ export async function transcribeSamples(
     return_timestamps: true,
     language: resolveLanguage(language),
   });
-  return toSegments(output.chunks ?? [], captureId, offsetMs);
+  return toSegments(output.chunks ?? [], captureId, offsetMs, sliceIndex);
 }
 
 export function getSttEngine(): SttEngine {
