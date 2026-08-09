@@ -1199,6 +1199,13 @@
       "ready": "Descargado. Las notas las escribe un modelo en este dispositivo.",
       "download": "Descargar el modelo de lenguaje"
     },
-    "browser": "Este navegador transcribe las grabaciones al pararlas, con un modelo que descarga y guarda él mismo — no se sube nada. La app de Noted transcribe mientras grabas."
+    "browser": "Este navegador transcribe las grabaciones al pararlas, con un modelo que descarga y guarda él mismo — no se sube nada. La app de Noted transcribe mientras grabas.",
+    "language": {
+      "title": "Idioma",
+      "auto": "Automático",
+      "es": "Español",
+      "en": "Inglés",
+      "note": "En el móvil el modelo detecta el idioma. En el navegador no puede, así que Automático usa el idioma del navegador."
+    }
   }
 }
