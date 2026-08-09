@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { Tag, Plus, Trash2, Check, X } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { NotesHeader } from "@/components/notes/notes-header";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { alert } from "@oxyhq/bloom/dialog";
 import {
   useLabels,
   useCreateLabel,
@@ -28,7 +28,21 @@ export default function LabelsScreen() {
   const deleteLabel = useDeleteLabel();
 
   const [draft, setDraft] = React.useState("");
-  const [confirmTarget, setConfirmTarget] = React.useState<Label | null>(null);
+
+  // Bloom draws the confirmation, so the screen keeps no dialog state.
+  const askDeleteLabel = React.useCallback(
+    (label: Label) => {
+      alert(t("notes.deleteLabel"), t("notes.deleteLabelConfirm"), [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("common.delete"),
+          style: "destructive",
+          onPress: () => deleteLabel.mutate(label.id),
+        },
+      ]);
+    },
+    [deleteLabel, t]
+  );
 
   const handleCreate = React.useCallback(() => {
     const name = draft.trim();
@@ -90,25 +104,12 @@ export default function LabelsScreen() {
                 label={label}
                 onOpen={() => handleOpenLabel(label)}
                 onRename={(name) => updateLabel.mutate({ id: label.id, patch: { name } })}
-                onDelete={() => setConfirmTarget(label)}
+                onDelete={() => askDeleteLabel(label)}
               />
             ))}
           </View>
         )}
       </ScrollView>
-
-      <ConfirmationDialog
-        open={confirmTarget !== null}
-        onOpenChange={(open) => !open && setConfirmTarget(null)}
-        title={t("notes.deleteLabel")}
-        description={t("notes.deleteLabelConfirm")}
-        confirmText={t("common.delete")}
-        confirmVariant="destructive"
-        onConfirm={() => {
-          if (confirmTarget) deleteLabel.mutate(confirmTarget.id);
-          setConfirmTarget(null);
-        }}
-      />
     </View>
   );
 }
