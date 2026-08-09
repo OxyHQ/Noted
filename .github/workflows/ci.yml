@@ -30,6 +30,13 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Reads the tracked file listing, so it needs neither install nor build to be
+      # meaningful and costs seconds. It answers the one question a green build
+      # cannot: Mongo returns as a hoisted dependency or a workflow variable, and
+      # every other step here passes while it does.
+      - name: Guard against MongoDB returning
+        run: bun run validate:no-mongo
+
       - name: Lint API
         run: bun run --filter @noted/backend lint
 

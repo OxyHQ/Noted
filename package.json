@@ -18,6 +18,7 @@
     "start:frontend": "bun run --filter @noted/frontend start",
     "start:backend": "bun run --filter @noted/backend start",
     "lint": "bun run --filter '*' lint",
+    "validate:no-mongo": "bun ./scripts/validate-no-mongo.mjs && bun ./scripts/test-validate-no-mongo.mjs",
     "android": "bun run --filter @noted/frontend android",
     "ios": "bun run --filter @noted/frontend ios",
     "web": "bun run --filter @noted/frontend web"
