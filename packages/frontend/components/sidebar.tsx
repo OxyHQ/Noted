@@ -37,6 +37,15 @@ type DrawerNav = DrawerNavigationProp<Record<string, object | undefined>>;
    Root sidebar — routes to settings sidebar on /settings
    ================================================================ */
 
+/**
+ * Width of the drawer, expanded and collapsed. Both layouts need it: `(app)`
+ * sizes the drawer with it, and the root layout offsets the floating bottom
+ * stack by half of it so the stack centres on the content rather than the
+ * window.
+ */
+export const SIDEBAR_WIDTH_EXPANDED = 280;
+export const SIDEBAR_WIDTH_COLLAPSED = 48;
+
 export function Sidebar() {
   const pathname = usePathname();
   // Mirrored into the store because the drawer's status is only readable from
