@@ -18,13 +18,7 @@ import { createLogger } from '@oxyhq/core/logger';
 
 import type { EnhanceRequest, Enhancement, OnDeviceSummarizer } from '@/lib/enhance/contract';
 import { isLlmModelPresent, llmModelPath } from '@/lib/enhance/models';
-import { parseEnhancement } from '@/lib/enhance/parse';
-import {
-  buildPrompt,
-  mergeEnhancements,
-  splitForContext,
-  type TranscriptLine,
-} from '@/lib/enhance/prompt';
+import { summarize } from '@/lib/enhance/summarize';
 
 const logger = createLogger('NotedEnhance');
 
@@ -91,36 +85,25 @@ export function getSummarizer(): OnDeviceSummarizer {
     availability: () => Promise.resolve(isLlmModelPresent() ? 'ready' : 'downloadable'),
 
     async enhance(request: EnhanceRequest): Promise<Enhancement | null> {
-      if (request.transcript.length === 0) return null;
       if (!isLlmModelPresent()) return null;
-
       const llama = await getContext();
-      const windows = splitForContext(request.transcript as readonly TranscriptLine[]);
-      const parts: Enhancement[] = [];
 
-      for (const window of windows) {
-        const prompt = buildPrompt(window, {
-          language: request.language,
-          existingBody: request.existing?.body,
-          isPartial: windows.length > 1,
-        });
-
+      // Everything except this call is shared with the browser: windowing, the
+      // prompt, refusing an unusable reply, combining the answers.
+      return summarize(request, async (prompt) => {
         const result = await llama.completion({
           messages: [{ role: 'user', content: prompt }],
           n_predict: MAX_REPLY_TOKENS,
           // Low, not zero: this is extraction, not invention, and a model left
           // free to be creative here invents action items.
           temperature: 0.2,
-          response_format: { type: 'json_schema', json_schema: { strict: true, schema: REPLY_SCHEMA } },
+          response_format: {
+            type: 'json_schema',
+            json_schema: { strict: true, schema: REPLY_SCHEMA },
+          },
         });
-
-        const parsed = parseEnhancement(result.text);
-        // A window the model made nothing of is skipped, not fatal: the rest of
-        // the meeting still has something to say.
-        if (parsed) parts.push(parsed);
-      }
-
-      return mergeEnhancements(parts);
+        return result.text;
+      });
     },
   };
 }
