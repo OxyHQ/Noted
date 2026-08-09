@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createLogger } from '@oxyhq/core/logger';
 
 import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';
-import { restructureNote } from '@/lib/capture/restructure';
+import { enhanceNote, restructureNote } from '@/lib/capture/restructure';
 import {
   dbToLevel,
   pushLevel,
@@ -160,6 +160,15 @@ export function useRealtimeRecorder(
         await restructureNote(captureId, noteId, startedAt).catch((error: unknown) => {
           logger.error('Could not structure the note', { error: String(error) });
         });
+
+        // The model reads the whole meeting once, here, exactly as on the
+        // phone. Swallowed because the structured note is already written:
+        // losing the better version is not worth losing the recording.
+        await enhanceNote(captureId, noteId, startedAt, optionsRef.current.language).catch(
+          (error: unknown) => {
+            logger.error('Could not enhance the note', { error: String(error) });
+          },
+        );
       }
 
       setPhase('saved');

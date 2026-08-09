@@ -59,15 +59,34 @@ const MODEL_ID = 'onnx-community/whisper-base';
  * Sizes, read from the registry: encoder q8 23 MB, decoder q4 124 MB. Fetched
  * once and then cached by the browser.
  */
-const DTYPES = { encoder_model: 'q8', decoder_model_merged: 'q4' } as const;
+/**
+ * Which quantisation of each half to load, per device.
+ *
+ * The decoder is `q4` on both. transformers.js defaults to `q8` on WASM and
+ * that decoder does not load at all: the runtime refuses the graph at session
+ * creation, on `decoder.embed_tokens.weight_transposed_DequantizeLinear`.
+ *
+ * The encoder differs on purpose. On a GPU it is `fp32`, which is what
+ * Xenova's `realtime-whisper-webgpu` uses with this exact model — the encoder is
+ * where audio becomes features, so quantising it costs more accuracy than
+ * quantising the decoder, and a GPU has the memory for it. On WASM it stays
+ * `q8`: 23 MB against 82 MB, on the path that is already slow enough without
+ * three times the weights.
+ *
+ * Sizes read from the registry: encoder fp32 82 MB / q8 23 MB, decoder q4
+ * 124 MB. Fetched once and then cached by the browser.
+ */
+const DTYPES = {
+  webgpu: { encoder_model: 'fp32', decoder_model_merged: 'q4' },
+  wasm: { encoder_model: 'q8', decoder_model_merged: 'q4' },
+} as const;
 
 /**
  * What to try if the pinned pair is also refused.
  *
- * Unquantised is 290 MB and always loadable. It is a bad first choice and a
- * good last one — a graph a particular browser will not accept is not something
- * this code can reason about, and no transcription at all is worse than a large
- * download.
+ * Unquantised is 290 MB and always loadable. A bad first choice and a good last
+ * one: a graph a particular browser will not accept is not something this code
+ * can reason about, and no transcription at all is worse than a large download.
  */
 const FALLBACK_DTYPES = { encoder_model: 'fp32', decoder_model_merged: 'fp32' } as const;
 
@@ -136,13 +155,11 @@ async function getTranscriber(): Promise<Transcriber> {
       wasmBackend.wasmPaths = ORT_RUNTIME_PATH;
 
       const device = (await hasWebGpu()) ? 'webgpu' : 'wasm';
-      logger.info('Loading the browser speech model', { device, dtype: DTYPES });
+      const dtype = DTYPES[device];
+      logger.info('Loading the browser speech model', { device, dtype });
 
       try {
-        return await pipeline('automatic-speech-recognition', MODEL_ID, {
-          device,
-          dtype: DTYPES,
-        });
+        return await pipeline('automatic-speech-recognition', MODEL_ID, { device, dtype });
       } catch (error) {
         logger.warn('The quantised model was refused; falling back to the full one', {
           error: String(error),
