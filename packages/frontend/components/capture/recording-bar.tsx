@@ -41,7 +41,15 @@ export function RecordingBar() {
 
   if (!captureId) return null;
 
-  const isUnavailable = recorder.phase === "unavailable" || recorder.phase === "error";
+  // The two failures are told apart on purpose: "the microphone was refused" is
+  // something the user can act on, and "something else broke" is not — telling
+  // them to check a permission that was never the problem wastes their time.
+  const failure =
+    recorder.phase === "denied"
+      ? t("capture.denied")
+      : recorder.phase === "error"
+        ? t("capture.failed")
+        : null;
 
   return (
     <View className="flex-row items-center gap-3 border-b border-border bg-background px-4 py-2">
@@ -51,14 +59,12 @@ export function RecordingBar() {
       <View
         className={cn(
           "h-2.5 w-2.5 rounded-full",
-          isUnavailable ? "bg-muted-foreground" : "bg-red-500",
+          failure ? "bg-muted-foreground" : "bg-red-500",
         )}
       />
 
-      {isUnavailable ? (
-        <Text className="flex-1 text-sm text-muted-foreground">
-          {t("capture.unavailable")}
-        </Text>
+      {failure ? (
+        <Text className="flex-1 text-sm text-muted-foreground">{failure}</Text>
       ) : (
         <Waveform levels={recorder.levels} />
       )}

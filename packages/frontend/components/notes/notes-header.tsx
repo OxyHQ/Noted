@@ -32,7 +32,7 @@ export function NotesHeader({ title, searchable = false }: NotesHeaderProps) {
   const searchQuery = useNotesUIStore((s) => s.searchQuery);
   const setSearchQuery = useNotesUIStore((s) => s.setSearchQuery);
 
-  const { start: startCapture, isRecording } = useStartCapture();
+  const { start: startCapture, isRecording, isSupported: canCapture } = useStartCapture();
 
   const LayoutIcon = viewMode === "grid" ? Rows3 : LayoutGrid;
   const nextMode: ViewMode = viewMode === "grid" ? "list" : "grid";
@@ -73,10 +73,12 @@ export function NotesHeader({ title, searchable = false }: NotesHeaderProps) {
           </Text>
         )}
 
-        {/* Hidden while recording rather than disabled: the stop control is in
-            the bar directly above, so a second, inert microphone button here
-            would only be somewhere to press that does nothing. */}
-        {!isRecording && (
+        {/* Hidden where the platform cannot record, and while recording: the
+            stop control is in the bar directly above, so a second, inert
+            microphone button here would only be somewhere to press that does
+            nothing. Offering it on web and failing afterwards is worse still —
+            the user has granted the microphone for nothing. */}
+        {canCapture && !isRecording && (
           <Pressable
             onPress={() => void startCapture()}
             accessibilityLabel={t("capture.start")}

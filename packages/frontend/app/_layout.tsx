@@ -13,7 +13,7 @@ import { AppErrorBoundary } from '@/components/error-boundary';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
-import { OXY_CLIENT_ID } from '@/lib/config';
+import { OXY_CLIENT_ID } from '@/lib/oxy-client-id';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 import 'react-native-reanimated';
 import '../global.css';

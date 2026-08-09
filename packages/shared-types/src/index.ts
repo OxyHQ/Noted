@@ -6,10 +6,10 @@
  * the app renders). Both sides import these types from here rather than
  * redefining note/label shapes locally, so the two can never drift.
  *
- * The backend's mongoose models keep their own Document-bound interfaces
- * (`INote`, `ILabel`) — those carry Mongo internals (`_id`, `ObjectId`, …) and
- * are NOT part of this shared contract. The serialized DTOs the API returns are
- * exactly the {@link Note} / {@link Label} shapes below.
+ * The backend's drizzle tables keep their own row types (`NoteRow`, `LabelRow`)
+ * — those carry storage-only columns (`oxyUserId`, `deletedAt`, `searchVector`)
+ * and are NOT part of this shared contract. The serialized DTOs the API returns
+ * are exactly the {@link Note} / {@link Label} shapes below.
  */
 
 /**

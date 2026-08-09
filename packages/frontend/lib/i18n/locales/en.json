@@ -1159,8 +1159,10 @@
   "capture": {
     "start": "Record a meeting",
     "stop": "Stop recording",
-    "unavailable": "Recording is unavailable — check the microphone permission",
     "recording": "Recording",
-    "notificationBody": "Noted is recording this meeting"
+    "notificationBody": "Noted is recording this meeting",
+    "denied": "Noted needs the microphone to record. Allow it in your settings and try again.",
+    "failed": "The recording could not be started.",
+    "webOnlyMobile": "Recording works in the Noted mobile app."
   }
 }

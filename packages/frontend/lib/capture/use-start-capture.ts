@@ -12,12 +12,18 @@ import { createLogger } from '@oxyhq/core/logger';
 
 import { createNote } from '@/lib/db/notes-repo';
 import { newNoteId } from '@/lib/db/ids';
+import { isCaptureSupported } from '@/lib/capture/support';
 import { useCaptureStore } from '@/lib/stores/capture-store';
 import { useTranslation } from '@/hooks/useTranslation';
 
 const logger = createLogger('NotedCapture');
 
-export function useStartCapture(): { start: () => Promise<void>; isRecording: boolean } {
+export function useStartCapture(): {
+  start: () => Promise<void>;
+  isRecording: boolean;
+  /** False where the platform cannot record; the control should not be offered. */
+  isSupported: boolean;
+} {
   const captureId = useCaptureStore((s) => s.captureId);
   const startCapture = useCaptureStore((s) => s.startCapture);
   const { t } = useTranslation();
@@ -42,9 +48,9 @@ export function useStartCapture(): { start: () => Promise<void>; isRecording: bo
       startCapture(captureIdForNote, noteId);
     } catch (error) {
       logger.error('Could not start a capture', { error: String(error) });
-      toast.error(t('capture.unavailable'));
+      toast.error(t('capture.failed'));
     }
   }, [captureId, startCapture, t]);
 
-  return { start, isRecording: captureId !== null };
+  return { start, isRecording: captureId !== null, isSupported: isCaptureSupported() };
 }

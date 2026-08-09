@@ -7,7 +7,7 @@ AI-powered search engine by [Oxy](https://oxy.so). Get answers with source citat
 ## Stack
 
 - **Frontend**: Expo 55 + React Native Web + NativeWind (Tailwind CSS)
-- **Backend**: Express + TypeScript + MongoDB + Redis + Socket.IO
+- **Backend**: Express + TypeScript + PostgreSQL + Redis + Socket.IO
 - **AI**: Multi-provider abstraction (OpenAI, Anthropic, Google, Groq, DeepSeek, xAI, Mistral)
 - **Auth**: OxyHQ (@oxyhq/services)
 - **Infra**: SST + DigitalOcean (App Platform, Spaces) + Cloudflare
@@ -57,7 +57,7 @@ bunx sst dev
 
 ### Shared resources (external)
 
-MongoDB and Valkey (Redis) are shared across all Oxy apps and referenced by cluster name in the App Platform spec. They are **not** created or destroyed by SST.
+PostgreSQL and Valkey (Redis) are shared across all Oxy apps and referenced by cluster name in the App Platform spec. They are **not** created or destroyed by SST.
 
 ### Stages
 
