@@ -23,6 +23,7 @@ import {
 } from '@/lib/capture/captures-repo';
 import { newNoteId } from '@/lib/db/ids';
 import { getNote, updateNote } from '@/lib/db/notes-repo';
+import { userAuthoredPart } from '@/lib/capture/placeholder-title';
 import { structureTranscript, toNotePatch } from '@/lib/structure/structure';
 import { enhancementToNotePatch } from '@/lib/enhance/apply';
 import { getSummarizer } from '@/lib/enhance/summarizer';
@@ -57,7 +58,9 @@ export async function restructureNote(
   const structured = structureTranscript(segments, {
     startedAt,
     makeId: newNoteId,
-    existing: { title: note.title, body: note.body, checklist: note.checklist },
+    // The start-time placeholder is not a title anyone chose, so it does not
+    // get a title's protection.
+    existing: userAuthoredPart(note, startedAt),
   });
 
   await updateNote(noteId, toNotePatch(structured));
@@ -96,7 +99,7 @@ export async function enhanceNote(
   // rather than handing whisper's raw segments to the model: the filler and the
   // repetitions it removes are tokens the model would otherwise spend context
   // on, and a phone's context window is the scarce thing here.
-  const existing = { title: note.title, body: note.body, checklist: note.checklist };
+  const existing = userAuthoredPart(note, startedAt);
   const structured = structureTranscript(segments, {
     startedAt,
     makeId: newNoteId,
