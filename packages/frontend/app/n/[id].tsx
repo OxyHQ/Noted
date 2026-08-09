@@ -15,6 +15,8 @@ import Animated, {
   FadeOutDown,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { useOxy } from "@oxyhq/services";
 import {
@@ -351,6 +353,9 @@ export default function NoteEditorScreen() {
     return (
       <View className="flex-1 items-center justify-center bg-background">
         <ActivityIndicator color={colors.primary} />
+        {/* Carried by the loading state too: a recording does not pause while a
+            note loads, so neither should the thing that says so. */}
+        <FloatingBottomStack />
       </View>
     );
   }
@@ -535,6 +540,11 @@ export default function NoteEditorScreen() {
           {editorContent}
         </Animated.View>
         {labelDialog}
+        {/* The editor is a sibling route painted above the whole app, so the
+            copy of this stack living in the drawer's scenes is behind it. A
+            recording has to stay visible and stoppable while a note is open —
+            that is the screen someone is on during a meeting. */}
+        <FloatingBottomStack />
       </Animated.View>
     );
   }
@@ -546,6 +556,7 @@ export default function NoteEditorScreen() {
     <View className="flex-1" style={{ backgroundColor }}>
       {editorContent}
       {labelDialog}
+      <FloatingBottomStack />
     </View>
   );
 }

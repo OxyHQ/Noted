@@ -11,8 +11,8 @@ import i18n from "@/lib/i18n";
 import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
 import { useLocalStore } from "@/lib/db/use-local-store";
-import { RecordingPill } from "@/components/capture/recording-pill";
-import { UndoSnackbar } from "@/components/notes/undo-snackbar";
+import { CaptureEngineHost } from "@/components/capture/capture-engine-host";
+import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 
 // Top-level list routes that render their own header (and own top inset).
 const SELF_INSET_ROUTES = new Set([
@@ -23,15 +23,28 @@ const SELF_INSET_ROUTES = new Set([
   "labels",
 ]);
 
+const SIDEBAR_WIDTH_EXPANDED = 280;
+const SIDEBAR_WIDTH_COLLAPSED = 48;
+
+/**
+ * Every drawer scene carries the floating bottom stack.
+ *
+ * Inside the scene rather than beside the navigator, so an open drawer covers
+ * the recording indicator exactly as it covers the note cards and the FAB — the
+ * scene is also the content area, so `self-center` lands on the content without
+ * anything having to know the sidebar's width.
+ */
+const renderScene = ({ children }: { children: React.ReactNode }) => (
+  <View style={{ flex: 1 }}>
+    {children}
+    <FloatingBottomStack />
+  </View>
+);
+
 // Routes shown as items in the drawer sidebar list. The Sidebar component
 // renders its own nav, so we hide the auto-generated drawer items entirely.
 const VISIBLE_ROUTES = new Set<string>();
 
-/** Clear of the home indicator and any bottom chrome. */
-const BOTTOM_STACK_MARGIN = 16;
-
-const SIDEBAR_WIDTH_EXPANDED = 280;
-const SIDEBAR_WIDTH_COLLAPSED = 48;
 
 export default function AppLayout() {
   const dimensions = useWindowDimensions();
@@ -39,7 +52,6 @@ export default function AppLayout() {
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
 
   // Push notification registration + tap handling.
   useNotificationSetup();
@@ -100,6 +112,7 @@ export default function AppLayout() {
               <Drawer
                 drawerContent={renderDrawerContent}
                 screenOptions={screenOptions}
+                screenLayout={renderScene}
               >
                 <Drawer.Screen
                   name="index"
@@ -126,48 +139,11 @@ export default function AppLayout() {
                   options={{ title: i18n.t("nav.settings") }}
                 />
               </Drawer>
-              {/* The floating bottom stack, above the navigator so it survives
-                  every screen change: the recording keeps running across screens
-                  and into the background, and a control tied to one screen would
-                  strand the microphone. The undo snackbar sits in the same stack
-                  rather than inside the screen that raised it — a snackbar drawn
-                  inside the navigator is painted under this button whatever
-                  z-index it asks for, because the navigator is a whole stacking
-                  context lower.
-
-                  Hugging its contents (`self-center`) rather than stretching:
-                  a full-width layer over the app, sidebar included, would leave
-                  everything beneath it depending on `pointerEvents: 'box-none'`
-                  surviving every future style change. Shifted right by half the
-                  sidebar because `self-center` centres on the WINDOW, while the
-                  notes are centred on what is left of it; transitioned to match
-                  the sidebar's own width animation. */}
-              {/* An open drawer covers the content on a small screen, so the
-                  stack stands down rather than floating over the sidebar and
-                  its scrim. On a large screen the drawer is permanent, always
-                  reports itself open, and shares the width instead of covering
-                  it — hence the breakpoint in the condition. */}
-              {!(sidebarOpen && !isLargeScreen) && (
-                <View
-                  className="absolute bottom-0 self-center items-center gap-2"
-                  style={{
-                    paddingBottom: insets.bottom + BOTTOM_STACK_MARGIN,
-                    transform: [
-                      { translateX: (isLargeScreen ? drawerWidth : 0) / 2 },
-                    ],
-                    ...(Platform.OS === "web"
-                      ? {
-                          transitionProperty: "transform",
-                          transitionDuration: "200ms",
-                          transitionTimingFunction: "ease-out",
-                        }
-                      : {}),
-                  }}
-                >
-                  <UndoSnackbar />
-                  <RecordingPill />
-                </View>
-              )}
+              {/* Holds the microphone and draws nothing. One mount, here rather
+                  than beside the indicator, because two engines would be two
+                  microphones — and because it reads the local database, which
+                  only exists once this layout has opened an account's store. */}
+              <CaptureEngineHost />
             </View>
           </View>
         </View>
