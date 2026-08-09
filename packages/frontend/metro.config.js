@@ -37,8 +37,11 @@ module.exports = (() => {
     },
   };
 
+  // `input` is a NativeWind v4 option and does not exist in v5 / react-native-css
+  // v3 (`WithReactNativeCSSOptions extends CompilerOptions`, which has no such
+  // key) — the stylesheet is pulled in by `import '../global.css'` in
+  // `app/_layout.tsx` and compiled by the CSS-aware Metro transformer.
   return withNativeWind(config, {
-    input: './global.css',
     inlineRem: 16,
     inlineVariables: false
   });
