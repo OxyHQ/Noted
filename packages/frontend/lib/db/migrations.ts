@@ -29,7 +29,7 @@ const logger = createLogger('NotedDB');
  * label is an indexed join instead of a scan, and so a label rename or delete
  * touches one place.
  */
-const MIGRATIONS: readonly (readonly string[])[] = [
+export const MIGRATIONS: readonly (readonly string[])[] = [
   [
     `CREATE TABLE IF NOT EXISTS notes (
       id TEXT PRIMARY KEY NOT NULL,
@@ -167,10 +167,97 @@ const MIGRATIONS: readonly (readonly string[])[] = [
   // Local bookkeeping: it is never sent anywhere, and the note's `body` remains
   // the whole truth on the wire.
   [`ALTER TABLE notes ADD COLUMN generated_body TEXT NOT NULL DEFAULT ''`],
+
+  // What a generator produced, as structure rather than as a string.
+  //
+  // `generated_body` above says WHICH text the app wrote and nothing about what
+  // is inside it, so nothing can close a question two windows later, merge a
+  // point somebody made twice, or protect the one checklist item the user
+  // ticked. These tables hold the same contribution with its parts intact — see
+  // `lib/artifact/types.ts` — and the old column stays beside them until the
+  // whole pipeline reads from here.
+  [
+    // One row per (note, capture, stage): the provisional artifact and the
+    // settled one are different rows on purpose, so finalisation can land
+    // without a live pass having anything to overwrite.
+    `CREATE TABLE IF NOT EXISTS note_artifacts (
+      id TEXT PRIMARY KEY NOT NULL,
+      note_id TEXT NOT NULL,
+      capture_id TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      profile TEXT NOT NULL DEFAULT 'auto',
+      intent TEXT NOT NULL DEFAULT 'freeform',
+      transcript_revision INTEGER NOT NULL DEFAULT 0,
+      artifact_revision INTEGER NOT NULL DEFAULT 0,
+      doc_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS note_artifacts_slot
+      ON note_artifacts (note_id, capture_id, stage)`,
+    `CREATE INDEX IF NOT EXISTS note_artifacts_by_note ON note_artifacts (note_id)`,
+
+    // What the user did to a generated item, keyed by that item's stable id.
+    // The old code inferred this by looking for the generated block's exact text
+    // inside the note, which cannot tell an edit from a paragraph typed after it
+    // and cannot say anything at all about a checklist item.
+    `CREATE TABLE IF NOT EXISTS note_item_overrides (
+      note_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      text TEXT,
+      checked INTEGER,
+      removed INTEGER NOT NULL DEFAULT 0,
+      adopted INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (note_id, item_id)
+    )`,
+
+    // Three machines instead of one enum: the microphone, the transcript and the
+    // note finish at different moments, and `state` could only ever describe
+    // whichever of them wrote last. `state` is still maintained alongside these
+    // so a row stays readable to a build that has not migrated.
+    `ALTER TABLE captures ADD COLUMN capture_status TEXT NOT NULL DEFAULT 'stopped'`,
+    `ALTER TABLE captures ADD COLUMN transcription_status TEXT NOT NULL DEFAULT 'idle'`,
+    `ALTER TABLE captures ADD COLUMN generation_status TEXT NOT NULL DEFAULT 'idle'`,
+    `ALTER TABLE captures ADD COLUMN profile TEXT NOT NULL DEFAULT 'auto'`,
+    `ALTER TABLE captures ADD COLUMN transcript_revision INTEGER NOT NULL DEFAULT 0`,
+
+    // One statement per old state rather than a CASE, so a test can read the
+    // mapping back out and check it against `lifecycleFromLegacyState` — the two
+    // are the same fact written twice and would otherwise be free to drift.
+    `UPDATE captures SET capture_status = 'recording', transcription_status = 'live',
+       generation_status = 'live' WHERE state = 'recording'`,
+    `UPDATE captures SET capture_status = 'interrupted', transcription_status = 'pending',
+       generation_status = 'idle' WHERE state = 'interrupted'`,
+    `UPDATE captures SET capture_status = 'stopped', transcription_status = 'running',
+       generation_status = 'idle' WHERE state = 'transcribing'`,
+    `UPDATE captures SET capture_status = 'stopped', transcription_status = 'complete',
+       generation_status = 'complete' WHERE state = 'complete'`,
+    `UPDATE captures SET capture_status = 'failed', transcription_status = 'failed',
+       generation_status = 'idle' WHERE state = 'failed'`,
+
+    // A segment's identity, so whisper re-emitting a slice as it fills updates
+    // the row it already wrote instead of leaving a shorter copy of the same
+    // sentence behind it.
+    `ALTER TABLE transcript_segments ADD COLUMN slice_index INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE transcript_segments ADD COLUMN segment_index INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE transcript_segments ADD COLUMN revision INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE transcript_segments ADD COLUMN is_final INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE transcript_segments ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+    // Existing rows have no logical key — they were written before there was one
+    // — so each is given a distinct position rather than being left to collide
+    // under the unique index below, which would fail the migration and strand
+    // every device that already has a transcript.
+    `UPDATE transcript_segments SET segment_index = rowid, updated_at = created_at`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS transcript_segments_logical
+      ON transcript_segments (capture_id, slice_index, segment_index)`,
+  ],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
 export const LOCAL_TABLES: readonly string[] = [
+  'note_item_overrides',
+  'note_artifacts',
   'transcript_segments',
   'captures',
   'note_labels',
