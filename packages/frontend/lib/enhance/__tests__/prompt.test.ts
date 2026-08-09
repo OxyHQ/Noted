@@ -13,7 +13,7 @@ function lines(count: number, text: string): TranscriptLine[] {
 }
 
 function enhancement(overrides: Partial<Enhancement>): Enhancement {
-  return { title: '', summary: [], decisions: [], actions: [], questions: [], ...overrides };
+  return { title: '', notes: [], actions: [], openQuestions: [], ...overrides };
 }
 
 describe('splitForContext', () => {
@@ -56,10 +56,23 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('[01:05] Empezamos');
   });
 
-  it('tells the model an empty list is a good answer', () => {
-    // The instruction that stops a small model inventing action items to fill
-    // the shape it was given.
-    expect(buildPrompt(lines(1, 'hola'), { language: 'auto' })).toContain('an empty list is a good answer');
+  it('forbids inventing what was not said', () => {
+    // The instruction that stops a small model filling the shape it was given
+    // with things nobody said. An invented action is worse than a missing one,
+    // because the user acts on it.
+    const prompt = buildPrompt(lines(1, 'hola'), { language: 'auto' });
+    expect(prompt).toContain('Do not invent or infer information that was not said');
+    expect(prompt).toContain('Only create an action when someone actually committed');
+  });
+
+  it('asks for the fields the parser reads, and no others', () => {
+    // The prompt, the generation grammar and the parser have to agree on the
+    // shape. They are in three files, and a rename in one is silent in the
+    // other two: the model answers, and the answer is dropped.
+    const prompt = buildPrompt(lines(1, 'hola'), { language: 'auto' });
+    for (const field of ['title', 'notes', 'actions', 'openQuestions']) {
+      expect(prompt).toContain(field);
+    }
   });
 
   it('passes the user own notes so they are not repeated', () => {
@@ -78,34 +91,36 @@ describe('buildPrompt', () => {
 
   it('tells a partial window not to conclude about the whole meeting', () => {
     expect(buildPrompt(lines(1, 'hola'), { language: 'auto', isPartial: true })).toContain(
-      'one part of a longer meeting',
+      'part of a longer conversation',
     );
-    expect(buildPrompt(lines(1, 'hola'), { language: 'auto' })).toContain('the whole meeting');
+    expect(buildPrompt(lines(1, 'hola'), { language: 'auto' })).toContain(
+      'the full conversation',
+    );
   });
 });
 
 describe('mergeEnhancements', () => {
   it('keeps the order the meeting happened in', () => {
     const merged = mergeEnhancements([
-      enhancement({ summary: ['primero'] }),
-      enhancement({ summary: ['segundo'] }),
+      enhancement({ notes: ['primero'] }),
+      enhancement({ notes: ['segundo'] }),
     ]);
-    expect(merged?.summary).toEqual(['primero', 'segundo']);
+    expect(merged?.notes).toEqual(['primero', 'segundo']);
   });
 
   it('drops a point restated in a later window', () => {
     const merged = mergeEnhancements([
-      enhancement({ decisions: ['Congelar contrataciones'] }),
-      enhancement({ decisions: ['congelar contrataciones'] }),
+      enhancement({ notes: ['Congelar contrataciones'] }),
+      enhancement({ notes: ['congelar contrataciones'] }),
     ]);
-    expect(merged?.decisions).toEqual(['Congelar contrataciones']);
+    expect(merged?.notes).toEqual(['Congelar contrataciones']);
   });
 
   it('takes the title from the first window that named the meeting', () => {
     const merged = mergeEnhancements([
-      enhancement({ summary: ['algo'] }),
-      enhancement({ title: 'Presupuesto', summary: ['más'] }),
-      enhancement({ title: 'Otra cosa', summary: ['y más'] }),
+      enhancement({ notes: ['algo'] }),
+      enhancement({ title: 'Presupuesto', notes: ['más'] }),
+      enhancement({ title: 'Otra cosa', notes: ['y más'] }),
     ]);
     expect(merged?.title).toBe('Presupuesto');
   });

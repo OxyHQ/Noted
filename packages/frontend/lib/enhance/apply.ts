@@ -63,9 +63,13 @@ export function enhancementToNotePatch(
   const written = existing?.body.trim() ?? '';
   const body = [
     ...(written ? [written, ''] : []),
-    ...renderSection(labels.summary, enhancement.summary),
-    ...renderSection(labels.decisions, enhancement.decisions),
-    ...renderSection(labels.questions, enhancement.questions),
+    // The notes carry no heading: they ARE the note, not a section of it.
+    // "## Summary" over the only content on the page is a label for something
+    // that needs no labelling.
+    ...(enhancement.notes.length > 0
+      ? [...enhancement.notes.map((note) => `- ${note}`), '']
+      : []),
+    ...renderSection(labels.questions, enhancement.openQuestions),
     // Tasks are the checklist, so the body links to them rather than repeating
     // them — two copies of a task list disagree the moment one is ticked.
   ]

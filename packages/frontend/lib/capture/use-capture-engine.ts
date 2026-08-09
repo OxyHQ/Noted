@@ -22,6 +22,7 @@ import {
   useRealtimeRecorder,
 } from '@/lib/capture/use-realtime-recorder';
 import type { Recorder } from '@/lib/capture/recording';
+import { hasDownloadableModels } from '@/lib/capture/support';
 import type { Row } from '@/lib/db/client';
 import { useLiveQuery } from '@/lib/db/live-query';
 import { DEFAULT_STT_MODEL, type SttModelId } from '@/lib/stt/models';
@@ -79,7 +80,11 @@ export function useCaptureEngine(
   const language = readSetting(settings, SETTING_KEYS.sttLanguage, isLanguage, 'auto');
   const wantsLive = readSetting(settings, SETTING_KEYS.liveNotes, isBoolean, true);
 
-  const canRecordLive = isRealtimeCaptureSupported() && wantsLive && readyModels.has(model);
+  // The model gate applies only where the app downloads models. A browser's
+  // model is fetched and cached by transformers.js, so there is no row to wait
+  // for — requiring one would disable live capture on web permanently.
+  const hasModel = hasDownloadableModels() ? readyModels.has(model) : true;
+  const canRecordLive = isRealtimeCaptureSupported() && wantsLive && hasModel;
 
   const live = useRealtimeRecorder(captureId, noteId, enabled && canRecordLive, {
     model,

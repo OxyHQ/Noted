@@ -152,20 +152,14 @@ export function mergeEnhancements(
 ): Enhancement | null {
   const merged: Enhancement = {
     title: "",
-    summary: [],
-    decisions: [],
+    notes: [],
     actions: [],
-    questions: [],
+    openQuestions: [],
   };
 
   for (const part of parts) {
     if (merged.title === "" && part.title !== "") merged.title = part.title;
-    for (const field of [
-      "summary",
-      "decisions",
-      "actions",
-      "questions",
-    ] as const) {
+    for (const field of ["notes", "actions", "openQuestions"] as const) {
       for (const line of part[field]) {
         const isRepeat = merged[field].some(
           (existing) => existing.toLowerCase() === line.toLowerCase(),
@@ -176,10 +170,7 @@ export function mergeEnhancements(
   }
 
   const hasContent =
-    merged.summary.length > 0 ||
-    merged.decisions.length > 0 ||
-    merged.actions.length > 0 ||
-    merged.questions.length > 0;
+    merged.notes.length > 0 || merged.actions.length > 0 || merged.openQuestions.length > 0;
 
   return hasContent ? merged : null;
 }

@@ -31,16 +31,24 @@ export type SummarizerAvailability =
  * interchangeable and the merge with the user's own writing is written once.
  */
 export interface Enhancement {
-  /** A title that names the meeting, not the moment it started. */
+  /** A short, specific title for what was discussed. */
   title: string;
-  /** The points worth reading again, in the meeting's own terms. */
-  summary: string[];
-  /** Things that were settled. */
-  decisions: string[];
-  /** Things someone agreed to do. */
+  /**
+   * The notes themselves — what someone would keep and refer back to.
+   *
+   * Not a summary of the conversation: the useful content, with the
+   * conversational shape taken out. This is the note's body.
+   */
+  notes: string[];
+  /** Concrete next steps someone committed to or was assigned. */
   actions: string[];
-  /** Things raised and left open. */
-  questions: string[];
+  /**
+   * Important matters genuinely left unresolved.
+   *
+   * Deliberately not "every question asked": a question that got an answer
+   * belongs in the notes as the answer.
+   */
+  openQuestions: string[];
 }
 
 export interface EnhanceRequest {

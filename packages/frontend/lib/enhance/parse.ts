@@ -132,20 +132,18 @@ export function parseEnhancement(reply: string): Enhancement | null {
   const record = parsed as Record<string, unknown>;
   const enhancement: Enhancement = {
     title: readTitle(record.title),
-    summary: readLines(record.summary),
-    decisions: readLines(record.decisions),
+    notes: readLines(record.notes),
     actions: readLines(record.actions),
-    questions: readLines(record.questions),
+    openQuestions: readLines(record.openQuestions),
   };
 
   // A reply with a title and nothing else is a model that had nothing to say
   // about the meeting. The rule-based note is better than a heading over
   // emptiness, so this counts as no answer.
   const hasContent =
-    enhancement.summary.length > 0 ||
-    enhancement.decisions.length > 0 ||
+    enhancement.notes.length > 0 ||
     enhancement.actions.length > 0 ||
-    enhancement.questions.length > 0;
+    enhancement.openQuestions.length > 0;
 
   return hasContent ? enhancement : null;
 }

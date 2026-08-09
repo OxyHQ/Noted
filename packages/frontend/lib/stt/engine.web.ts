@@ -33,7 +33,7 @@ const logger = createLogger('NotedSTT');
  * Whisper is trained on 16 kHz mono, and expects exactly that. Anything else is
  * resampled somewhere; doing it here, once, is the cheap place.
  */
-const SAMPLE_RATE = 16_000;
+export const SAMPLE_RATE = 16_000;
 
 /**
  * The ONNX build of whisper-base.
@@ -224,6 +224,7 @@ const NON_SPEECH = /^\[.*\]$/;
 function toSegments(
   chunks: readonly TimestampedChunk[],
   captureId: string,
+  offsetMs = 0,
 ): TranscriptSegment[] {
   return chunks
     .map((chunk) => {
@@ -231,15 +232,39 @@ function toSegments(
       return {
         id: newNoteId(),
         captureId,
-        startMs: Math.round(start * SECONDS_TO_MS),
+        startMs: offsetMs + Math.round(start * SECONDS_TO_MS),
         // The final chunk of a recording has no end timestamp.
-        endMs: Math.round((end ?? start) * SECONDS_TO_MS),
+        endMs: offsetMs + Math.round((end ?? start) * SECONDS_TO_MS),
         text: chunk.text.trim(),
         confidence: null,
         speakerHint: null,
       };
     })
     .filter((segment) => segment.text !== '' && !NON_SPEECH.test(segment.text));
+}
+
+/**
+ * Transcribe raw samples that are already in whisper's format.
+ *
+ * Exported for the live path, which has the microphone's own PCM in hand and no
+ * file to decode: it would otherwise have to encode audio only to fetch and
+ * decode it again. `offsetMs` is added to every timestamp, because a slice
+ * transcribed on its own starts counting from zero and the note needs to know
+ * when in the meeting it was said.
+ */
+export async function transcribeSamples(
+  samples: Float32Array,
+  captureId: string,
+  language: string,
+  offsetMs: number,
+): Promise<TranscriptSegment[]> {
+  const transcribe = await getTranscriber();
+  const output = await transcribe(samples, {
+    chunk_length_s: CHUNK_SECONDS,
+    return_timestamps: true,
+    language: resolveLanguage(language),
+  });
+  return toSegments(output.chunks ?? [], captureId, offsetMs);
 }
 
 export function getSttEngine(): SttEngine {
