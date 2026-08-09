@@ -38,10 +38,18 @@ export const DEFAULT_LABELS: StructureLabels = {
 
 export interface StructuredNote {
   title: string;
-  /** The note body, as Markdown. */
+  /** The note body, as Markdown — the points, not the transcript. */
   markdown: string;
   /** Action items, ready to become the note's checklist. */
   checklist: ChecklistItem[];
+  /**
+   * The cleaned transcript, for the recording's own view.
+   *
+   * Separate from the note on purpose: a note that reproduces everything said
+   * is a transcript with headings, and skimming it back is exactly the work the
+   * app exists to save.
+   */
+  transcript: { atMs: number; text: string }[];
 }
 
 /**
@@ -174,10 +182,11 @@ export function structureTranscript(
       labels.questions,
       questions.map((question) => `- ${question.text}`),
     ),
-    ...renderSection(
-      labels.transcript,
-      blocks.map((block) => `**${formatOffset(block.startMs)}** ${block.text}`),
-    ),
+    // The transcript is deliberately NOT here. A note that reproduces everything
+    // said is a transcript with headings, and reading it back is the work the
+    // app was supposed to do. What belongs in a note is the handful of things
+    // worth returning to; the full text stays available in the recording's own
+    // view for when somebody needs to check a wording.
   ]
     .join('\n')
     .trim();
@@ -187,6 +196,7 @@ export function structureTranscript(
     title: existing?.title.trim() || deriveTitle(blocks, options.startedAt.toLocaleString()),
     markdown,
     checklist,
+    transcript: blocks.map((block) => ({ atMs: block.startMs, text: block.text })),
   };
 }
 

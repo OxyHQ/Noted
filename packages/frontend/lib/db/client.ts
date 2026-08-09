@@ -108,6 +108,29 @@ let activeViewerId: string | null = null;
 const VIEWER_OWNER_KEY = 'viewer_id';
 
 /**
+ * Resolves once an account is active.
+ *
+ * Screens mount and subscribe their live queries in the same commit that starts
+ * the sign-in restore, so the first queries of every cold start arrive before
+ * there is a database file to open. Throwing at them made a correct startup look
+ * like a failure — a burst of errors, every list empty — for something that
+ * resolves a moment later on its own.
+ *
+ * So a query that arrives early WAITS. The alternative, gating every screen on a
+ * ready flag, puts the same race in every consumer and only takes one oversight
+ * to reintroduce.
+ */
+let viewerReady: { promise: Promise<void>; resolve: () => void } = deferred();
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+/**
  * False once opening the database has failed — a browser without OPFS (private
  * windows in some engines) is the expected case. Callers degrade to the network
  * instead of retrying an open that cannot succeed for the rest of the session.
@@ -138,15 +161,22 @@ export async function setActiveViewer(viewerId: string): Promise<void> {
   await closeDb();
   activeViewerId = viewerId;
   available = true;
+  // Releases every query that arrived before sign-in finished.
+  viewerReady.resolve();
 }
 
 /** Close the database and forget the account (sign-out). */
 export async function clearActiveViewer(): Promise<void> {
   await closeDb();
   activeViewerId = null;
+  // A fresh gate, so queries issued after a sign-out wait for the next account
+  // rather than racing against a closed database.
+  viewerReady = deferred();
 }
 
 async function openDb(): Promise<SQLiteDatabase> {
+  // Wait rather than fail: see `viewerReady`.
+  await viewerReady.promise;
   const viewerId = activeViewerId;
   if (!viewerId) {
     throw new Error('The local database was queried before an account was active');
