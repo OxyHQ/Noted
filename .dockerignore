@@ -16,5 +16,3 @@
 docs
 **/*.test.ts
 **/__tests__
-sst.config.ts
-.do

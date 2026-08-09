@@ -4,9 +4,9 @@ Noted is a notes and labels app by Oxy, with real time sync, reminders, push not
 
 **The contribution process lives in the [Oxy organisation CONTRIBUTING guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md)**: reporting an issue, filing a feature request, opening a pull request, code review, licensing. It applies here unchanged. This file layers on top of it the same way `AGENTS.md` files layer, so it is short on purpose: it carries only what is different about this repository.
 
-## Stale Clarity branding
+## Where this repository came from
 
-Noted was started from the Clarity codebase and some of that branding has outlived the fork. `README.md` still says "Clarity", and until this file was rewritten so did the whole of it. The product, the package names (`@noted/*`) and the code are **Noted**. Anything you find still saying Clarity in this repository is a leftover, not a second product, and is worth fixing where you see it.
+Noted was started from the Clarity codebase, a different product. The READMEs and this file have been rewritten, but the fork is worth knowing about: if you find something that mentions Clarity, an AI search engine, DigitalOcean or MongoDB, it is a leftover rather than a second product or a second database — Noted is a notes app, runs on PostgreSQL, and deploys to AWS and Cloudflare. Fix it where you see it.
 
 ## Prerequisites
 

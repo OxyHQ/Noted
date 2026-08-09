@@ -1,81 +1,37 @@
-# Clarity App
+# @noted/frontend
 
-Expo app for web, iOS, and Android.
+The Noted app: iOS, Android and web from one Expo codebase. See the [repository README](../../README.md) for what the product is and how the pieces fit.
 
-## Current Focus
-
-- Unified streaming chat client for the shared autonomy runtime.
-- Trigger management UI (backed by `/triggers`).
-- Agent activity + approval actions in real time.
-- Memory, settings, billing, and organization features.
-
-## Key Runtime Integrations
-
-### Chat Streaming
-
-`useStreamingChat` consumes named SSE events from `/v1/chat/completions`:
-
-- `clarity.reasoning`
-- `clarity.tool_result`
-- `clarity.plan_preview`
-- `clarity.approval_request`
-- `clarity.approval_result`
-- `clarity.research_progress`
-- `clarity.model_switch`
-- `clarity.agent_session`
-- `clarity.title`
-
-All payloads include `eventVersion: 1`.
-
-### Agent Approval UX
-
-`agent-panel` + `use-agent-activity` handle:
-
-- Approval request display
-- Approve/deny actions
-- Socket emission via `agent-approval-response`
-
-### Trigger UI
-
-Screen path remains `app/(app)/automations.tsx`, but the data source is now `/triggers` only.
-
-## Main Routes
-
-- `app/(app)/index.tsx` - entry chat
-- `app/(app)/c/[id].tsx` - conversation view
-- `app/(app)/agents.tsx` - agent directory
-- `app/(app)/agents/[id].tsx` - agent detail/activity
-- `app/(app)/automations.tsx` - trigger list and controls
-- `app/(app)/notifications.tsx` - notification feed
-- `app/(app)/settings/*` - settings area
-
-## Development
+## Running it
 
 ```bash
-# from repo root
-bun run dev:app
+# from the repository root
+bun run dev:frontend
 
-# from apps/app
-bun start
-```
-
-Platform targets:
-
-```bash
+# or from this package
 bun run web
 bun run ios
 bun run android
 ```
 
-## API Config
+`bun run test` runs the suite (vitest, scoped to the platform-free logic in `lib/`).
 
-Configured in `apps/app/lib/config.ts`.
+## Where things are
 
-Expected production API:
+| path | what lives there |
+|---|---|
+| `app/` | the routes, file-based via expo-router — `(app)/` is the authenticated drawer, `n/[id]` is the note editor, presented as a transparent modal above it |
+| `components/` | the UI, including `notes/` (cards, grid, editor chrome) and `capture/` (the recording indicator) |
+| `lib/db/` | the local-first SQLite store: schema, migrations, repositories, and the sync that reconciles it with the API |
+| `lib/capture/` | recording: which engine holds the microphone, and what happens to a recording when it stops |
+| `lib/stt/` | speech to text — whisper.cpp on native, an ONNX build of the same model in the browser |
+| `lib/enhance/` | reading a transcript with a language model and writing the note from it |
+| `lib/stores/` | zustand stores for state that outlives a screen |
 
-- `https://api.clarity.oxy.so`
+## Things worth knowing before changing them
 
-## Notes
+- **The local database is the source of truth for reading.** Screens query SQLite through `lib/db/live-query`, never the API directly, and must not query before `useLocalStore()` reports ready — a query with no active account has no database file to open.
+- **One engine holds the microphone.** `CaptureEngineHost` mounts it once and publishes to the capture store; the indicator is drawn from that store in two places (inside the drawer's scenes and inside the note editor) because they are different layers of the app. A second engine would be a second microphone.
+- **Unit tests do not catch layout, hover or animation bugs.** Verify those in a real, foregrounded browser tab.
 
-- No `/automations` API calls remain in the app client.
-- Public model selection uses Clarity model IDs only.
+`AGENTS.md` at the repository root carries the standards that apply to every change here.
