@@ -1160,10 +1160,10 @@
     "exportFailed": "The note could not be exported."
   },
   "capture": {
-    "start": "Record a meeting",
-    "stop": "Stop recording",
+    "start": "Take notes",
+    "stop": "Stop taking notes",
     "recording": "Recording",
-    "notificationBody": "Noted is recording this meeting",
+    "notificationBody": "Noted is taking notes",
     "denied": "Noted needs the microphone to record. Allow it in your settings and try again.",
     "failed": "The recording could not be started.",
     "webOnlyMobile": "Recording works in the Noted mobile app."
