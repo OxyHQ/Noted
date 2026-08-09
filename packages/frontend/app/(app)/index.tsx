@@ -3,14 +3,14 @@ import { View, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } f
 import Head from "expo-router/head";
 import { useRouter } from "expo-router";
 import { useOxy } from "@oxyhq/services";
-import { Lightbulb, Plus } from "lucide-react-native";
+import { Plus } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
+import { StickyNoteIcon } from "@/components/ui/nav-icons";
 import { NotesHeader } from "@/components/notes/notes-header";
 import { QuickCapture } from "@/components/notes/quick-capture";
 import { NoteGrid } from "@/components/notes/note-grid";
 import { BulkActionBar } from "@/components/notes/bulk-action-bar";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
-import { UndoSnackbar } from "@/components/notes/undo-snackbar";
 import {
   Dialog,
   DialogContent,
@@ -26,12 +26,10 @@ import {
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
 import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
+import { useUndoStore } from "@/lib/stores/undo-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import type { Note, NoteColor, NoteListParams } from "@noted/shared-types";
-
-/** How long the undo snackbar stays before auto-dismissing. */
-const UNDO_TIMEOUT_MS = 5000;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -72,39 +70,10 @@ export default function HomeScreen() {
     null
   );
 
-  // Keep-style undo snackbar: one transient toast with an undo handler. The
-  // auto-dismiss timer lives in a ref so a new action resets it cleanly.
-  const [undo, setUndo] = React.useState<{ message: string; onUndo: () => void } | null>(
-    null
-  );
-  const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearUndoTimer = React.useCallback(() => {
-    if (undoTimerRef.current) {
-      clearTimeout(undoTimerRef.current);
-      undoTimerRef.current = null;
-    }
-  }, []);
-
-  const showUndo = React.useCallback(
-    (message: string, onUndo: () => void) => {
-      clearUndoTimer();
-      setUndo({ message, onUndo });
-      undoTimerRef.current = setTimeout(() => {
-        setUndo(null);
-        undoTimerRef.current = null;
-      }, UNDO_TIMEOUT_MS);
-    },
-    [clearUndoTimer]
-  );
-
-  const dismissUndo = React.useCallback(() => {
-    clearUndoTimer();
-    setUndo(null);
-  }, [clearUndoTimer]);
-
-  // Clear the pending timer if the screen unmounts mid-countdown.
-  React.useEffect(() => clearUndoTimer, [clearUndoTimer]);
+  // The snackbar itself is drawn by the layout, stacked above the record
+  // button; this screen only says what happened and how to reverse it.
+  const showUndo = useUndoStore((s) => s.showUndo);
+  const dismissUndo = useUndoStore((s) => s.dismissUndo);
 
   const allLabels = labels ?? [];
   const allNotes = notes ?? [];
@@ -362,7 +331,6 @@ export default function HomeScreen() {
         </Pressable>
       )}
 
-      {undo && <UndoSnackbar message={undo.message} onUndo={undo.onUndo} />}
 
       <Dialog
         open={colorTarget !== null}
@@ -395,7 +363,7 @@ function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useColorScheme();
   return (
     <View className="items-center justify-center py-20">
-      <Lightbulb size={64} color={colors.mutedForeground} strokeWidth={1.5} />
+      <StickyNoteIcon size={64} color={colors.mutedForeground} />
       <Text className="mt-4 text-base font-semibold text-foreground">{title}</Text>
       <Text className="mt-1 text-center text-sm text-muted-foreground">{subtitle}</Text>
     </View>
