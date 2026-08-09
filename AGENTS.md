@@ -2,7 +2,7 @@
 
 Noted is a notes-and-labels app by Oxy with real-time sync, reminders, push notifications, and web push support.
 
-Note: the README.md in this repo still says "Clarity" — that branding is stale. The codebase, package names (`@noted/*`), and product are **Noted**.
+Note: this repository was forked from Clarity, a different product. The READMEs have been rewritten; anything still saying Clarity — or naming DigitalOcean or MongoDB — is a leftover, not a second product.
 
 ## Monorepo Structure
 

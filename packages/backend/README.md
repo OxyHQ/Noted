@@ -1,113 +1,46 @@
-# Clarity API
+# @noted/backend
 
-Express + TypeScript API for Clarity autonomy runtime.
+The Noted API: Express + TypeScript over PostgreSQL, with Socket.IO for real-time sync. See the [repository README](../../README.md) for the product and how the pieces fit.
 
-## What Is Live
-
-- Single chat runtime for all surfaces (`/clarity/search` and `/v1/chat/completions`).
-- Autonomy loop with intent classification and context-graph recall.
-- Trigger engine (`/triggers`) for schedule, webhook, integration event, and agent heartbeat tasks.
-- Oxy service event ingestion with idempotency and autonomous session creation.
-- Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
-- Public model abstraction: only Clarity model IDs are exposed.
-
-## Runtime Flow
-
-1. Classify intent.
-2. Recall ranked sources and learning rules.
-3. Retrieve context.
-4. Execute with tools.
-5. Persist learnings and source quality.
-
-## Core Modules
-
-- `src/routes/v1/chat-completions.ts` - Unified chat handler.
-- `src/lib/autonomy/runtime.ts` - Before/after chat autonomy orchestration.
-- `src/lib/autonomy/context-graph.ts` - Recall/learning engine.
-- `src/lib/agent/governance.ts` - Risk policy and rollback registration.
-- `src/lib/agent/action-approval.ts` - Approval request/decision lifecycle.
-- `src/lib/trigger-engine.ts` - Unified trigger scheduler/executor.
-- `src/routes/oxy-service-events.ts` - Oxy event webhook + autonomous execution.
-
-## Public Endpoints
-
-### Chat
-
-- `POST /clarity/search`
-- `POST /v1/chat/completions`
-- `POST /v1/responses`
-- `GET /v1/models`
-- `GET /v1/models/:modelId`
-
-### Triggers
-
-- `GET /triggers`
-- `POST /triggers`
-- `GET /triggers/:id`
-- `PATCH /triggers/:id`
-- `DELETE /triggers/:id`
-- `POST /triggers/:id/run`
-- `GET /triggers/:id/executions`
-- `POST /triggers/:id/regenerate-token`
-- `POST /triggers/webhook/:token`
-
-### Oxy Event Ingestion
-
-- `POST /webhooks/oxy/:serviceId`
-
-### Removed (hard cut)
-
-- `POST /v1/resolve-model` -> `410`
-- `POST /v1/report-usage` -> `410`
-- `POST /codea/resolve-model` -> `410`
-- `POST /codea/report-usage` -> `410`
-- All `/automations*` routes removed.
-
-## Streaming Event Contract (`eventVersion: 1`)
-
-Named SSE events used by all clients:
-
-- `clarity.plan_preview`
-- `clarity.approval_request`
-- `clarity.approval_result`
-- `clarity.research_progress`
-- `clarity.agent_session`
-- `clarity.reasoning`
-- `clarity.tool_result`
-- `clarity.title`
-- `clarity.model_switch`
-
-## Development
+## Running it
 
 ```bash
-# from repo root
-bun run dev:api
+# from the repository root
+bun run dev:backend
 
-# or from apps/api
-bun run dev
+# from this package
+bun run dev            # bun --watch
+bun run test           # vitest
+bun run db:generate    # drizzle-kit, after changing the schema
+bun run db:migrate --target-database=noted_dev
 ```
 
-## Build
+A local PostgreSQL is `docker compose -f docker-compose.postgres.yml up -d postgres` from the repository root. Redis is optional — caching and Socket.IO scaling fall back gracefully without it.
 
-```bash
-bun run build
-bun run start
-```
+## Routes
+
+| prefix | what it serves |
+|---|---|
+| `/health` | liveness and readiness, including the database |
+| `/auth` | the Oxy auth webhook |
+| `/notes` | note CRUD, plus the bulk reorder |
+| `/labels` | label management |
+| `/notifications` | push delivery and Web Push subscriptions |
+| `/feedback` | the in-app feedback inbox |
+
+Every note query is filtered by `oxyUserId`, and socket rooms are joined from the server-verified id (`user:${userId}`) rather than anything the client names. There is no shared or public surface: no note carries a visibility, audience, collaborator or share-link field.
 
 ## Environment
 
-Use `apps/api/example.env` as baseline.
+`.env.example` is the documented spelling of every variable, with what happens when one is missing. The ones without which the API does not start are `DATABASE_URL` and the Oxy credentials; the rest degrade rather than fail.
 
-Key groups:
+## Database
 
-- Server and CORS (`PORT`, `WEB_URL`, `API_BASE_URL`)
-- PostgreSQL (`DATABASE_URL`)
-- Auth secrets (`JWT_SECRET`, `SERVICE_SECRET`)
-- Queue/async execution (`REDIS_URL`)
-- Integrations and channels (`INTEGRATIONS_SERVICE_URL`, channel secrets)
-- Optional sandbox runtime (`DOCKER_HOST_URL`, `DOCKER_HOST_SECRET`)
+PostgreSQL through drizzle (over postgres.js, via `@oxyhq/db`). Schema in `src/db/schema/`, migrations in `drizzle/`, connection in `src/db/postgres.ts`.
 
-## Notes
+- **Every generated migration needs a `-- oxy:deploy-phase=pre|post` marker.** `db:migrate` refuses to apply an unmarked one, before any DDL runs.
+- **Postgres has no TTL index.** Anything that would have carried one needs an entry in `src/db/expiry.ts` — the sweep that replaces it — or the table grows forever with no error and no failing test.
 
-- Keep all user-facing errors sanitized.
-- Never expose internal model-routing details in public responses or logs.
+## Reminders
+
+`src/lib/reminders.ts` owns the reminder cron: `startReminderScheduler()` / `stopReminderScheduler()`, started from `src/index.ts`.

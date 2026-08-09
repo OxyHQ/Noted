@@ -103,11 +103,6 @@
       "dark": "Dark",
       "system": "System"
     },
-    "clarityLanguage": {
-      "title": "Noted's Response Language",
-      "description": "Noted will respond in this language",
-      "selectPlaceholder": "Select a language"
-    },
     "responseTone": {
       "title": "Response Tone",
       "description": "How Noted should communicate with you",
@@ -876,7 +871,6 @@
     "editMemory": "Edit Memory",
     "newMemory": "New Memory",
     "updateDetails": "Update the memory details below",
-    "addForClarity": "Add a new memory for Noted to remember",
     "keyLabel": "Key *",
     "keyPlaceholder": "e.g., favorite_food, pet_name",
     "valueLabel": "Value *",
