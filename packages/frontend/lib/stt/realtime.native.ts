@@ -23,11 +23,17 @@ import {
   type RealtimeTranscribeEvent,
 } from 'whisper.rn/realtime-transcription/index';
 import { AudioPcmStreamAdapter } from 'whisper.rn/realtime-transcription/adapters/AudioPcmStreamAdapter';
+import type {
+  AudioStreamConfig,
+  AudioStreamData,
+  AudioStreamInterface,
+} from 'whisper.rn/realtime-transcription/types';
 import { Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { createLogger } from '@oxyhq/core/logger';
 
 import { appendSegments, type TranscriptSegment } from '@/lib/capture/captures-repo';
+import { pcmToDb } from '@/lib/capture/recording';
 import { newNoteId } from '@/lib/db/ids';
 import { isModelPresent, modelFile, STT_MODELS, type SttModelId } from '@/lib/stt/models';
 
@@ -55,6 +61,57 @@ export interface RealtimeSession {
   stop: () => Promise<void>;
 }
 
+/**
+ * The microphone stream, with a loudness reading taken on the way past.
+ *
+ * The transcriber needs the samples and the waveform needs their loudness, and
+ * there is only one microphone — so the level is measured here, where the audio
+ * already flows, rather than by opening a second recorder that would fight this
+ * one for the device.
+ *
+ * Everything else is delegated untouched: this is a tap, not a reimplementation.
+ */
+class MeteredAudioStream implements AudioStreamInterface {
+  private readonly inner = new AudioPcmStreamAdapter();
+
+  constructor(private readonly onDb: (db: number) => void) {}
+
+  initialize(config: AudioStreamConfig): Promise<void> {
+    return this.inner.initialize(config);
+  }
+
+  start(): Promise<void> {
+    return this.inner.start();
+  }
+
+  stop(): Promise<void> {
+    return this.inner.stop();
+  }
+
+  isRecording(): boolean {
+    return this.inner.isRecording();
+  }
+
+  onData(callback: (data: AudioStreamData) => void): void {
+    this.inner.onData((data) => {
+      this.onDb(pcmToDb(data.data));
+      callback(data);
+    });
+  }
+
+  onError(callback: (error: string) => void): void {
+    this.inner.onError(callback);
+  }
+
+  onStatusChange(callback: (isRecording: boolean) => void): void {
+    this.inner.onStatusChange(callback);
+  }
+
+  release(): Promise<void> {
+    return this.inner.release();
+  }
+}
+
 export interface RealtimeOptions {
   captureId: string;
   model: SttModelId;
@@ -64,6 +121,8 @@ export interface RealtimeOptions {
   audioPath: string;
   /** Called after new segments are persisted, so the caller can restructure. */
   onTranscriptChanged?: () => void;
+  /** Loudness in dBFS, for the waveform. Called on the audio stream's schedule. */
+  onLevel?: (db: number) => void;
   onError?: (message: string) => void;
 }
 
@@ -135,7 +194,10 @@ export async function startRealtimeTranscription(
   options: RealtimeOptions,
 ): Promise<RealtimeSession> {
   const whisperContext = await getContext(options.model);
-  const audioStream = new AudioPcmStreamAdapter();
+  const onLevel = options.onLevel;
+  const audioStream = onLevel
+    ? new MeteredAudioStream(onLevel)
+    : new AudioPcmStreamAdapter();
 
   const transcriber = new RealtimeTranscriber(
     { whisperContext, audioStream },

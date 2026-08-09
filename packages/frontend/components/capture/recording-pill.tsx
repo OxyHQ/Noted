@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/ui/text";
 import { Waveform } from "@/components/capture/waveform";
-import { useRecorder } from "@/lib/capture/use-recorder";
+import { useCaptureEngine } from "@/lib/capture/use-capture-engine";
 import { useStartCapture } from "@/lib/capture/use-start-capture";
 import { useCaptureStore } from "@/lib/stores/capture-store";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -42,7 +42,7 @@ export function RecordingPill() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
-  const recorder = useRecorder(captureId ?? "", noteId ?? "", captureId !== null, {
+  const recorder = useCaptureEngine(captureId ?? "", noteId ?? "", captureId !== null, {
     title: t("capture.recording"),
     body: t("capture.notificationBody"),
   });

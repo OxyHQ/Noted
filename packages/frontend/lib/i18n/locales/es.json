@@ -192,7 +192,8 @@
       "skills": "Skills",
       "security": "Security",
       "feedback": "Feedback",
-      "writingStyle": "Writing Style"
+      "writingStyle": "Writing Style",
+      "transcription": "Transcripción"
     },
     "accentColor": {
       "title": "App Color",
@@ -1164,5 +1165,30 @@
     "denied": "Noted necesita el micrófono para grabar. Permítelo en los ajustes y vuelve a intentarlo.",
     "failed": "No se pudo iniciar la grabación.",
     "webOnlyMobile": "La grabación funciona en la app móvil de Noted."
+  },
+  "transcription": {
+    "title": "Transcripción",
+    "explainer": "Las grabaciones se transcriben en este dispositivo. No se sube nada y funciona sin conexión.",
+    "unsupported": "La transcripción funciona en la app móvil de Noted. Lo que grabes aquí se guarda como audio.",
+    "modelsTitle": "Modelo",
+    "remove": "Eliminar este modelo",
+    "live": {
+      "label": "Tomar notas mientras grabas",
+      "note": "Transcribe durante la reunión en vez de esperar al final. Gasta más batería."
+    },
+    "models": {
+      "tiny": {
+        "name": "Tiny",
+        "note": "El más rápido, el menos preciso"
+      },
+      "base": {
+        "name": "Base",
+        "note": "Equilibrio recomendado"
+      },
+      "small": {
+        "name": "Small",
+        "note": "El más preciso, el más pesado"
+      }
+    }
   }
 }

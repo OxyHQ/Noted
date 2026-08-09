@@ -3,11 +3,9 @@ import {
   View,
   Pressable,
   ScrollView,
-  Linking,
   useWindowDimensions,
 } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
 import {
   NotebookPen,
   Bell,
@@ -18,8 +16,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Plus,
-  LogIn,
-  UserPlus,
   type LucideIcon,
 } from "lucide-react-native";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -28,12 +24,10 @@ import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
 import { useRouter, usePathname, useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
-import { UserAvatar } from "@/components/user-avatar";
-import { useOxy, openAccountDialog } from "@oxyhq/services";
+import { openAccountDialog, ProfileButton } from "@oxyhq/services";
 import { NotedWordmark } from "@/components/ui/noted-wordmark";
 import { NotedMark } from "@/components/ui/noted-mark";
 import { useLabels } from "@/lib/hooks/use-labels";
-import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cn } from "@/lib/utils";
@@ -123,7 +117,6 @@ const NotesSidebar = React.memo(function NotesSidebar() {
   const setSearchQuery = useNotesUIStore((s) => s.setSearchQuery);
 
   const { data: labels } = useLabels();
-  const { user, isAuthenticated, logout, showBottomSheet } = useOxy();
 
   const isCollapsed = isLargeScreen && sidebarCollapsed;
 
@@ -173,26 +166,10 @@ const NotesSidebar = React.memo(function NotesSidebar() {
     [router, setActiveLabel, setSearchQuery, closeDrawerOnMobile]
   );
 
-  const handleAccount = React.useCallback(
-    () => showBottomSheet?.("ManageAccount"),
-    [showBottomSheet]
-  );
-  const handleLogout = React.useCallback(() => {
-    logout();
-    router.replace("/(app)");
-  }, [router, logout]);
   const handleLogin = React.useCallback(() => openAccountDialog(), []);
 
   const isHome = pathname === "/" || pathname === "/(app)" || (pathname.startsWith("/(app)") && !pathname.includes("/"));
   const allLabels = labels ?? [];
-
-  const displayName = React.useMemo(() => {
-    if (!user) return t("common.user");
-    if (user.name?.first) {
-      return user.name.last ? `${user.name.first} ${user.name.last}` : user.name.first;
-    }
-    return user.username || t("common.user");
-  }, [user, t]);
 
   /* ───────────────── Collapsed (desktop) ───────────────── */
   if (isCollapsed) {
@@ -223,20 +200,11 @@ const NotesSidebar = React.memo(function NotesSidebar() {
           >
             <ChevronsRight size={18} color={colors.mutedForeground} />
           </Pressable>
-          {isAuthenticated ? (
-            <Pressable onPress={handleAccount} className="h-10 w-10 items-center justify-center">
-              <UserAvatar size={32} />
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={handleLogin}
-              className="h-10 w-10 items-center justify-center rounded-full bg-primary/10"
-            >
-              <Text className="text-sm font-bold text-primary">
-                {(t("login.signInButton")[0] || "S").toUpperCase()}
-              </Text>
-            </Pressable>
-          )}
+          <ProfileButton
+            expanded={false}
+            onNavigateManage={goSettings}
+            onAddAccount={handleLogin}
+          />
         </View>
       </View>
     );
@@ -311,77 +279,13 @@ const NotesSidebar = React.memo(function NotesSidebar() {
         <NavItem icon={Settings} label={t("nav.settings")} onPress={goSettings} isActive={pathname.includes("/settings")} />
       </ScrollView>
 
-      {/* Footer */}
-      <View className="mt-auto flex-col gap-2 border-t border-border/40 p-2">
-        {isAuthenticated ? (
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger>
-              <Pressable
-                accessibilityLabel="Account menu"
-                accessibilityRole="button"
-                className="flex-row items-center gap-2.5 rounded-xl p-1.5 active:bg-muted"
-              >
-                <UserAvatar size={32} />
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-foreground" numberOfLines={1}>
-                    {displayName}
-                  </Text>
-                  {user?.username && (
-                    <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                      @{user.username}
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content>
-              <DropdownMenu.Item key="account" onSelect={handleAccount}>
-                <DropdownMenu.ItemIcon ios={{ name: "person.circle" }} />
-                <DropdownMenu.ItemTitle>{t("sidebar.account")}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Item key="settings" onSelect={goSettings}>
-                <DropdownMenu.ItemIcon ios={{ name: "gearshape" }} />
-                <DropdownMenu.ItemTitle>{t("sidebar.settings")}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Item
-                key="privacy"
-                onSelect={() =>
-                  Linking.openURL("https://oxy.so/company/transparency/policies/privacy")
-                }
-              >
-                <DropdownMenu.ItemIcon ios={{ name: "hand.raised" }} />
-                <DropdownMenu.ItemTitle>{t("sidebar.privacyPolicy")}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-              <DropdownMenu.Separator />
-              <DropdownMenu.Item key="logout" destructive onSelect={handleLogout}>
-                <DropdownMenu.ItemIcon ios={{ name: "rectangle.portrait.and.arrow.right" }} />
-                <DropdownMenu.ItemTitle>{t("sidebar.logOut")}</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-          </DropdownMenu.Root>
-        ) : (
-          <View className="gap-2">
-            <Button onPress={handleLogin} className="h-11 w-full rounded-full md:h-9">
-              <View className="flex-row items-center gap-2 md:gap-1.5">
-                <LogIn size={16} className="text-primary-foreground" />
-                <Text className="text-sm font-semibold text-primary-foreground md:text-xs">
-                  {t("login.signInButton")}
-                </Text>
-              </View>
-            </Button>
-            <Button
-              onPress={handleLogin}
-              variant="outline"
-              className="h-11 w-full rounded-full md:h-9"
-            >
-              <View className="flex-row items-center gap-2 md:gap-1.5">
-                <UserPlus size={16} className="text-foreground" />
-                <Text className="text-sm font-medium md:text-xs">{t("login.footerLink")}</Text>
-              </View>
-            </Button>
-          </View>
-        )}
+      {/* Account trigger. `ProfileButton` from the SDK owns all three auth
+          states (undetermined skeleton, signed-in row + account switcher,
+          signed-out "Sign in") and the device-account menu — the same component
+          Mention's sidebar uses, so switching accounts behaves identically
+          across Oxy apps and no app re-implements the session UI. */}
+      <View className="mt-auto border-t border-border/40 p-2">
+        <ProfileButton onNavigateManage={goSettings} onAddAccount={handleLogin} />
       </View>
     </View>
   );

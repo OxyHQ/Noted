@@ -33,51 +33,29 @@ import { createLogger } from '@oxyhq/core/logger';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';
+import {
+  dbToLevel,
+  pushLevel,
+  type Recorder,
+  type RecorderPhase,
+  type StopOutcome,
+} from '@/lib/capture/recording';
 import { isCaptureDurable } from '@/lib/capture/support';
 import { startBackgroundCapture, stopBackgroundCapture } from '@/modules/noted-capture';
 
 const logger = createLogger('NotedCapture');
 
-/** How many bars the waveform keeps. */
-export const WAVEFORM_BARS = 48;
-
-/**
- * Quietest level the meter maps to an empty bar, in dBFS. Below this is room
- * tone rather than speech, and mapping it to a visible bar makes silence look
- * like it is being recorded.
- */
-const METERING_FLOOR_DB = -50;
-
 /** How often the recorder's state (duration, meter) is sampled. */
 const STATE_POLL_MS = 50;
 
-export type RecorderPhase =
-  | 'idle'
-  | 'starting'
-  | 'recording'
-  | 'saving'
-  | 'saved'
-  /** The user declined the microphone, or the system withheld it. */
-  | 'denied'
-  /** Anything else went wrong. Deliberately NOT reported as a permission
-   *  problem: a message that names a cause it does not know sends the user to
-   *  fix a setting that was never the issue. */
-  | 'error';
 
-export type StopOutcome = 'saved' | 'failed' | 'noop';
 
 /** Where a capture's audio lives. One directory per capture, so deleting it is one call. */
 export function captureDirectory(captureId: string): Directory {
   return new Directory(Paths.document, 'captures', captureId);
 }
 
-export interface Recorder {
-  phase: RecorderPhase;
-  /** Recent levels, 0–1, oldest first. Null until the first sample. */
-  levels: number[] | null;
-  durationMs: number;
-  stop: () => Promise<StopOutcome>;
-}
+
 
 /**
  * Record into `captureId` while `enabled`.
@@ -193,11 +171,7 @@ export function useRecorder(
   const metering = recorderState.metering;
   useEffect(() => {
     if (typeof metering !== 'number' || phaseRef.current !== 'recording') return;
-    const level = Math.min(1, Math.max(0, (metering - METERING_FLOOR_DB) / -METERING_FLOOR_DB));
-    setLevels((current) => [
-      ...(current ?? Array<number>(WAVEFORM_BARS).fill(0)).slice(1),
-      level,
-    ]);
+    setLevels((current) => pushLevel(current, dbToLevel(metering)));
   }, [metering]);
 
   const durationMs = recorderState.durationMillis ?? 0;
