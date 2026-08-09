@@ -34,11 +34,19 @@ const REFLOW_MS = 200;
 const ENTER_MS = 180;
 const EXIT_MS = 150;
 
-/** Column count for grid mode, derived from available width (clamped 1..6). */
+/**
+ * Column count for grid mode, derived from available width (clamped 2..6).
+ *
+ * The floor is TWO, not one: a one-column grid is a list, and the user already
+ * has a list mode for that — falling back to it on a narrow screen would make
+ * the view toggle do nothing on a phone. Below `2 × GRID_COLUMN_WIDTH` the
+ * cards get narrower than the nominal column instead of disappearing, which is
+ * what a phone-width masonry is supposed to look like.
+ */
 function columnsForWidth(width: number, viewMode: ViewMode): number {
   if (viewMode === "list") return 1;
   const cols = Math.floor(width / GRID_COLUMN_WIDTH);
-  return Math.min(6, Math.max(1, cols));
+  return Math.min(6, Math.max(2, cols));
 }
 
 /**

@@ -103,7 +103,7 @@ export default function AppLayout() {
               {/* Above the navigator, so it survives every screen change: the
                   recording keeps running across screens and into the background,
                   and a control tied to one screen would strand the microphone. */}
-              <RecordingPill />
+              <RecordingPill sidebarWidth={isLargeScreen ? drawerWidth : 0} />
             </View>
           </View>
         </View>
