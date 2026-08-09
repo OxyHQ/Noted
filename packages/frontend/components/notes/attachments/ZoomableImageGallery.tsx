@@ -569,9 +569,8 @@ const ZoomableImageGalleryInner = React.forwardRef<
             style={[
               StyleSheet.absoluteFill,
               styles.zoomContainer,
-              { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+              { width: SCREEN_WIDTH, height: SCREEN_HEIGHT, pointerEvents: "box-none" },
             ]}
-            pointerEvents="box-none"
           >
             {!pagerReady && (
               <Pressable onPress={handleDismiss} style={webPointerStyle}>
@@ -649,8 +648,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
 
             {pagerReady && images.length > 1 && (
               <Animated.View
-                style={[styles.indicatorWrap, backdropStyle]}
-                pointerEvents="none"
+                style={[styles.indicatorWrap, backdropStyle, { pointerEvents: "none" }]}
               >
                 <View style={styles.counterPill}>
                   <Text style={styles.counterText}>

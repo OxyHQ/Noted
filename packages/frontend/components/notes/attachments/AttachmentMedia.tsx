@@ -217,7 +217,7 @@ function AttachmentVideo({ src, poster, onPress }: AttachmentVideoProps) {
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.videoFallback]} />
       )}
-      <View style={styles.playBadge} pointerEvents="none">
+      <View style={styles.playBadge}>
         <Play size={20} color="#fff" fill="#fff" />
       </View>
     </Pressable>
@@ -308,6 +308,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.25)",
   },
   playBadge: {
+    pointerEvents: "none",
     position: "absolute",
     top: "50%",
     left: "50%",

@@ -299,8 +299,10 @@ export const NoteCard = React.memo(function NoteCard({
       {/* Bottom hover action row (web only) */}
       {renderActionRow && (
         <View
-          pointerEvents={hovered ? "auto" : "none"}
-          style={{ opacity: hovered ? 1 : 0 }}
+          style={{
+            opacity: hovered ? 1 : 0,
+            pointerEvents: hovered ? "auto" : "none",
+          }}
           className="flex-row items-center gap-0.5 px-2 pb-1.5 web:transition web:duration-150"
         >
           {onReminder && (
