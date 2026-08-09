@@ -9,10 +9,9 @@ const makeId = () => `id-${String((counter += 1))}`;
 function enhancement(overrides: Partial<Enhancement> = {}): Enhancement {
   return {
     title: 'Presupuesto Q3',
-    summary: ['Se revisó el gasto'],
-    decisions: ['Congelar contrataciones'],
+    notes: ['El gasto de infraestructura subió un 12%'],
     actions: ['Nate manda el desglose'],
-    questions: ['¿Quién aprueba AWS?'],
+    openQuestions: ['Quién aprueba AWS'],
     ...overrides,
   };
 }
@@ -20,22 +19,21 @@ function enhancement(overrides: Partial<Enhancement> = {}): Enhancement {
 const FALLBACK = '9/8/2026, 12:00';
 
 describe('enhancementToNotePatch', () => {
-  it('writes the sections the model filled', () => {
+  it('writes the notes as the body, with no heading over them', () => {
+    // The notes ARE the note. A "## Summary" over the only content on the page
+    // labels something that needs no labelling.
     const patch = enhancementToNotePatch(enhancement(), { makeId, fallbackTitle: FALLBACK });
-    expect(patch.body).toContain('## Summary');
-    expect(patch.body).toContain('- Se revisó el gasto');
-    expect(patch.body).toContain('## Decisions');
+    expect(patch.body?.startsWith('- El gasto de infraestructura subió un 12%')).toBe(true);
     expect(patch.body).toContain('## Open questions');
   });
 
   it('omits a section the model left empty', () => {
-    const patch = enhancementToNotePatch(enhancement({ decisions: [], questions: [] }), {
+    const patch = enhancementToNotePatch(enhancement({ openQuestions: [] }), {
       makeId,
       fallbackTitle: FALLBACK,
     });
-    expect(patch.body).not.toContain('## Decisions');
     expect(patch.body).not.toContain('## Open questions');
-    expect(patch.body).toContain('## Summary');
+    expect(patch.body).toContain('El gasto de infraestructura subió un 12%');
   });
 
   it('keeps tasks out of the body, since they are the checklist', () => {

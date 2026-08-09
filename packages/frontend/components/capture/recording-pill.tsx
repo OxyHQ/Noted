@@ -1,4 +1,4 @@
-import { View, Pressable } from "react-native";
+import { View, Pressable, Platform } from "react-native";
 import { Mic, Square } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePathname } from "expo-router";
@@ -35,7 +35,15 @@ const BOTTOM_MARGIN = 16;
  * across screens and into the background. A control tied to one screen would
  * strand the microphone somewhere the user cannot reach it.
  */
-export function RecordingPill() {
+type RecordingPillProps = {
+  /**
+   * Width of the permanent sidebar, or 0 when the sidebar is an overlay (it
+   * covers the content instead of shrinking it, so it takes no room).
+   */
+  sidebarWidth: number;
+};
+
+export function RecordingPill({ sidebarWidth }: RecordingPillProps) {
   const captureId = useCaptureStore((s) => s.captureId);
   const noteId = useCaptureStore((s) => s.noteId);
   const clearCapture = useCaptureStore((s) => s.clearCapture);
@@ -73,9 +81,25 @@ export function RecordingPill() {
     // depend on `pointerEvents: 'box-none'` surviving every future style change
     // and platform quirk. Hugging the pill means there is nothing to see
     // through in the first place.
+    //
+    // The pill is mounted above the navigator, so its parent spans the sidebar
+    // too and `self-center` centres it on the WINDOW. The notes are centred on
+    // what is left of the window after the sidebar, so shifting right by half
+    // the sidebar puts the pill over the middle of the content. Transitioned to
+    // match the sidebar's own width animation, so the two move together.
     <View
       className="absolute bottom-0 self-center"
-      style={{ paddingBottom: insets.bottom + BOTTOM_MARGIN }}
+      style={{
+        paddingBottom: insets.bottom + BOTTOM_MARGIN,
+        transform: [{ translateX: sidebarWidth / 2 }],
+        ...(Platform.OS === "web"
+          ? {
+              transitionProperty: "transform",
+              transitionDuration: "200ms",
+              transitionTimingFunction: "ease-out",
+            }
+          : {}),
+      }}
     >
       {isRecording ? (
         <View className="max-w-[92%] flex-row items-center gap-3 rounded-full border border-border bg-background px-4 py-2.5 shadow-lg">

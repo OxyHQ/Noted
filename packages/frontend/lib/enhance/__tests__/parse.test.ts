@@ -4,17 +4,16 @@ import { parseEnhancement } from '@/lib/enhance/parse';
 
 const GOOD = JSON.stringify({
   title: 'Presupuesto Q3',
-  summary: ['Se revisó el gasto de infraestructura'],
-  decisions: ['Congelar contrataciones hasta septiembre'],
+  notes: ['El gasto de infraestructura subió un 12% en el trimestre'],
   actions: ['Nate manda el desglose el viernes'],
-  questions: ['¿Quién aprueba el gasto de AWS?'],
+  openQuestions: ['Quién aprueba el gasto de AWS'],
 });
 
 describe('parseEnhancement', () => {
   it('reads a clean reply', () => {
     const result = parseEnhancement(GOOD);
     expect(result?.title).toBe('Presupuesto Q3');
-    expect(result?.decisions).toEqual(['Congelar contrataciones hasta septiembre']);
+    expect(result?.notes).toEqual(['El gasto de infraestructura subió un 12% en el trimestre']);
   });
 
   it('reads JSON wrapped in a code fence', () => {
@@ -36,25 +35,25 @@ describe('parseEnhancement', () => {
   it('is not confused by a brace inside a string', () => {
     const reply = JSON.stringify({
       title: 'Deploy',
-      summary: ['Usar {env} en la plantilla'],
+      notes: ['Usar {env} en la plantilla'],
     });
-    expect(parseEnhancement(reply)?.summary).toEqual(['Usar {env} en la plantilla']);
+    expect(parseEnhancement(reply)?.notes).toEqual(['Usar {env} en la plantilla']);
   });
 
   it('accepts a single string where a list was asked for', () => {
     // Asked for a list with one thing to say, a small model often just says it.
-    const reply = JSON.stringify({ title: 'Sync', summary: 'Solo se habló del roadmap' });
-    expect(parseEnhancement(reply)?.summary).toEqual(['Solo se habló del roadmap']);
+    const reply = JSON.stringify({ title: 'Sync', notes: 'Solo se habló del roadmap' });
+    expect(parseEnhancement(reply)?.notes).toEqual(['Solo se habló del roadmap']);
   });
 
   it('strips the bullet markers models mirror back', () => {
-    const reply = JSON.stringify({ title: 'Sync', summary: ['- uno', '* dos', '1. tres'] });
-    expect(parseEnhancement(reply)?.summary).toEqual(['uno', 'dos', 'tres']);
+    const reply = JSON.stringify({ title: 'Sync', notes: ['- uno', '* dos', '1. tres'] });
+    expect(parseEnhancement(reply)?.notes).toEqual(['uno', 'dos', 'tres']);
   });
 
   it('drops repeats, which is how a model pads a list it has nothing for', () => {
-    const reply = JSON.stringify({ title: 'Sync', summary: ['Uno', 'uno', 'UNO', 'Dos'] });
-    expect(parseEnhancement(reply)?.summary).toEqual(['Uno', 'Dos']);
+    const reply = JSON.stringify({ title: 'Sync', notes: ['Uno', 'uno', 'UNO', 'Dos'] });
+    expect(parseEnhancement(reply)?.notes).toEqual(['Uno', 'Dos']);
   });
 
   it('refuses a reply that is not JSON at all', () => {
@@ -62,7 +61,7 @@ describe('parseEnhancement', () => {
   });
 
   it('refuses malformed JSON rather than salvaging it', () => {
-    expect(parseEnhancement('{"title": "Sync", "summary": [')).toBeNull();
+    expect(parseEnhancement('{"title": "Sync", "notes": [')).toBeNull();
   });
 
   it('refuses a JSON array', () => {
@@ -72,33 +71,33 @@ describe('parseEnhancement', () => {
   it('refuses a title with no content behind it', () => {
     // A heading over emptiness is worse than the deterministic note it would
     // replace, so this is treated as no answer at all.
-    expect(parseEnhancement(JSON.stringify({ title: 'Reunión', summary: [] }))).toBeNull();
+    expect(parseEnhancement(JSON.stringify({ title: 'Reunión', notes: [] }))).toBeNull();
   });
 
   it('drops a title that is really a paragraph, keeping the content', () => {
     const reply = JSON.stringify({
       title: 'x'.repeat(200),
-      summary: ['Algo que sí sirve'],
+      notes: ['Algo que sí sirve'],
     });
     const result = parseEnhancement(reply);
     expect(result?.title).toBe('');
-    expect(result?.summary).toEqual(['Algo que sí sirve']);
+    expect(result?.notes).toEqual(['Algo que sí sirve']);
   });
 
   it('drops an item long enough to be a transcript, keeping the rest', () => {
     const reply = JSON.stringify({
       title: 'Sync',
-      summary: ['y'.repeat(500), 'Una línea normal'],
+      notes: ['y'.repeat(500), 'Una línea normal'],
     });
-    expect(parseEnhancement(reply)?.summary).toEqual(['Una línea normal']);
+    expect(parseEnhancement(reply)?.notes).toEqual(['Una línea normal']);
   });
 
   it('ignores non-string entries in a list', () => {
-    const reply = JSON.stringify({ title: 'Sync', summary: ['Válido', 42, null, { a: 1 }] });
-    expect(parseEnhancement(reply)?.summary).toEqual(['Válido']);
+    const reply = JSON.stringify({ title: 'Sync', notes: ['Válido', 42, null, { a: 1 }] });
+    expect(parseEnhancement(reply)?.notes).toEqual(['Válido']);
   });
 
   it('refuses a reply too long to be an answer', () => {
-    expect(parseEnhancement('{"summary":["a"]}' + 'x'.repeat(20_001))).toBeNull();
+    expect(parseEnhancement('{"notes":["a"]}' + 'x'.repeat(20_001))).toBeNull();
   });
 });

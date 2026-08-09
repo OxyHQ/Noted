@@ -52,12 +52,11 @@ const REPLY_SCHEMA = {
   type: 'object',
   properties: {
     title: { type: 'string' },
-    summary: { type: 'array', items: { type: 'string' } },
-    decisions: { type: 'array', items: { type: 'string' } },
+    notes: { type: 'array', items: { type: 'string' } },
     actions: { type: 'array', items: { type: 'string' } },
-    questions: { type: 'array', items: { type: 'string' } },
+    openQuestions: { type: 'array', items: { type: 'string' } },
   },
-  required: ['title', 'summary', 'decisions', 'actions', 'questions'],
+  required: ['title', 'notes', 'actions', 'openQuestions'],
 } as const;
 
 /**
