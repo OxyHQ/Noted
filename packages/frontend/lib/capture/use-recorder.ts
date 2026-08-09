@@ -33,6 +33,7 @@ import { createLogger } from '@oxyhq/core/logger';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';
+import { isCaptureDurable } from '@/lib/capture/support';
 import { startBackgroundCapture, stopBackgroundCapture } from '@/modules/noted-capture';
 
 const logger = createLogger('NotedCapture');
@@ -153,16 +154,18 @@ export function useRecorder(
           allowsBackgroundRecording: true,
         });
 
-        const directory = captureDirectory(captureId);
-        directory.create({ intermediates: true, idempotent: true });
+        // The per-capture directory is an organising choice, and it only exists
+        // where there is a file system: on web `expo-file-system`'s Directory is
+        // a stub, and the recorder hands back a blob URL that needs no home.
+        if (isCaptureDurable()) {
+          captureDirectory(captureId).create({ intermediates: true, idempotent: true });
+        }
 
         // The row is written BEFORE the microphone opens. If the process dies a
-        // moment later, this is the only record that the recording existed.
-        await beginCapture({
-          id: captureId,
-          noteId,
-          audioPath: `captures/${captureId}/audio.m4a`,
-        });
+        // moment later, this is the only record that the recording existed. The
+        // path is filled in on stop, since on web it is whatever URL the
+        // recorder mints.
+        await beginCapture({ id: captureId, noteId, audioPath: '' });
 
         await recorder.prepareToRecordAsync();
         if (!active) return;
@@ -219,14 +222,20 @@ export function useRecorder(
       const uri = recorder.uri;
       if (!uri) throw new Error('the recording produced no file');
 
-      const extension = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
-      const directory = captureDirectory(captureId);
-      directory.create({ intermediates: true, idempotent: true });
-      const destination = new File(directory, `audio.${extension}`);
-      if (destination.exists) destination.delete();
-      new File(uri).move(destination);
+      let audioPath = uri;
+      if (isCaptureDurable()) {
+        // Moved out of the recorder's temporary location into a directory this
+        // app owns, so the audio outlives the process that made it.
+        const extension = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
+        const directory = captureDirectory(captureId);
+        directory.create({ intermediates: true, idempotent: true });
+        const destination = new File(directory, `audio.${extension}`);
+        if (destination.exists) destination.delete();
+        new File(uri).move(destination);
+        audioPath = `captures/${captureId}/audio.${extension}`;
+      }
 
-      await finishCapture(captureId, durationRef.current);
+      await finishCapture(captureId, durationRef.current, audioPath);
       setPhase('saved');
       return 'saved';
     } catch (error) {

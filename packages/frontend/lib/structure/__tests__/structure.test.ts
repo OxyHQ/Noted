@@ -143,6 +143,56 @@ describe('structureTranscript', () => {
     expect(result.checklist).toHaveLength(1);
   });
 
+  // The Granola shape: the person keeps typing their own sparse notes while the
+  // meeting runs, and the transcript enriches those. Overwriting what somebody
+  // typed during their own meeting would be worse than producing no note.
+  it('keeps what the user wrote, and adds to it', () => {
+    const result = structureTranscript(
+      [
+        segment(0, 5_000, 'Al final vamos a usar el proveedor barato.'),
+        segment(5_200, 9_000, 'Hay que enviar el contrato antes del viernes.'),
+      ],
+      {
+        startedAt,
+        makeId,
+        existing: {
+          title: 'Presupuesto Q3',
+          body: '- ojo con el margen\n- preguntar por el descuento',
+          checklist: [{ id: 'mine', text: 'Llamar a Ana', checked: true }],
+        },
+      },
+    );
+
+    expect(result.title).toBe('Presupuesto Q3');
+    expect(result.markdown.startsWith('- ojo con el margen')).toBe(true);
+    expect(result.markdown).toContain('preguntar por el descuento');
+    expect(result.markdown).toContain('Al final vamos a usar el proveedor barato.');
+
+    // Their own item survives, ticked, and stays first.
+    expect(result.checklist[0]).toEqual({ id: 'mine', text: 'Llamar a Ana', checked: true });
+    expect(result.checklist.map((i) => i.text)).toContain(
+      'Hay que enviar el contrato antes del viernes.',
+    );
+  });
+
+  it('does not add a task the user had already written down', () => {
+    const result = structureTranscript(
+      [segment(0, 5_000, 'Hay que enviar el contrato.')],
+      {
+        startedAt,
+        makeId,
+        existing: {
+          title: '',
+          body: '',
+          checklist: [{ id: 'mine', text: 'hay que enviar el contrato', checked: false }],
+        },
+      },
+    );
+    // Same commitment, typed and spoken. One item, and it is theirs.
+    expect(result.checklist).toHaveLength(1);
+    expect(result.checklist[0].id).toBe('mine');
+  });
+
   it('produces a usable note from a recording of silence', () => {
     const result = structureTranscript([], { startedAt, makeId });
     expect(result.title).toBe(startedAt.toLocaleString());

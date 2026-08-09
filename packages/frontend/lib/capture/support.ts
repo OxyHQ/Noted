@@ -1,27 +1,41 @@
 /**
- * Whether this device can record at all.
+ * What this device can do with a recording.
  *
- * Asked BEFORE offering the control, not after failing: a button that opens a
- * microphone prompt and then reports an error is worse than one that is not
- * there, because the user has already granted something for nothing.
+ * Two separate questions, because the answers differ: every platform can RECORD
+ * (`expo-audio` uses `MediaRecorder` on web and hands back a blob URL), but only
+ * a native build can TRANSCRIBE, since whisper.cpp is a native library.
+ *
+ * Keeping them apart is what stops the app from hiding a working feature behind
+ * a missing one — which is exactly what an earlier version of this file did.
  */
 
 import { Platform } from 'react-native';
 
-/**
- * Recording is native-only today.
- *
- * Not a policy — a fact about the platform. `expo-file-system`'s `File` and
- * `Directory` are empty stubs on web (`ExpoFileSystem.web.d.ts` declares both
- * with a bare constructor and no methods), so `directory.create()` throws even
- * after the browser has granted the microphone. There is nowhere to put the
- * recording, which is why this is checked rather than caught.
- *
- * Making it work on web is real work, not a flag: a `MediaRecorder` capture, an
- * OPFS or IndexedDB home for the audio, and a `wakeLock` so the tab is not
- * suspended mid-meeting. Until that exists the honest answer is that the phone
- * does this.
- */
+/** Recording works everywhere `expo-audio` does, which is everywhere. */
 export function isCaptureSupported(): boolean {
+  return true;
+}
+
+/**
+ * Whether the recording can become a note on this device.
+ *
+ * Native only: transcription runs on whisper.cpp, a native library. A browser
+ * needs a different engine entirely (an ONNX build in a worker), which is its
+ * own piece of work — so a web recording is kept as audio until that exists,
+ * rather than being refused.
+ */
+export function isTranscriptionSupported(): boolean {
+  return Platform.OS === 'ios' || Platform.OS === 'android';
+}
+
+/**
+ * Whether recordings survive the app being closed.
+ *
+ * Native writes the audio into the app's document directory. On web the recorder
+ * hands back a blob URL, which lives only as long as the page — so a capture is
+ * real while the tab is open and gone after a reload. Worth knowing before
+ * promising recovery.
+ */
+export function isCaptureDurable(): boolean {
   return Platform.OS === 'ios' || Platform.OS === 'android';
 }

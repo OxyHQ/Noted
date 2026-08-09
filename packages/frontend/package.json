@@ -104,6 +104,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "4.2.2",
     "tailwindcss-animate": "^1.0.7",
+    "whisper.rn": "0.7.2",
     "zeego": "^3.0.6",
     "zustand": "^5.0.10",
     "zustand-persist": "^0.4.0"

@@ -73,11 +73,9 @@ export function NotesHeader({ title, searchable = false }: NotesHeaderProps) {
           </Text>
         )}
 
-        {/* Hidden where the platform cannot record, and while recording: the
-            stop control is in the bar directly above, so a second, inert
-            microphone button here would only be somewhere to press that does
-            nothing. Offering it on web and failing afterwards is worse still —
-            the user has granted the microphone for nothing. */}
+        {/* Hidden only while recording: the stop control is in the bar directly
+            above, so a second, inert microphone button here would be somewhere
+            to press that does nothing. */}
         {canCapture && !isRecording && (
           <Pressable
             onPress={() => void startCapture()}
