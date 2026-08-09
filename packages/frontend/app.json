@@ -55,6 +55,7 @@
       "expo-web-browser",
       "expo-asset",
       "expo-notifications",
+      "llama.rn",
       "@oxyhq/app-preset/plugin/withSharedUserId",
       "@oxyhq/services/plugins/withSharedIdentityReader"
     ],
