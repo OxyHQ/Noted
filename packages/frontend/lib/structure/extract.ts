@@ -65,13 +65,7 @@ const DECISION_PATTERNS: readonly RegExp[] = [
   /\b(?:let'?s go with|we'?ll use)\b/i,
 ];
 
-/**
- * A question is punctuation, not a keyword.
- *
- * Rhetorical questions get through, which is the acceptable direction: a reader
- * skims past one, where a missed open question is a decision nobody comes back
- * to.
- */
+/** A question is punctuation, not a keyword. */
 function isQuestion(sentence: string): boolean {
   return sentence.endsWith('?') || sentence.startsWith('¿');
 }
@@ -114,4 +108,52 @@ export function extractHighlights(text: string, blockStartMs: number): Highlight
     if (kind) highlights.push({ kind, text: sentence, atMs: blockStartMs });
   }
   return highlights;
+}
+
+/**
+ * How far the conversation gets to move on before a question stops counting as
+ * open.
+ */
+export const ANSWERED_WITHIN_SENTENCES = 6;
+
+/**
+ * The questions nobody came back to.
+ *
+ * A question mark alone is not an open question, and treating it as one is what
+ * turned a recorded talk into nothing but a list of the speaker's own rhetorical
+ * questions — every one of which they answered in the next breath:
+ *
+ * > - Is it reading the entire internet?
+ * > - Is it copying answers from a database?
+ * > - Is it just a fancier search engine?
+ *
+ * So a question that the talk moves past is not listed. What survives is a
+ * question left hanging: the last thing said, or followed only by more
+ * questions.
+ *
+ * This trades recall for precision in the opposite direction from the rest of
+ * this module, and deliberately: a question that was in fact answered has its
+ * answer in the note's own points, so nothing is lost by not also filing it as
+ * an open one — while a section that lists every question the speaker used to
+ * introduce a topic is noise that buries the real one.
+ *
+ * It needs the whole ordered stream rather than one block, because the sentence
+ * that settles a question is routinely in the block after it.
+ */
+export function selectOpenQuestions(
+  blocks: readonly { text: string; startMs: number }[],
+): Highlight[] {
+  const stream = blocks.flatMap((block) =>
+    splitSentences(block.text).map((sentence) => ({ sentence, atMs: block.startMs })),
+  );
+
+  const open: Highlight[] = [];
+  stream.forEach((entry, index) => {
+    if (entry.sentence.length < MIN_HIGHLIGHT_CHARS || !isQuestion(entry.sentence)) return;
+    const movedOn = stream
+      .slice(index + 1, index + 1 + ANSWERED_WITHIN_SENTENCES)
+      .some((later) => !isQuestion(later.sentence));
+    if (!movedOn) open.push({ kind: 'question', text: entry.sentence, atMs: entry.atMs });
+  });
+  return open;
 }

@@ -400,6 +400,14 @@ router.post('/:id/restore', writeLimiter, async (req: Request, res: Response) =>
 // other way to learn the note is gone, and would keep pushing it back. The note's
 // content is cleared right here — only the fact of the deletion is retained — and
 // the expiry sweep (`db/expiry.ts`) drops the row entirely a month later.
+//
+// Idempotent: deleting a note that is already deleted, or that this user never
+// had, succeeds. The client's outbox is at-least-once by design — it retries
+// until the server confirms — so answering `404` to the retry of a request that
+// already worked reports failure for the one case the retry exists to cover. It
+// leaks nothing either way, because the update is scoped to this user, so an id
+// belonging to someone else has always been indistinguishable from an absent
+// one.
 router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
   try {
     const userId = getRequiredOxyUserId(req);
@@ -426,9 +434,10 @@ router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
         and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
       )
       .returning({ id: notes.id });
-    if (!note) return res.status(404).json({ error: 'Note not found' });
 
-    emitNoteDeleted(userId, note.id);
+    // Only a row this request actually tombstoned is worth announcing; a repeat
+    // would tell every other device to delete a note they deleted long ago.
+    if (note) emitNoteDeleted(userId, note.id);
     res.json({ success: true });
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error deleting note');

@@ -426,7 +426,7 @@ export async function pullLabels(): Promise<void> {
  * failing pull must not stop the outbox from draining on the next attempt, and
  * labels failing must not cost the notes their sync.
  */
-export async function syncNotes(makeConflictId: () => string): Promise<void> {
+async function runSyncCycle(makeConflictId: () => string): Promise<void> {
   try {
     await flushOutbox();
   } catch (error) {
@@ -445,4 +445,47 @@ export async function syncNotes(makeConflictId: () => string): Promise<void> {
       error: errorMessage(error),
     });
   }
+}
+
+/** The cycle currently running, or null when nothing is syncing. */
+let inFlight: Promise<void> | null = null;
+/** Something asked to sync while a cycle was running, so run once more after it. */
+let rerunRequested = false;
+
+/**
+ * One full cycle, and never two at once.
+ *
+ * Syncing is triggered from four places that routinely fire together — the
+ * store mounting, the app coming to the foreground, the network reconnecting,
+ * and a socket event — and debouncing each of them separately does not stop two
+ * from overlapping. Two cycles at once is not merely wasteful, it is wrong:
+ * `flushOutbox` reads the ready entries and then sends them, so a second drain
+ * that starts in that window sends the same entries again. The second copy of a
+ * deletion arrives after the note is already gone and comes back `404`, and two
+ * pulls both read the cursor before either writes it, so both process the same
+ * tombstones. That is exactly what a console full of red `DELETE … 404` lines
+ * and a repeated `deleted: 43` is showing.
+ *
+ * A request arriving mid-cycle is not dropped — it is collapsed into a single
+ * follow-up run, because the trigger did carry information (something changed)
+ * and the running cycle may already have read past it.
+ */
+export function syncNotes(makeConflictId: () => string): Promise<void> {
+  if (inFlight) {
+    rerunRequested = true;
+    return inFlight;
+  }
+
+  inFlight = (async () => {
+    do {
+      // Cleared before the cycle, not after: a request that arrives while this
+      // one runs must survive into the next iteration.
+      rerunRequested = false;
+      await runSyncCycle(makeConflictId);
+    } while (rerunRequested);
+  })().finally(() => {
+    inFlight = null;
+  });
+
+  return inFlight;
 }

@@ -7,7 +7,7 @@
  * it lives in effects rather than being derived.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useOxy } from '@oxyhq/services';
@@ -69,33 +69,27 @@ export function useLocalStore(): { isReady: boolean } {
     };
   }, [viewerId]);
 
-  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
     if (!isReady) return;
 
-    const runSync = () => {
-      if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => {
-        void syncNotes(newNoteId);
-      }, SYNC_DEBOUNCE_MS);
-    };
-
-    runSync();
+    // Every trigger goes through the one shared debounce below. A second timer
+    // here would not collapse against it: mounting, foregrounding, reconnecting
+    // and a socket event all land within the same moment, and two timers means
+    // two cycles firing together.
+    requestSync();
 
     // Coming back to the app is the moment its data is most likely stale, and
     // the moment the user is about to look at it.
     const appStateSubscription = AppState.addEventListener('change', (status: AppStateStatus) => {
-      if (status === 'active') runSync();
+      if (status === 'active') requestSync();
     });
 
     // Regaining a connection is the moment the outbox can finally drain.
     const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
-      if (state.isConnected === true) runSync();
+      if (state.isConnected === true) requestSync();
     });
 
     return () => {
-      if (syncTimer.current) clearTimeout(syncTimer.current);
       appStateSubscription.remove();
       netInfoUnsubscribe();
     };

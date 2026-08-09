@@ -251,5 +251,7 @@ export function useRecorder(
     [],
   );
 
-  return { phase, levels, durationMs, stop };
+  // Never anything provisional here: this recorder transcribes once the
+  // recording has stopped, so there is no reading to revise.
+  return { phase, levels, durationMs, partialText: '', stop };
 }

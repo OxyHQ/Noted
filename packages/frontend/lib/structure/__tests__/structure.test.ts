@@ -129,12 +129,25 @@ describe('structureTranscript', () => {
     );
     // "Decisions: none" reads as a finding about the meeting. Absence does not.
     expect(result.markdown).not.toContain('## Decisions');
-    expect(result.markdown).not.toContain('## Tasks');
-    // Nothing worth noting was said, so the note is empty rather than padded
-    // with a transcript of small talk.
-    expect(result.markdown).toBe('');
-    expect(result.transcript).toHaveLength(1);
+    expect(result.markdown).not.toContain('## Open questions');
     expect(result.checklist).toEqual([]);
+    // It used to also assert the whole note was empty here. That assertion was
+    // the bug, written down: with no task and no decision said, the module had
+    // nothing else it could produce, so "empty" and "correct" were the same
+    // string. What somebody would actually have written down is the sentence.
+    expect(result.markdown).toContain('Estuvimos comentando cómo fue el fin de semana.');
+    expect(result.transcript).toHaveLength(1);
+  });
+
+  it('writes nothing when nothing was said', () => {
+    // The floor under the test above: a note is still allowed to be empty. Half
+    // a dozen fragments carry no sentence worth keeping, and padding a note with
+    // them would make the previous test pass for the wrong reason.
+    const result = structureTranscript(
+      [segment(0, 2_000, 'Sí.'), segment(2_100, 3_000, 'Ya.'), segment(3_100, 4_000, 'Vale.')],
+      { startedAt, makeId },
+    );
+    expect(result.markdown).toBe('');
   });
 
   it('does not repeat a commitment restated later in the meeting', () => {
@@ -211,14 +224,7 @@ describe('structureTranscript', () => {
     const result = structureTranscript([segment(0, 5_000, 'Al final vamos a usar Postgres.')], {
       startedAt,
       makeId,
-      labels: {
-        summary: 'Resumen',
-        discussion: 'Puntos tratados',
-        decisions: 'Decisiones',
-        tasks: 'Tareas',
-        questions: 'Preguntas abiertas',
-        transcript: 'Transcripción',
-      },
+      labels: { decisions: 'Decisiones', questions: 'Preguntas abiertas' },
     });
     expect(result.markdown).toContain('## Decisiones');
     expect(result.markdown).not.toContain('## Decisions');
