@@ -24,9 +24,6 @@ const RESTRUCTURE = readFileSync(join(HERE, '../../capture/restructure.ts'), 'ut
 const REPO = readFileSync(join(HERE, '../../db/notes-repo.ts'), 'utf8');
 const EDITOR = readFileSync(join(HERE, '../../../app/n/[id].tsx'), 'utf8');
 
-/** The two capture writers: the deterministic pass and the model pass. */
-const CAPTURE_WRITERS = 2;
-
 function occurrences(source: string, needle: string): number {
   return source.split(needle).length - 1;
 }
@@ -39,29 +36,39 @@ describe('the recorder', () => {
     expect(RESTRUCTURE).toContain('export async function enhanceNote');
   });
 
-  it('sends both halves and composes neither, in both writers', () => {
+  it('writes the note in exactly one place, for both passes', () => {
+    // The two passes used to be two write paths, and a rule enforced in one copy
+    // is not enforced. They now share one `commit`, which is why the counts here
+    // are one rather than two: a second `updateNote` is a second opinion about
+    // who owns what.
+    expect(occurrences(RESTRUCTURE, 'updateNote(')).toBe(1);
+    expect(occurrences(RESTRUCTURE, 'userBodyOf(')).toBe(1);
+  });
+
+  it('sends both halves and composes neither', () => {
     // The duplication bug: the generated block was written as the whole body,
     // then read back next slice as if the user had typed it, and appended to.
-    // It is the store that puts the halves together now, against the row as it
+    // It is the store that puts the halves together, against the row as it
     // stands at write time — so composing here would be composing against a
     // copy of the note that a slice or a keystroke may already have moved past.
-    expect(occurrences(RESTRUCTURE, 'userBody')).toBeGreaterThanOrEqual(CAPTURE_WRITERS);
-    expect(occurrences(RESTRUCTURE, 'generatedBody:')).toBe(CAPTURE_WRITERS);
+    expect(RESTRUCTURE).toContain('userBody: context.userBody');
+    expect(RESTRUCTURE).toContain('generatedBody: composed.generatedBody');
     expect(RESTRUCTURE).not.toContain('composeNoteBody');
   });
 
-  it('takes its own previous block back out before rebuilding', () => {
-    // Without this the next pass has nothing to remove, and handing the store
-    // both halves does not help: the "user's" half would still carry the app's
-    // last output, and the app's new one lands underneath it.
-    expect(occurrences(RESTRUCTURE, 'userBodyOf(')).toBe(CAPTURE_WRITERS);
+  it('never shows a writer the note body it wrote itself', () => {
+    // The model is handed the USER's half, never the composed body: shown its
+    // own previous output it summarises itself. The deterministic pass is handed
+    // no body at all — it reads the transcript.
+    expect(RESTRUCTURE).toContain('body: context.userBody');
+    expect(RESTRUCTURE).not.toMatch(/body:\s*context\.note\.body/);
   });
 
-  it('never shows a writer the note body it wrote itself', () => {
-    // The structurer and the model are handed an empty body on purpose, so what
-    // comes back is their contribution alone. `existing: authored` — the old
-    // code — passes the whole current body straight back in.
-    expect(RESTRUCTURE).not.toMatch(/existing:\s*authored\s*,/);
+  it('treats generated checklist items as the app’s, by id and not by text', () => {
+    // The exact-substring trick this epic exists to delete: it could not tell an
+    // edit from a paragraph typed after the block, and said nothing at all about
+    // a checklist item.
+    expect(RESTRUCTURE).toContain('isGeneratedItemId(');
   });
 });
 

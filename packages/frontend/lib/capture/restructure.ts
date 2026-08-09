@@ -1,130 +1,234 @@
 /**
  * Turning what was said into the note.
  *
- * Called as transcription produces segments, so the note fills in while the
- * meeting is still happening rather than appearing at the end.
+ * Two passes, one shape. The live pass runs as transcription produces segments,
+ * so the note fills in while the meeting is still happening; the final pass runs
+ * once the recording is over and can settle things only the whole recording
+ * explains. Both build a `GeneratedNoteArtifact`, both go through the same
+ * composer, and the note therefore has the same structure whether or not a model
+ * was involved — only the wording is better when one was.
  *
- * The user's own writing is the reason this reads the note first. Someone typing
- * during a meeting is doing the most valuable part of the work, and a structurer
- * that overwrote them would be actively destructive — so their text goes in
- * first, verbatim, their title wins if they gave one, and their checklist keeps
- * its order and its ticks. The transcript is not copied into the body at all: a
- * note is the handful of things worth reading again, and the full transcript
- * stays alongside it for anyone who wants to go back to the source.
+ * The user's own writing is the reason both read the note first. Somebody typing
+ * during a meeting is doing the most valuable part of the work, and a pass that
+ * overwrote them would be actively destructive — so their text, their title and
+ * their checklist items are separated out and handed back untouched. The
+ * transcript is never copied into the body: a note is the handful of things worth
+ * reading again, and the full transcript stays alongside it.
  */
 
+import type { ChecklistItem } from '@noted/shared-types';
 import { createLogger } from '@oxyhq/core/logger';
 
 import { execute } from '@/lib/db/client';
 import {
   rowsToSegments,
   SEGMENTS_BY_CAPTURE_SQL,
+  type TranscriptSegment,
   type TranscriptSegmentRow,
 } from '@/lib/capture/captures-repo';
-import { newNoteId } from '@/lib/db/ids';
-import { getNote, updateNote } from '@/lib/db/notes-repo';
+import { getNote, updateNote, type LocalNote } from '@/lib/db/notes-repo';
+import {
+  getCaptureArtifacts,
+  getNoteOverrides,
+  saveArtifact,
+  type NoteArtifacts,
+} from '@/lib/db/artifacts-repo';
 import { userAuthoredPart } from '@/lib/capture/placeholder-title';
 import { userBodyOf } from '@/lib/notes/generated-body';
-import { structureTranscript, toNotePatch } from '@/lib/structure/structure';
-import { enhancementToNotePatch } from '@/lib/enhance/apply';
+import { committed } from '@/lib/artifact/artifact';
+import { composeNote } from '@/lib/artifact/compose';
+import { buildDeterministicArtifact, cleanedBlocks } from '@/lib/artifact/generate/deterministic';
+import { enhancementToArtifact } from '@/lib/artifact/generate/from-enhancement';
+import { finalizeArtifact } from '@/lib/artifact/finalize';
+import { isGeneratedItemId } from '@/lib/artifact/item-id';
+import { overridesById } from '@/lib/artifact/ownership';
+import { reduceLiveArtifact } from '@/lib/artifact/reduce';
 import { getSummarizer } from '@/lib/enhance/summarizer';
 
 const logger = createLogger('NotedCapture');
 
 /**
- * Rebuild `noteId` from everything `captureId` has transcribed so far.
+ * The checklist items the user owns.
+ *
+ * Generated ids carry a `:` and minted ones cannot, so this is a real
+ * discriminator rather than the exact-substring guess it replaces — and it works
+ * for an item the user has since reworded, which the old trick never could.
+ */
+function userChecklist(checklist: readonly ChecklistItem[]): ChecklistItem[] {
+  return checklist.filter((item) => !isGeneratedItemId(item.id));
+}
+
+interface CaptureContext {
+  note: LocalNote;
+  segments: TranscriptSegment[];
+  artifacts: NoteArtifacts;
+  overrides: ReturnType<typeof overridesById>;
+  userBody: string;
+  userTitle: string;
+  userItems: ChecklistItem[];
+}
+
+/**
+ * Everything a pass needs, read once.
+ *
+ * @returns null when there is nothing to write — no transcript yet, or a note the
+ *   user deleted while its recording was still running. Neither is an error.
+ */
+async function readContext(
+  captureId: string,
+  noteId: string,
+  startedAt: Date,
+): Promise<CaptureContext | null> {
+  const segments = rowsToSegments(
+    await execute<TranscriptSegmentRow>(SEGMENTS_BY_CAPTURE_SQL, [captureId]),
+  );
+  if (segments.length === 0) return null;
+
+  const note = await getNote(noteId);
+  if (!note) {
+    logger.debug('Skipped structuring a note that no longer exists', { noteId });
+    return null;
+  }
+
+  const authored = userAuthoredPart(note, startedAt);
+  return {
+    note,
+    segments,
+    artifacts: await getCaptureArtifacts(captureId),
+    overrides: overridesById(await getNoteOverrides(noteId)),
+    // What the app wrote last time comes out before anything is rebuilt.
+    // Without this the note keeps its own previous output as if the user had
+    // typed it, and every slice appends another copy of the same sections.
+    userBody: userBodyOf(note.body, note.generatedBody),
+    userTitle: authored.title,
+    userItems: userChecklist(note.checklist),
+  };
+}
+
+/** Persist an artifact and the note it composes to, unless something newer won. */
+async function commit(
+  context: CaptureContext,
+  artifact: Parameters<typeof saveArtifact>[0],
+  startedAt: Date,
+): Promise<boolean> {
+  const landed = await saveArtifact(artifact);
+  if (!landed) {
+    // An ordinary outcome: a newer revision, or the settled artifact, got there
+    // first. Retrying is how a stale pass eventually wins, so it does not.
+    logger.debug('A newer artifact already holds this slot', { captureId: artifact.captureId });
+    return false;
+  }
+
+  const composed = composeNote({
+    user: { title: context.userTitle, body: context.userBody, checklist: context.userItems },
+    live: artifact.stage === 'live' ? artifact : context.artifacts.live,
+    final: artifact.stage === 'final' ? artifact : context.artifacts.final,
+    overrides: [...context.overrides.values()],
+    fallbackTitle: startedAt.toLocaleString(),
+  });
+
+  // Both halves of the body, in one write. The store composes them — this pass
+  // never assembles a body itself, so it cannot assemble one from a stale half.
+  await updateNote(context.note.id, {
+    title: composed.title,
+    checklist: composed.checklist,
+    userBody: context.userBody,
+    generatedBody: composed.generatedBody,
+  });
+  return true;
+}
+
+/**
+ * Rebuild `noteId`'s provisional note from everything `captureId` has transcribed.
  *
  * Rebuilt from the whole transcript each time rather than appended to: a later
  * slice can settle a question an earlier one raised, and only a pass over
- * everything can notice that. The transcript is small — minutes of speech, not
- * megabytes — so this stays cheap enough to run on every slice.
+ * everything notices that. The result is then RECONCILED against what is already
+ * on screen, so a point that survives keeps its id and its place — replacing the
+ * note wholesale is what made a live note reorder under the reader.
  */
 export async function restructureNote(
   captureId: string,
   noteId: string,
   startedAt: Date,
+  transcriptRevision = 0,
 ): Promise<void> {
-  const rows = await execute<TranscriptSegmentRow>(SEGMENTS_BY_CAPTURE_SQL, [captureId]);
-  const segments = rowsToSegments(rows);
-  if (segments.length === 0) return;
+  const context = await readContext(captureId, noteId, startedAt);
+  if (!context) return;
 
-  const note = await getNote(noteId);
-  if (!note) {
-    // The note was deleted while its recording was still running. Nothing to
-    // write to, and nothing wrong: the user threw it away.
-    logger.debug('Skipped structuring a note that no longer exists', { noteId });
-    return;
-  }
-
-  // What the app wrote last time comes out before anything is rebuilt.
-  // Without this the note keeps its own previous output as if the user had
-  // typed it, and every slice appends another copy of the same sections.
-  const authored = userAuthoredPart(note, startedAt);
-  const userBody = userBodyOf(note.body, note.generatedBody);
-
-  const structured = structureTranscript(segments, {
+  const built = buildDeterministicArtifact({
+    noteId,
+    captureId,
+    segments: context.segments,
     startedAt,
-    makeId: newNoteId,
-    // The body is passed empty on purpose: what comes back is then the app's
-    // contribution ALONE, which is the thing that has to be remembered and
-    // replaced. The user's writing is put back on top afterwards.
-    existing: { ...authored, body: '' },
+    stage: 'live',
+    transcriptRevision,
+    now: new Date().toISOString(),
   });
 
-  // Both halves, in one write. The store composes them — this pass never
-  // assembles a body itself, so it cannot assemble one from a stale half.
-  const { body: generated, ...patch } = toNotePatch(structured);
-  await updateNote(noteId, { ...patch, userBody, generatedBody: generated });
+  const reduced = reduceLiveArtifact(context.artifacts.live, built, context.overrides);
+  await commit(
+    context,
+    committed(reduced, { transcriptRevision, now: new Date().toISOString() }),
+    startedAt,
+  );
 }
 
 /**
- * Have a language model read the meeting and rewrite the note.
+ * Settle the note, once, with the whole recording in view.
  *
- * Runs once, when the recording stops — not per slice like `restructureNote`. A
- * model that has read the whole meeting writes a better note than one that has
- * read the first two minutes, and running it repeatedly would spend a phone's
- * battery producing drafts nobody reads.
- *
- * The deterministic note is already written by the time this runs, which is what
- * makes every failure here survivable: no model, no download, a refused reply, a
- * crash — the user still has their note. Nothing about this is on the critical
- * path.
+ * The deterministic reading is always produced first and always usable, so every
+ * failure below is survivable: no model, no download, a refused reply, a crash —
+ * the user still has their note. A model that answers replaces the artifact's
+ * contents; one that does not is not an error, it is the floor being enough.
  */
 export async function enhanceNote(
   captureId: string,
   noteId: string,
   startedAt: Date,
   language: string,
+  transcriptRevision = 0,
 ): Promise<boolean> {
+  const context = await readContext(captureId, noteId, startedAt);
+  if (!context) return false;
+
+  const now = new Date().toISOString();
+  const deterministic = buildDeterministicArtifact({
+    noteId,
+    captureId,
+    segments: context.segments,
+    startedAt,
+    stage: 'final',
+    transcriptRevision,
+    now,
+  });
+
+  const settled = finalizeArtifact({
+    previous: context.artifacts.live,
+    next: deterministic,
+    overrides: context.overrides,
+    now,
+  });
+  await commit(context, committed(settled, { transcriptRevision, now }), startedAt);
+
   const summarizer = getSummarizer();
   if ((await summarizer.availability()) !== 'ready') return false;
 
-  const rows = await execute<TranscriptSegmentRow>(SEGMENTS_BY_CAPTURE_SQL, [captureId]);
-  const segments = rowsToSegments(rows);
-  if (segments.length === 0) return false;
-
-  const note = await getNote(noteId);
-  if (!note) return false;
-
-  // Reuse the deterministic pass for its cleaned, block-grouped transcript
-  // rather than handing whisper's raw segments to the model: the filler and the
-  // repetitions it removes are tokens the model would otherwise spend context
-  // on, and a phone's context window is the scarce thing here.
-  const authored = userAuthoredPart(note, startedAt);
-  const userBody = userBodyOf(note.body, note.generatedBody);
-  // Same rule as the deterministic pass: the model is shown what the USER
-  // wrote, never the app's own previous output, or it summarises itself.
-  const existing = { ...authored, body: userBody };
-
-  const structured = structureTranscript(segments, {
-    startedAt,
-    makeId: newNoteId,
-    existing: { ...authored, body: '' },
-  });
-
   const enhancement = await summarizer.enhance({
-    transcript: structured.transcript,
-    existing,
+    // The model is shown the cleaned, block-grouped transcript rather than
+    // whisper's raw segments: the filler and repetitions removed there are
+    // tokens a phone's context window would otherwise spend on nothing.
+    transcript: cleanedBlocks(context.segments).map((block) => ({
+      atMs: block.startMs,
+      text: block.text,
+    })),
+    // Shown what the USER wrote, never the app's own previous output, or it
+    // summarises itself.
+    existing: {
+      title: context.userTitle,
+      body: context.userBody,
+      checklist: context.userItems,
+    },
     language,
   });
   if (!enhancement) {
@@ -132,15 +236,30 @@ export async function enhanceNote(
     return false;
   }
 
-  const { body: generated, ...patch } = enhancementToNotePatch(enhancement, {
-    makeId: newNoteId,
-    // Empty body for the same reason: what comes back is the model's
-    // contribution alone, which is what gets remembered and replaced.
-    existing: { ...existing, body: '' },
-    fallbackTitle: structured.title,
+  const fromModel = enhancementToArtifact({
+    enhancement,
+    captureId,
+    noteId,
+    blocks: cleanedBlocks(context.segments),
+    stage: 'final',
+    transcriptRevision,
+    now,
+    fallbackTitle: deterministic.title?.text ?? startedAt.toLocaleString(),
   });
 
-  await updateNote(noteId, { ...patch, userBody, generatedBody: generated });
-  logger.info('Note rewritten by the on-device model', { noteId });
-  return true;
+  const landed = await commit(
+    context,
+    committed(
+      finalizeArtifact({
+        previous: settled,
+        next: fromModel,
+        overrides: context.overrides,
+        now,
+      }),
+      { transcriptRevision, now },
+    ),
+    startedAt,
+  );
+  if (landed) logger.info('Note rewritten by the on-device model', { noteId });
+  return landed;
 }

@@ -19,15 +19,22 @@
  * The fixture below is written in the shape of that recording — rhetorical
  * question, then the answer, no tasks, no decisions — because that shape is the
  * thing being tested. A meeting fixture cannot fail this way.
+ *
+ * Carried over from `lib/structure/__tests__/lecture.test.ts` when the generator
+ * moved to producing an artifact. The assertions are the same guarantees, made
+ * against the artifact and its rendering rather than against a Markdown string
+ * the generator built itself.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import type { TranscriptSegment } from '@/lib/capture/captures-repo';
-import { structureTranscript } from '@/lib/structure/structure';
+import { visibleItems } from '@/lib/artifact/artifact';
+import { buildDeterministicArtifact } from '@/lib/artifact/generate/deterministic';
+import { renderArtifact } from '@/lib/artifact/render';
+import type { GeneratedNoteArtifact } from '@/lib/artifact/types';
 
 const startedAt = new Date('2026-03-04T10:00:00.000Z');
-const makeId = (): string => 'id';
 
 /** Consecutive speech: no gap long enough to break a paragraph on its own. */
 function talk(lines: readonly string[]): TranscriptSegment[] {
@@ -46,6 +53,18 @@ function talk(lines: readonly string[]): TranscriptSegment[] {
   }));
 }
 
+function build(segments: readonly TranscriptSegment[]): GeneratedNoteArtifact {
+  return buildDeterministicArtifact({
+    noteId: 'n1',
+    captureId: 'c1',
+    segments,
+    startedAt,
+    stage: 'live',
+    transcriptRevision: 1,
+    now: '2026-03-04T10:30:00.000Z',
+  });
+}
+
 const LECTURE = talk([
   'When you send a message to an AI, there is a moment where it appears to be thinking, what is actually happening?',
   'It is predicting the next word, one word at a time, using the pattern it learned during training.',
@@ -58,28 +77,30 @@ const LECTURE = talk([
 ]);
 
 describe('a recorded talk', () => {
-  const note = structureTranscript(LECTURE, { startedAt, makeId });
+  const artifact = build(LECTURE);
+  const note = renderArtifact(artifact);
 
   it('writes down what was explained', () => {
     // The whole failure was a note with the content missing.
-    expect(note.markdown).not.toBe('');
-    expect(note.markdown).toContain('predicting the next word');
+    expect(note).not.toBe('');
+    expect(note).toContain('predicting the next word');
   });
 
   it('does not file a question the speaker answered as an open one', () => {
-    expect(note.markdown).not.toContain('## Open questions');
-    expect(note.markdown).not.toContain('Is it copying answers from a database?');
+    expect(note).not.toContain('## Open questions');
+    expect(note).not.toContain('Is it copying answers from a database?');
+    expect(visibleItems(artifact.openQuestions)).toEqual([]);
   });
 
   it('has no empty headings, because a talk decides nothing', () => {
-    expect(note.markdown).not.toContain('## Decisions');
-    expect(note.checklist).toEqual([]);
+    expect(note).not.toContain('## Decisions');
+    expect(artifact.checklists).toEqual([]);
   });
 
   it('does not simply reproduce the transcript', () => {
     // A note that keeps every sentence is a transcript with bullets, and reading
     // it back is the work the app exists to save.
-    const bullets = note.markdown.split('\n').filter((line) => line.startsWith('- '));
+    const bullets = note.split('\n').filter((line) => line.startsWith('- '));
     expect(bullets.length).toBeGreaterThan(0);
     expect(bullets.length).toBeLessThan(LECTURE.length);
   });
@@ -87,15 +108,16 @@ describe('a recorded talk', () => {
   it('still reports a question nobody got to', () => {
     // The other side of the rule, so "answered" is not being read as "always
     // drop the questions". A question left hanging at the end is open.
-    const hanging = structureTranscript(
-      talk([
-        'The model writes a sentence that has never existed before.',
-        'That is the part people find hard to accept, and it is the honest description.',
-        'So what happens when two of them are asked the same question at once?',
-      ]),
-      { startedAt, makeId },
+    const hanging = renderArtifact(
+      build(
+        talk([
+          'The model writes a sentence that has never existed before.',
+          'That is the part people find hard to accept, and it is the honest description.',
+          'So what happens when two of them are asked the same question at once?',
+        ]),
+      ),
     );
-    expect(hanging.markdown).toContain('## Open questions');
-    expect(hanging.markdown).toContain('what happens when two of them are asked');
+    expect(hanging).toContain('## Open questions');
+    expect(hanging).toContain('what happens when two of them are asked');
   });
 });
