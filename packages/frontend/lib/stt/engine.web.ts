@@ -192,6 +192,30 @@ async function decodeToSamples(audioPath: string): Promise<Float32Array> {
 }
 
 /**
+ * Which language to tell whisper it is hearing.
+ *
+ * On a phone, `auto` means what it says: whisper.cpp detects the language.
+ * transformers.js does not — its whisper implementation carries a
+ * `TODO: Implement language detection`, and an unspecified language silently
+ * becomes English. A meeting held in Spanish came back transcribed as English
+ * with only a console warning to show for it.
+ *
+ * So `auto` resolves to the language of the browser, which is a far better guess
+ * than English-for-everyone, and the choice is logged so a wrong transcript has
+ * a visible cause. Someone whose meetings are not in their interface language
+ * can pin it in settings.
+ */
+function resolveLanguage(requested: string): string {
+  if (requested !== 'auto') return requested;
+  const browserLanguage = typeof navigator === 'undefined' ? '' : navigator.language;
+  // `es-ES` and `es-419` are both `es` to whisper.
+  const base = browserLanguage.split('-')[0]?.toLowerCase();
+  const language = base && base.length === 2 ? base : 'en';
+  logger.info('No transcription language set; using the browser language', { language });
+  return language;
+}
+
+/**
  * Non-speech markers whisper emits ("[BLANK_AUDIO]", "[Music]"). Nobody said
  * them, so they are not transcript.
  */
@@ -228,10 +252,11 @@ export function getSttEngine(): SttEngine {
       const samples = await decodeToSamples(request.audioPath);
       const transcribe = await getTranscriber();
 
+      const language = resolveLanguage(request.language);
       const output = await transcribe(samples, {
         chunk_length_s: CHUNK_SECONDS,
         return_timestamps: true,
-        language: request.language === 'auto' ? undefined : request.language,
+        language,
       });
 
       const segments = toSegments(output.chunks ?? [], request.captureId);

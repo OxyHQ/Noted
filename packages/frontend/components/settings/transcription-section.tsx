@@ -2,6 +2,7 @@ import { View, Pressable, ActivityIndicator } from "react-native";
 import { Check, Download, Trash2 } from "lucide-react-native";
 
 import { Text } from "@/components/ui/text";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { hasDownloadableModels } from "@/lib/capture/support";
@@ -99,6 +100,61 @@ function ModelRow({
           <Trash2 size={18} color={colors.mutedForeground} />
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+/** What the transcriber is told it is listening to. */
+const LANGUAGES = ['auto', 'es', 'en'] as const;
+
+function isLanguage(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+/**
+ * Which language the recording is in.
+ *
+ * Worth asking about rather than inferring, because the cost of guessing wrong
+ * is a transcript in the wrong language and a note built from it. `auto` means
+ * different things by platform — the phone detects it, the browser can only fall
+ * back to its own language — and that is said plainly rather than hidden.
+ */
+function LanguageRow() {
+  const { t } = useTranslation();
+  const { settings } = useSettings();
+  const selected = readSetting(settings, SETTING_KEYS.sttLanguage, isLanguage, 'auto');
+
+  return (
+    <View className="gap-2">
+      <Text className="text-sm font-medium text-muted-foreground">
+        {t("transcription.language.title")}
+      </Text>
+      <View className="flex-row gap-2">
+        {LANGUAGES.map((language) => (
+          <Pressable
+            key={language}
+            onPress={() => void writeSetting(SETTING_KEYS.sttLanguage, language)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: language === selected }}
+            className={cn(
+              "rounded-full border px-4 py-2",
+              language === selected ? "border-primary bg-primary/10" : "border-border",
+            )}
+          >
+            <Text
+              className={cn(
+                "text-sm",
+                language === selected ? "text-primary" : "text-foreground",
+              )}
+            >
+              {t(`transcription.language.${language}`)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text className="text-sm text-muted-foreground">
+        {t("transcription.language.note")}
+      </Text>
     </View>
   );
 }
@@ -227,6 +283,8 @@ export function TranscriptionSection() {
           {live ? <Text className="text-xs text-primary-foreground">✓</Text> : null}
         </View>
       </Pressable>
+
+      <LanguageRow />
 
       <UnderstandingRow />
 
