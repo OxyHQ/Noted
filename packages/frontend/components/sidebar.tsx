@@ -7,8 +7,6 @@ import {
 } from "react-native";
 import { Text } from "@/components/ui/text";
 import {
-  NotebookPen,
-  Bell,
   Tag,
   Archive,
   Trash2,
@@ -16,8 +14,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Plus,
-  type LucideIcon,
 } from "lucide-react-native";
+import { AddTaskIcon, StickyNoteIcon } from "@/components/ui/nav-icons";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
@@ -49,7 +47,8 @@ export function Sidebar() {
    ================================================================ */
 
 interface NavItemProps {
-  icon: LucideIcon;
+  /** Lucide or one of the Material Symbols in `nav-icons` — both draw at a size in a colour. */
+  icon: React.ComponentType<{ size?: number; color?: string }>;
   label: string;
   onPress: () => void;
   isActive?: boolean;
@@ -184,8 +183,8 @@ const NotesSidebar = React.memo(function NotesSidebar() {
           <NotedMark size={24} color={colors.foreground} />
         </View>
         <View className="flex-col items-center gap-1 py-1">
-          <NavItem icon={NotebookPen} label={t("notes.title")} onPress={goHome} collapsed />
-          <NavItem icon={Bell} label={t("notes.remindersTitle")} onPress={goReminders} collapsed />
+          <NavItem icon={StickyNoteIcon} label={t("notes.title")} onPress={goHome} collapsed />
+          <NavItem icon={AddTaskIcon} label={t("notes.remindersTitle")} onPress={goReminders} collapsed />
           <NavItem icon={Tag} label={t("notes.labelsTitle")} onPress={goLabels} collapsed />
           <NavItem icon={Archive} label={t("notes.archiveTitle")} onPress={goArchive} collapsed />
           <NavItem icon={Trash2} label={t("notes.trashTitle")} onPress={goTrash} collapsed />
@@ -237,12 +236,12 @@ const NotesSidebar = React.memo(function NotesSidebar() {
       {/* Nav */}
       <ScrollView className="flex-1" contentContainerClassName="py-1">
         <NavItem
-          icon={NotebookPen}
+          icon={StickyNoteIcon}
           label={t("notes.title")}
           onPress={goHome}
           isActive={isHome && !activeLabel}
         />
-        <NavItem icon={Bell} label={t("notes.remindersTitle")} onPress={goReminders} isActive={pathname.includes("/reminders")} />
+        <NavItem icon={AddTaskIcon} label={t("notes.remindersTitle")} onPress={goReminders} isActive={pathname.includes("/reminders")} />
 
         {/* Labels */}
         {allLabels.length > 0 && (
