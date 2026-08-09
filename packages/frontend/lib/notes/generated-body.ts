@@ -55,3 +55,43 @@ export function composeNoteBody(userBody: string, generated: string): string {
   if (written === '') return user;
   return `${user}${SEPARATOR}${written}`;
 }
+
+/** A note's body and the app's half of it, as stored. */
+export interface NoteBody {
+  body: string;
+  generatedBody: string;
+}
+
+/**
+ * The body a write should land, given the note as stored and the half the writer
+ * is actually changing.
+ *
+ * This is the ONLY place a note body is assembled. Both writers reach it —
+ * `lib/db/notes-repo.ts` calls it for the recorder and for the editor alike —
+ * because a body assembled anywhere else is a body assembled from one writer's
+ * idea of what the other one wrote.
+ *
+ * That matters most for the writer with the stalest copy: the open editor. It
+ * held the note as it was when it opened, so a full-body write from it lands a
+ * body missing every block the recorder has produced since — and the next slice,
+ * unable to find its own remembered block inside it, files the whole thing as
+ * the user's writing and keeps it forever. Sending only the half it owns is what
+ * makes that impossible rather than unlikely.
+ *
+ * A patch touching neither half leaves the body exactly as it is. Recomposing it
+ * "just to be safe" is the opposite of safe: a body the server pushed does not
+ * necessarily contain the block this device remembers generating, and rebuilding
+ * it from parts that no longer agree is how a duplicate gets written by a patch
+ * that only meant to pin the note.
+ */
+export function nextNoteBody(
+  current: NoteBody,
+  patch: { userBody?: string; generatedBody?: string },
+): NoteBody {
+  const generatedBody = patch.generatedBody ?? current.generatedBody;
+  if (patch.userBody === undefined && patch.generatedBody === undefined) {
+    return { body: current.body, generatedBody };
+  }
+  const userBody = patch.userBody ?? userBodyOf(current.body, current.generatedBody);
+  return { body: composeNoteBody(userBody, generatedBody), generatedBody };
+}

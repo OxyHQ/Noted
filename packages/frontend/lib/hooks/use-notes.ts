@@ -27,6 +27,7 @@ import {
   rowsToNotes,
   trashNote as trashNoteLocally,
   updateNote as updateNoteLocally,
+  type LocalNote,
   type NoteInput,
   type NoteRow,
 } from "@/lib/db/notes-repo";
@@ -56,7 +57,7 @@ export function normalizeNote(note: Note): Note {
    Queries
    ============================================================ */
 
-const EMPTY_NOTES: Note[] = [];
+const EMPTY_NOTES: LocalNote[] = [];
 
 /** A filtered list of notes (home / archive / trash / label / search). */
 export function useNotes(params: NoteListParams) {
@@ -66,7 +67,7 @@ export function useNotes(params: NoteListParams) {
     () => noteListQuery(params),
     [params.view, params.label, params.pinned, params.q],
   );
-  const { data, isLoading, error } = useLiveQuery<NoteRow, Note[]>({
+  const { data, isLoading, error } = useLiveQuery<NoteRow, LocalNote[]>({
     sql: query.sql,
     params: query.params,
     mapRows: rowsToNotes,
@@ -76,7 +77,7 @@ export function useNotes(params: NoteListParams) {
 
 /** A single note's full detail. */
 export function useNote(id: string | undefined) {
-  const { data, isLoading, error } = useLiveQuery<NoteRow, Note | null>({
+  const { data, isLoading, error } = useLiveQuery<NoteRow, LocalNote | null>({
     sql: NOTE_DETAIL_SQL,
     params: [id ?? ""],
     mapRows: firstRowToNote,
@@ -91,7 +92,7 @@ export function useNote(id: string | undefined) {
 /** Create a note. Used both for `n/new` first-edit and quick-capture. */
 export function useCreateNote() {
   return useMutation({
-    mutationFn: (input: NoteInput): Promise<Note> => createNoteLocally(newNoteId(), input),
+    mutationFn: (input: NoteInput): Promise<LocalNote> => createNoteLocally(newNoteId(), input),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to create note");
     },
@@ -154,12 +155,14 @@ export function useReorderNotes() {
    ============================================================ */
 
 /** Build a blank, client-side note for the editor before the first save. */
-export function makeDraftNote(): Note {
+export function makeDraftNote(): LocalNote {
   const now = new Date().toISOString();
   return {
     id: newNoteId(),
+    kind: "note",
     title: "",
     body: "",
+    generatedBody: "",
     checklist: [],
     color: DEFAULT_NEW_NOTE_COLOR,
     labels: [],

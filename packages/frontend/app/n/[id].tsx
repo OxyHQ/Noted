@@ -58,9 +58,12 @@ import {
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import type { LocalNote } from "@/lib/db/notes-repo";
+import { reconcileDraft } from "@/lib/notes/draft-sync";
+import { userBodyOf } from "@/lib/notes/generated-body";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { generateUUID } from "@/lib/utils";
-import type { ChecklistItem, Note, NoteColor } from "@noted/shared-types";
+import type { ChecklistItem, NoteColor } from "@noted/shared-types";
 
 const AUTOSAVE_MS = 600;
 
@@ -108,45 +111,74 @@ export default function NoteEditorScreen() {
   const noteIdRef = React.useRef<string | null>(isNew ? null : params.id);
   const creatingRef = React.useRef(false);
 
-  // Local draft is the source of truth while editing; autosave pushes it up.
-  // A ref mirrors the draft so handlers can read the latest value and call the
-  // persist side-effect outside of the state updater (no effects-in-setState).
-  const [draft, setDraftState] = React.useState<Note>(() => makeDraftNote());
+  // The draft the fields render from. A text input cannot be re-rendered from
+  // the database on every keystroke and still keep a caret, so the editor holds
+  // its own copy — but it is no longer the sole source of truth, because a
+  // recording rewrites this note while it is open. `base` is the version the
+  // draft last agreed with the store on, and it is what lets the two be merged
+  // instead of one of them winning. A ref mirrors the draft so handlers can read
+  // the latest value and persist outside the state updater.
+  const [draft, setDraftState] = React.useState<LocalNote>(() => makeDraftNote());
   const draftRef = React.useRef(draft);
-  const [hydrated, setHydrated] = React.useState(isNew);
+  const [base, setBase] = React.useState<LocalNote | null>(null);
   const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
   const [showReminders, setShowReminders] = React.useState(false);
 
-  const setDraft = React.useCallback((next: Note) => {
+  const setDraft = React.useCallback((next: LocalNote) => {
     draftRef.current = next;
     setDraftState(next);
   }, []);
 
-  // Hydrate the draft once the fetched note arrives (existing notes only).
-  // Calling setState during render is React's documented pattern for syncing
-  // state to changed props (here: the async-loaded note).
-  if (!isNew && !hydrated && fetchedNote) {
-    // Belt-and-suspenders: `useNote` already normalizes via `fetchNote`, but a
-    // legacy note that reached the cache by any other path could still lack
-    // `attachments`. Guarantee an array before it becomes the editor draft so
-    // every read below (filter/spread/length) is safe.
-    const hydratedNote: Note = {
-      ...fetchedNote,
-      attachments: Array.isArray(fetchedNote.attachments)
-        ? fetchedNote.attachments
-        : [],
-    };
-    draftRef.current = hydratedNote;
-    setDraftState(hydratedNote);
-    setShowChecklist(hydratedNote.checklist.length > 0);
-    setHydrated(true);
+  // Follow the store, on first load and on every write that lands after it —
+  // the recorder's slices included. Calling setState during render is React's
+  // documented pattern for syncing state to changed props (here: the note, read
+  // through a live SQL subscription).
+  //
+  // `updatedAt` is the gate rather than a one-way `hydrated` flag: the flag was
+  // the bug. It never went back to false, so nothing written after the editor
+  // opened ever reached the draft, and the note's own card and its open editor
+  // showed different text for the same note.
+  const stored = isNew ? null : fetchedNote;
+  if (stored !== null && (base === null || base.id !== stored.id)) {
+    // First sight of this note: there is nothing of the user's to protect yet.
+    draftRef.current = stored;
+    setDraftState(stored);
+    setBase(stored);
+    // Only on arrival. Flipping this on a later slice would drag someone out of
+    // the field they are typing in because the structurer found a task.
+    setShowChecklist(stored.checklist.length > 0);
+  } else if (stored !== null && base !== null && base.updatedAt !== stored.updatedAt) {
+    // Written to since the draft last agreed with it — a transcription slice, a
+    // sync from another device, or this editor's own autosave landing.
+    const next = reconcileDraft(base, draftRef.current, stored);
+    draftRef.current = next;
+    setDraftState(next);
+    setBase(stored);
   }
 
+  /**
+   * Write the draft.
+   *
+   * `bodyTakenOver` is set by the one action that turns the app's half into the
+   * user's: converting between a body and a checklist moves every line,
+   * generated ones included, into something they now own. Without it the store
+   * would compose the block back in on the very next write, just after they
+   * converted it away.
+   */
   const persist = React.useCallback(
-    (next: Note) => {
+    (next: LocalNote, bodyTakenOver = false) => {
       if (!isAuthenticated) return;
+
+      // Only the half of the body this editor owns goes up. The other half is
+      // added back by the store, from whatever the recorder has written by the
+      // time this lands — which is what stops a note left open from erasing the
+      // minutes of transcript that arrived while it sat there. The block is
+      // taken out using the one embedded in THIS draft, not the store's: those
+      // differ exactly when a slice has landed, and that is the case that
+      // matters.
+      const userBody = userBodyOf(next.body, next.generatedBody);
 
       const id = noteIdRef.current;
       if (id) {
@@ -154,7 +186,8 @@ export default function NoteEditorScreen() {
           id,
           patch: {
             title: next.title,
-            body: next.body,
+            userBody,
+            ...(bodyTakenOver ? { generatedBody: "" } : {}),
             checklist: next.checklist,
             color: next.color,
             labels: next.labels,
@@ -171,7 +204,7 @@ export default function NoteEditorScreen() {
       // subsequent edits PATCH the real server note.
       const isEmpty =
         !next.title.trim() &&
-        !next.body.trim() &&
+        !userBody.trim() &&
         next.checklist.length === 0 &&
         (next.attachments?.length ?? 0) === 0;
       if (isEmpty || creatingRef.current) return;
@@ -180,7 +213,7 @@ export default function NoteEditorScreen() {
       createNote.mutate(
         {
           title: next.title,
-          body: next.body,
+          userBody,
           checklist: next.checklist,
           color: next.color,
           labels: next.labels,
@@ -191,6 +224,10 @@ export default function NoteEditorScreen() {
           onSuccess: (created) => {
             noteIdRef.current = created.id;
             creatingRef.current = false;
+            // The note the draft now agrees with, so the live query arriving a
+            // moment later is recognised as the same version rather than
+            // reloading over whatever has been typed since.
+            setBase(created);
             router.setParams({ id: created.id });
           },
           onError: () => {
@@ -214,7 +251,7 @@ export default function NoteEditorScreen() {
 
   // Apply a draft change locally and schedule a debounced autosave (typing).
   const update = React.useCallback(
-    (patch: Partial<Note>) => {
+    (patch: Partial<LocalNote>) => {
       const next = { ...draftRef.current, ...patch };
       setDraft(next);
       autosave.run(next);
@@ -224,7 +261,7 @@ export default function NoteEditorScreen() {
 
   // A field change that should save immediately (toggles), not debounced.
   const updateNow = React.useCallback(
-    (patch: Partial<Note>) => {
+    (patch: Partial<LocalNote>) => {
       const next = { ...draftRef.current, ...patch };
       setDraft(next);
       autosave.cancel();
@@ -245,13 +282,16 @@ export default function NoteEditorScreen() {
 
   const handleToggleChecklist = React.useCallback(() => {
     const prev = draftRef.current;
-    let next: Note;
+    let next: LocalNote;
+    // Either direction moves every line the app generated into something the
+    // user now owns — joined into their body, or split into their checklist —
+    // so the app's record of what it wrote is cleared with it.
     if (showChecklist) {
       // checklist -> body: join items back into lines
       const body = [prev.body, ...prev.checklist.map((c) => c.text)]
         .filter(Boolean)
         .join("\n");
-      next = { ...prev, body, checklist: [] };
+      next = { ...prev, body, checklist: [], generatedBody: "" };
     } else {
       // body -> checklist: split body lines into items
       const items: ChecklistItem[] = prev.body
@@ -259,10 +299,10 @@ export default function NoteEditorScreen() {
         .map((line) => line.trim())
         .filter(Boolean)
         .map((text) => ({ id: generateUUID(), text, checked: false }));
-      next = { ...prev, body: "", checklist: items };
+      next = { ...prev, body: "", checklist: items, generatedBody: "" };
     }
     setDraft(next);
-    autosave.run(next);
+    autosave.run(next, true);
     setShowChecklist((s) => !s);
   }, [showChecklist, autosave, setDraft]);
 
@@ -349,7 +389,7 @@ export default function NoteEditorScreen() {
     router.back();
   }, [autosave, trashNote, router]);
 
-  if (!isNew && isLoading && !hydrated) {
+  if (!isNew && isLoading && base === null) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
         <ActivityIndicator color={colors.primary} />

@@ -37,11 +37,25 @@ jobs:
       - name: Guard against MongoDB returning
         run: bun run validate:no-mongo
 
+      # `@noted/shared-types` resolves through `main: ./dist/index.js`, and
+      # `dist/` is gitignored — so on a clean checkout the package cannot be
+      # resolved at all and any test file that reaches it fails to LOAD. A
+      # developer machine hides this behind a `dist/` left over from an earlier
+      # build; only CI starts without one.
+      - name: Build shared types
+        run: bun run build:types
+
       - name: Lint API
         run: bun run --filter @noted/backend lint
 
       - name: Run API tests
         run: bun run --filter @noted/backend test
+
+      # The app's suite was not run here, so every guard in it — including the
+      # source checks that are the only thing standing between a refactor and
+      # the two-writers bug coming back — passed by never executing.
+      - name: Run app tests
+        run: bun run --filter @noted/frontend test
 
   build-api:
     name: Build API

@@ -15,15 +15,33 @@ import {
 } from '@noted/shared-types';
 
 import { execute, executeTransaction, type Row, type Statement } from '@/lib/db/client';
+import { nextNoteBody } from '@/lib/notes/generated-body';
 
 /** Marks a note as carrying local edits the server has not acknowledged. */
 const DIRTY = 1;
+
+/**
+ * A note as this device stores it: the shared DTO plus the bookkeeping that
+ * never leaves the machine.
+ *
+ * `generatedBody` is the half of `body` the app composed. It is local by
+ * construction — the server has the note's body and no business knowing which
+ * part of it the app wrote — and it is what lets the next writer replace its own
+ * previous output instead of preserving it as something the user typed.
+ */
+export interface LocalNote extends Note {
+  /** `voice` for a note born from a recording, `note` for one someone opened. */
+  kind: 'note' | 'voice';
+  /** The part of `body` the app composed, exactly as last written. */
+  generatedBody: string;
+}
 
 export interface NoteRow extends Row {
   id: string;
   kind: string;
   title: string;
   body: string;
+  generated_body: string;
   body_format: string;
   checklist_json: string;
   color: string;
@@ -61,11 +79,13 @@ function isChecklistItem(value: unknown): value is ChecklistItem {
   return typeof item.id === 'string' && typeof item.text === 'string' && typeof item.checked === 'boolean';
 }
 
-export function rowToNote(row: NoteRow): Note {
+export function rowToNote(row: NoteRow): LocalNote {
   return {
     id: row.id,
+    kind: row.kind === 'voice' ? 'voice' : 'note',
     title: row.title,
     body: row.body,
+    generatedBody: row.generated_body,
     checklist: parseJsonArray(row.checklist_json, isChecklistItem),
     color: normalizeNoteColor(row.color),
     labels: parseJsonArray(row.labels_json, isString),
@@ -80,11 +100,11 @@ export function rowToNote(row: NoteRow): Note {
   };
 }
 
-export function rowsToNotes(rows: readonly NoteRow[]): Note[] {
+export function rowsToNotes(rows: readonly NoteRow[]): LocalNote[] {
   return rows.map(rowToNote);
 }
 
-export function firstRowToNote(rows: readonly NoteRow[]): Note | null {
+export function firstRowToNote(rows: readonly NoteRow[]): LocalNote | null {
   const row = rows[0];
   return row ? rowToNote(row) : null;
 }
@@ -96,7 +116,7 @@ export function firstRowToNote(rows: readonly NoteRow[]): Note | null {
 // subquery also registers `note_labels` as a read dependency, which is what
 // makes a label change re-run this query.
 const NOTE_COLUMNS = `
-  notes.id, notes.kind, notes.title, notes.body, notes.body_format,
+  notes.id, notes.kind, notes.title, notes.body, notes.generated_body, notes.body_format,
   notes.checklist_json, notes.color, notes.pinned, notes.archived, notes.trashed,
   notes.attachments_json, notes.reminder_at, notes.sort_order,
   notes.created_at, notes.updated_at,
@@ -162,7 +182,7 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
 
 export const NOTE_DETAIL_SQL = `SELECT ${NOTE_COLUMNS} FROM notes WHERE notes.id = ? AND notes.deleted_at IS NULL`;
 
-export async function getNote(id: string): Promise<Note | null> {
+export async function getNote(id: string): Promise<LocalNote | null> {
   return firstRowToNote(await execute<NoteRow>(NOTE_DETAIL_SQL, [id]));
 }
 
@@ -207,14 +227,15 @@ function labelStatements(noteId: string, labels: readonly string[]): Statement[]
 
 const NOTE_UPSERT_SQL = `
 INSERT INTO notes (
-  id, kind, title, body, body_format, checklist_json, color, pinned, archived,
-  trashed, attachments_json, reminder_at, sort_order, created_at, updated_at,
-  deleted_at, dirty, server_updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
+  id, kind, title, body, generated_body, body_format, checklist_json, color,
+  pinned, archived, trashed, attachments_json, reminder_at, sort_order,
+  created_at, updated_at, deleted_at, dirty, server_updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
 ON CONFLICT (id) DO UPDATE SET
   kind = excluded.kind,
   title = excluded.title,
   body = excluded.body,
+  generated_body = excluded.generated_body,
   body_format = excluded.body_format,
   checklist_json = excluded.checklist_json,
   color = excluded.color,
@@ -229,12 +250,20 @@ ON CONFLICT (id) DO UPDATE SET
   dirty = excluded.dirty
 `;
 
-/** The fields a caller may set; everything else is derived or server-owned. */
+/**
+ * The fields a caller may set; everything else is derived or server-owned.
+ *
+ * `body` is deliberately absent, and its absence is the point. A recorded note's
+ * body has two authors — the person typing and the structurer running every few
+ * seconds — so no caller holds a version of it that is safe to write whole. Each
+ * one names the half it owns and this module assembles the result, which is what
+ * keeps an editor that has been open for a minute from erasing a minute of
+ * transcript. See `lib/notes/generated-body.ts`.
+ */
 export type NoteInput = Partial<
   Pick<
     Note,
     | 'title'
-    | 'body'
     | 'checklist'
     | 'color'
     | 'labels'
@@ -245,17 +274,24 @@ export type NoteInput = Partial<
     | 'reminderAt'
     | 'order'
   >
-> & { kind?: 'note' | 'voice' };
+> & {
+  kind?: 'note' | 'voice';
+  /** What the user wrote. On a note nobody recorded, that is the whole body. */
+  userBody?: string;
+  /** What the app wrote. Only the capture writers set this. */
+  generatedBody?: string;
+};
 
-function upsertStatements(note: Note, kind: string, now: string): Statement[] {
+function upsertStatements(note: LocalNote, now: string): Statement[] {
   return [
     {
       sql: NOTE_UPSERT_SQL,
       params: [
         note.id,
-        kind,
+        note.kind,
         note.title,
         note.body,
+        note.generatedBody,
         'plain',
         JSON.stringify(note.checklist),
         note.color,
@@ -276,12 +312,20 @@ function upsertStatements(note: Note, kind: string, now: string): Statement[] {
 }
 
 /** Insert a note that only exists locally so far. */
-export async function createNote(id: string, input: NoteInput): Promise<Note> {
+export async function createNote(id: string, input: NoteInput): Promise<LocalNote> {
   const now = nowIso();
-  const note: Note = {
+  // Through the same assembler as every later edit, starting from a note with
+  // neither half written yet, so there is exactly one place a body is composed.
+  const body = nextNoteBody(
+    { body: '', generatedBody: '' },
+    { userBody: input.userBody ?? '', generatedBody: input.generatedBody },
+  );
+  const note: LocalNote = {
     id,
+    kind: input.kind ?? 'note',
     title: input.title ?? '',
-    body: input.body ?? '',
+    body: body.body,
+    generatedBody: body.generatedBody,
     checklist: input.checklist ?? [],
     color: input.color ?? DEFAULT_NEW_NOTE_COLOR,
     labels: input.labels ?? [],
@@ -294,7 +338,7 @@ export async function createNote(id: string, input: NoteInput): Promise<Note> {
     createdAt: now,
     updatedAt: now,
   };
-  await executeTransaction(upsertStatements(note, input.kind ?? 'note', now));
+  await executeTransaction(upsertStatements(note, now));
   return note;
 }
 
@@ -305,20 +349,31 @@ export async function createNote(id: string, input: NoteInput): Promise<Note> {
  * the write are not atomic, but every writer is this process and the outbox
  * sends the row as it stands at flush time, so a lost interleaving costs at most
  * one redundant push.
+ *
+ * That read is also what makes the body safe. The two halves are recombined here
+ * against the row as it stands NOW, so a caller sending its own half never
+ * overwrites the other one, however long it has been holding its copy — and both
+ * halves land in the same statement, so no live query can ever observe a body
+ * paired with the wrong `generated_body`.
  */
-export async function updateNote(id: string, patch: NoteInput): Promise<Note | null> {
+export async function updateNote(id: string, patch: NoteInput): Promise<LocalNote | null> {
   const current = await getNote(id);
   if (!current) return null;
 
   const now = nowIso();
-  const next: Note = {
+  const { userBody, generatedBody, kind, ...fields } = patch;
+  const body = nextNoteBody(current, { userBody, generatedBody });
+  const next: LocalNote = {
     ...current,
-    ...patch,
+    ...fields,
+    kind: kind ?? current.kind,
+    body: body.body,
+    generatedBody: body.generatedBody,
     color: patch.color ?? current.color,
     reminderAt: patch.reminderAt === undefined ? current.reminderAt : patch.reminderAt,
     updatedAt: now,
   };
-  await executeTransaction(upsertStatements(next, patch.kind ?? 'note', now));
+  await executeTransaction(upsertStatements(next, now));
   return next;
 }
 
