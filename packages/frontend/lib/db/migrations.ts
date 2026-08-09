@@ -161,6 +161,12 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     `ALTER TABLE stt_models RENAME TO model_files`,
     `ALTER TABLE model_files ADD COLUMN kind TEXT NOT NULL DEFAULT 'stt'`,
   ],
+
+  // What the app itself wrote into a note, so the next pass can replace it
+  // instead of treating it as the user's writing and appending another copy.
+  // Local bookkeeping: it is never sent anywhere, and the note's `body` remains
+  // the whole truth on the wire.
+  [`ALTER TABLE notes ADD COLUMN generated_body TEXT NOT NULL DEFAULT ''`],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
