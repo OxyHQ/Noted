@@ -54,6 +54,9 @@ export function useRealtimeRecorder(
   const [phase, setPhase] = useState<RecorderPhase>('idle');
   const [levels, setLevels] = useState<number[] | null>(null);
   const [durationMs, setDurationMs] = useState(0);
+  // Held in state rather than a ref: it is rendered, and the whole point is that
+  // the screen changes every time the recogniser re-reads the current span.
+  const [partialText, setPartialText] = useState('');
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -88,6 +91,9 @@ export function useRealtimeRecorder(
           audioPath: '',
           onLevel: (db) => {
             latestDbRef.current = db;
+          },
+          onPartial: (text) => {
+            setPartialText(text);
           },
           onTranscriptChanged: () => {
             void restructureNote(captureId, noteId, startedAt).catch((error: unknown) => {
@@ -193,5 +199,5 @@ export function useRealtimeRecorder(
     [],
   );
 
-  return { phase, levels, durationMs, stop };
+  return { phase, levels, durationMs, partialText, stop };
 }

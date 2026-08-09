@@ -42,6 +42,15 @@ export interface Recorder {
   /** Recent levels, 0–1, oldest first. Null until the first sample. */
   levels: number[] | null;
   durationMs: number;
+  /**
+   * What is being said right now, before it is part of the transcript.
+   *
+   * Empty when nothing is provisional — a recorder that cannot transcribe while
+   * it records leaves it empty always. Rewritten as the recogniser reads the
+   * same audio again, so it must be rendered as a single changing line rather
+   * than appended to anything.
+   */
+  partialText: string;
   stop: () => Promise<StopOutcome>;
 }
 

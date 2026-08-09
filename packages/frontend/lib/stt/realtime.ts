@@ -34,6 +34,18 @@ export interface RealtimeOptions {
   audioPath: string;
   /** Called after new segments are persisted, so the caller can restructure. */
   onTranscriptChanged?: () => void;
+  /**
+   * The words being spoken right now, before they are part of the transcript.
+   *
+   * Provisional and disposable: the same audio is read again as more of it
+   * arrives, so this string is rewritten, not appended to, and it is never
+   * stored. It goes empty when the span it covers is committed.
+   *
+   * This is what makes the screen move while somebody is talking. The committed
+   * transcript can only advance when a whole span is settled, which is seconds
+   * apart; a partial can be replaced as often as the machine can produce one.
+   */
+  onPartial?: (text: string) => void;
   /** Loudness in dBFS, for the waveform. Called on the audio stream's schedule. */
   onLevel?: (db: number) => void;
   onError?: (message: string) => void;

@@ -66,6 +66,7 @@ export function RecordingPill() {
   return (
     <>
       {isRecording ? (
+        <View className="items-center gap-2">
         <View className="max-w-[420px] flex-row items-center gap-3 rounded-full border border-border bg-background px-4 py-2.5 shadow-lg">
           {/* Red is the one colour a recording indicator cannot borrow from the
               theme: it means "live", not "primary". */}
@@ -101,6 +102,22 @@ export function RecordingPill() {
           >
             <Square size={13} color={colors.foreground} fill={colors.foreground} />
           </Pressable>
+        </View>
+
+        {/* What is being said right now, before it is part of the transcript.
+            Set apart from the note itself, and never written into it: the
+            recogniser rewrites this line as it hears more, so it is the one
+            place in the app showing text that is still allowed to change under
+            the reader. Two lines at most — it is a sign of life, not a
+            transcript view. */}
+        {recorder.partialText !== "" && !failure && (
+          <Text
+            numberOfLines={2}
+            className="max-w-[420px] px-4 text-center text-xs italic text-muted-foreground"
+          >
+            {recorder.partialText}
+          </Text>
+        )}
         </View>
       ) : (
         <Pressable
