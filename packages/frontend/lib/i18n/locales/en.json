@@ -1155,7 +1155,9 @@
     "labelsTitle": "Labels",
     "editLabels": "Edit labels",
     "deleteLabel": "Delete label",
-    "deleteLabelConfirm": "This label will be removed from all notes. The notes are not deleted."
+    "deleteLabelConfirm": "This label will be removed from all notes. The notes are not deleted.",
+    "exportMarkdown": "Export as Markdown",
+    "exportFailed": "The note could not be exported."
   },
   "capture": {
     "start": "Record a meeting",

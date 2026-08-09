@@ -57,7 +57,8 @@
       "expo-notifications",
       "llama.rn",
       "@oxyhq/app-preset/plugin/withSharedUserId",
-      "@oxyhq/services/plugins/withSharedIdentityReader"
+      "@oxyhq/services/plugins/withSharedIdentityReader",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

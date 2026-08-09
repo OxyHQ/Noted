@@ -1155,7 +1155,9 @@
     "labelsTitle": "Etiquetas",
     "editLabels": "Editar etiquetas",
     "deleteLabel": "Eliminar etiqueta",
-    "deleteLabelConfirm": "Esta etiqueta se quitará de todas las notas. Las notas no se eliminan."
+    "deleteLabelConfirm": "Esta etiqueta se quitará de todas las notas. Las notas no se eliminan.",
+    "exportMarkdown": "Exportar como Markdown",
+    "exportFailed": "No se pudo exportar la nota."
   },
   "capture": {
     "start": "Grabar una reunión",

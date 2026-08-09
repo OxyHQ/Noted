@@ -30,8 +30,13 @@ import {
   Bell,
   CheckSquare,
   Type,
+  Download,
 } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
+import { toast } from "@oxyhq/bloom/toast";
+import { createLogger } from "@oxyhq/core/logger";
+import { noteFilename, noteToMarkdown } from "@/lib/export/markdown";
+import { saveTextFile } from "@/lib/export/save";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import { ChecklistEditor } from "@/components/notes/checklist-editor";
 import { LabelChips } from "@/components/notes/label-chips";
@@ -72,6 +77,8 @@ function presetDate(preset: ReminderPreset): Date {
   }
   return d;
 }
+
+const logger = createLogger("NotedNotes");
 
 /** An empty note still needs somewhere inviting to start writing. */
 const MIN_BODY_HEIGHT = 160;
@@ -227,6 +234,16 @@ export default function NoteEditorScreen() {
     },
     [autosave, persist, setDraft]
   );
+
+  const handleExport = React.useCallback(() => {
+    const note = draftRef.current;
+    // Read from the ref rather than from `draft`, so what is exported is what is
+    // on screen right now and not the render this handler was created in.
+    void saveTextFile(noteFilename(note), noteToMarkdown(note)).catch((error: unknown) => {
+      logger.error('Could not export the note', { error: String(error) });
+      toast.error(t("notes.exportFailed"));
+    });
+  }, [t]);
 
   const handleToggleChecklist = React.useCallback(() => {
     const prev = draftRef.current;
@@ -493,6 +510,7 @@ export default function NoteEditorScreen() {
             label={showChecklist ? t("notes.convertToText") : t("notes.convertToChecklist")}
             onPress={handleToggleChecklist}
           />
+          <IconButton icon={Download} label={t("notes.exportMarkdown")} onPress={handleExport} />
         </View>
       </View>
     </>
