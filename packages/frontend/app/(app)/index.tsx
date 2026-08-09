@@ -249,17 +249,15 @@ export default function HomeScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-3 pb-24 pt-3"
+        contentContainerClassName="gap-6 px-3 pb-24 pt-3"
         keyboardShouldPersistTaps="handled"
       >
         {!selectionMode && (
-          <View className="mb-6">
-            <QuickCapture
-              onCreate={handleCreate}
-              onCreateChecklist={handleCreateChecklist}
-              onCreateAttachment={handleCreateNote}
-            />
-          </View>
+          <QuickCapture
+            onCreate={handleCreate}
+            onCreateChecklist={handleCreateChecklist}
+            onCreateAttachment={handleCreateNote}
+          />
         )}
 
         {isLoading ? (
@@ -277,9 +275,9 @@ export default function HomeScreen() {
             subtitle={searchQuery ? t("notes.noResultsSubtitle") : t("notes.emptySubtitle")}
           />
         ) : (
-          <>
+          <View className="gap-4">
             {pinned.length > 0 && (
-              <View className="mb-4">
+              <View className="gap-2">
                 <SectionLabel>{t("notes.pinned")}</SectionLabel>
                 <NoteGrid
                   notes={pinned}
@@ -298,8 +296,10 @@ export default function HomeScreen() {
               </View>
             )}
             {others.length > 0 && (
-              <View>
-                {pinned.length > 0 && <SectionLabel>{t("notes.others")}</SectionLabel>}
+              <View className="gap-2">
+                {pinned.length > 0 && (
+                  <SectionLabel>{t("notes.others")}</SectionLabel>
+                )}
                 <NoteGrid
                   notes={others}
                   allLabels={allLabels}
@@ -316,7 +316,7 @@ export default function HomeScreen() {
                 />
               </View>
             )}
-          </>
+          </View>
         )}
       </ScrollView>
 
@@ -353,7 +353,7 @@ export default function HomeScreen() {
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <Text className="mb-2 ml-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <Text className="ml-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
       {children}
     </Text>
   );
