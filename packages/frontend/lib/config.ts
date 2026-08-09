@@ -12,15 +12,6 @@ export const DEV_API_BASE_URL = 'http://nate:3001';
 export const STAGING_API_BASE_URL = 'https://staging-api.noted.oxy.so';
 export const PROD_API_BASE_URL = 'https://api.noted.oxy.so';
 
-// Noted's registered Oxy SSO client id (ApplicationCredential publicKey for the
-// official "Noted" Application — redirect origin https://noted.oxy.so). Required
-// by @oxyhq/services for the cross-app device sign-in / SSO cold-boot flow. The
-// `oxy_dk_` public key is public and safe to commit; overridable per-environment
-// via EXPO_PUBLIC_OXY_CLIENT_ID.
-export const OXY_CLIENT_ID =
-  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
-  'oxy_dk_6850133a8633e1941722ad912766db4c60985f1102eaf658';
-
 const ENV = {
   dev: {
     apiUrl: DEV_API_BASE_URL,

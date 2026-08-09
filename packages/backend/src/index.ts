@@ -245,6 +245,6 @@ connectPostgres()
     process.on('SIGINT', () => shutdown('SIGINT'));
   })
   .catch((error) => {
-    log.general.error({ err: error }, 'Failed to connect to MongoDB');
+    log.general.error({ err: error }, 'Failed to connect to PostgreSQL');
     process.exit(1);
   });

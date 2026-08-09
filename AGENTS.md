@@ -13,12 +13,27 @@ Note: the README.md in this repo still says "Clarity" — that branding is stale
 ## Tech Stack
 
 - **Frontend**: Expo SDK 56, NativeWind 5, Reanimated, Zustand, TanStack Query, expo-router
-- **Backend**: Express, TypeScript, MongoDB/Mongoose, Socket.IO, Redis
+- **Backend**: Express, TypeScript, PostgreSQL (drizzle over postgres.js, via `@oxyhq/db`), Socket.IO, Redis
 - **Auth**: `@oxyhq/core` (incl. `@oxyhq/core/server`), `@oxyhq/services`
 
-## MongoDB
+## PostgreSQL
 
-Database: `noted-production` (passed to `mongoose.connect()` via `dbName`, NOT embedded in `MONGODB_URI`). See `packages/backend/src/lib/db.ts`.
+Database `noted` on the shared `oxy-postgres` instance, reached as
+`postgres.internal.oxy.so` with `?sslmode=require` (the parameter group sets
+`rds.force_ssl = 1`). Connection in `packages/backend/src/db/postgres.ts`, schema
+in `src/db/schema/`, migrations in `drizzle/`.
+
+Two rules that are not obvious from the code:
+
+- **Every generated migration needs a `-- oxy:deploy-phase=pre|post` marker**;
+  `db:migrate` refuses to apply an unmarked one, before any DDL runs.
+- **Postgres has no TTL index.** Any table that would have carried one needs an
+  entry in `src/db/expiry.ts`, or it grows forever with no error and no failing
+  test. Two tables are registered there today.
+
+Mongo was removed entirely in August 2026 — there is no `noted-production`
+database and no `MONGODB_URI` anywhere. Comments elsewhere that mention Mongo are
+deliberate records of why a Postgres decision was made, not leftovers.
 
 ## Backend Routes
 

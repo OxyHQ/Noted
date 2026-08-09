@@ -12,7 +12,7 @@ Noted was started from the Clarity codebase and some of that branding has outliv
 
 - **Bun.** The package manager for every Oxy repository, never npm or yarn. The pinned version is `packageManager` in the root `package.json`, and CI installs that exact version.
 - **Node.js 22.** The runtime the backend is built and deployed on. CI pins it alongside bun.
-- **MongoDB**, local or remote, to run the backend. The test suite does not need one.
+- **PostgreSQL 17**, to run the backend — `docker compose -f docker-compose.postgres.yml up -d postgres`, then `bun run db:migrate --target-database=noted_dev`. The test suite does not need one.
 - **Redis**, optional. Caching and Socket.IO scaling fall back gracefully without it.
 
 ## Setup

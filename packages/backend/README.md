@@ -101,7 +101,7 @@ Use `apps/api/example.env` as baseline.
 Key groups:
 
 - Server and CORS (`PORT`, `WEB_URL`, `API_BASE_URL`)
-- MongoDB (`MONGODB_URI`)
+- PostgreSQL (`DATABASE_URL`)
 - Auth secrets (`JWT_SECRET`, `SERVICE_SECRET`)
 - Queue/async execution (`REDIS_URL`)
 - Integrations and channels (`INTEGRATIONS_SERVICE_URL`, channel secrets)
