@@ -118,6 +118,33 @@ describe('reconcileDraft', () => {
     expect(next.generatedBody).toBe(SECOND_SLICE);
   });
 
+  it('does not retype the field when the editor own save lands back', () => {
+    // This runs on every autosave, and composing trims. Rewriting an unchanged
+    // body would hand the field a trimmed copy of itself — the space someone
+    // just typed vanishes from under the caret and the next word joins the last
+    // one. The trailing space is the whole assertion; do not "tidy" it away.
+    const base = note({ body: 'hola', generatedBody: '' });
+    const draft = note({ body: 'hola ', generatedBody: '' });
+    const stored = note({ body: 'hola', generatedBody: '', updatedAt: '2026-08-10T10:00:01.000Z' });
+
+    expect(reconcileDraft(base, draft, stored).body).toBe('hola ');
+  });
+
+  it('still takes a body another device changed while nothing was typed here', () => {
+    // The case the rule above must not swallow: the user's half really did move,
+    // it just did not move here.
+    const base = note({ body: 'hola', generatedBody: '' });
+    const stored = note({
+      body: 'hola mundo',
+      generatedBody: '',
+      updatedAt: '2026-08-10T10:00:01.000Z',
+    });
+
+    expect(reconcileDraft(base, note({ body: 'hola', generatedBody: '' }), stored).body).toBe(
+      'hola mundo',
+    );
+  });
+
   it('does not put the block back after the user converted it away', () => {
     // Converting a body to a checklist moves every generated line into items the
     // user owns, and clears the draft's record of the block. A slice landing in

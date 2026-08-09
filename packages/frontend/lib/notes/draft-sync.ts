@@ -78,6 +78,28 @@ export function reconcileDraft(base: LocalNote, draft: LocalNote, stored: LocalN
   // which is the case this exists for.
   const baseUserBody = userBodyOf(base.body, base.generatedBody);
   const draftUserBody = userBodyOf(draft.body, draft.generatedBody);
+  const storedUserBody = userBodyOf(stored.body, stored.generatedBody);
+
+  /**
+   * The body, in three cases rather than two.
+   *
+   * The third — leaving the draft's text exactly as it is — is not an
+   * optimisation. Composing trims, and this runs on every store write including
+   * this editor's own autosave landing back, so recomposing an unchanged body
+   * hands the field a trimmed copy of itself: the space someone just typed
+   * disappears from under their caret and the next word joins the last one.
+   */
+  function nextBody(): string {
+    if (generatedBody === draft.generatedBody && storedUserBody === draftUserBody) {
+      // Nothing about the body actually moved. Most often that is our own save.
+      return draft.body;
+    }
+    // Untouched here, so the store's version is simply newer — a slice, or
+    // another device.
+    if (draftUserBody === baseUserBody) return stored.body;
+    // Both halves moved. This is the only case that has to be assembled.
+    return composeNoteBody(draftUserBody, generatedBody);
+  }
 
   return {
     // Everything the editor does not own — id, kind, ordering, timestamps —
@@ -87,10 +109,7 @@ export function reconcileDraft(base: LocalNote, draft: LocalNote, stored: LocalN
     ...stored,
     generatedBody,
     title: pick(base.title, draft.title, stored.title),
-    body:
-      draftUserBody === baseUserBody && generatedBody === stored.generatedBody
-        ? stored.body
-        : composeNoteBody(draftUserBody, generatedBody),
+    body: nextBody(),
     checklist: pick(base.checklist, draft.checklist, stored.checklist),
     color: pick(base.color, draft.color, stored.color),
     labels: pick(base.labels, draft.labels, stored.labels),
