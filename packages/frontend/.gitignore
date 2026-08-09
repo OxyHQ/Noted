@@ -48,3 +48,6 @@ expo-env.d.ts
 # EAS local credentials
 credentials/
 credentials.json
+
+# Copied from onnxruntime-web at build time (see scripts/copy-ort-runtime.ts)
+public/ort/

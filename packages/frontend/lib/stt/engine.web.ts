@@ -44,6 +44,9 @@ const SAMPLE_RATE = 16_000;
  */
 const MODEL_ID = 'onnx-community/whisper-base';
 
+/** Where `scripts/copy-ort-runtime.ts` puts the WebAssembly runtime, served from `public/`. */
+const ORT_RUNTIME_PATH = '/ort/';
+
 /** Transcribed in chunks this long, with whisper's usual overlap between them. */
 const CHUNK_SECONDS = 30;
 
@@ -89,7 +92,22 @@ type Transcriber = (
 async function getTranscriber(): Promise<Transcriber> {
   if (!pipelinePromise) {
     pipelinePromise = (async () => {
-      const { pipeline } = await import('@huggingface/transformers');
+      const { pipeline, env } = await import('@huggingface/transformers');
+
+      // onnxruntime-web fetches its WebAssembly runtime by URL at load time
+      // rather than through the bundler, and the build this app resolves (see
+      // `metro.config.js`) carries no embedded copy — so without this it looks
+      // for the runtime beside the page and gets the app's HTML instead.
+      // `scripts/copy-ort-runtime.ts` puts the files here.
+      const wasmBackend = env.backends.onnx.wasm;
+      if (!wasmBackend) {
+        // Typed as optional, and it is the only way to point the runtime at its
+        // own files — so its absence is a broken transcription, not something to
+        // carry on past quietly.
+        throw new Error('onnxruntime-web exposes no wasm backend to configure');
+      }
+      wasmBackend.wasmPaths = ORT_RUNTIME_PATH;
+
       const device = (await hasWebGpu()) ? 'webgpu' : 'wasm';
       logger.info('Loading the browser speech model', { device });
       return pipeline('automatic-speech-recognition', MODEL_ID, { device });
