@@ -12,6 +12,7 @@ import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
 import { useLocalStore } from "@/lib/db/use-local-store";
 import { RecordingPill } from "@/components/capture/recording-pill";
+import { UndoSnackbar } from "@/components/notes/undo-snackbar";
 
 // Top-level list routes that render their own header (and own top inset).
 const SELF_INSET_ROUTES = new Set([
@@ -25,6 +26,9 @@ const SELF_INSET_ROUTES = new Set([
 // Routes shown as items in the drawer sidebar list. The Sidebar component
 // renders its own nav, so we hide the auto-generated drawer items entirely.
 const VISIBLE_ROUTES = new Set<string>();
+
+/** Clear of the home indicator and any bottom chrome. */
+const BOTTOM_STACK_MARGIN = 16;
 
 const SIDEBAR_WIDTH_EXPANDED = 280;
 const SIDEBAR_WIDTH_COLLAPSED = 48;
@@ -100,10 +104,41 @@ export default function AppLayout() {
                 <Drawer.Screen name="labels" options={{ title: i18n.t("notes.labelsTitle") }} />
                 <Drawer.Screen name="settings/index" options={{ title: i18n.t("nav.settings") }} />
               </Drawer>
-              {/* Above the navigator, so it survives every screen change: the
-                  recording keeps running across screens and into the background,
-                  and a control tied to one screen would strand the microphone. */}
-              <RecordingPill sidebarWidth={isLargeScreen ? drawerWidth : 0} />
+              {/* The floating bottom stack, above the navigator so it survives
+                  every screen change: the recording keeps running across screens
+                  and into the background, and a control tied to one screen would
+                  strand the microphone. The undo snackbar sits in the same stack
+                  rather than inside the screen that raised it — a snackbar drawn
+                  inside the navigator is painted under this button whatever
+                  z-index it asks for, because the navigator is a whole stacking
+                  context lower.
+
+                  Hugging its contents (`self-center`) rather than stretching:
+                  a full-width layer over the app, sidebar included, would leave
+                  everything beneath it depending on `pointerEvents: 'box-none'`
+                  surviving every future style change. Shifted right by half the
+                  sidebar because `self-center` centres on the WINDOW, while the
+                  notes are centred on what is left of it; transitioned to match
+                  the sidebar's own width animation. */}
+              <View
+                className="absolute bottom-0 self-center items-center gap-2"
+                style={{
+                  paddingBottom: insets.bottom + BOTTOM_STACK_MARGIN,
+                  transform: [
+                    { translateX: (isLargeScreen ? drawerWidth : 0) / 2 },
+                  ],
+                  ...(Platform.OS === "web"
+                    ? {
+                        transitionProperty: "transform",
+                        transitionDuration: "200ms",
+                        transitionTimingFunction: "ease-out",
+                      }
+                    : {}),
+                }}
+              >
+                <UndoSnackbar />
+                <RecordingPill />
+              </View>
             </View>
           </View>
         </View>

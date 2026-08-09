@@ -1,6 +1,5 @@
-import { View, Pressable, Platform } from "react-native";
+import { View, Pressable } from "react-native";
 import { Mic, Square } from "lucide-react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePathname } from "expo-router";
 
 import { Text } from "@/components/ui/text";
@@ -20,37 +19,27 @@ function formatDuration(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-/** Clear of the home indicator and any bottom chrome. */
-const BOTTOM_MARGIN = 16;
-
 /**
- * The one control for recording, floating at the bottom centre.
+ * The one control for recording.
  *
  * It is a single element in two states rather than a button that summons a bar:
  * pressing it starts the recording and it becomes the recording — same shape,
  * same place, so nothing jumps and there is never a moment where the user has to
  * find where the stop control went.
  *
- * Mounted in the app layout, above the navigator, because a recording continues
- * across screens and into the background. A control tied to one screen would
- * strand the microphone somewhere the user cannot reach it.
+ * Drawn in the app layout's bottom stack, above the navigator, because a
+ * recording continues across screens and into the background. A control tied to
+ * one screen would strand the microphone somewhere the user cannot reach it.
+ * Where the stack sits — clear of the home indicator, centred on the content
+ * rather than the window — is the stack's business, not this component's.
  */
-type RecordingPillProps = {
-  /**
-   * Width of the permanent sidebar, or 0 when the sidebar is an overlay (it
-   * covers the content instead of shrinking it, so it takes no room).
-   */
-  sidebarWidth: number;
-};
-
-export function RecordingPill({ sidebarWidth }: RecordingPillProps) {
+export function RecordingPill() {
   const captureId = useCaptureStore((s) => s.captureId);
   const noteId = useCaptureStore((s) => s.noteId);
   const clearCapture = useCaptureStore((s) => s.clearCapture);
   const { start, isSupported } = useStartCapture();
   const { colors } = useColorScheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
   const recorder = useCaptureEngine(captureId ?? "", noteId ?? "", captureId !== null, {
@@ -75,34 +64,9 @@ export function RecordingPill({ sidebarWidth }: RecordingPillProps) {
         : null;
 
   return (
-    // Centred by `self-center` rather than by stretching across the screen and
-    // centring its contents. A full-width container would be an invisible layer
-    // over the whole app — sidebar included — and everything under it would
-    // depend on `pointerEvents: 'box-none'` surviving every future style change
-    // and platform quirk. Hugging the pill means there is nothing to see
-    // through in the first place.
-    //
-    // The pill is mounted above the navigator, so its parent spans the sidebar
-    // too and `self-center` centres it on the WINDOW. The notes are centred on
-    // what is left of the window after the sidebar, so shifting right by half
-    // the sidebar puts the pill over the middle of the content. Transitioned to
-    // match the sidebar's own width animation, so the two move together.
-    <View
-      className="absolute bottom-0 self-center"
-      style={{
-        paddingBottom: insets.bottom + BOTTOM_MARGIN,
-        transform: [{ translateX: sidebarWidth / 2 }],
-        ...(Platform.OS === "web"
-          ? {
-              transitionProperty: "transform",
-              transitionDuration: "200ms",
-              transitionTimingFunction: "ease-out",
-            }
-          : {}),
-      }}
-    >
+    <>
       {isRecording ? (
-        <View className="max-w-[92%] flex-row items-center gap-3 rounded-full border border-border bg-background px-4 py-2.5 shadow-lg">
+        <View className="max-w-[420px] flex-row items-center gap-3 rounded-full border border-border bg-background px-4 py-2.5 shadow-lg">
           {/* Red is the one colour a recording indicator cannot borrow from the
               theme: it means "live", not "primary". */}
           <View
@@ -153,6 +117,6 @@ export function RecordingPill({ sidebarWidth }: RecordingPillProps) {
           </Text>
         </Pressable>
       )}
-    </View>
+    </>
   );
 }
