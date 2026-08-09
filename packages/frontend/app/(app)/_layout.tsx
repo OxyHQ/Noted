@@ -39,6 +39,7 @@ export default function AppLayout() {
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
 
   // Push notification registration + tap handling.
   useNotificationSetup();
@@ -87,7 +88,7 @@ export default function AppLayout() {
         ? undefined
         : { display: "none" as const },
     }),
-    [insets.top, colors.background, isLargeScreen, drawerWidth]
+    [insets.top, colors.background, isLargeScreen, drawerWidth],
   );
 
   return (
@@ -96,13 +97,34 @@ export default function AppLayout() {
         <View className="isolate flex h-screen flex-row">
           <View className="isolate flex h-auto max-h-screen min-w-0 grow flex-col">
             <View className="relative isolate min-h-0 flex-1 overflow-hidden bg-background">
-              <Drawer drawerContent={renderDrawerContent} screenOptions={screenOptions}>
-                <Drawer.Screen name="index" options={{ title: i18n.t("notes.title") }} />
-                <Drawer.Screen name="reminders" options={{ title: i18n.t("notes.remindersTitle") }} />
-                <Drawer.Screen name="archive" options={{ title: i18n.t("notes.archiveTitle") }} />
-                <Drawer.Screen name="trash" options={{ title: i18n.t("notes.trashTitle") }} />
-                <Drawer.Screen name="labels" options={{ title: i18n.t("notes.labelsTitle") }} />
-                <Drawer.Screen name="settings/index" options={{ title: i18n.t("nav.settings") }} />
+              <Drawer
+                drawerContent={renderDrawerContent}
+                screenOptions={screenOptions}
+              >
+                <Drawer.Screen
+                  name="index"
+                  options={{ title: i18n.t("notes.title") }}
+                />
+                <Drawer.Screen
+                  name="reminders"
+                  options={{ title: i18n.t("notes.remindersTitle") }}
+                />
+                <Drawer.Screen
+                  name="archive"
+                  options={{ title: i18n.t("notes.archiveTitle") }}
+                />
+                <Drawer.Screen
+                  name="trash"
+                  options={{ title: i18n.t("notes.trashTitle") }}
+                />
+                <Drawer.Screen
+                  name="labels"
+                  options={{ title: i18n.t("notes.labelsTitle") }}
+                />
+                <Drawer.Screen
+                  name="settings/index"
+                  options={{ title: i18n.t("nav.settings") }}
+                />
               </Drawer>
               {/* The floating bottom stack, above the navigator so it survives
                   every screen change: the recording keeps running across screens
@@ -120,25 +142,32 @@ export default function AppLayout() {
                   sidebar because `self-center` centres on the WINDOW, while the
                   notes are centred on what is left of it; transitioned to match
                   the sidebar's own width animation. */}
-              <View
-                className="absolute bottom-0 self-center items-center gap-2"
-                style={{
-                  paddingBottom: insets.bottom + BOTTOM_STACK_MARGIN,
-                  transform: [
-                    { translateX: (isLargeScreen ? drawerWidth : 0) / 2 },
-                  ],
-                  ...(Platform.OS === "web"
-                    ? {
-                        transitionProperty: "transform",
-                        transitionDuration: "200ms",
-                        transitionTimingFunction: "ease-out",
-                      }
-                    : {}),
-                }}
-              >
-                <UndoSnackbar />
-                <RecordingPill />
-              </View>
+              {/* An open drawer covers the content on a small screen, so the
+                  stack stands down rather than floating over the sidebar and
+                  its scrim. On a large screen the drawer is permanent, always
+                  reports itself open, and shares the width instead of covering
+                  it — hence the breakpoint in the condition. */}
+              {!(sidebarOpen && !isLargeScreen) && (
+                <View
+                  className="absolute bottom-0 self-center items-center gap-2"
+                  style={{
+                    paddingBottom: insets.bottom + BOTTOM_STACK_MARGIN,
+                    transform: [
+                      { translateX: (isLargeScreen ? drawerWidth : 0) / 2 },
+                    ],
+                    ...(Platform.OS === "web"
+                      ? {
+                          transitionProperty: "transform",
+                          transitionDuration: "200ms",
+                          transitionTimingFunction: "ease-out",
+                        }
+                      : {}),
+                  }}
+                >
+                  <UndoSnackbar />
+                  <RecordingPill />
+                </View>
+              )}
             </View>
           </View>
         </View>

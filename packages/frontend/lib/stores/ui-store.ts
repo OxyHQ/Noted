@@ -1,11 +1,17 @@
 import { create } from "zustand";
 
 interface UIState {
+  /**
+   * Whether the drawer is open. The navigator owns this; `Sidebar` mirrors it
+   * here so the layout — which sits OUTSIDE the drawer's context and cannot
+   * call `useDrawerStatus` — can keep the floating bottom stack from covering
+   * an open drawer. On a large screen the drawer is permanent and this is
+   * always true, so read it together with the breakpoint.
+   */
   sidebarOpen: boolean;
   sidebarCollapsed: boolean;
   shortcutsDialogOpen: boolean;
 
-  toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebarCollapsed: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -18,7 +24,6 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarCollapsed: false,
   shortcutsDialogOpen: false,
 
-  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebarCollapsed: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
