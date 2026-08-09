@@ -3,8 +3,9 @@ import { View, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } f
 import Head from "expo-router/head";
 import { useRouter } from "expo-router";
 import { useOxy } from "@oxyhq/services";
-import { Lightbulb, Plus } from "lucide-react-native";
+import { Plus } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
+import { StickyNoteIcon } from "@/components/ui/nav-icons";
 import { NotesHeader } from "@/components/notes/notes-header";
 import { QuickCapture } from "@/components/notes/quick-capture";
 import { NoteGrid } from "@/components/notes/note-grid";
@@ -362,7 +363,7 @@ function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
   const { colors } = useColorScheme();
   return (
     <View className="items-center justify-center py-20">
-      <Lightbulb size={64} color={colors.mutedForeground} strokeWidth={1.5} />
+      <StickyNoteIcon size={64} color={colors.mutedForeground} />
       <Text className="mt-4 text-base font-semibold text-foreground">{title}</Text>
       <Text className="mt-1 text-center text-sm text-muted-foreground">{subtitle}</Text>
     </View>
