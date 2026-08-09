@@ -1,29 +1,32 @@
 import { describe, expect, it, vi } from 'vitest';
 
-/** Load `isCaptureSupported` as it behaves on one platform. */
-async function loadFor(os: string): Promise<boolean> {
+async function loadFor(os: string) {
   vi.resetModules();
   vi.doMock('react-native', () => ({ Platform: { OS: os, select: () => undefined } }));
-  const { isCaptureSupported } = await import('@/lib/capture/support');
-  return isCaptureSupported();
+  return import('@/lib/capture/support');
 }
 
-describe('isCaptureSupported', () => {
-  it('is true where there is a file system to write the recording to', async () => {
-    expect(await loadFor('ios')).toBe(true);
-    expect(await loadFor('android')).toBe(true);
+describe('capture support', () => {
+  // Recording and transcribing are asked separately because the answers differ,
+  // and an earlier version of this module conflated them — hiding a working
+  // recorder on web behind a transcription engine that is not there.
+  it('records everywhere, because expo-audio does', async () => {
+    for (const os of ['ios', 'android', 'web']) {
+      const { isCaptureSupported } = await loadFor(os);
+      expect(isCaptureSupported()).toBe(true);
+    }
   });
 
-  // The bug this guards: `expo-file-system`'s File and Directory are empty stubs
-  // on web, so `directory.create()` throws even after the browser has granted
-  // the microphone. Offering the control there means asking the user for a
-  // permission and then failing — worse than not offering it.
-  it('is false on web, where there is nowhere to put the audio', async () => {
-    expect(await loadFor('web')).toBe(false);
+  it('transcribes only where whisper.cpp can run', async () => {
+    expect((await loadFor('ios')).isTranscriptionSupported()).toBe(true);
+    expect((await loadFor('android')).isTranscriptionSupported()).toBe(true);
+    expect((await loadFor('web')).isTranscriptionSupported()).toBe(false);
   });
 
-  it('is false on any platform it has not been proven on', async () => {
-    expect(await loadFor('windows')).toBe(false);
-    expect(await loadFor('macos')).toBe(false);
+  it('keeps recordings past a restart only where there is a file system', async () => {
+    expect((await loadFor('ios')).isCaptureDurable()).toBe(true);
+    expect((await loadFor('android')).isCaptureDurable()).toBe(true);
+    // A blob URL lives as long as the page, so a web capture cannot be recovered.
+    expect((await loadFor('web')).isCaptureDurable()).toBe(false);
   });
 });

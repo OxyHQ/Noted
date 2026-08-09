@@ -115,14 +115,25 @@ export async function beginCapture(input: {
   ]);
 }
 
-/** Record that the recording stopped cleanly and how long it ran. */
-export async function finishCapture(id: string, durationMs: number): Promise<void> {
+/**
+ * Record that the recording stopped cleanly, how long it ran, and where the
+ * audio ended up.
+ *
+ * The path is only known now: on web it is whatever blob URL the recorder
+ * minted, and on native it is where the file was moved to.
+ */
+export async function finishCapture(
+  id: string,
+  durationMs: number,
+  audioPath: string,
+): Promise<void> {
   const now = nowIso();
   await executeTransaction([
     {
-      sql: `UPDATE captures SET state = 'transcribing', ended_at = ?, duration_ms = ?, updated_at = ?
+      sql: `UPDATE captures SET state = 'transcribing', ended_at = ?, duration_ms = ?,
+            audio_path = ?, updated_at = ?
             WHERE id = ? AND state = 'recording'`,
-      params: [now, durationMs, now, id],
+      params: [now, durationMs, audioPath, now, id],
     },
   ]);
 }

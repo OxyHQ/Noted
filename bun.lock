@@ -143,6 +143,7 @@
         "tailwind-merge": "^3.4.0",
         "tailwindcss": "4.2.2",
         "tailwindcss-animate": "^1.0.7",
+        "whisper.rn": "0.7.2",
         "zeego": "^3.0.6",
         "zustand": "^5.0.10",
         "zustand-persist": "^0.4.0",
@@ -2690,6 +2691,8 @@
     "which": ["which@2.0.2", "", { "dependencies": { "isexe": "^2.0.0" }, "bin": { "node-which": "bin/node-which" } }, "sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA=="],
 
     "which-module": ["which-module@2.0.1", "", {}, "sha512-iBdZ57RDvnOR9AGBhML2vFZf7h8vmBjhoaZqODJBFWHVtKkDmKuHai3cx5PgVMrX5YDNp27AofYbAwctSS+vhQ=="],
+
+    "whisper.rn": ["whisper.rn@0.7.2", "", { "dependencies": { "safe-buffer": "^5.2.1" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-+QXIbIDkot9ZSlg9YQ15rqyuQ4CbFBwHEjI9Hm5Fr738cwoxJf8e+JfGBDgeMJzLH920G+ecURnXUKXAP2WAEQ=="],
 
     "why-is-node-running": ["why-is-node-running@2.3.0", "", { "dependencies": { "siginfo": "^2.0.0", "stackback": "0.0.2" }, "bin": "cli.js" }, "sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w=="],
 

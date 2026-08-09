@@ -44,6 +44,19 @@ export interface StructuredNote {
   checklist: ChecklistItem[];
 }
 
+/**
+ * What the user themselves put in the note while the meeting was happening.
+ *
+ * The whole point of recording in the background is that the person keeps typing
+ * their own sparse notes; the transcript is there to enrich those, never to
+ * replace them. Anything typed here is reproduced verbatim and first.
+ */
+export interface ExistingNote {
+  title: string;
+  body: string;
+  checklist: readonly ChecklistItem[];
+}
+
 function byKind(highlights: readonly Highlight[], kind: Highlight['kind']): Highlight[] {
   return highlights.filter((highlight) => highlight.kind === kind);
 }
@@ -55,11 +68,15 @@ function byKind(highlights: readonly Highlight[], kind: Highlight['kind']): High
  * when it is agreed, and again in the wrap-up. Three identical tasks is a worse
  * note than one.
  */
+function normaliseForComparison(text: string): string {
+  return text.toLowerCase().replace(/[\s.,;:!?¿¡]+/g, ' ').trim();
+}
+
 function dedupe(highlights: readonly Highlight[]): Highlight[] {
   const seen = new Set<string>();
   const unique: Highlight[] = [];
   for (const highlight of highlights) {
-    const key = highlight.text.toLowerCase().replace(/[\s.,;:!?¿¡]+/g, ' ').trim();
+    const key = normaliseForComparison(highlight.text);
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(highlight);
@@ -109,9 +126,12 @@ export function structureTranscript(
     startedAt: Date;
     makeId: () => string;
     labels?: StructureLabels;
+    /** What the user wrote during the meeting. Kept, never overwritten. */
+    existing?: ExistingNote;
   },
 ): StructuredNote {
   const labels = options.labels ?? DEFAULT_LABELS;
+  const existing = options.existing;
 
   const blocks = groupIntoBlocks(segments)
     .map((block) => ({ ...block, text: cleanSpeech(block.text) }))
@@ -125,13 +145,24 @@ export function structureTranscript(
   const decisions = byKind(highlights, 'decision');
   const questions = byKind(highlights, 'question');
 
-  const checklist: ChecklistItem[] = actions.map((action) => ({
-    id: options.makeId(),
-    text: action.text,
-    checked: false,
-  }));
+  // The user's own items come first and keep their ticked state. A task they
+  // already wrote down is not added again just because it was also said aloud.
+  const existingItems = existing?.checklist ?? [];
+  const alreadyListed = new Set(existingItems.map((item) => normaliseForComparison(item.text)));
+  const checklist: ChecklistItem[] = [
+    ...existingItems,
+    ...actions
+      .filter((action) => !alreadyListed.has(normaliseForComparison(action.text)))
+      .map((action) => ({ id: options.makeId(), text: action.text, checked: false })),
+  ];
 
+  const written = existing?.body.trim() ?? '';
   const markdown = [
+    // What the person wrote comes first, verbatim and unedited. The transcript
+    // is here to enrich their notes, not to replace them — a note that
+    // overwrote what somebody typed during their own meeting would be worse
+    // than no note at all.
+    ...(written ? [written, ''] : []),
     // Tasks are also the checklist, so the body links to them rather than
     // repeating them — two copies of a task list disagree the moment one is
     // ticked.
@@ -152,7 +183,8 @@ export function structureTranscript(
     .trim();
 
   return {
-    title: deriveTitle(blocks, options.startedAt.toLocaleString()),
+    // A title the user typed is theirs; only an untitled note gets one derived.
+    title: existing?.title.trim() || deriveTitle(blocks, options.startedAt.toLocaleString()),
     markdown,
     checklist,
   };
