@@ -58,12 +58,12 @@ export function RecordingPill() {
         : null;
 
   return (
-    // `pointer-events-box-none` so the pill floats over the list without
-    // swallowing taps meant for the notes behind it.
+    // `box-none` so the pill floats over the list without swallowing taps meant
+    // for the notes behind it. It goes in `style` rather than as a prop: the
+    // prop form is deprecated and warns on every render.
     <View
-      pointerEvents="box-none"
       className="absolute inset-x-0 bottom-0 items-center"
-      style={{ paddingBottom: insets.bottom + BOTTOM_MARGIN }}
+      style={{ pointerEvents: 'box-none', paddingBottom: insets.bottom + BOTTOM_MARGIN }}
     >
       {isRecording ? (
         <View className="max-w-[92%] flex-row items-center gap-3 rounded-full border border-border bg-background px-4 py-2.5 shadow-lg">

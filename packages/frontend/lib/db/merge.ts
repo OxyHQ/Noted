@@ -42,10 +42,16 @@ export type MergeAction =
  */
 export function decideMerge(local: LocalNoteState | null, serverUpdatedAt: string): MergeAction {
   if (!local) return 'apply';
-  if (!local.dirty) return 'apply';
-  // Local edits on top of exactly the version the server still holds: ours is
-  // strictly the newer one, and the outbox is already carrying it.
+  // Already holding exactly the version the server is offering. This has to be
+  // asked FIRST, before anything about local edits: a clean note that matches is
+  // the overwhelmingly common case in a pull, and re-applying it writes a row
+  // identical to the one already there — which wakes every live query reading
+  // that table, re-renders, and invites the next pull. That is not a slow path,
+  // it is a loop that never settles.
   if (local.serverUpdatedAt === serverUpdatedAt) return 'skip';
+  if (!local.dirty) return 'apply';
+  // Local edits on top of a version the server has since moved past: both sides
+  // changed, so neither can simply win.
   return 'conflict';
 }
 
