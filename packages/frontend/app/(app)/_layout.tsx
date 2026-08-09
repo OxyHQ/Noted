@@ -11,7 +11,7 @@ import i18n from "@/lib/i18n";
 import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
 import { useLocalStore } from "@/lib/db/use-local-store";
-import { RecordingBar } from "@/components/capture/recording-bar";
+import { RecordingPill } from "@/components/capture/recording-pill";
 
 // Top-level list routes that render their own header (and own top inset).
 const SELF_INSET_ROUTES = new Set([
@@ -91,10 +91,6 @@ export default function AppLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View className="isolate flex h-screen flex-row">
           <View className="isolate flex h-auto max-h-screen min-w-0 grow flex-col">
-            {/* Above the navigator, so it survives every screen change: the
-                recording keeps running across screens and into the background,
-                and a control tied to one screen would strand the microphone. */}
-            <RecordingBar />
             <View className="relative isolate min-h-0 flex-1 overflow-hidden bg-background">
               <Drawer drawerContent={renderDrawerContent} screenOptions={screenOptions}>
                 <Drawer.Screen name="index" options={{ title: i18n.t("notes.title") }} />
@@ -104,6 +100,10 @@ export default function AppLayout() {
                 <Drawer.Screen name="labels" options={{ title: i18n.t("notes.labelsTitle") }} />
                 <Drawer.Screen name="settings/index" options={{ title: i18n.t("nav.settings") }} />
               </Drawer>
+              {/* Above the navigator, so it survives every screen change: the
+                  recording keeps running across screens and into the background,
+                  and a control tied to one screen would strand the microphone. */}
+              <RecordingPill />
             </View>
           </View>
         </View>

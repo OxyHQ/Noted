@@ -113,9 +113,13 @@ describe('structureTranscript', () => {
     expect(result.markdown).toContain('Al final vamos a usar el proveedor barato.');
     expect(result.markdown).toContain('## Open questions');
     expect(result.markdown).toContain('¿Quién habla con el proveedor?');
-    // The transcript carries offsets so a reader can go back to the audio.
-    expect(result.markdown).toContain('## Transcript');
-    expect(result.markdown).toContain('**00:00**');
+    // The transcript is NOT in the note: a note that reproduces everything said
+    // is a transcript with headings, and reading it back is the work the app was
+    // supposed to do. It comes back separately, with offsets, for the recording's
+    // own view.
+    expect(result.markdown).not.toContain('## Transcript');
+    expect(result.transcript.length).toBeGreaterThan(0);
+    expect(result.transcript[0].atMs).toBe(0);
   });
 
   it('omits a section rather than announcing it is empty', () => {
@@ -126,7 +130,10 @@ describe('structureTranscript', () => {
     // "Decisions: none" reads as a finding about the meeting. Absence does not.
     expect(result.markdown).not.toContain('## Decisions');
     expect(result.markdown).not.toContain('## Tasks');
-    expect(result.markdown).toContain('## Transcript');
+    // Nothing worth noting was said, so the note is empty rather than padded
+    // with a transcript of small talk.
+    expect(result.markdown).toBe('');
+    expect(result.transcript).toHaveLength(1);
     expect(result.checklist).toEqual([]);
   });
 

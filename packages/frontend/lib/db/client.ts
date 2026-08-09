@@ -101,11 +101,78 @@ function errorMessage(error: unknown): string {
    the open database at all — and the first account's pending writes are still
    there when it comes back. */
 
-let dbPromise: Promise<SQLiteDatabase> | null = null;
+let connection: Promise<SQLiteDatabase> | null = null;
 let available = true;
 let activeViewerId: string | null = null;
+let changeListenerAttached = false;
 
 const VIEWER_OWNER_KEY = 'viewer_id';
+
+/**
+ * Opening, closing and switching accounts run one at a time.
+ *
+ * All three mutate the same connection, and on web a second open of a file the
+ * first connection still holds does not queue — OPFS grants one sync access
+ * handle per file, so it fails outright with `NoModificationAllowedError` and
+ * leaves the pool wedged for every later attempt. Ordering them is therefore
+ * correctness, not tidiness.
+ */
+let lifecycle: Promise<unknown> = Promise.resolve();
+
+function serializeLifecycle<T>(work: () => Promise<T>): Promise<T> {
+  const result = lifecycle.then(work, work);
+  lifecycle = result.catch(() => undefined);
+  return result;
+}
+
+/**
+ * Resolves once an account is active.
+ *
+ * Screens mount and subscribe their live queries in the same commit that starts
+ * the sign-in restore, so the first queries of every cold start arrive before
+ * there is a database file to open. Throwing at them made a correct startup look
+ * like a failure — a burst of errors, every list empty — for something that
+ * resolves a moment later on its own.
+ *
+ * So a query that arrives early WAITS. The alternative, gating every screen on a
+ * ready flag, puts the same race in every consumer and only takes one oversight
+ * to reintroduce.
+ */
+let viewerReady = deferred();
+
+interface Deferred {
+  promise: Promise<void>;
+  resolve: () => void;
+  settled: boolean;
+}
+
+function deferred(): Deferred {
+  const gate: Deferred = {
+    promise: Promise.resolve(),
+    resolve: () => undefined,
+    settled: false,
+  };
+  gate.promise = new Promise<void>((res) => {
+    gate.resolve = () => {
+      gate.settled = true;
+      res();
+    };
+  });
+  return gate;
+}
+
+/**
+ * Close the gate again after a sign-out, so the next account's queries wait.
+ *
+ * Only if it is currently open. Replacing a gate nobody has opened yet strands
+ * every query already waiting on it: they hold the old promise, and the sign-in
+ * that follows resolves the new one — a hang with no error, forever. That is not
+ * hypothetical ordering; it is what a cold start does, where this effect runs
+ * once with no session before the restore completes.
+ */
+function rearmViewerGate(): void {
+  if (viewerReady.settled) viewerReady = deferred();
+}
 
 /**
  * False once opening the database has failed — a browser without OPFS (private
@@ -133,24 +200,85 @@ function databaseName(viewerId: string): string {
  * Must be awaited before the first query: a query with no active viewer has no
  * file to open and throws rather than guessing.
  */
-export async function setActiveViewer(viewerId: string): Promise<void> {
-  if (activeViewerId === viewerId) return;
-  await closeDb();
-  activeViewerId = viewerId;
-  available = true;
+export function setActiveViewer(viewerId: string): Promise<void> {
+  return serializeLifecycle(async () => {
+    if (activeViewerId !== viewerId) {
+      await closeConnection();
+      activeViewerId = viewerId;
+      available = true;
+    }
+    // Releases every query that arrived before sign-in finished. They ask for a
+    // connection immediately and queue behind this task, so none of them can
+    // open the file while a close is still in flight.
+    viewerReady.resolve();
+  });
 }
 
 /** Close the database and forget the account (sign-out). */
-export async function clearActiveViewer(): Promise<void> {
-  await closeDb();
-  activeViewerId = null;
+export function clearActiveViewer(): Promise<void> {
+  return serializeLifecycle(async () => {
+    await closeConnection();
+    activeViewerId = null;
+    // Queries issued after a sign-out must wait for the next account rather than
+    // race a closed database.
+    rearmViewerGate();
+  });
 }
 
-async function openDb(): Promise<SQLiteDatabase> {
-  const viewerId = activeViewerId;
-  if (!viewerId) {
-    throw new Error('The local database was queried before an account was active');
+/* ── Browser storage recovery ──────────────────────────────────────
+   expo-sqlite's web backend keeps its databases inside a fixed pool of OPFS
+   files, and sizes that pool EXACTLY ONCE — `AccessHandlePoolVFS.isReady` calls
+   `addCapacity` only when it finds the directory empty, and nothing ever grows
+   it afterwards. A first run interrupted part-way through creating those files
+   therefore leaves a pool too small to hold a database and its journal, and
+   every open from then on fails with `cannot create file`. Permanently, with
+   nothing the user can do about it from inside the app.
+
+   Deleting the directory lets the driver size a fresh pool. It has to happen
+   before anything opens a database, because the worker holds a handle on every
+   file in the pool from its first open until the page goes away — so the repair
+   is armed by the failure and carried out on the next load. */
+
+/** Where the web driver keeps its file pool, relative to the OPFS root. */
+const WEB_POOL_DIRECTORY = 'expo-sqlite';
+
+const REBUILD_KEY = 'noted.local-store.rebuild';
+
+let webStorageChecked = false;
+
+/** The browser's OPFS, or null anywhere that is not a browser. */
+function opfs(): StorageManager | null {
+  if (typeof navigator === 'undefined' || typeof localStorage === 'undefined') return null;
+  return typeof navigator.storage?.getDirectory === 'function' ? navigator.storage : null;
+}
+
+/** Remember that this origin's pool is unusable, for the next load to repair. */
+function markPoolForRebuild(): void {
+  if (!opfs()) return;
+  localStorage.setItem(REBUILD_KEY, '1');
+}
+
+/** Discard an unusable pool, once per load, before the driver touches it. */
+async function rebuildPoolIfMarked(): Promise<void> {
+  if (webStorageChecked) return;
+  webStorageChecked = true;
+  const storage = opfs();
+  if (!storage || localStorage.getItem(REBUILD_KEY) === null) return;
+
+  try {
+    const root = await storage.getDirectory();
+    await root.removeEntry(WEB_POOL_DIRECTORY, { recursive: true });
+    logger.warn('Discarded an unusable local database; it will be rebuilt from the server');
+  } catch (error) {
+    // Another tab still holding the pool is the usual reason. The open below
+    // reports the real failure.
+    logger.warn('Could not discard the local database', { error: errorMessage(error) });
   }
+  localStorage.removeItem(REBUILD_KEY);
+}
+
+async function openDb(viewerId: string): Promise<SQLiteDatabase> {
+  await rebuildPoolIfMarked();
   const db = await openDatabaseAsync(databaseName(viewerId), { enableChangeListener: true });
 
   // WAL keeps reads running during a write; NORMAL is the safe pairing for it.
@@ -170,19 +298,31 @@ async function openDb(): Promise<SQLiteDatabase> {
 
   await migrate(db);
   await assertOwnership(db, viewerId);
+  attachChangeListener();
 
+  return db;
+}
+
+/**
+ * Listen for writes the driver reports itself.
+ *
+ * Attached once for the lifetime of the module rather than per connection: the
+ * listener is keyed to no particular database, so re-attaching on every account
+ * switch would stack duplicates that each refresh the same subscriptions again.
+ */
+function attachChangeListener(): void {
+  if (changeListenerAttached) return;
   try {
     addDatabaseChangeListener((event) => {
       if (event.tableName) markTableChanged(event.tableName);
     });
+    changeListenerAttached = true;
   } catch (error) {
     // Not available on every platform. Write-path invalidation below already
     // covers every write this module performs, so this is an addition, not a
     // dependency.
     logger.debug('Native change listener unavailable', { error: errorMessage(error) });
   }
-
-  return db;
 }
 
 /**
@@ -224,22 +364,50 @@ async function assertOwnership(db: SQLiteDatabase, viewerId: string): Promise<vo
   ]);
 }
 
-async function getDb(): Promise<SQLiteDatabase> {
-  if (!dbPromise) {
-    dbPromise = openDb().catch((error: unknown) => {
+/** The connection for the active account, or null if the account went away. */
+async function connectIfActive(): Promise<SQLiteDatabase | null> {
+  if (!activeViewerId) return null;
+  if (!available) {
+    // Opening already failed for this account. Retrying it per query would turn
+    // one unsupported browser into an error on every render.
+    throw new Error('The local database could not be opened on this device');
+  }
+  if (!connection) {
+    connection = openDb(activeViewerId).catch((error: unknown) => {
       available = false;
-      dbPromise = null;
-      logger.error('Local database unavailable', { error: errorMessage(error) });
+      connection = null;
+      markPoolForRebuild();
+      logger.error('Local database unavailable — reload to rebuild it', {
+        error: errorMessage(error),
+      });
       throw error;
     });
   }
-  return dbPromise;
+  return connection;
+}
+
+async function getDb(): Promise<SQLiteDatabase> {
+  for (;;) {
+    // Awaited OUTSIDE the lifecycle queue deliberately: a queued task blocked on
+    // sign-in would stall the `setActiveViewer` that releases it.
+    await viewerReady.promise;
+    const db = await serializeLifecycle(connectIfActive);
+    if (db) return db;
+    // The account was cleared between the gate opening and our turn in the
+    // queue. `viewerReady` is a fresh unresolved gate by now, so this waits for
+    // the next account rather than spinning.
+  }
 }
 
 /** Close the handle and drop the cached connection (account switch, tests). */
-export async function closeDb(): Promise<void> {
-  const pending = dbPromise;
-  dbPromise = null;
+export function closeDb(): Promise<void> {
+  return serializeLifecycle(closeConnection);
+}
+
+/** Caller must hold the lifecycle queue. */
+async function closeConnection(): Promise<void> {
+  const pending = connection;
+  connection = null;
   if (!pending) return;
   try {
     const db = await pending;

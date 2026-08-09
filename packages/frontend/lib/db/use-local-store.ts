@@ -14,7 +14,7 @@ import { useOxy } from '@oxyhq/services';
 import { createLogger } from '@oxyhq/core/logger';
 
 import { recoverInterruptedCaptures } from '@/lib/capture/captures-repo';
-import { clearActiveViewer, setActiveViewer } from '@/lib/db/client';
+import { clearActiveViewer, getActiveViewerId, setActiveViewer } from '@/lib/db/client';
 import { newNoteId } from '@/lib/db/ids';
 import { syncNotes } from '@/lib/db/sync';
 
@@ -40,7 +40,11 @@ export function useLocalStore(): { isReady: boolean } {
   useEffect(() => {
     if (!viewerId) {
       setIsReady(false);
-      void clearActiveViewer();
+      // Only a real sign-out closes the store. This effect also runs once on
+      // every cold start, before the session has restored, and clearing there
+      // would install a fresh gate over the one the restore is about to open —
+      // leaving every query waiting on a promise nobody resolves.
+      if (getActiveViewerId() !== null) void clearActiveViewer();
       return;
     }
 
@@ -108,5 +112,16 @@ export function useLocalStore(): { isReady: boolean } {
  * bypass the conflict rules that protect unsynced local edits.
  */
 export function requestSync(): void {
-  void syncNotes(newNoteId);
+  // Debounced for the same reason the hook debounces, and more urgently: this is
+  // called from socket events and mutation callbacks, which arrive in bursts —
+  // one per changed note, plus a reconnect. Firing a round trip at each of them
+  // turns a burst into a storm, and any write a pull performs can bring the next
+  // burst with it.
+  if (sharedSyncTimer !== null) clearTimeout(sharedSyncTimer);
+  sharedSyncTimer = setTimeout(() => {
+    sharedSyncTimer = null;
+    void syncNotes(newNoteId);
+  }, SYNC_DEBOUNCE_MS);
 }
+
+let sharedSyncTimer: ReturnType<typeof setTimeout> | null = null;

@@ -25,6 +25,16 @@ describe('decideMerge', () => {
     expect(decideMerge(local({ dirty: false }), NEW)).toBe('apply');
   });
 
+  it('does nothing with a version it already holds', () => {
+    // The ordinary case in a pull: an untouched note the server re-sends
+    // unchanged. Applying it would write a row identical to the one already
+    // there, which wakes every live query over that table and invites the pull
+    // that follows — a sync loop that never settles. Every other clean-note
+    // fixture here is deliberately mismatched (`OLD` against `NEW`), so this is
+    // the only one that can tell "already have it" from "take the server's".
+    expect(decideMerge(local({ dirty: false, serverUpdatedAt: NEW }), NEW)).toBe('skip');
+  });
+
   it('keeps unsent local edits made on top of the version the server still holds', () => {
     expect(decideMerge(local({ dirty: true, serverUpdatedAt: NEW }), NEW)).toBe('skip');
   });

@@ -2,13 +2,12 @@ import { View, Pressable, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
-import { Menu, LayoutGrid, Rows3, Mic } from "lucide-react-native";
+import { Menu, LayoutGrid, Rows3 } from "lucide-react-native";
 import { Search } from "@oxyhq/bloom/search";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useNotesUIStore, type ViewMode } from "@/lib/stores/notes-ui-store";
-import { useStartCapture } from "@/lib/capture/use-start-capture";
 
 interface NotesHeaderProps {
   title: string;
@@ -31,8 +30,6 @@ export function NotesHeader({ title, searchable = false }: NotesHeaderProps) {
   const toggleViewMode = useNotesUIStore((s) => s.toggleViewMode);
   const searchQuery = useNotesUIStore((s) => s.searchQuery);
   const setSearchQuery = useNotesUIStore((s) => s.setSearchQuery);
-
-  const { start: startCapture, isRecording, isSupported: canCapture } = useStartCapture();
 
   const LayoutIcon = viewMode === "grid" ? Rows3 : LayoutGrid;
   const nextMode: ViewMode = viewMode === "grid" ? "list" : "grid";
@@ -71,19 +68,6 @@ export function NotesHeader({ title, searchable = false }: NotesHeaderProps) {
           <Text className="ml-1 flex-1 text-lg font-bold text-foreground">
             {title}
           </Text>
-        )}
-
-        {/* Hidden only while recording: the stop control is in the bar directly
-            above, so a second, inert microphone button here would be somewhere
-            to press that does nothing. */}
-        {canCapture && !isRecording && (
-          <Pressable
-            onPress={() => void startCapture()}
-            accessibilityLabel={t("capture.start")}
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-muted"
-          >
-            <Mic size={20} color={colors.foreground} />
-          </Pressable>
         )}
 
         <Pressable

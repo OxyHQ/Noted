@@ -192,7 +192,8 @@
       "skills": "Skills",
       "security": "Security",
       "feedback": "Feedback",
-      "writingStyle": "Writing Style"
+      "writingStyle": "Writing Style",
+      "transcription": "Transcription"
     },
     "accentColor": {
       "title": "App Color",
@@ -1164,5 +1165,30 @@
     "denied": "Noted needs the microphone to record. Allow it in your settings and try again.",
     "failed": "The recording could not be started.",
     "webOnlyMobile": "Recording works in the Noted mobile app."
+  },
+  "transcription": {
+    "title": "Transcription",
+    "explainer": "Recordings are transcribed on this device. Nothing is uploaded, and it works with no connection.",
+    "unsupported": "Transcription runs in the Noted mobile app. Recordings made here are kept as audio.",
+    "modelsTitle": "Model",
+    "remove": "Remove this model",
+    "live": {
+      "label": "Take notes while recording",
+      "note": "Transcribes as the meeting runs instead of waiting for the end. Uses more battery."
+    },
+    "models": {
+      "tiny": {
+        "name": "Tiny",
+        "note": "Fastest, least accurate"
+      },
+      "base": {
+        "name": "Base",
+        "note": "Recommended balance"
+      },
+      "small": {
+        "name": "Small",
+        "note": "Most accurate, heaviest"
+      }
+    }
   }
 }

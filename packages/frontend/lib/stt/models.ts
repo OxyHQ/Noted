@@ -11,6 +11,7 @@ import { Directory, DownloadTask, File, Paths } from 'expo-file-system';
 import { createLogger } from '@oxyhq/core/logger';
 
 import { execute, executeTransaction } from '@/lib/db/client';
+import { isTranscriptionSupported } from '@/lib/capture/support';
 
 const logger = createLogger('NotedSTT');
 
@@ -89,6 +90,12 @@ export function modelFile(model: SttModel): File {
  * model with a crash rather than an error.
  */
 export function isModelPresent(model: SttModel): boolean {
+  // Asked before touching the file system, because on web there isn't one:
+  // `expo-file-system` throws on construction rather than reporting absence, so
+  // even asking the question crashes. A model is weights for whisper.cpp, so
+  // where whisper.cpp cannot run there is no such thing as a downloaded one —
+  // this is the honest answer, not a guard bolted on to avoid a throw.
+  if (!isTranscriptionSupported()) return false;
   const file = modelFile(model);
   return file.exists && file.size === model.bytes;
 }
@@ -103,6 +110,9 @@ interface ModelRow {
 
 /** What the settings screen reads. */
 export async function getModelStates(): Promise<Record<SttModelId, ModelState>> {
+  if (!isTranscriptionSupported()) {
+    return { tiny: 'absent', base: 'absent', small: 'absent' };
+  }
   const rows = await execute<ModelRow & Record<string, never>>(
     'SELECT id, state, bytes FROM stt_models',
   );
@@ -155,6 +165,9 @@ export async function downloadModel(
   model: SttModel,
   onProgress?: (fraction: number) => void,
 ): Promise<void> {
+  if (!isTranscriptionSupported()) {
+    throw new Error('this platform cannot run a speech model, so there is nothing to download');
+  }
   if (isModelPresent(model)) return;
 
   const directory = modelsDirectory();
@@ -201,6 +214,7 @@ export async function downloadModel(
 
 /** Remove a model's weights. */
 export async function deleteModel(model: SttModel): Promise<void> {
+  if (!isTranscriptionSupported()) return;
   const file = modelFile(model);
   if (file.exists) file.delete();
   await recordState(model, 'absent');

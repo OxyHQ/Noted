@@ -20,6 +20,7 @@
   "dependencies": {
     "@expo/html-elements": "^0.13.8",
     "@expo/vector-icons": "^15.0.3",
+    "@fugood/react-native-audio-pcm-stream": "1.1.4",
     "@hugeicons/react-native": "^1.0.11",
     "@noted/shared-types": "workspace:*",
     "@oxyhq/app-preset": "^0.1.0",
