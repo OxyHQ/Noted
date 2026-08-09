@@ -91,6 +91,7 @@
     "react-native": "0.85.3",
     "react-native-css": "^3.0.6",
     "react-native-drawer-layout": "^4.2.1",
+    "react-native-enriched-markdown": "^0.7.4",
     "react-native-gesture-handler": "~2.31.1",
     "react-native-ios-context-menu": "^3.1.0",
     "react-native-ios-utilities": "^5.1.2",

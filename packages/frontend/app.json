@@ -58,7 +58,8 @@
       "llama.rn",
       "@oxyhq/app-preset/plugin/withSharedUserId",
       "@oxyhq/services/plugins/withSharedIdentityReader",
-      "expo-sharing"
+      "expo-sharing",
+      "react-native-enriched-markdown"
     ],
     "experiments": {
       "typedRoutes": true

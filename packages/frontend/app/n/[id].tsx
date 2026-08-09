@@ -39,6 +39,7 @@ import { noteFilename, noteToMarkdown } from "@/lib/export/markdown";
 import { saveTextFile } from "@/lib/export/save";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import { ChecklistEditor } from "@/components/notes/checklist-editor";
+import { MarkdownBodyEditor } from "@/components/notes/markdown-body-editor";
 import { LabelChips } from "@/components/notes/label-chips";
 import { LabelAssignDialog } from "@/components/notes/label-assign-dialog";
 import { AttachmentsRow } from "@/components/notes/attachments/AttachmentsRow";
@@ -80,9 +81,6 @@ function presetDate(preset: ReminderPreset): Date {
 
 const logger = createLogger("NotedNotes");
 
-/** An empty note still needs somewhere inviting to start writing. */
-const MIN_BODY_HEIGHT = 160;
-
 export default function NoteEditorScreen() {
   const params = useLocalSearchParams<{ id: string; mode?: string }>();
   const router = useRouter();
@@ -114,8 +112,6 @@ export default function NoteEditorScreen() {
   const [draft, setDraftState] = React.useState<Note>(() => makeDraftNote());
   const draftRef = React.useRef(draft);
   const [hydrated, setHydrated] = React.useState(isNew);
-  // Measured from the text itself, so the field is as tall as its contents.
-  const [bodyHeight, setBodyHeight] = React.useState(MIN_BODY_HEIGHT);
   const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
@@ -462,22 +458,10 @@ export default function NoteEditorScreen() {
             onChange={(checklist) => update({ checklist })}
           />
         ) : (
-          <TextInput
+          <MarkdownBodyEditor
             value={draft.body}
-            onChangeText={(body) => update({ body })}
+            onChangeMarkdown={(body) => update({ body })}
             placeholder={t("notes.takeANote")}
-            placeholderTextColor={colors.mutedForeground}
-            className="py-1 text-base text-foreground"
-            multiline
-            textAlignVertical="top"
-            scrollEnabled={false}
-            onContentSizeChange={(event) =>
-              setBodyHeight(event.nativeEvent.contentSize.height)
-            }
-            // The one value that cannot be a class, because it is measured: the
-            // field grows to fit what is in it, so the page scrolls instead of a
-            // box scrolling inside a half-empty card.
-            style={{ height: Math.max(MIN_BODY_HEIGHT, bodyHeight) }}
           />
         )}
 
