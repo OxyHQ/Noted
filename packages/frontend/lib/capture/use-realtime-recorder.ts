@@ -31,6 +31,7 @@ export function useRealtimeRecorder(
     phase: 'idle',
     levels: null,
     durationMs: 0,
+    partialText: '',
     stop: () => Promise.resolve('noop'),
   };
 }

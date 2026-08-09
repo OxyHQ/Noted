@@ -234,7 +234,12 @@ export function useRealtimeRecorder(
     [],
   );
 
-  return { phase, levels, durationMs, stop };
+  // Empty, and not for lack of a live reading: whisper.rn re-emits a slice as it
+  // fills, and those segments are written with the ids they already had, so the
+  // phone's live text arrives through the committed transcript rather than
+  // beside it. The browser has no equivalent — each slice is transcribed once —
+  // which is why it needs a provisional line and this does not.
+  return { phase, levels, durationMs, partialText: '', stop };
 }
 
 /** Whether `model` is downloaded and can drive a live recording. */

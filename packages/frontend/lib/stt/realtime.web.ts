@@ -14,15 +14,33 @@
  * `expo-audio` that cannot do live transcription on web, because `MediaRecorder`
  * hands back a finished blob. The platform can.
  *
- * ## How the transcript is built
+ * ## How the transcript is built: settled text and text still being said
  *
- * Audio is transcribed in slices as they fill, and each slice's offset is added
- * back to its timestamps. Slices are transcribed independently — whisper gets no
- * context across the seam, unlike the phone's ring buffer — so a sentence split
- * across a boundary can come back wrong on both sides. Twelve seconds is long
- * enough that this is rare and short enough to feel live, and the note is
- * rebuilt from the whole transcript each time, so a later slice can still fix
- * what an earlier one implied.
+ * Two loops over the same audio, because a transcript and a live display want
+ * opposite things.
+ *
+ * The **committed** loop is the transcript. Audio is transcribed in slices as
+ * they fill and each slice's offset is added back to its timestamps. Slices are
+ * transcribed independently — whisper gets no context across the seam, unlike
+ * the phone's ring buffer — so a sentence split across a boundary can come back
+ * wrong on both sides. Twelve seconds is long enough that this is rare, and the
+ * note is rebuilt from the whole transcript each time, so a later slice can
+ * still fix what an earlier one implied.
+ *
+ * The **partial** loop is what the person watching sees. It re-transcribes
+ * everything said since the last commit, over and over, as fast as the machine
+ * manages, and hands back a string that is replaced rather than appended to.
+ * Nothing is stored. This is the shape Xenova's `realtime-whisper-webgpu` demo
+ * uses for its whole display: keep reading the recent audio again and show the
+ * latest reading. Waiting for a slice to settle before showing anything is what
+ * made this feel like it transcribed in jumps, because it did.
+ *
+ * One transcription runs at a time, and a partial is DROPPED rather than queued
+ * when the model is busy — the same choice the demo makes with its `processing`
+ * flag. Queueing them would mean falling further behind on every pass and
+ * showing text from a moment that has gone. And once a slice is ready to commit
+ * no further partials start, so the settled transcript can never be starved by
+ * the provisional one.
  */
 
 import { createLogger } from '@oxyhq/core/logger';
@@ -42,6 +60,16 @@ const logger = createLogger('NotedSTT');
 const SLICE_SECONDS = 12;
 
 const SLICE_SAMPLES = SLICE_SECONDS * SAMPLE_RATE;
+
+/**
+ * How much new speech is worth re-reading the current slice for.
+ *
+ * The floor under the partial loop. Without it every 128-sample block from the
+ * worklet would ask for a transcription, and the answer would be the previous
+ * one with nothing added — work that costs a pass of the model and changes
+ * nothing on screen.
+ */
+const PARTIAL_MIN_NEW_SAMPLES = SAMPLE_RATE / 2;
 
 /** The worklet, served as a static file rather than bundled. */
 const PROCESSOR_URL = '/audio-processor.js';
@@ -105,27 +133,61 @@ export async function startRealtimeTranscription(
   // One transcription at a time: whisper on a slice takes longer than a slice
   // takes to fill on a slow machine, and starting a second would fall further
   // behind on every pass.
+  let busy = false;
+  let partialAtSamples = 0;
+  /** Whatever is running, so `stop` can wait for it. */
   let inFlight: Promise<void> = Promise.resolve();
 
-  function flush(samples: Float32Array, offsetSamples: number): void {
-    inFlight = inFlight
-      .then(async () => {
-        const segments = await transcribeSamples(
-          samples,
-          options.captureId,
-          options.language,
-          Math.round((offsetSamples / SAMPLE_RATE) * 1000),
-        );
-        if (segments.length === 0) return;
-        // Persisted as they stabilise: a tab closed mid-meeting keeps
-        // everything understood up to that point.
-        await appendSegments(segments);
-        options.onTranscriptChanged?.();
-      })
+  /** Everything heard since the last commit, as one buffer. */
+  function pendingSamples(): Float32Array {
+    const samples = new Float32Array(pendingLength);
+    let at = 0;
+    for (const chunk of pending) {
+      samples.set(chunk, at);
+      at += chunk.length;
+    }
+    return samples;
+  }
+
+  function run(work: () => Promise<void>): void {
+    busy = true;
+    inFlight = work()
       .catch((error: unknown) => {
-        logger.error('Live transcription failed on a slice', { error: String(error) });
+        logger.error('Live transcription failed', { error: String(error) });
         options.onError?.(String(error));
+      })
+      .finally(() => {
+        busy = false;
       });
+  }
+
+  /** Settle a span: transcribe it once, keep it, and start the next span. */
+  function commit(samples: Float32Array, offsetSamples: number): void {
+    run(async () => {
+      const segments = await transcribeSamples(
+        samples,
+        options.captureId,
+        options.language,
+        Math.round((offsetSamples / SAMPLE_RATE) * 1000),
+      );
+      // The provisional text covered exactly this span, and the span is settled
+      // now — leaving it up would show the same words twice, once as a guess.
+      options.onPartial?.('');
+      if (segments.length === 0) return;
+      // Persisted as they stabilise: a tab closed mid-meeting keeps everything
+      // understood up to that point.
+      await appendSegments(segments);
+      options.onTranscriptChanged?.();
+    });
+  }
+
+  /** Re-read the unsettled span, for the screen only. */
+  function refreshPartial(samples: Float32Array): void {
+    run(async () => {
+      const segments = await transcribeSamples(samples, options.captureId, options.language, 0);
+      if (stopped) return;
+      options.onPartial?.(segments.map((segment) => segment.text).join(' ').trim());
+    });
   }
 
   capture.port.onmessage = (event: MessageEvent<WorkletMessage>) => {
@@ -140,19 +202,24 @@ export async function startRealtimeTranscription(
     pending.push(toFloat32(new Int16Array(message.data)));
     pendingLength += message.data.byteLength / 2;
 
-    if (pendingLength < SLICE_SAMPLES) return;
+    // Nothing starts while something runs. Both branches below are reached again
+    // on the next block of audio, a few milliseconds later.
+    if (busy) return;
 
-    const slice = new Float32Array(pendingLength);
-    let at = 0;
-    for (const chunk of pending) {
-      slice.set(chunk, at);
-      at += chunk.length;
+    if (pendingLength >= SLICE_SAMPLES) {
+      const slice = pendingSamples();
+      pending = [];
+      const offset = transcribedSamples;
+      transcribedSamples += pendingLength;
+      pendingLength = 0;
+      partialAtSamples = 0;
+      commit(slice, offset);
+      return;
     }
-    pending = [];
-    const offset = transcribedSamples;
-    transcribedSamples += pendingLength;
-    pendingLength = 0;
-    flush(slice, offset);
+
+    if (pendingLength - partialAtSamples < PARTIAL_MIN_NEW_SAMPLES) return;
+    partialAtSamples = pendingLength;
+    refreshPartial(pendingSamples());
   };
 
   logger.info('Live browser transcription started');
@@ -162,15 +229,13 @@ export async function startRealtimeTranscription(
       stopped = true;
 
       // Whatever is left is usually where the meeting ended, which is where the
-      // decisions are — so the tail is transcribed rather than dropped.
+      // decisions are — so the tail is transcribed rather than dropped. It waits
+      // for any partial still running, which would otherwise have the model.
       if (pendingLength > 0) {
-        const tail = new Float32Array(pendingLength);
-        let at = 0;
-        for (const chunk of pending) {
-          tail.set(chunk, at);
-          at += chunk.length;
-        }
-        flush(tail, transcribedSamples);
+        const tail = pendingSamples();
+        const offset = transcribedSamples;
+        await inFlight;
+        commit(tail, offset);
       }
 
       const recorded = new Promise<void>((resolve) => {

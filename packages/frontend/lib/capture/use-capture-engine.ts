@@ -107,6 +107,7 @@ export function useCaptureEngine(
     phase: active.phase,
     levels: active.levels,
     durationMs: active.durationMs,
+    partialText: active.partialText,
     stop,
     isLive: canRecordLive,
   };
