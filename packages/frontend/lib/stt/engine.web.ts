@@ -44,6 +44,33 @@ const SAMPLE_RATE = 16_000;
  */
 const MODEL_ID = 'onnx-community/whisper-base';
 
+/**
+ * Which quantisation of each half to load.
+ *
+ * transformers.js defaults to `q8` on WASM, and that decoder does not load: the
+ * runtime refuses the graph at session creation with a failure on
+ * `decoder.embed_tokens.weight_transposed_DequantizeLinear`. Whichever side is
+ * at fault, it is not usable, so the decoder is pinned to `q4` — which is the
+ * quantisation Hugging Face's own whisper demos use.
+ *
+ * The encoder stays at `q8`, because the encoder was never the problem and it is
+ * 23 MB against 82 MB unquantised.
+ *
+ * Sizes, read from the registry: encoder q8 23 MB, decoder q4 124 MB. Fetched
+ * once and then cached by the browser.
+ */
+const DTYPES = { encoder_model: 'q8', decoder_model_merged: 'q4' } as const;
+
+/**
+ * What to try if the pinned pair is also refused.
+ *
+ * Unquantised is 290 MB and always loadable. It is a bad first choice and a
+ * good last one — a graph a particular browser will not accept is not something
+ * this code can reason about, and no transcription at all is worse than a large
+ * download.
+ */
+const FALLBACK_DTYPES = { encoder_model: 'fp32', decoder_model_merged: 'fp32' } as const;
+
 /** Where `scripts/copy-ort-runtime.ts` puts the WebAssembly runtime, served from `public/`. */
 const ORT_RUNTIME_PATH = '/ort/';
 
@@ -109,8 +136,22 @@ async function getTranscriber(): Promise<Transcriber> {
       wasmBackend.wasmPaths = ORT_RUNTIME_PATH;
 
       const device = (await hasWebGpu()) ? 'webgpu' : 'wasm';
-      logger.info('Loading the browser speech model', { device });
-      return pipeline('automatic-speech-recognition', MODEL_ID, { device });
+      logger.info('Loading the browser speech model', { device, dtype: DTYPES });
+
+      try {
+        return await pipeline('automatic-speech-recognition', MODEL_ID, {
+          device,
+          dtype: DTYPES,
+        });
+      } catch (error) {
+        logger.warn('The quantised model was refused; falling back to the full one', {
+          error: String(error),
+        });
+        return pipeline('automatic-speech-recognition', MODEL_ID, {
+          device,
+          dtype: FALLBACK_DTYPES,
+        });
+      }
     })().catch((error: unknown) => {
       // Cleared so a later attempt can retry: the usual cause is a network
       // failure fetching the weights, which is not permanent.
