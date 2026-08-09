@@ -31,6 +31,7 @@ import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { UserAvatar } from "@/components/user-avatar";
 import { useOxy, openAccountDialog } from "@oxyhq/services";
 import { NotedWordmark } from "@/components/ui/noted-wordmark";
+import { NotedMark } from "@/components/ui/noted-mark";
 import { useLabels } from "@/lib/hooks/use-labels";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -200,8 +201,10 @@ const NotesSidebar = React.memo(function NotesSidebar() {
         className="h-full flex-col items-center border-r border-border bg-background"
         style={{ width: 48, paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
+        {/* The mark, not the wordmark: the rail is 48px wide, and a word
+            squeezed into it is unreadable rather than small. */}
         <View className="h-14 items-center justify-center">
-          <NotedWordmark width={28} color={colors.foreground} />
+          <NotedMark size={24} color={colors.foreground} />
         </View>
         <View className="flex-col items-center gap-1 py-1">
           <NavItem icon={NotebookPen} label={t("notes.title")} onPress={goHome} collapsed />

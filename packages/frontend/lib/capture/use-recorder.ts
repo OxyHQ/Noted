@@ -56,7 +56,11 @@ export type RecorderPhase =
   | 'recording'
   | 'saving'
   | 'saved'
-  | 'unavailable'
+  /** The user declined the microphone, or the system withheld it. */
+  | 'denied'
+  /** Anything else went wrong. Deliberately NOT reported as a permission
+   *  problem: a message that names a cause it does not know sends the user to
+   *  fix a setting that was never the issue. */
   | 'error';
 
 export type StopOutcome = 'saved' | 'failed' | 'noop';
@@ -135,7 +139,7 @@ export function useRecorder(
         if (!permission.granted) permission = await requestRecordingPermissionsAsync();
         if (!active) return;
         if (!permission.granted) {
-          setPhase('unavailable');
+          setPhase('denied');
           return;
         }
 
@@ -174,7 +178,7 @@ export function useRecorder(
         stopBackgroundCapture();
         logger.error('Could not start recording', { error: String(error) });
         await failCapture(captureId, 'capture_start').catch(() => undefined);
-        if (active) setPhase('unavailable');
+        if (active) setPhase('error');
       }
     })();
 

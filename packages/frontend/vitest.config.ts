@@ -7,7 +7,14 @@ export default defineConfig({
   // does not run; without this the suite fails to load rather than fail an
   // assertion.
   resolve: {
-    alias: { '@': path.resolve(import.meta.dirname, '.') },
+    alias: {
+      '@': path.resolve(import.meta.dirname, '.'),
+      // `react-native`'s entry point is Flow, which Vite cannot parse, so any
+      // module that merely reads `Platform.OS` is otherwise unreachable from a
+      // node test. Only the platform boundary is replaced; the code under test
+      // is untouched.
+      'react-native': path.resolve(import.meta.dirname, 'lib/__tests__/react-native-stub.ts'),
+    },
   },
   test: {
     globals: true,
