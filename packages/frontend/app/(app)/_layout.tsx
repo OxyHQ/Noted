@@ -1,9 +1,5 @@
 import { Drawer } from "expo-router/drawer";
-import {
-  Sidebar,
-  SIDEBAR_WIDTH_COLLAPSED,
-  SIDEBAR_WIDTH_EXPANDED,
-} from "@/components/sidebar";
+import { Sidebar } from "@/components/sidebar";
 import { AppErrorBoundary } from "@/components/error-boundary";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { View, Platform, useWindowDimensions } from "react-native";
@@ -15,6 +11,8 @@ import i18n from "@/lib/i18n";
 import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
 import { useLocalStore } from "@/lib/db/use-local-store";
+import { CaptureEngineHost } from "@/components/capture/capture-engine-host";
+import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 
 // Top-level list routes that render their own header (and own top inset).
 const SELF_INSET_ROUTES = new Set([
@@ -24,6 +22,24 @@ const SELF_INSET_ROUTES = new Set([
   "trash",
   "labels",
 ]);
+
+const SIDEBAR_WIDTH_EXPANDED = 280;
+const SIDEBAR_WIDTH_COLLAPSED = 48;
+
+/**
+ * Every drawer scene carries the floating bottom stack.
+ *
+ * Inside the scene rather than beside the navigator, so an open drawer covers
+ * the recording indicator exactly as it covers the note cards and the FAB — the
+ * scene is also the content area, so `self-center` lands on the content without
+ * anything having to know the sidebar's width.
+ */
+const renderScene = ({ children }: { children: React.ReactNode }) => (
+  <View style={{ flex: 1 }}>
+    {children}
+    <FloatingBottomStack />
+  </View>
+);
 
 // Routes shown as items in the drawer sidebar list. The Sidebar component
 // renders its own nav, so we hide the auto-generated drawer items entirely.
@@ -96,6 +112,7 @@ export default function AppLayout() {
               <Drawer
                 drawerContent={renderDrawerContent}
                 screenOptions={screenOptions}
+                screenLayout={renderScene}
               >
                 <Drawer.Screen
                   name="index"
@@ -122,6 +139,11 @@ export default function AppLayout() {
                   options={{ title: i18n.t("nav.settings") }}
                 />
               </Drawer>
+              {/* Holds the microphone and draws nothing. One mount, here rather
+                  than beside the indicator, because two engines would be two
+                  microphones — and because it reads the local database, which
+                  only exists once this layout has opened an account's store. */}
+              <CaptureEngineHost />
             </View>
           </View>
         </View>

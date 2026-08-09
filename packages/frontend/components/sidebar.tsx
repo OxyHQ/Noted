@@ -20,7 +20,6 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
 import { useRouter, usePathname, useNavigation } from "expo-router";
-import { useDrawerStatus } from "expo-router/drawer";
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { openAccountDialog, ProfileButton } from "@oxyhq/services";
@@ -37,26 +36,8 @@ type DrawerNav = DrawerNavigationProp<Record<string, object | undefined>>;
    Root sidebar — routes to settings sidebar on /settings
    ================================================================ */
 
-/**
- * Width of the drawer, expanded and collapsed. Both layouts need it: `(app)`
- * sizes the drawer with it, and the root layout offsets the floating bottom
- * stack by half of it so the stack centres on the content rather than the
- * window.
- */
-export const SIDEBAR_WIDTH_EXPANDED = 280;
-export const SIDEBAR_WIDTH_COLLAPSED = 48;
-
 export function Sidebar() {
   const pathname = usePathname();
-  // Mirrored into the store because the drawer's status is only readable from
-  // inside its own context, and the layout that draws the floating bottom
-  // stack is outside it.
-  const status = useDrawerStatus();
-  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
-  React.useEffect(() => {
-    setSidebarOpen(status === "open");
-  }, [status, setSidebarOpen]);
-
   if (pathname.startsWith("/settings")) return <SettingsSidebar />;
   return <NotesSidebar />;
 }

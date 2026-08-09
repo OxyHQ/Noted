@@ -4,7 +4,6 @@ import { usePathname } from "expo-router";
 
 import { Text } from "@/components/ui/text";
 import { Waveform } from "@/components/capture/waveform";
-import { useCaptureEngine } from "@/lib/capture/use-capture-engine";
 import { useStartCapture } from "@/lib/capture/use-start-capture";
 import { useCaptureStore } from "@/lib/stores/capture-store";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -27,25 +26,24 @@ function formatDuration(ms: number): string {
  * same place, so nothing jumps and there is never a moment where the user has to
  * find where the stop control went.
  *
- * Drawn in the app layout's bottom stack, above the navigator, because a
- * recording continues across screens and into the background. A control tied to
- * one screen would strand the microphone somewhere the user cannot reach it.
- * Where the stack sits — clear of the home indicator, centred on the content
- * rather than the window — is the stack's business, not this component's.
+ * It draws the recording; it does not hold it. `CaptureEngineHost` owns the
+ * microphone and publishes to the capture store, which is what makes it safe to
+ * render this in more than one place — and it IS rendered twice, since the
+ * drawer's scenes and the note editor are different layers of the app and a
+ * recording has to be visible and stoppable from both.
  */
 export function RecordingPill() {
   const captureId = useCaptureStore((s) => s.captureId);
-  const noteId = useCaptureStore((s) => s.noteId);
   const clearCapture = useCaptureStore((s) => s.clearCapture);
+  const phase = useCaptureStore((s) => s.phase);
+  const levels = useCaptureStore((s) => s.levels);
+  const durationMs = useCaptureStore((s) => s.durationMs);
+  const partialText = useCaptureStore((s) => s.partialText);
+  const stop = useCaptureStore((s) => s.stop);
   const { start, isSupported } = useStartCapture();
   const { colors } = useColorScheme();
   const { t } = useTranslation();
   const pathname = usePathname();
-
-  const recorder = useCaptureEngine(captureId ?? "", noteId ?? "", captureId !== null, {
-    title: t("capture.recording"),
-    body: t("capture.notificationBody"),
-  });
 
   if (!isSupported) return null;
 
@@ -57,9 +55,9 @@ export function RecordingPill() {
   // open with no reachable way to stop it.
   if (!isRecording && !showsRecordButton(pathname)) return null;
   const failure =
-    recorder.phase === "denied"
+    phase === "denied"
       ? t("capture.denied")
-      : recorder.phase === "error"
+      : phase === "error"
         ? t("capture.failed")
         : null;
 
@@ -81,12 +79,12 @@ export function RecordingPill() {
             <Text className="text-sm text-muted-foreground">{failure}</Text>
           ) : (
             <View className="w-32">
-              <Waveform levels={recorder.levels} height={22} />
+              <Waveform levels={levels} height={22} />
             </View>
           )}
 
           <Text className="font-mono text-sm tabular-nums text-foreground">
-            {formatDuration(recorder.durationMs)}
+            {formatDuration(durationMs)}
           </Text>
 
           <Pressable
@@ -94,7 +92,7 @@ export function RecordingPill() {
               // Cleared whatever the outcome: a recorder that failed to save is
               // still not recording, and leaving the pill up would say otherwise.
               // The capture row already carries what went wrong.
-              void recorder.stop().finally(() => clearCapture());
+              void stop?.().finally(() => clearCapture());
             }}
             accessibilityLabel={t("capture.stop")}
             className="h-8 w-8 items-center justify-center rounded-full bg-muted active:opacity-70"
@@ -110,12 +108,12 @@ export function RecordingPill() {
             place in the app showing text that is still allowed to change under
             the reader. Two lines at most — it is a sign of life, not a
             transcript view. */}
-        {recorder.partialText !== "" && !failure && (
+        {partialText !== "" && !failure && (
           <Text
             numberOfLines={2}
             className="max-w-[420px] px-4 text-center text-xs italic text-muted-foreground"
           >
-            {recorder.partialText}
+            {partialText}
           </Text>
         )}
         </View>
