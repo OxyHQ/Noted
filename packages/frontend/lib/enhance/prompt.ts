@@ -11,7 +11,7 @@
  * silently dropped.
  */
 
-import type { Enhancement } from '@/lib/enhance/contract';
+import type { Enhancement } from "@/lib/enhance/contract";
 
 /**
  * Characters of transcript per request.
@@ -61,7 +61,7 @@ function timestamp(atMs: number): string {
   const totalSeconds = Math.floor(atMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 export interface PromptOptions {
@@ -81,38 +81,59 @@ export interface PromptOptions {
  * model that feels obliged to fill five sections will invent four of them. An
  * invented action item is worse than a missing one — the user acts on it.
  */
-export function buildPrompt(window: readonly TranscriptLine[], options: PromptOptions): string {
-  const lines = window.map((line) => `[${timestamp(line.atMs)}] ${line.text}`).join('\n');
+export function buildPrompt(
+  window: readonly TranscriptLine[],
+  options: PromptOptions,
+): string {
+  const lines = window
+    .map((line) => `[${timestamp(line.atMs)}] ${line.text}`)
+    .join("\n");
 
   const language =
-    options.language === 'auto'
-      ? 'Answer in the language the meeting is in.'
-      : `Answer in ${options.language}.`;
+    options.language === "auto"
+      ? "Write in the language primarily used in the conversation."
+      : `Write in ${options.language}.`;
 
   const scope = options.isPartial
-    ? 'This is one part of a longer meeting. Cover only what this part contains; do not summarise the meeting as a whole.'
-    : 'This is the whole meeting.';
+    ? "This is part of a longer conversation. Take notes only from what is contained here."
+    : "This is the full conversation.";
 
   const existing = options.existingBody?.trim();
   const alreadyWritten = existing
-    ? `\nThe person took these notes themselves. Do not repeat them; add only what they did not write:\n"""\n${existing}\n"""\n`
-    : '';
+    ? `
+The user has already written these notes:
+"""
+${existing}
+"""
+Do not repeat them. Add only useful information that is still missing.
+`
+    : "";
 
-  return `You are taking notes on a meeting from its transcript.
+  return `Act as an excellent human note-taker listening to this conversation.
 
-Write down only what someone would want to read again. If nothing in a category came up, return an empty list for it — an empty list is a good answer, and inventing an item is worse than leaving it out. Never write an action item nobody agreed to.
+Write the notes a person would naturally take if they wanted to understand and remember the important information later.
+
+Capture useful information, explanations, ideas, conclusions, context, examples, numbers, plans and important details. Turn conversational exchanges into clear notes instead of reproducing the conversation.
+
+Do not write down questions that were answered. Capture the useful answer instead.
+Only include an open question when something important was genuinely left unresolved.
+Only create an action when someone actually committed to or was assigned a next step.
+
+Ignore greetings, filler, repetition, small talk and unimportant details.
+Do not invent or infer information that was not said.
+Prefer concise but informative notes rather than a summary of the conversation.
 
 ${scope}
 ${language}
 ${alreadyWritten}
-Reply with JSON only, in this shape, and nothing else:
-{"title": "", "summary": [], "decisions": [], "actions": [], "questions": []}
 
-- title: what this meeting was about, a few words.
-- summary: the points worth reading again.
-- decisions: what was settled.
-- actions: what someone agreed to do, naming who if it was said.
-- questions: what was raised and left open.
+Return valid JSON only:
+{"title":"","notes":[],"actions":[],"openQuestions":[]}
+
+title: a short specific title for what is being discussed.
+notes: the actual notes someone would want to keep and study or refer back to later.
+actions: concrete agreed or assigned next steps, including who when known.
+openQuestions: important unresolved matters only, never questions that were answered.
 
 Transcript:
 ${lines}`;
@@ -126,9 +147,11 @@ ${lines}`;
  * from the first window that produced one: the beginning of a meeting is where
  * people say what it is about.
  */
-export function mergeEnhancements(parts: readonly Enhancement[]): Enhancement | null {
+export function mergeEnhancements(
+  parts: readonly Enhancement[],
+): Enhancement | null {
   const merged: Enhancement = {
-    title: '',
+    title: "",
     summary: [],
     decisions: [],
     actions: [],
@@ -136,8 +159,13 @@ export function mergeEnhancements(parts: readonly Enhancement[]): Enhancement | 
   };
 
   for (const part of parts) {
-    if (merged.title === '' && part.title !== '') merged.title = part.title;
-    for (const field of ['summary', 'decisions', 'actions', 'questions'] as const) {
+    if (merged.title === "" && part.title !== "") merged.title = part.title;
+    for (const field of [
+      "summary",
+      "decisions",
+      "actions",
+      "questions",
+    ] as const) {
       for (const line of part[field]) {
         const isRepeat = merged[field].some(
           (existing) => existing.toLowerCase() === line.toLowerCase(),

@@ -33,6 +33,7 @@ import { Platform } from 'react-native';
 import { createLogger } from '@oxyhq/core/logger';
 
 import { appendSegments, type TranscriptSegment } from '@/lib/capture/captures-repo';
+import type { RealtimeSession } from '@/lib/stt/realtime';
 import { pcmToDb } from '@/lib/capture/recording';
 import { newNoteId } from '@/lib/db/ids';
 import { isModelPresent, modelFile, STT_MODELS, type SttModelId } from '@/lib/stt/models';
@@ -57,9 +58,7 @@ const SLICE_SECONDS = 12;
 /** Threads left to whisper, keeping cores free for the audio thread. */
 const THREADS = 4;
 
-export interface RealtimeSession {
-  stop: () => Promise<void>;
-}
+
 
 /**
  * The microphone stream, with a loudness reading taken on the way past.
@@ -244,6 +243,9 @@ export async function startRealtimeTranscription(
     stop: async () => {
       await transcriber.stop();
       logger.info('Realtime transcription stopped');
+      // The path was decided before the microphone opened, and whisper.rn wrote
+      // there, so it is known without asking.
+      return options.audioPath;
     },
   };
 }
