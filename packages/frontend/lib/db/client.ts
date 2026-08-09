@@ -27,6 +27,7 @@ import {
 import { createLogger } from '@oxyhq/core/logger';
 
 import { LOCAL_TABLES, migrate } from '@/lib/db/migrations';
+import { readTables, writtenTables } from '@/lib/db/sql-tables';
 
 const logger = createLogger('NotedDB');
 
@@ -50,27 +51,9 @@ export type Unsubscribe = () => void;
 
 /* ── SQL table extraction ──────────────────────────────────────────
    A subscription re-runs when a table it reads is written. Both sides of that
-   are derived from the SQL text: reads from FROM/JOIN, writes from
-   INSERT/UPDATE/DELETE. */
-
-const READ_TABLE_RE = /\b(?:from|join)\s+([^\s(,;]+)/gi;
-const WRITE_TABLE_RE =
-  /\b(?:insert\s+(?:or\s+\w+\s+)?into|update(?:\s+or\s+\w+)?|delete\s+from)\s+([^\s(,;]+)/gi;
-
-function normalizeIdentifier(token: string): string | null {
-  const last = token.split('.').pop() ?? token;
-  const cleaned = last.replace(/^[`"[]+/, '').replace(/[`"\])]+$/, '').toLowerCase();
-  return /^[a-z_][a-z0-9_]*$/.test(cleaned) ? cleaned : null;
-}
-
-function scanTables(sql: string, pattern: RegExp): Set<string> {
-  const tables = new Set<string>();
-  for (const match of sql.matchAll(pattern)) {
-    const table = normalizeIdentifier(match[1]);
-    if (table) tables.add(table);
-  }
-  return tables;
-}
+   are derived from the SQL text, by `lib/db/sql-tables` — which is free of
+   `expo-sqlite` so the test suite can use the same extraction to check that
+   every table this app names actually exists in the schema. */
 
 /* ── Parameter binding ─────────────────────────────────────────── */
 
@@ -454,7 +437,7 @@ function markTableChanged(table: string): void {
 }
 
 function markWrittenTables(sql: string): void {
-  for (const table of scanTables(sql, WRITE_TABLE_RE)) markTableChanged(table);
+  for (const table of writtenTables(sql)) markTableChanged(table);
 }
 
 function flushTableChanges(): void {
@@ -555,7 +538,7 @@ export async function subscribe<T extends Row = Row>(
   handlers: { onData: (rows: T[]) => void; onError?: (message: string) => void },
 ): Promise<Unsubscribe> {
   const boundParams = mapParams(params);
-  const tables = scanTables(sql, READ_TABLE_RE);
+  const tables = readTables(sql);
   if (tables.size === 0) {
     logger.warn('Live query has no reactive dependencies', { sql });
   }

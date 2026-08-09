@@ -12,6 +12,7 @@ import { createLogger } from '@oxyhq/core/logger';
 
 import { createNote } from '@/lib/db/notes-repo';
 import { newNoteId } from '@/lib/db/ids';
+import { placeholderTitle } from '@/lib/capture/placeholder-title';
 import { isCaptureSupported } from '@/lib/capture/support';
 import { useCaptureStore } from '@/lib/stores/capture-store';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -40,10 +41,13 @@ export function useStartCapture(): {
       const captureIdForNote = newNoteId();
 
       // Titled with the moment it started, because that is the only thing known
-      // about a meeting before anyone speaks. Structuring replaces it later.
+      // about a meeting before anyone speaks. It is a PLACEHOLDER, and
+      // `placeholder-title` is what lets the structurer and the model recognise
+      // it as one and replace it — a title they cannot tell from the user's is a
+      // title they will never touch.
       await createNote(noteId, {
         kind: 'voice',
-        title: new Date().toLocaleString(),
+        title: placeholderTitle(new Date()),
       });
       startCapture(captureIdForNote, noteId);
     } catch (error) {

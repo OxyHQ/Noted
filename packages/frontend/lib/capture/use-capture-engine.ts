@@ -40,7 +40,7 @@ interface ReadyModelRow extends Row {
  * session would never be noticed. The row is written by the downloader, so this
  * updates the moment one arrives.
  */
-const READY_MODELS_SQL = "SELECT id FROM stt_models WHERE state = 'ready'";
+const READY_MODELS_SQL = "SELECT id FROM model_files WHERE kind = 'stt' AND state = 'ready'";
 
 function mapReadyIds(rows: readonly ReadyModelRow[]): Set<string> {
   return new Set(rows.map((row) => row.id));

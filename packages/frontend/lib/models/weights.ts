@@ -15,7 +15,7 @@ import { Directory, DownloadTask, File, Paths } from 'expo-file-system';
 import { createLogger } from '@oxyhq/core/logger';
 
 import { execute, executeTransaction } from '@/lib/db/client';
-import { isTranscriptionSupported } from '@/lib/capture/support';
+import { hasDownloadableModels } from '@/lib/capture/support';
 
 const logger = createLogger('NotedModels');
 
@@ -41,10 +41,12 @@ export type WeightsState = 'absent' | 'downloading' | 'ready' | 'failed';
  *
  * Both consumers are native libraries, and on web `expo-file-system` throws on
  * construction rather than reporting absence — so even asking whether a file is
- * present has to be gated, not just the answer.
+ * present has to be gated, not just the answer. The browser transcribes through
+ * a model transformers.js fetches and caches itself, which is why this is a
+ * different question from whether transcription works.
  */
 function hasWeightsStorage(): boolean {
-  return isTranscriptionSupported();
+  return hasDownloadableModels();
 }
 
 export function weightsDirectory(weights: Weights): Directory {

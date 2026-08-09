@@ -7,8 +7,25 @@ import { Platform } from 'react-native';
  * 2. Fallback to environment-based defaults
  */
 
-// Default API URLs for different environments
-export const DEV_API_BASE_URL = 'http://nate:3001';
+/** Where the API listens in development. */
+const DEV_API_PORT = 3001;
+
+/**
+ * The development API, reached on whatever host the app itself was opened from.
+ *
+ * Hardcoding a machine name here (it was `http://nate:3001`) breaks for everyone
+ * who is not on that machine, and in a browser it breaks even there unless the
+ * name resolves — which is how local sync and the socket ended up failing while
+ * the API was running perfectly well.
+ *
+ * Deriving it means `localhost:8081` talks to `localhost:3001` and a phone on
+ * the LAN opening `192.168.1.x:8081` talks to `192.168.1.x:3001`, with no
+ * configuration either way. `EXPO_PUBLIC_API_URL` still overrides it.
+ */
+export const DEV_API_BASE_URL =
+  Platform.OS === 'web' && typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:${String(DEV_API_PORT)}`
+    : `http://localhost:${String(DEV_API_PORT)}`;
 export const STAGING_API_BASE_URL = 'https://staging-api.noted.oxy.so';
 export const PROD_API_BASE_URL = 'https://api.noted.oxy.so';
 

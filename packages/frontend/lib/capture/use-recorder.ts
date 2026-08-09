@@ -41,6 +41,7 @@ import {
   type StopOutcome,
 } from '@/lib/capture/recording';
 import { isCaptureDurable } from '@/lib/capture/support';
+import { transcribeAfterStop } from '@/lib/capture/transcribe-after';
 import { startBackgroundCapture, stopBackgroundCapture } from '@/modules/noted-capture';
 
 const logger = createLogger('NotedCapture');
@@ -102,6 +103,10 @@ export function useRecorder(
   // Held so `stop` can await a start that is still in flight.
   const startRef = useRef<Promise<void> | null>(null);
 
+  // When the recording began, which is what names an untitled note and anchors
+  // every transcript timestamp.
+  const startedAtRef = useRef<Date | null>(null);
+
   // Read through a ref so re-rendering with a new string (a language change)
   // does not re-run the effect that owns the microphone.
   const notificationRef = useRef(notification);
@@ -112,6 +117,7 @@ export function useRecorder(
 
     let active = true;
     setPhase('starting');
+    startedAtRef.current = new Date();
     startRef.current = (async () => {
       try {
         let permission = await getRecordingPermissionsAsync();
@@ -211,6 +217,18 @@ export function useRecorder(
 
       await finishCapture(captureId, durationRef.current, audioPath);
       setPhase('saved');
+
+      // Deliberately NOT awaited: transcribing an hour-long meeting takes
+      // minutes, and a stop button that waits for it looks broken. The capture
+      // row carries the state, so the work is visible without holding up the
+      // person who pressed stop.
+      void transcribeAfterStop({
+        captureId,
+        noteId,
+        audioPath,
+        startedAt: startedAtRef.current ?? new Date(),
+      });
+
       return 'saved';
     } catch (error) {
       stopBackgroundCapture();

@@ -19,6 +19,7 @@ import { getNoteColorTint } from "@/lib/note-colors";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
+import { toPreviewText } from "@/lib/markdown/blocks";
 import type { Label, Note } from "@noted/shared-types";
 
 const CHECKLIST_PREVIEW = 6;
@@ -218,7 +219,10 @@ export const NoteCard = React.memo(function NoteCard({
             className={cn("text-sm text-foreground/80", note.title ? "mt-1.5" : "")}
             numberOfLines={8}
           >
-            {note.body}
+            {/* Flattened, because a card is a glance: `## Summary` in a preview
+                is syntax where prose should be, and it costs a line to say
+                nothing. The note itself keeps its Markdown. */}
+            {toPreviewText(note.body)}
           </Text>
         ) : null}
 

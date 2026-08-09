@@ -17,14 +17,29 @@ export function isCaptureSupported(): boolean {
 }
 
 /**
- * Whether the recording can become a note on this device.
+ * Whether a recording can become a note on this device.
  *
- * Native only: transcription runs on whisper.cpp, a native library. A browser
- * needs a different engine entirely (an ONNX build in a worker), which is its
- * own piece of work — so a web recording is kept as audio until that exists,
- * rather than being refused.
+ * True everywhere now, by two different routes: whisper.cpp on a phone, and an
+ * ONNX build of the same model in the browser. What differs is WHEN — a phone
+ * transcribes while recording, a browser once the recording stops — and that
+ * difference belongs to the engines, not here.
  */
 export function isTranscriptionSupported(): boolean {
+  return true;
+}
+
+/**
+ * Whether this device downloads and stores model weights itself.
+ *
+ * A separate question from transcription, and it took a crash to make the
+ * distinction: on web the model is fetched and cached by transformers.js, there
+ * is no file system to put weights in, and `expo-file-system` throws on
+ * construction rather than reporting absence. So anything that touches stored
+ * weights — the download screen, the size on disk, the delete button — asks this
+ * rather than assuming that "can transcribe" implies "has somewhere to put a
+ * model".
+ */
+export function hasDownloadableModels(): boolean {
   return Platform.OS === 'ios' || Platform.OS === 'android';
 }
 

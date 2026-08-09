@@ -8,6 +8,22 @@ const trackPlayerWebShim = path.resolve(
   "lib/shims/react-native-track-player.web.js"
 );
 
+// Reached by path rather than by `require.resolve`, which honours the package's
+// `exports` map and so can only ever hand back the minified build this exists to
+// avoid. Asserted here rather than at bundle time: a missing file would
+// otherwise surface as a resolution error deep inside transformers.js, pointing
+// at the wrong thing entirely.
+const onnxWebGpuBuild = path.resolve(
+  __dirname,
+  "../../node_modules/onnxruntime-web/dist/ort.webgpu.mjs"
+);
+if (!require("fs").existsSync(onnxWebGpuBuild)) {
+  throw new Error(
+    `onnxruntime-web's unminified WebGPU build is missing at ${onnxWebGpuBuild}. ` +
+      "Web transcription cannot be bundled without it — see the resolver below."
+  );
+}
+
 module.exports = (() => {
   const config = getDefaultConfig(__dirname);
 
@@ -32,6 +48,20 @@ module.exports = (() => {
     resolveRequest: (context, moduleName, platform) => {
       if (platform === "web" && moduleName === "react-native-track-player") {
         return { filePath: trackPlayerWebShim, type: "sourceFile" };
+      }
+      // transformers.js reaches ONNX through `onnxruntime-web/webgpu`, whose
+      // exports map points at a MINIFIED bundle. Every minified build contains
+      // `import(/*webpackIgnore:true*/ a)` — a dynamic import of a variable,
+      // which Metro's parser rejects outright, so the web bundle fails to
+      // build at all.
+      //
+      // The unminified build of the same backend does not contain it, so this
+      // points there. It is the same code and the same WebGPU support, just not
+      // pre-minified — and it is behind a dynamic import that only loads when
+      // somebody actually transcribes, so the size is paid by that person
+      // rather than by every page load.
+      if (platform === "web" && moduleName === "onnxruntime-web/webgpu") {
+        return { filePath: onnxWebGpuBuild, type: "sourceFile" };
       }
       return context.resolveRequest(context, moduleName, platform);
     },

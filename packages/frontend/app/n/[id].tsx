@@ -73,6 +73,9 @@ function presetDate(preset: ReminderPreset): Date {
   return d;
 }
 
+/** An empty note still needs somewhere inviting to start writing. */
+const MIN_BODY_HEIGHT = 160;
+
 export default function NoteEditorScreen() {
   const params = useLocalSearchParams<{ id: string; mode?: string }>();
   const router = useRouter();
@@ -104,6 +107,8 @@ export default function NoteEditorScreen() {
   const [draft, setDraftState] = React.useState<Note>(() => makeDraftNote());
   const draftRef = React.useRef(draft);
   const [hydrated, setHydrated] = React.useState(isNew);
+  // Measured from the text itself, so the field is as tall as its contents.
+  const [bodyHeight, setBodyHeight] = React.useState(MIN_BODY_HEIGHT);
   const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
@@ -445,9 +450,17 @@ export default function NoteEditorScreen() {
             onChangeText={(body) => update({ body })}
             placeholder={t("notes.takeANote")}
             placeholderTextColor={colors.mutedForeground}
-            className="min-h-[160px] py-1 text-base text-foreground"
+            className="py-1 text-base text-foreground"
             multiline
             textAlignVertical="top"
+            scrollEnabled={false}
+            onContentSizeChange={(event) =>
+              setBodyHeight(event.nativeEvent.contentSize.height)
+            }
+            // The one value that cannot be a class, because it is measured: the
+            // field grows to fit what is in it, so the page scrolls instead of a
+            // box scrolling inside a half-empty card.
+            style={{ height: Math.max(MIN_BODY_HEIGHT, bodyHeight) }}
           />
         )}
 
