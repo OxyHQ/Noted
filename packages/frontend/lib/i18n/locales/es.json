@@ -1173,7 +1173,12 @@
       "failed": "Esta grabación no se pudo guardar."
     },
     "retry": "Reintentar",
-    "microphoneOnly": "En el navegador Noted graba solo el micrófono de este dispositivo, no a las demás personas de una llamada."
+    "microphoneOnly": "En el navegador Noted graba solo el micrófono de este dispositivo, no a las demás personas de una llamada.",
+    "transcript": {
+      "title": "Transcripción",
+      "search": "Buscar en la transcripción",
+      "noMatches": "No hay coincidencias."
+    }
   },
   "transcription": {
     "title": "Transcripción",

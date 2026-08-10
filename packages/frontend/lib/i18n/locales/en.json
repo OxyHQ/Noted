@@ -1173,7 +1173,12 @@
       "failed": "This recording could not be saved."
     },
     "retry": "Retry",
-    "microphoneOnly": "In a browser Noted records this device's microphone only, not the other people in a call."
+    "microphoneOnly": "In a browser Noted records this device's microphone only, not the other people in a call.",
+    "transcript": {
+      "title": "Transcript",
+      "search": "Search the transcript",
+      "noMatches": "Nothing matches that."
+    }
   },
   "transcription": {
     "title": "Transcription",
