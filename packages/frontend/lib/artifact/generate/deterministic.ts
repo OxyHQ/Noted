@@ -23,6 +23,10 @@ import { itemId } from '@/lib/artifact/item-id';
 import { parseListCommands } from '@/lib/artifact/dictation/instructions';
 import { buildDictatedList } from '@/lib/artifact/dictation/list';
 import { classifyProfile, resolveProfile, spokenProfile } from '@/lib/artifact/profile';
+import {
+  DEFAULT_ARTIFACT_LABELS,
+  type ArtifactLabels,
+} from '@/lib/artifact/types';
 import type {
   ArtifactStage,
   CaptureProfile,
@@ -48,6 +52,8 @@ export interface DeterministicInput {
   intent?: DocumentIntent;
   transcriptRevision: number;
   now: string;
+  /** So the highlights heading can be in the user's language. */
+  labels?: ArtifactLabels;
 }
 
 /**
@@ -132,6 +138,7 @@ function dedupe(highlights: readonly Highlight[]): Highlight[] {
 }
 
 export function buildDeterministicArtifact(input: DeterministicInput): GeneratedNoteArtifact {
+  const labels = input.labels ?? DEFAULT_ARTIFACT_LABELS;
   const blocks = cleanedBlocks(input.segments);
   const captureId = input.captureId;
 
@@ -201,17 +208,49 @@ export function buildDeterministicArtifact(input: DeterministicInput): Generated
         {
           id: `section:${captureId}:notes`,
           kind: 'notes',
-          items: points.map((point) => toItem('note', point.text, point.atMs, blocks, captureId)),
+          // A bullet list, and labelled as highlights rather than dressed up as a
+          // finished document. This pass SELECTS sentences somebody said; it
+          // cannot rewrite first-person speech into prose about the speaker, and
+          // pretending otherwise with a heading like "Notes" is what made a talk
+          // read as though the speaker had written it.
+          heading: points.length > 0 ? labels.highlights : undefined,
+          blocks:
+            points.length > 0
+              ? [
+                  {
+                    id: `block:${captureId}:points`,
+                    kind: 'bullet-list' as const,
+                    status: 'active' as const,
+                    origin: 'transcript' as const,
+                    sources: [],
+                    items: points.map((point) =>
+                      toItem('note', point.text, point.atMs, blocks, captureId),
+                    ),
+                  },
+                ]
+              : [],
         },
         {
           id: `section:${captureId}:decisions`,
           kind: 'decisions',
-          items: decisions.map((decision) =>
-            toItem('decision', decision.text, decision.atMs, blocks, captureId),
-          ),
+          blocks:
+            decisions.length > 0
+              ? [
+                  {
+                    id: `block:${captureId}:decisions`,
+                    kind: 'bullet-list' as const,
+                    status: 'active' as const,
+                    origin: 'transcript' as const,
+                    sources: [],
+                    items: decisions.map((decision) =>
+                      toItem('decision', decision.text, decision.atMs, blocks, captureId),
+                    ),
+                  },
+                ]
+              : [],
         },
       ] satisfies GeneratedSection[]
-    ).filter((section) => section.items.length > 0),
+    ).filter((section) => section.blocks.length > 0),
     checklists: [
       // What was dictated comes first: the user asked for it in so many words.
       ...(dictated.checklist ? [dictated.checklist] : []),

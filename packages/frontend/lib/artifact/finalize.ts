@@ -138,14 +138,26 @@ export function finalizeArtifact(input: {
   const { next, overrides } = input;
 
   const sections: GeneratedSection[] = next.sections
-    .map((section) => {
-      const merged = mergeSemanticDuplicates(section.items);
-      return {
-        ...section,
-        items: section.kind === 'decisions' ? supersedeRevisedDecisions(merged) : merged,
-      };
-    })
-    .filter((section) => visibleItems(section.items).length > 0);
+    .map((section) => ({
+      ...section,
+      blocks: section.blocks.map((block) => {
+        if (block.kind === 'paragraph' || block.kind === 'quote') return block;
+        const merged = mergeSemanticDuplicates(block.items);
+        return {
+          ...block,
+          items: section.kind === 'decisions' ? supersedeRevisedDecisions(merged) : merged,
+        };
+      }),
+    }))
+    // A section survives when anything in it is still standing. Prose blocks are
+    // retired individually; a list is retired when its every line is.
+    .filter((section) =>
+      section.blocks.some((block) =>
+        block.kind === 'paragraph' || block.kind === 'quote'
+          ? block.status === 'active'
+          : visibleItems(block.items).length > 0,
+      ),
+    );
 
   const checklists = next.checklists
     .map((checklist) => ({ ...checklist, items: mergeSemanticDuplicates(checklist.items) }))

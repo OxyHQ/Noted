@@ -16,6 +16,7 @@ import {
   checklistItem,
   item,
   section,
+  unitsOf,
 } from '@/lib/artifact/__tests__/fixtures';
 
 function overrides(...entries: Partial<UserItemOverride>[]): ReturnType<typeof overridesById> {
@@ -46,8 +47,8 @@ describe('applyOverrides', () => {
 
   it('shows the user their own wording', () => {
     const shown = applyOverrides(base, overrides({ itemId: 'n1', text: 'Migrar a Postgres 17' }));
-    expect(shown.sections[0].items[0].text).toBe('Migrar a Postgres 17');
-    expect(shown.sections[0].items[1].text).toBe('Borrar Mongo');
+    expect(unitsOf(shown.sections[0])[0].text).toBe('Migrar a Postgres 17');
+    expect(unitsOf(shown.sections[0])[1].text).toBe('Borrar Mongo');
   });
 
   it('keeps the tick the user set', () => {
@@ -66,7 +67,7 @@ describe('applyOverrides', () => {
 
   it('takes out what the user deleted', () => {
     const shown = applyOverrides(base, overrides({ itemId: 'n2', removed: true }));
-    expect(shown.sections[0].items.map((entry) => entry.id)).toEqual(['n1']);
+    expect(unitsOf(shown.sections[0]).map((entry) => entry.id)).toEqual(['n1']);
   });
 
   it('does not touch the stored artifact', () => {
@@ -74,8 +75,8 @@ describe('applyOverrides', () => {
     // what the model actually said last time, not against a version the user
     // rewrote, or every edit slowly becomes the model's own opinion.
     applyOverrides(base, overrides({ itemId: 'n1', text: 'otra cosa', removed: true }));
-    expect(base.sections[0].items[0].text).toBe('Migrar a PostgreSQL');
-    expect(base.sections[0].items).toHaveLength(2);
+    expect(unitsOf(base.sections[0])[0].text).toBe('Migrar a PostgreSQL');
+    expect(unitsOf(base.sections[0])).toHaveLength(2);
   });
 
   it('is the identity when the user has done nothing', () => {
@@ -151,7 +152,7 @@ describe('carryProtectedItems', () => {
       keeping,
       overrides({ itemId: 'n1', text: 'mi versión' }),
     );
-    expect(merged.sections[0].items.map((entry) => entry.id)).toEqual(['n1']);
+    expect(unitsOf(merged.sections[0]).map((entry) => entry.id)).toEqual(['n1']);
   });
 
   it('keeps a protected item whose section the new pass did not produce', () => {
@@ -165,7 +166,7 @@ describe('carryProtectedItems', () => {
       overrides({ itemId: 'n2', adopted: true }),
     );
     expect(merged.sections.map((entry) => entry.id)).toEqual(['otra', 's']);
-    expect(merged.sections[1].items.map((entry) => entry.id)).toEqual(['n2']);
+    expect(unitsOf(merged.sections[1]).map((entry) => entry.id)).toEqual(['n2']);
   });
 
   it('is the identity when there was no previous artifact', () => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { unitsOf } from '@/lib/artifact/__tests__/fixtures';
+
 import { allItems } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
 import { enhancementToArtifact } from '@/lib/artifact/generate/from-enhancement';
@@ -46,12 +48,12 @@ function build(over: Partial<ResolvedEnhancement> = {}, expansions: PendingExpan
 }
 
 describe('the model writes the same shape', () => {
-  it('puts its notes in the body with no heading over them', () => {
-    // "## Summary" over the only content on the page is a label for something
-    // that needs no labelling — and the note's structure must not change because
-    // a model happened to be installed.
+  it('writes its notes as prose, not as a list of peers', () => {
+    // The change #59 exists for. A bullet list asserts that its lines are peers;
+    // connected reasoning is not, and prefixing every item with a dash destroyed
+    // the connection rather than styling it badly.
     expect(renderArtifact(build())).toBe(
-      '- Al final vamos a usar el proveedor barato\n\n## Open questions\n\n- ¿Quién habla con el proveedor?',
+      'Al final vamos a usar el proveedor barato\n\n## Open questions\n\n- ¿Quién habla con el proveedor?',
     );
   });
 
@@ -92,7 +94,7 @@ describe('grounding', () => {
     // An item a reader can follow to the wrong moment is worse than one they
     // cannot follow at all.
     const ungrounded = build({ notes: [item('Según nadie', { segmentIds: [], atMs: null })] });
-    expect(ungrounded.sections[0].items[0].sources).toEqual([]);
+    expect(unitsOf(ungrounded.sections[0])[0].sources).toEqual([]);
   });
 });
 

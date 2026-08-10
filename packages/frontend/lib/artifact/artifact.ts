@@ -10,6 +10,8 @@
 
 import type {
   ArtifactStage,
+  GeneratedBlock,
+  GeneratedListItem,
   CaptureProfile,
   DocumentIntent,
   GeneratedChecklist,
@@ -85,11 +87,22 @@ export function upsertItem<T extends GeneratedItem>(items: readonly T[], next: T
   return merged;
 }
 
-/** Every item in the artifact, title included, in reading order. */
+/**
+ * The units of a block: the thing a reader can edit and a pass can retire.
+ *
+ * A paragraph and a quote ARE units — they carry text of their own. A list is a
+ * container: editing it means editing one of its lines, so its lines are the
+ * units and the block itself is structure.
+ */
+export function blockUnits(block: GeneratedBlock): GeneratedItem[] {
+  return block.kind === 'paragraph' || block.kind === 'quote' ? [block] : block.items;
+}
+
+/** Every unit in the artifact, title included, in reading order. */
 export function allItems(artifact: GeneratedNoteArtifact): GeneratedItem[] {
   return [
     ...(artifact.title ? [artifact.title] : []),
-    ...artifact.sections.flatMap((section) => section.items),
+    ...artifact.sections.flatMap((section) => section.blocks.flatMap(blockUnits)),
     ...artifact.checklists.flatMap((checklist) => checklist.items),
     ...artifact.openQuestions,
   ];
@@ -124,12 +137,21 @@ export function mapItems(
     ...map(item),
   }),
 ): GeneratedNoteArtifact {
+  const mapBlock = (block: GeneratedBlock): GeneratedBlock => {
+    if (block.kind === 'paragraph' || block.kind === 'quote') {
+      // Spread over the block, not replaced by the mapped unit: `map` returns a
+      // `GeneratedItem`, and a quote's attribution is not one of its fields.
+      return { ...block, ...map(block) };
+    }
+    return { ...block, items: block.items.map((item) => ({ ...item, ...map(item) })) };
+  };
+
   return {
     ...artifact,
     title: artifact.title ? map(artifact.title) : undefined,
     sections: artifact.sections.map((section) => ({
       ...section,
-      items: section.items.map(map),
+      blocks: section.blocks.map(mapBlock),
     })),
     checklists: artifact.checklists.map((checklist) => ({
       ...checklist,
@@ -144,12 +166,24 @@ export function filterItems(
   artifact: GeneratedNoteArtifact,
   keep: (item: GeneratedItem) => boolean,
 ): GeneratedNoteArtifact {
+  const keepBlock = (block: GeneratedBlock): GeneratedBlock | null => {
+    if (block.kind === 'paragraph' || block.kind === 'quote') return keep(block) ? block : null;
+    const items = block.items.filter(keep);
+    // A list whose every line went is not an empty list, it is nothing.
+    return items.length > 0 ? { ...block, items } : null;
+  };
+
   return {
     ...artifact,
     title: artifact.title && keep(artifact.title) ? artifact.title : undefined,
     sections: artifact.sections
-      .map((section) => ({ ...section, items: section.items.filter(keep) }))
-      .filter((section) => section.items.length > 0),
+      .map((section) => ({
+        ...section,
+        blocks: section.blocks
+          .map(keepBlock)
+          .filter((block): block is GeneratedBlock => block !== null),
+      }))
+      .filter((section) => section.blocks.length > 0),
     checklists: artifact.checklists
       .map((checklist) => ({ ...checklist, items: checklist.items.filter(keep) }))
       .filter((checklist) => checklist.items.length > 0),
@@ -273,11 +307,27 @@ export function mayCommit(
   return task.transcriptRevision >= current.transcriptRevision;
 }
 
-/** A section with its items, dropped entirely when nothing survives. */
+/**
+ * Sections with only their standing blocks, dropped entirely when nothing
+ * survives.
+ */
 export function nonEmptySections(artifact: GeneratedNoteArtifact): GeneratedSection[] {
+  const standing = (block: GeneratedBlock): GeneratedBlock | null => {
+    if (block.kind === 'paragraph' || block.kind === 'quote') {
+      return block.status === 'active' ? block : null;
+    }
+    const items = visibleItems(block.items) as GeneratedListItem[];
+    return block.status === 'active' && items.length > 0 ? { ...block, items } : null;
+  };
+
   return artifact.sections
-    .map((section) => ({ ...section, items: visibleItems(section.items) }))
-    .filter((section) => section.items.length > 0);
+    .map((section) => ({
+      ...section,
+      blocks: section.blocks
+        .map(standing)
+        .filter((block): block is GeneratedBlock => block !== null),
+    }))
+    .filter((section) => section.blocks.length > 0);
 }
 
 /** Checklists with their visible items, dropped entirely when nothing survives. */

@@ -106,8 +106,15 @@ describe('building a meeting', () => {
 
   it('does not reproduce the transcript', () => {
     // A note that reproduces everything said is a transcript with headings, and
-    // reading it back is the work the app was supposed to do.
-    expect(renderArtifact(artifact)).not.toContain('## Transcript');
+    // reading it back is the work the app was supposed to do. Counted rather
+    // than matched on a heading string: the highlights section is legitimately
+    // called "Transcript highlights", and a substring check would now pass or
+    // fail on the wording rather than on the behaviour.
+    const lines = renderArtifact(artifact)
+      .split('\n')
+      .filter((line) => line.startsWith('- '));
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.length).toBeLessThan(MEETING.length);
   });
 
   it('can point at the recording for every line it wrote', () => {
@@ -238,6 +245,8 @@ describe('headings', () => {
       shopping: 'Compra',
       packing: 'Equipaje',
       steps: 'Pasos',
+      speaker: 'Ponente',
+      highlights: 'Puntos de la transcripción',
     });
     expect(rendered).toContain('## Decisiones');
     expect(rendered).not.toContain('## Decisions');
