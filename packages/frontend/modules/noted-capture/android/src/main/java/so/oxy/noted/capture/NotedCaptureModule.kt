@@ -15,21 +15,30 @@ class NotedCaptureModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("NotedCapture")
 
+    // `if (context != null)` rather than `?: return@Function`, in both of these.
+    // An early return makes the lambda's type the common supertype of Unit and
+    // whatever the last call returns — `ComponentName?` here, `Boolean` below —
+    // and Kotlin then rejects the valueless return against it. An `if` with no
+    // `else` is Unit, which is what these actually are.
     Function("startCaptureService") { title: String, body: String ->
-      val context = appContext.reactContext ?: return@Function
-      val intent = Intent(context, NotedCaptureService::class.java).apply {
-        putExtra(NotedCaptureService.EXTRA_TITLE, title)
-        putExtra(NotedCaptureService.EXTRA_BODY, body)
+      val context = appContext.reactContext
+      if (context != null) {
+        val intent = Intent(context, NotedCaptureService::class.java).apply {
+          putExtra(NotedCaptureService.EXTRA_TITLE, title)
+          putExtra(NotedCaptureService.EXTRA_BODY, body)
+        }
+        // startForegroundService, not startService: the latter cannot promote to
+        // a foreground service on Android 8+, and the call is only legal at all
+        // because the app is in the foreground when the user presses record.
+        context.startForegroundService(intent)
       }
-      // startForegroundService, not startService: the latter cannot promote to a
-      // foreground service on Android 8+, and the call is only legal at all
-      // because the app is in the foreground when the user presses record.
-      context.startForegroundService(intent)
     }
 
     Function("stopCaptureService") {
-      val context = appContext.reactContext ?: return@Function
-      context.stopService(Intent(context, NotedCaptureService::class.java))
+      val context = appContext.reactContext
+      if (context != null) {
+        context.stopService(Intent(context, NotedCaptureService::class.java))
+      }
     }
 
     Function("isCaptureServiceRunning") {

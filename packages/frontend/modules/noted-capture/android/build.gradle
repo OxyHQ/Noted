@@ -1,6 +1,7 @@
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
-apply plugin: 'expo-module-gradle-plugin'
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
 
 group = 'so.oxy.noted.capture'
 version = '0.1.0'
@@ -8,7 +9,10 @@ version = '0.1.0'
 android {
   namespace 'so.oxy.noted.capture'
   defaultConfig {
-    minSdkVersion safeExtGet('minSdkVersion', 24)
+    // Required by `expo-module-gradle-plugin`, which refuses to configure a
+    // module without them. Kept equal to `version` above so one bump moves both.
+    versionCode 1
+    versionName '0.1.0'
   }
 }
 

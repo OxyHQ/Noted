@@ -1,0 +1,79 @@
+---
+title: Desktop system audio — the runtime decision
+description: Which runtime a desktop build of Noted would use, and why the choice is recorded before any of it is written.
+---
+
+# Desktop system audio — the runtime decision
+
+Noted records from a microphone on iOS, Android and the web. It cannot record
+what the machine is *playing* — the other half of a video call — and on a laptop
+that is most of the meeting.
+
+This records the runtime decision **before** the implementation, because the
+decision is the part that is expensive to reverse: the capture pipeline is
+shared, and a wrong host means rewriting the shell around it rather than the
+pipeline inside it. Nothing described here is built yet.
+
+## The constraint that decides it
+
+A desktop build must reuse the existing `CaptureCoordinator`, the transcript
+repository, the live reducer, the finaliser and the `GeneratedNoteArtifact`
+model **unchanged**. Noted has three note-taking paths already (native, web,
+and the deterministic floor beneath both); a fourth would be the end of any
+claim that a note means the same thing wherever it was recorded.
+
+That rules out anything that cannot run the app's own TypeScript. The question
+is only which host does.
+
+## The decision: Electron, with system audio behind a native addon
+
+| Runtime | Why not |
+|---|---|
+| **Tauri** | The webview is the OS's own, so audio capture is Safari's on macOS and WebView2's on Windows — two engines with different `getDisplayMedia` behaviour, neither offering system audio reliably. The Rust side could capture it, but then the recorder is Rust and the web recorder is TypeScript, which is the fourth pipeline this is meant to avoid. |
+| **PWA / browser** | `getDisplayMedia({ audio: true })` is tab audio on Chromium, nothing on Firefox and Safari, and requires a screen-share prompt to record sound. Browser capture stays **microphone-only**, deliberately, and that is not a limitation to work around — it is what the platform offers. |
+| **Expo for macOS / Windows** | Would share the most code, and there is no supported system-audio path at all. |
+| **Electron** | One Chromium on every platform, so the renderer runs the same code the web build runs today; and a native addon can reach the OS APIs the web cannot. |
+
+Electron is chosen for the second half of that sentence more than the first. It
+is not the lightest option and is not pretended to be: the trade is a larger
+download against one audio implementation instead of three.
+
+## What the addon has to do, per platform
+
+- **macOS** — ScreenCaptureKit (`SCStream` with audio, macOS 13+). It is the only
+  supported route since the kernel-extension era ended, and it prompts with the
+  system's own screen-recording consent dialog, which is the correct place for
+  that decision to be made.
+- **Windows** — WASAPI loopback on the default render endpoint.
+- **Linux** — PipeWire's monitor source, falling back to PulseAudio's. Neither is
+  guaranteed present, so this platform must be able to report "system audio is
+  not available here" rather than fail.
+
+## What must NOT happen
+
+- **No OS-specific code in the web recorder.** `use-realtime-recorder.web.ts`
+  stays microphone-only. The desktop path is a separate source implementation
+  behind the same interface, and the browser build must not carry a branch for a
+  platform it never runs on.
+- **No second timeline.** Microphone and system audio are mixed into one stream
+  before they reach the recorder, so there is one recording, one transcript and
+  one set of `SourceRange` offsets. Two streams reaching the transcript
+  separately would mean two timelines to reconcile, and every provenance range in
+  the artifact would need to say which one it meant.
+- **No silent recording of the other side.** Recording what the machine is
+  playing means recording people who did not consent to Noted. The source in use
+  has to be visible while it is in use — not only in a settings screen — and the
+  platform's own consent prompt is a feature of ScreenCaptureKit rather than an
+  obstacle to route around.
+
+## What is already in place, and what is missing
+
+The pipeline below the recorder is source-agnostic already: it receives audio
+slices and transcript segments and has no opinion about where they came from.
+
+What does not exist yet is the seam — the recorder is chosen by Metro's platform
+resolution (`.native.ts` / `.web.ts`), which cannot express "web, but with system
+audio". A desktop build needs an explicit audio-source abstraction with
+microphone, system and mixed implementations, chosen at runtime rather than at
+bundle time. That abstraction is the first piece of work, and it is worth adding
+before the desktop host exists, because it is the piece the pipeline depends on.
