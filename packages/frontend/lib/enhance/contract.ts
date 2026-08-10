@@ -25,6 +25,7 @@
 
 import type { ChecklistItem } from '@noted/shared-types';
 import type { CaptureProfile, DocumentIntent, PendingExpansion } from '@/lib/artifact/types';
+import type { BlockType } from '@/lib/enhance/schema';
 
 /** Whether a device can run a model at all, before anything is asked of it. */
 export type SummarizerAvailability =
@@ -54,14 +55,14 @@ export interface SummarizerProgress {
 }
 
 /**
- * One thing the model wrote, and where it got it.
+ * One line of a list the model wrote.
  *
  * `sources` are LINE NUMBERS of the window the model was shown, not segment ids:
  * a small model handles `[3, 4]` far better than it handles
  * `["cap_x#0.12", "cap_x#0.13"]`, and the mapping back is exact because the
  * caller built the window.
  */
-export interface EnhancementItem {
+export interface EnhancementListItem {
   text: string;
   sources: number[];
   /**
@@ -73,38 +74,62 @@ export interface EnhancementItem {
   derived?: { subject: string; reason: string };
 }
 
+/** A piece of the document the model wrote. */
+export interface EnhancementBlock {
+  type: BlockType;
+  /** Present for `paragraph` and `quote`. */
+  text?: string;
+  /** Present for the two list types. */
+  items?: EnhancementListItem[];
+  /** Present for `quote`, when the model knows whose words they are. */
+  attribution?: string;
+  sources: number[];
+}
+
+export interface EnhancementSection {
+  heading?: string;
+  blocks: EnhancementBlock[];
+}
+
+export interface EnhancementPerson {
+  name?: string;
+  role?: string;
+  organization?: string;
+  sources: number[];
+}
+
 /**
- * What the model is asked to produce.
+ * What the model is asked to produce: a document.
  *
- * Deliberately the same shape the rule-based generator produces, so the two are
- * interchangeable and the merge with the user's own writing is written once.
+ * Not four arrays of short lines. That shape could only ever express a bullet
+ * summary, so a model that understood a talk perfectly still had nowhere to put
+ * a paragraph, a heading or who was speaking.
  */
 export interface Enhancement {
+  /** What the model thinks this recording is. A user's own choice still wins. */
+  profile?: CaptureProfile;
   /** A short, specific title for what was discussed. */
   title: string;
-  /**
-   * The notes themselves — what someone would keep and refer back to.
-   *
-   * Not a summary of the conversation: the useful content, with the
-   * conversational shape taken out. This is the note's body.
-   */
-  notes: EnhancementItem[];
+  /** Who the recording is about, when it says. */
+  people: EnhancementPerson[];
+  /** The document itself, organised by subject. */
+  sections: EnhancementSection[];
   /** Concrete next steps someone committed to or was assigned. */
-  actions: EnhancementItem[];
+  actions: EnhancementListItem[];
   /**
    * Important matters genuinely left unresolved.
    *
    * Deliberately not "every question asked": a question that got an answer
-   * belongs in the notes as the answer.
+   * belongs in the notes as the answer, and a rhetorical one belongs nowhere.
    */
-  openQuestions: EnhancementItem[];
+  openQuestions: EnhancementListItem[];
   /**
    * Items to add to a list the user dictated.
    *
    * Empty unless the request carried an authorisation. This is the only field
    * through which knowledge the recording does not contain may enter a note.
    */
-  listAdditions: EnhancementItem[];
+  listAdditions: EnhancementListItem[];
 }
 
 /** One line of transcript as the model is shown it. */
@@ -138,25 +163,47 @@ export interface EnhanceRequest {
 }
 
 /**
- * One thing the model wrote, with its citations turned into segment ids.
+ * Citations turned into segment ids.
  *
  * The model cites line numbers of the window it was shown, which are meaningless
  * outside that window. They are resolved while the window is still in hand rather
- * than carried around as numbers nobody can interpret later — so this, not
- * {@link EnhancementItem}, is what leaves the enhancement path.
+ * than carried around as numbers nobody can interpret later.
  */
-export interface ResolvedItem {
-  text: string;
+export interface Resolved {
   /** Transcript segments this came from. Empty means nothing supports it. */
   segmentIds: string[];
   /** The start of the earliest line cited, for a reader jumping to the audio. */
   atMs: number | null;
-  derived?: { subject: string; reason: string };
 }
 
+export type ResolvedItem = Resolved & {
+  text: string;
+  derived?: { subject: string; reason: string };
+};
+
+export type ResolvedBlock = Resolved & {
+  type: BlockType;
+  text?: string;
+  items?: ResolvedItem[];
+  attribution?: string;
+};
+
+export interface ResolvedSection {
+  heading?: string;
+  blocks: ResolvedBlock[];
+}
+
+export type ResolvedPerson = Resolved & {
+  name?: string;
+  role?: string;
+  organization?: string;
+};
+
 export interface ResolvedEnhancement {
+  profile?: CaptureProfile;
   title: string;
-  notes: ResolvedItem[];
+  people: ResolvedPerson[];
+  sections: ResolvedSection[];
   actions: ResolvedItem[];
   openQuestions: ResolvedItem[];
   listAdditions: ResolvedItem[];

@@ -25,7 +25,15 @@
  * itself, which is exactly what the whole origin mechanism exists to prevent.
  */
 
-import type { Enhancement, EnhancementItem } from '@/lib/enhance/contract';
+import type {
+  Enhancement,
+  EnhancementBlock,
+  EnhancementListItem,
+  EnhancementPerson,
+  EnhancementSection,
+} from '@/lib/enhance/contract';
+import type { CaptureProfile } from '@/lib/artifact/types';
+import { BLOCK_TYPES, FIELDS, SCHEMA_PROFILES } from '@/lib/enhance/schema';
 
 /** Longest reply worth parsing. Beyond this the model is not answering. */
 const MAX_REPLY_CHARS = 20_000;
@@ -133,50 +141,146 @@ function readDerived(
       ? String((value as { reason: unknown }).reason)
       : '';
 
+  const wanted = subject.trim().toLowerCase();
   const match = authorised.find(
     (candidate) =>
-      candidate === subject.trim().toLowerCase() ||
-      subject.trim().toLowerCase().includes(candidate) ||
-      candidate.includes(subject.trim().toLowerCase()),
+      candidate === wanted || wanted.includes(candidate) || candidate.includes(wanted),
   );
   // The model helping itself. Not a formatting slip — the item is refused.
-  if (!match || subject.trim() === '') return 'unauthorised';
+  if (!match || wanted === '') return 'unauthorised';
   return { subject: match, reason: cleanLine(reason) };
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readText(value: unknown): string {
+  const text = typeof value === 'string' ? cleanLine(value) : '';
+  return text.length > MAX_ITEM_CHARS ? '' : text;
+}
+
 /**
- * Read a field that should be a list of items.
+ * Read a list of items.
  *
- * A bare string is accepted as an item with no sources, and a bare string in
- * place of the whole list as a one-item list: asked for a list, a small model
- * with one thing to say often just says it, and refusing that would throw away a
- * correct answer over its shape.
+ * A bare string is accepted as an item, and a bare string in place of the whole
+ * list as a one-item list: asked for a list, a small model with one thing to say
+ * often just says it, and refusing that would throw away a correct answer over
+ * its shape.
  */
-function readItems(value: unknown, options: ParseOptions): EnhancementItem[] {
+function readItems(value: unknown, options: ParseOptions): EnhancementListItem[] {
   const raw = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
-  const items: EnhancementItem[] = [];
+  const items: EnhancementListItem[] = [];
 
   for (const entry of raw) {
-    const record = typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>) : null;
-    const rawText = typeof entry === 'string' ? entry : typeof record?.text === 'string' ? record.text : '';
-    const text = cleanLine(rawText);
-    if (text === '' || text.length > MAX_ITEM_CHARS) continue;
-
+    const fields = record(entry);
+    const text = readText(typeof entry === 'string' ? entry : fields?.[FIELDS.text]);
+    if (text === '') continue;
     // Repeats are the most common way a small model fills a list it has nothing
     // left to put in.
     if (items.some((existing) => existing.text.toLowerCase() === text.toLowerCase())) continue;
 
-    const derived = readDerived(record?.derived, options.authorisedSubjects);
+    const derived = readDerived(fields?.[FIELDS.derived], options.authorisedSubjects);
     if (derived === 'unauthorised') continue;
 
     items.push({
       text,
-      sources: readSources(record?.s ?? record?.sources, options.lineCount),
+      sources: readSources(fields?.[FIELDS.sources], options.lineCount),
       ...(derived ? { derived } : {}),
     });
     if (items.length === MAX_ITEMS) break;
   }
   return items;
+}
+
+/**
+ * Read one block, or refuse it.
+ *
+ * A block whose type is unknown is dropped rather than guessed at: rendering an
+ * unrecognised type as a paragraph would silently turn a list the model meant
+ * into prose, and a note that quietly restructures itself is worse than one
+ * missing a piece.
+ */
+function readBlock(value: unknown, options: ParseOptions): EnhancementBlock | null {
+  const fields = record(value);
+  if (!fields) {
+    // A bare string where a block was asked for is a paragraph. Small models do
+    // this constantly and the meaning is not in doubt.
+    const text = readText(value);
+    return text === '' ? null : { type: 'paragraph', text, sources: [] };
+  }
+
+  const type = fields[FIELDS.type];
+  if (typeof type !== 'string' || !(BLOCK_TYPES as readonly string[]).includes(type)) return null;
+  const sources = readSources(fields[FIELDS.sources], options.lineCount);
+
+  if (type === 'bullet-list' || type === 'numbered-list') {
+    const items = readItems(fields[FIELDS.items], options);
+    return items.length > 0 ? { type, items, sources } : null;
+  }
+
+  const text = readText(fields[FIELDS.text]);
+  if (text === '') return null;
+  const rawAttribution = fields[FIELDS.attribution];
+  const attribution = typeof rawAttribution === 'string' ? cleanLine(rawAttribution) : '';
+  return {
+    type: type as 'paragraph' | 'quote',
+    text,
+    sources,
+    ...(attribution === '' ? {} : { attribution }),
+  };
+}
+
+function readSections(value: unknown, options: ParseOptions): EnhancementSection[] {
+  if (!Array.isArray(value)) return [];
+  const sections: EnhancementSection[] = [];
+  for (const entry of value) {
+    const fields = record(entry);
+    if (!fields) continue;
+    const blocks = Array.isArray(fields[FIELDS.blocks])
+      ? (fields[FIELDS.blocks] as unknown[])
+          .map((block) => readBlock(block, options))
+          .filter((block): block is EnhancementBlock => block !== null)
+      : [];
+    if (blocks.length === 0) continue;
+    const rawHeading = fields[FIELDS.heading];
+    const heading = typeof rawHeading === 'string' ? cleanLine(rawHeading) : '';
+    sections.push({ blocks, ...(heading === '' ? {} : { heading }) });
+    if (sections.length === MAX_ITEMS) break;
+  }
+  return sections;
+}
+
+/**
+ * Read the people the model named.
+ *
+ * An entry with no name, role or organisation is dropped: an empty person is not
+ * information, and rendering one would put a bare "Speaker:" over a note.
+ */
+function readPeople(value: unknown, options: ParseOptions): EnhancementPerson[] {
+  if (!Array.isArray(value)) return [];
+  const people: EnhancementPerson[] = [];
+  for (const entry of value) {
+    const fields = record(entry);
+    if (!fields) continue;
+    const person: EnhancementPerson = {
+      sources: readSources(fields[FIELDS.sources], options.lineCount),
+    };
+    for (const key of ['name', 'role', 'organization'] as const) {
+      const text = readText(fields[key]);
+      if (text !== '') person[key] = text;
+    }
+    if (person.name ?? person.role ?? person.organization) people.push(person);
+  }
+  return people;
+}
+
+function readProfile(value: unknown): CaptureProfile | undefined {
+  return typeof value === 'string' && (SCHEMA_PROFILES as readonly string[]).includes(value)
+    ? (value as CaptureProfile)
+    : undefined;
 }
 
 function readTitle(value: unknown): string {
@@ -204,22 +308,24 @@ export function parseEnhancement(reply: string, options: ParseOptions): Enhancem
   } catch {
     return null;
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+  const fields = record(parsed);
+  if (!fields) return null;
 
-  const record = parsed as Record<string, unknown>;
   const enhancement: Enhancement = {
-    title: readTitle(record.title),
-    notes: readItems(record.notes, options),
-    actions: readItems(record.actions, options),
-    openQuestions: readItems(record.openQuestions, options),
-    listAdditions: readItems(record.listAdditions, options),
+    profile: readProfile(fields[FIELDS.profile]),
+    title: readTitle(fields[FIELDS.title]),
+    people: readPeople(fields[FIELDS.people], options),
+    sections: readSections(fields[FIELDS.sections], options),
+    actions: readItems(fields[FIELDS.actions], options),
+    openQuestions: readItems(fields[FIELDS.openQuestions], options),
+    listAdditions: readItems(fields[FIELDS.listAdditions], options),
   };
 
   // A reply with a title and nothing else is a model that had nothing to say
   // about the recording. The rule-based note is better than a heading over
   // emptiness, so this counts as no answer.
   const hasContent =
-    enhancement.notes.length > 0 ||
+    enhancement.sections.length > 0 ||
     enhancement.actions.length > 0 ||
     enhancement.openQuestions.length > 0 ||
     enhancement.listAdditions.length > 0;

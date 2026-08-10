@@ -4,19 +4,35 @@ import type { PendingExpansion } from '@/lib/artifact/types';
 import type { EnhanceRequest, SummarizerProgress } from '@/lib/enhance/contract';
 import { summarize } from '@/lib/enhance/summarize';
 
+/** A document with one paragraph per line given, which is what the model returns now. */
 function reply(
-  notes: (string | { text: string; s?: number[]; derived?: unknown })[],
+  paragraphs: (string | { text: string; s?: number[] })[],
   title = 'Charla',
   extra: Record<string, unknown> = {},
 ): string {
   return JSON.stringify({
     title,
-    notes,
+    sections: [
+      {
+        blocks: paragraphs.map((entry) =>
+          typeof entry === 'string'
+            ? { type: 'paragraph', text: entry, s: [] }
+            : { type: 'paragraph', text: entry.text, s: entry.s ?? [] },
+        ),
+      },
+    ],
     actions: [],
     openQuestions: [],
     listAdditions: [],
     ...extra,
   });
+}
+
+/** The paragraphs of the merged document, for the assertions below. */
+function paragraphsOf(result: { sections: { blocks: { text?: string }[] }[] } | null): string[] {
+  return (result?.sections ?? []).flatMap((section) =>
+    section.blocks.map((block) => block.text ?? ''),
+  );
 }
 
 function request(lineCount: number, over: Partial<EnhanceRequest> = {}): EnhanceRequest {
@@ -39,7 +55,7 @@ describe('asking the model', () => {
   it('returns what it understood', async () => {
     const generate = vi.fn().mockResolvedValue(reply(['El gasto subió un 12%']));
     const result = await summarize(request(1), generate);
-    expect(result?.notes[0].text).toBe('El gasto subió un 12%');
+    expect(paragraphsOf(result)[0]).toBe('El gasto subió un 12%');
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
@@ -53,7 +69,7 @@ describe('asking the model', () => {
       .mockResolvedValue(reply(['Resto']));
     const result = await summarize(request(30), generate);
     expect(generate.mock.calls.length).toBeGreaterThan(1);
-    expect(result?.notes.map((note) => note.text)).toContain('Primera parte');
+    expect(paragraphsOf(result)).toContain('Primera parte');
   });
 
   it('never asks about an empty transcript', async () => {
@@ -77,7 +93,7 @@ describe('asking the model', () => {
       .mockResolvedValueOnce('lo siento, no puedo')
       .mockResolvedValue(reply(['Lo que sí entendió']));
     const result = await summarize(request(30), generate);
-    expect(result?.notes.map((note) => note.text)).toEqual(['Lo que sí entendió']);
+    expect(paragraphsOf(result)).toEqual(['Lo que sí entendió']);
   });
 
   it('reports nothing when every reply is unusable', async () => {
@@ -92,8 +108,8 @@ describe('citations become evidence', () => {
     // they are resolved while that window is still in hand.
     return summarize(request(3), vi.fn().mockResolvedValue(reply([{ text: 'Algo', s: [2] }]))).then(
       (result) => {
-        expect(result?.notes[0].segmentIds).toEqual(['c1#0.1']);
-        expect(result?.notes[0].atMs).toBe(1000);
+        expect(result?.sections[0].blocks[0].segmentIds).toEqual(['c1#0.1']);
+        expect(result?.sections[0].blocks[0].atMs).toBe(1000);
       },
     );
   });
@@ -103,20 +119,32 @@ describe('citations become evidence', () => {
       request(3),
       vi.fn().mockResolvedValue(reply([{ text: 'Según nadie', s: [] }])),
     );
-    expect(result?.notes[0].segmentIds).toEqual([]);
-    expect(result?.notes[0].atMs).toBeNull();
+    expect(result?.sections[0].blocks[0].segmentIds).toEqual([]);
+    expect(result?.sections[0].blocks[0].atMs).toBeNull();
   });
 
-  it('keeps the citations of both windows when a point is made twice', async () => {
-    // The same decision restated in two windows is one decision — and it really
-    // was said twice, so both moments are evidence.
+  it('merges two windows that wrote about the same subject', async () => {
+    // Two windows that both wrote "The printing-press analogy" wrote about the
+    // same thing. Appending them as separate sections gives the note the same
+    // heading twice.
+    const withHeading = (text: string, line: number) =>
+      JSON.stringify({
+        title: 'Charla',
+        sections: [
+          { heading: 'La imprenta', blocks: [{ type: 'paragraph', text, s: [line] }] },
+        ],
+        actions: [],
+        openQuestions: [],
+        listAdditions: [],
+      });
+
     const generate = vi
       .fn()
-      .mockResolvedValueOnce(reply([{ text: 'Usamos Postgres', s: [1] }]))
-      .mockResolvedValue(reply([{ text: 'usamos postgres', s: [1] }]));
+      .mockResolvedValueOnce(withHeading('Primera mitad.', 1))
+      .mockResolvedValue(withHeading('Segunda mitad.', 1));
     const result = await summarize(request(30), generate);
-    expect(result?.notes).toHaveLength(1);
-    expect(result?.notes[0].segmentIds.length).toBeGreaterThan(1);
+    expect(result?.sections).toHaveLength(1);
+    expect(result?.sections[0].blocks.length).toBeGreaterThan(1);
   });
 });
 

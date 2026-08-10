@@ -110,9 +110,11 @@ describe('one core, plus a fragment per profile', () => {
     }
   });
 
-  it('adds nothing for a recording nobody classified', () => {
-    // The core is a complete instruction on its own.
-    expect(PROFILE_INSTRUCTIONS.auto).toBe('');
+  it('still tells a recording nobody classified to be a document', () => {
+    // It used to add nothing, and "no profile" was being read as "no instruction
+    // about form" — which is how `auto` produced the worst notes of any profile.
+    expect(PROFILE_INSTRUCTIONS.auto).toContain('headings and paragraphs');
+    expect(PROFILE_INSTRUCTIONS.auto).toContain('never one long list');
   });
 
   it('never restates the core, which is what makes copies drift', () => {
@@ -152,6 +154,6 @@ describe('authorised expansion', () => {
     const prompt = buildPrompt(lines(1, 'x'), options({ expansions: [expansion] }));
     expect(prompt).toContain('- una pizza de pollo');
     expect(prompt).toContain('ONLY these');
-    expect(prompt).toContain('Do not add anything for any other subject.');
+    expect(prompt).toContain('add nothing for any other subject');
   });
 });

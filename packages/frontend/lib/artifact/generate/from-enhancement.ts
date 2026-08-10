@@ -4,39 +4,34 @@
  * The model and the rule-based pass used to build different shapes and render
  * them through different code, so a note quietly changed structure depending on
  * whether a model happened to be installed. They converge here: one shape, one
- * composer, one renderer. The user should not be able to tell which one wrote
- * their note apart from it being better.
+ * composer, one renderer.
  *
- * ## Grounding is now checked, not guessed
+ * What is new is that the model's shape is now a DOCUMENT. It returns sections
+ * with headings and blocks — paragraphs, lists, quotations — rather than four
+ * arrays of short lines, so a paragraph survives the trip instead of being
+ * flattened into a bullet on the way in.
  *
- * The first version of this file matched a model's sentence against the
- * transcript by similarity and cited whatever looked closest. That was honest
- * about its own weakness and still a guess. The model is now asked which lines it
- * used, those references are validated against the lines it was actually shown,
- * and what arrives here is a list of real segment ids. An item that cites nothing
- * gets no sources — visibly ungrounded, rather than quietly indistinguishable
- * from one that is.
+ * ## Grounding is checked, not guessed
  *
- * ## Derived items
- *
- * The only route by which knowledge the recording does not contain may enter a
- * note, and it is closed unless the user opened it out loud. An item claiming a
- * subject nobody authorised never reaches this file — the parser drops it — and
- * one that does carries the sentence that authorised it, so a reader can see both
- * that it was added and why.
+ * The model is asked which transcript lines it used, those references are
+ * validated against the lines it was actually shown, and what arrives here is a
+ * list of real segment ids. A block that cites nothing gets no sources — visibly
+ * ungrounded, rather than quietly indistinguishable from one that is.
  */
 
 import type { PendingExpansion } from '@/lib/artifact/types';
-import type { ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/summarize';
+import type { ResolvedBlock, ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/contract';
 import { itemId } from '@/lib/artifact/item-id';
 import type {
   ArtifactStage,
   CaptureProfile,
   DocumentIntent,
+  GeneratedBlock,
   GeneratedChecklist,
   GeneratedChecklistItem,
   GeneratedItem,
   GeneratedNoteArtifact,
+  GeneratedSection,
   SourceRange,
 } from '@/lib/artifact/types';
 import { checklistKindFor } from '@/lib/artifact/dictation/list';
@@ -46,6 +41,7 @@ export interface FromEnhancementInput {
   captureId: string;
   noteId: string;
   stage: ArtifactStage;
+  /** What the USER chose. `auto` lets the model's own reading through. */
   profile: CaptureProfile;
   intent: DocumentIntent;
   /** What the user authorised, so a derived item can cite the sentence that did. */
@@ -56,51 +52,111 @@ export interface FromEnhancementInput {
   fallbackTitle: string;
 }
 
-function sourcesOf(item: ResolvedItem, captureId: string): SourceRange[] {
-  if (item.segmentIds.length === 0) return [];
+function sourcesOf(
+  resolved: { segmentIds: string[]; atMs: number | null },
+  captureId: string,
+): SourceRange[] {
+  if (resolved.segmentIds.length === 0) return [];
   return [
     {
       captureId,
-      startMs: item.atMs ?? 0,
-      endMs: item.atMs ?? 0,
-      segmentIds: [...item.segmentIds],
+      startMs: resolved.atMs ?? 0,
+      endMs: resolved.atMs ?? 0,
+      segmentIds: [...resolved.segmentIds],
     },
   ];
 }
 
-function toItem(
-  kind: string,
+/**
+ * Whether this is knowledge Noted supplied, and the receipt for it.
+ *
+ * A derived item without its authorisation would be indistinguishable from
+ * something a speaker said. If the receipt is missing it is reported as ordinary
+ * transcript content — which it then has to be grounded like, and usually is not.
+ */
+function derivationOf(
   item: ResolvedItem,
   input: FromEnhancementInput,
-): GeneratedItem {
-  const derived = item.derived
+): Pick<GeneratedItem, 'origin' | 'instructionSource' | 'derivationReason'> {
+  const authorised = item.derived
     ? input.expansions.find(
         (expansion) => expansion.subject.trim().toLowerCase() === item.derived?.subject,
       )
     : undefined;
 
+  return authorised
+    ? {
+        origin: 'derived-from-instruction',
+        instructionSource: authorised.instructionSource,
+        derivationReason: item.derived?.reason ?? authorised.subject,
+      }
+    : { origin: 'transcript' };
+}
+
+function toItem(kind: string, item: ResolvedItem, input: FromEnhancementInput): GeneratedItem {
   return {
     id: itemId(kind, item.text),
     text: item.text.trim(),
     status: 'active',
-    // A derived item without its authorisation would be indistinguishable from
-    // something a speaker said. If the receipt is missing the item is reported as
-    // ordinary transcript content — which it then has to be grounded like.
-    origin: derived ? 'derived-from-instruction' : 'transcript',
     sources: sourcesOf(item, input.captureId),
-    ...(derived
-      ? {
-          instructionSource: derived.instructionSource,
-          derivationReason: item.derived?.reason ?? derived.subject,
-        }
-      : {}),
+    ...derivationOf(item, input),
   };
+}
+
+/**
+ * One block of the model's document.
+ *
+ * Its id comes from its content for the same reason every other id does: a
+ * paragraph recognised again in a later pass has to be the same paragraph, or
+ * the note rearranges itself under the reader.
+ */
+function toBlock(block: ResolvedBlock, input: FromEnhancementInput): GeneratedBlock | null {
+  const base = {
+    status: 'active' as const,
+    origin: 'transcript' as const,
+    sources: sourcesOf(block, input.captureId),
+  };
+
+  if (block.type === 'bullet-list' || block.type === 'numbered-list') {
+    const items = (block.items ?? []).map((item) => toItem('list', item, input));
+    if (items.length === 0) return null;
+    return {
+      ...base,
+      id: itemId(block.type, items.map((item) => item.text).join('|')),
+      kind: block.type,
+      items,
+    };
+  }
+
+  const text = (block.text ?? '').trim();
+  if (text === '') return null;
+
+  if (block.type === 'quote') {
+    return {
+      ...base,
+      id: itemId('quote', text),
+      kind: 'quote',
+      text,
+      ...(block.attribution === undefined ? {} : { attribution: block.attribution }),
+    };
+  }
+  return { ...base, id: itemId('paragraph', text), kind: 'paragraph', text };
 }
 
 export function enhancementToArtifact(input: FromEnhancementInput): GeneratedNoteArtifact {
   const { enhancement, captureId } = input;
 
-  const notes = enhancement.notes.map((item) => toItem('note', item, input));
+  const sections: GeneratedSection[] = enhancement.sections
+    .map((section, index) => ({
+      id: `section:${captureId}:${String(index)}`,
+      kind: 'notes' as const,
+      ...(section.heading === undefined ? {} : { heading: section.heading }),
+      blocks: section.blocks
+        .map((block) => toBlock(block, input))
+        .filter((block): block is GeneratedBlock => block !== null),
+    }))
+    .filter((section) => section.blocks.length > 0);
+
   const questions = enhancement.openQuestions.map((item) => toItem('question', item, input));
 
   const actions: GeneratedChecklistItem[] = enhancement.actions.map((item) => ({
@@ -137,7 +193,9 @@ export function enhancementToArtifact(input: FromEnhancementInput): GeneratedNot
     noteId: input.noteId,
     captureId,
     stage: input.stage,
-    profile: input.profile,
+    // The model's reading of what this is, but only when the user did not say.
+    // Their choice always wins, which is why theirs is checked first.
+    profile: input.profile === 'auto' ? (enhancement.profile ?? 'auto') : input.profile,
     intent: input.intent,
     transcriptRevision: input.transcriptRevision,
     artifactRevision: 0,
@@ -148,24 +206,14 @@ export function enhancementToArtifact(input: FromEnhancementInput): GeneratedNot
       origin: 'transcript',
       sources: [],
     },
-    // The model's notes ARE the note, so they carry no heading — the same shape
-    // the deterministic pass produces, which is what keeps the note's structure
-    // from depending on whether a model was installed.
-    // Each note becomes its own PARAGRAPH rather than a line of one list. The
-    // model writes connected reasoning, and a bullet list asserts that its lines
-    // are peers — which destroys the connection rather than styling it badly.
-    // The canonical document schema (sections with headings) lands next; this is
-    // the domain being able to hold it.
-    sections:
-      notes.length > 0
-        ? [
-            {
-              id: `section:${captureId}:notes`,
-              kind: 'notes' as const,
-              blocks: notes.map((note) => ({ ...note, kind: 'paragraph' as const })),
-            },
-          ]
-        : [],
+    people: enhancement.people.map((person, index) => ({
+      id: `person:${captureId}:${String(index)}`,
+      ...(person.name === undefined ? {} : { name: person.name }),
+      ...(person.role === undefined ? {} : { role: person.role }),
+      ...(person.organization === undefined ? {} : { organization: person.organization }),
+      sources: sourcesOf(person, captureId),
+    })),
+    sections,
     checklists,
     openQuestions: questions,
     createdAt: input.now,

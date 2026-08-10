@@ -29,6 +29,7 @@
 
 import type { CaptureProfile, DocumentIntent, PendingExpansion } from '@/lib/artifact/types';
 import type { EnhanceLine } from '@/lib/enhance/contract';
+import { describeSchema, FIELDS } from '@/lib/enhance/schema';
 
 /**
  * Characters of transcript per request.
@@ -86,14 +87,25 @@ function timestamp(atMs: number): string {
  */
 export const CORE_INSTRUCTIONS = `Act as an excellent human note-taker listening to this recording.
 
-Write the notes a person would take if they wanted to understand and remember the important information later.
+Write a DOCUMENT about what was said — the notes an attentive person would write while listening — not a list of the sentences they heard.
+
+Organize it by subject, with a heading for each. Use paragraphs for connected reasoning and explanation. Use a bullet list only for genuinely list-shaped information, and a numbered list only for an ordered process.
 
 Capture meaning, not the shape of the conversation: explanations, concepts, context, examples, numbers and conclusions.
-Turn an answered question into the useful answer. Keep a question only when something important was genuinely left unresolved.
+Turn an answered question into the useful answer. Keep a question only when something important was genuinely left unresolved; a question the speaker asked and then answered is not one.
 Create an action only when someone committed to one, was assigned one, or asked you to write one down.
 Ignore greetings, filler, repetition and small talk.
 Every list may be empty. An empty list is a real answer; inventing something to fill it is not.
-Use only what the transcript says. Do not add knowledge of your own.`;
+Use only what the transcript says. Do not add knowledge of your own.
+
+WRITE ABOUT THE SPEAKER, NOT AS THEM.
+The transcript is somebody talking, so it is full of "I", "we" and "my". Your notes are written about that person, so they are not.
+Use a person's name when the transcript states it. Otherwise use a role the transcript states. Otherwise say "the speaker", "the lecturer", "the interviewer" or "the participant", in the language of the note.
+Never invent a name, a role, a gender or an organization. If the recording does not say who this is, do not say.
+Keep first person only inside a "quote" block, where it is explicitly somebody's own words, or when the speaker is dictating a note for themselves.
+In a meeting, prefer "the team", a participant's stated name, or impersonal wording. Do not guess who said what.
+
+Mark anything you are unsure of — a proper noun you could not make out, a figure you are not certain of — rather than stating it confidently.`;
 
 /**
  * What matters in each situation.
@@ -103,13 +115,16 @@ Use only what the transcript says. Do not add knowledge of your own.`;
  * nobody classified gets the core, which is a complete instruction.
  */
 export const PROFILE_INSTRUCTIONS: Readonly<Record<CaptureProfile, string>> = {
-  auto: '',
+  // Not empty any more. A recording nobody classified still deserves a document
+  // rather than an undifferentiated list — "no profile" was being read as "no
+  // instruction about form", which is how `auto` produced the worst notes.
+  auto: 'Organize the note by subject, with headings and paragraphs. A recording nobody classified is still a document, never one long list.',
   meeting:
     'This is a meeting. Keep decisions and their latest status, owners and deadlines, and blockers that are still open. Do not repeat a decision as both a note and an action.',
   lecture:
-    'This is a class. Keep concepts and definitions, explanations and causes, examples, formulas, dates, names and figures, distinctions and conclusions. A class usually has no actions and no decisions; leave those empty.',
+    'This is a class. Give each concept its own section: the definition, the explanation, the examples, and how it relates to the rest. Keep formulas, dates, names and figures. A class usually has no actions and no decisions; leave those empty.',
   event:
-    'This is a talk or an event. Keep the speaker or topic when it is said, the main arguments, announcements, figures and examples, and takeaways worth revisiting. An event usually has no actions; leave them empty.',
+    'This is a talk or an event. Record who is speaking in "people" when the recording says — a stated role counts, an invented name does not. Give each argument its own section with a heading, keep the evidence and examples they used, and finish with what is worth taking away. An event usually has no actions; leave them empty.',
   brainstorm:
     'This is a brainstorm. Keep the ideas, the alternatives and the reasoning, with advantages, disadvantages and constraints. Record a decision only if the group actually settled one.',
   interview:
@@ -134,7 +149,8 @@ export function expansionInstructions(expansions: readonly PendingExpansion[]): 
 The speaker explicitly asked you to complete the following, so for these — and ONLY these — you may add standard items that were not said out loud:
 ${subjects}
 
-Put each added item in listAdditions with "derived" set to the subject it belongs to and a short reason. Do not add anything for any other subject.`;
+Put each added item in ${FIELDS.listAdditions} like this, and add nothing for any other subject:
+{ "${FIELDS.text}": "", "${FIELDS.derived}": { "subject": "", "reason": "" } }`;
 }
 
 export interface PromptOptions {
@@ -148,16 +164,6 @@ export interface PromptOptions {
   /** True when this is one window of several, so the model does not conclude. */
   isPartial?: boolean;
 }
-
-/** The reply shape, stated once and constrained by the backends where they can. */
-const REPLY_SHAPE = `Return valid JSON only:
-{"title":"","notes":[],"actions":[],"openQuestions":[],"listAdditions":[]}
-
-Each entry of notes, actions, openQuestions and listAdditions is an object:
-{"text":"the note","s":[3,4]}
-where "s" lists the transcript line numbers the note came from. Use only line numbers shown below. If nothing supports it, use [].
-
-title: a short specific title for what is being discussed.`;
 
 export function buildPrompt(window: readonly EnhanceLine[], options: PromptOptions): string {
   // Numbered from one, because a model asked for "line 0" reliably answers with
@@ -193,7 +199,7 @@ Do not repeat them. Add only useful information that is still missing.
     scope,
     language,
     alreadyWritten,
-    REPLY_SHAPE,
+    describeSchema(),
     `Transcript:\n${lines}`,
   ]
     .filter((part) => part.trim() !== '')

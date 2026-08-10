@@ -7,7 +7,7 @@ import { composeNote } from '@/lib/artifact/compose';
 import { enhancementToArtifact } from '@/lib/artifact/generate/from-enhancement';
 import { renderArtifact } from '@/lib/artifact/render';
 import type { PendingExpansion } from '@/lib/artifact/types';
-import type { ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/contract';
+import type { ResolvedBlock, ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/contract';
 
 const CAPTURE_ID = 'c1';
 const FALLBACK = '8 Aug 2026, 10:00';
@@ -21,10 +21,15 @@ function item(text: string, over: Partial<ResolvedItem> = {}): ResolvedItem {
   return { text, segmentIds: ['c1#0.0'], atMs: 0, ...over };
 }
 
+function para(text: string, over: Partial<ResolvedBlock> = {}): ResolvedBlock {
+  return { type: 'paragraph', text, segmentIds: ['c1#0.0'], atMs: 0, ...over };
+}
+
 function enhancement(over: Partial<ResolvedEnhancement> = {}): ResolvedEnhancement {
   return {
     title: 'Revisión del presupuesto',
-    notes: [item('Al final vamos a usar el proveedor barato')],
+    people: [],
+    sections: [{ blocks: [para('Al final vamos a usar el proveedor barato')] }],
     actions: [item('Enviar el contrato antes del viernes', { segmentIds: ['c1#0.1'], atMs: 6_000 })],
     openQuestions: [item('¿Quién habla con el proveedor?', { segmentIds: ['c1#0.2'], atMs: 12_000 })],
     listAdditions: [],
@@ -57,6 +62,20 @@ describe('the model writes the same shape', () => {
     );
   });
 
+  it('keeps the heading the model gave a section', () => {
+    const artifact = build({
+      sections: [{ heading: 'El proveedor', blocks: [para('Al final el barato.')] }],
+    });
+    expect(renderArtifact(artifact)).toContain('## El proveedor');
+  });
+
+  it('records who was speaking when the model says, and invents nobody', () => {
+    const named = build({ people: [{ role: 'Ministro de educación', segmentIds: ['c1#0.0'], atMs: 0 }] });
+    expect(named.people?.[0]).toMatchObject({ role: 'Ministro de educación' });
+    expect(named.people?.[0].name).toBeUndefined();
+    expect(build().people).toEqual([]);
+  });
+
   it('puts its actions in the checklist and nowhere else', () => {
     const artifact = build();
     expect(artifact.checklists[0].items.map((entry) => entry.text)).toEqual([
@@ -68,7 +87,7 @@ describe('the model writes the same shape', () => {
   it('omits an empty section rather than announcing it', () => {
     expect(renderArtifact(build({ openQuestions: [] }))).not.toContain('## Open questions');
     expect(build({ actions: [] }).checklists).toEqual([]);
-    expect(build({ notes: [] }).sections).toEqual([]);
+    expect(build({ sections: [] }).sections).toEqual([]);
   });
 
   it('carries the profile through, so the note is organised as what it is', () => {
@@ -93,7 +112,9 @@ describe('grounding', () => {
   it('cites nothing when the model cited nothing', () => {
     // An item a reader can follow to the wrong moment is worse than one they
     // cannot follow at all.
-    const ungrounded = build({ notes: [item('Según nadie', { segmentIds: [], atMs: null })] });
+    const ungrounded = build({
+      sections: [{ blocks: [para('Según nadie', { segmentIds: [], atMs: null })] }],
+    });
     expect(unitsOf(ungrounded.sections[0])[0].sources).toEqual([]);
   });
 });
