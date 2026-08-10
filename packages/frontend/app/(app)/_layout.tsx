@@ -8,6 +8,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUIStore } from "@/lib/stores/ui-store";
 import i18n from "@/lib/i18n";
+import { QueryProvider } from "@/lib/query-client";
 import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
 import { useLocalStore } from "@/lib/db/use-local-store";
@@ -46,7 +47,29 @@ const renderScene = ({ children }: { children: React.ReactNode }) => (
 const VISIBLE_ROUTES = new Set<string>();
 
 
+/**
+ * The app's own react-query client, mounted where its own hooks can see it.
+ *
+ * `useNotificationSetup` calls `useQueryClient()`, which THROWS rather than
+ * returning null when no provider is above it — and this app had none. It worked
+ * only for as long as it borrowed the client `OxyProvider` mounts for its own
+ * internals, which is not a contract: a dependency reorganising its provider tree
+ * takes the app's notifications down with it, and the failure is a white screen
+ * behind an error boundary rather than anything that names the cause.
+ *
+ * `lib/query-client.tsx` was written for this and never mounted. It is mounted
+ * here rather than at the root because the hooks that need it live in THIS
+ * component, and a provider cannot serve the component that renders it.
+ */
 export default function AppLayout() {
+  return (
+    <QueryProvider>
+      <AppLayoutContent />
+    </QueryProvider>
+  );
+}
+
+function AppLayoutContent() {
   const dimensions = useWindowDimensions();
   const isLargeScreen = dimensions.width >= 768;
   const { colors } = useColorScheme();
