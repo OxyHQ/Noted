@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PendingExpansion } from '@/lib/artifact/types';
+import type { PendingExpansion } from '@noted/shared-types';
 import type { EnhanceRequest, SummarizerProgress } from '@/lib/enhance/contract';
 import { summarize } from '@/lib/enhance/summarize';
 

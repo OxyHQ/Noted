@@ -11,13 +11,8 @@
  * disagree the moment one of them is ticked.
  */
 
-import {
-  DEFAULT_ARTIFACT_LABELS,
-  type ArtifactLabels,
-  type GeneratedBlock,
-  type GeneratedNoteArtifact,
-  type GeneratedSection,
-} from '@/lib/artifact/types';
+import { type GeneratedBlock, type GeneratedNoteArtifact, type GeneratedSection } from '@noted/shared-types';
+import { type ArtifactLabels, DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
 import { nonEmptySections, visibleItems } from '@/lib/artifact/artifact';
 
 /**

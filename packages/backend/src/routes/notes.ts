@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Request, Response } from 'express';
-import { and, arrayContains, asc, desc, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, arrayContains, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { isLiveEntityId } from '@oxyhq/db';
 import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
 import { normalizeNoteColor } from '@noted/shared-types';
@@ -10,6 +10,15 @@ import { authenticateToken } from '../middleware/auth.js';
 import { getDb } from '../db/postgres.js';
 import { notes } from '../db/schema/notes.js';
 import { serializeNote } from '../lib/serializers.js';
+import {
+  artifactsWriteSchema,
+  deleteGeneratedHalf,
+  notesWithGeneratedChangesSince,
+  overridesWriteSchema,
+  readGeneratedHalf,
+  upsertArtifacts,
+  upsertOverrides,
+} from '../lib/note-artifacts.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
 import { emitNoteCreated, emitNoteUpdated, emitNoteDeleted } from '../socket.js';
 import { log } from '../lib/logger.js';
@@ -58,6 +67,13 @@ const noteWriteSchema = z
     attachments: z.array(z.string()),
     reminderAt: z.string().datetime().nullable(),
     order: z.number(),
+    /**
+     * The generated half, sent with the note rather than on endpoints of its
+     * own — a note that arrived without its overrides would render generated
+     * text the user had already edited away.
+     */
+    artifacts: artifactsWriteSchema,
+    itemOverrides: overridesWriteSchema,
   })
   .partial();
 
@@ -93,6 +109,22 @@ function toColumns(input: NoteWrite): Record<string, unknown> {
 /** `updatedAt` is ours to move, not the caller's — every write touches it. */
 function touched(columns: Record<string, unknown>): Record<string, unknown> {
   return { ...columns, updatedAt: new Date() };
+}
+
+/**
+ * Write whatever generated half the caller sent, and nothing it did not.
+ *
+ * The distinction is the point: a client PATCHing a colour sends neither field,
+ * and must not thereby erase a recording's structure. Absent means "I have
+ * nothing to say about this", which is not the same as an empty array.
+ */
+async function writeGeneratedHalf(
+  noteId: string,
+  userId: string,
+  input: NoteWrite,
+): Promise<void> {
+  if (input.artifacts) await upsertArtifacts(noteId, userId, input.artifacts);
+  if (input.itemOverrides) await upsertOverrides(noteId, userId, input.itemOverrides);
 }
 
 router.use(authenticateToken, requireOxyAuth);
@@ -135,7 +167,7 @@ router.get('/', readLimiter, async (req: Request, res: Response) => {
       .where(and(...filters))
       .orderBy(desc(notes.pinned), asc(notes.sortOrder), desc(notes.updatedAt));
 
-    res.json({ data: rows.map(serializeNote) });
+    res.json({ data: rows.map((row) => serializeNote(row)) });
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error listing notes');
     res.status(500).json({ error: 'Failed to list notes' });
@@ -201,6 +233,8 @@ router.post('/', writeLimiter, async (req: Request, res: Response) => {
       return res.status(200).json(serializeNote(winner));
     }
 
+    await writeGeneratedHalf(note.id, userId, parsed.data);
+
     const dto = serializeNote(note);
     emitNoteCreated(userId, dto);
     res.status(201).json(dto);
@@ -222,8 +256,9 @@ router.get('/sync', readLimiter, async (req: Request, res: Response) => {
     const oxyUserId = getRequiredOxyUserId(req);
 
     const filters = [eq(notes.oxyUserId, oxyUserId)];
+    let since: Date | null = null;
     if (typeof req.query.since === 'string' && req.query.since) {
-      const since = new Date(req.query.since);
+      since = new Date(req.query.since);
       if (Number.isNaN(since.getTime())) {
         return res.status(400).json({ error: 'since must be an ISO timestamp' });
       }
@@ -241,9 +276,38 @@ router.get('/sync', readLimiter, async (req: Request, res: Response) => {
       .where(and(...filters))
       .orderBy(asc(notes.updatedAt));
 
+    // A note whose generated half moved without the note itself moving is still
+    // a change this client needs. `since` is absent on a first pull, which
+    // already returns everything.
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    if (since) {
+      const missed = await notesWithGeneratedChangesSince(oxyUserId, since);
+      const unseen = missed.filter((id) => !byId.has(id));
+      if (unseen.length > 0) {
+        const extra = await getDb()
+          .select()
+          .from(notes)
+          .where(and(eq(notes.oxyUserId, oxyUserId), inArray(notes.id, unseen)));
+        for (const row of extra) byId.set(row.id, row);
+      }
+    }
+
+    const present = [...byId.values()]
+      .filter((row) => !row.deletedAt)
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
+    const generated = await readGeneratedHalf(
+      present.map((row) => row.id),
+      oxyUserId,
+    );
+
     res.json({
-      data: rows.filter((row) => !row.deletedAt).map(serializeNote),
-      deleted: rows.filter((row) => row.deletedAt).map((row) => row.id),
+      data: present.map((row) =>
+        serializeNote(row, {
+          artifacts: generated.artifacts.get(row.id) ?? [],
+          overrides: generated.overrides.get(row.id) ?? [],
+        }),
+      ),
+      deleted: [...byId.values()].filter((row) => row.deletedAt).map((row) => row.id),
       serverTime,
     });
   } catch (error: unknown) {
@@ -301,7 +365,14 @@ router.get('/:id', readLimiter, async (req: Request, res: Response) => {
         and(eq(notes.id, noteId), eq(notes.oxyUserId, oxyUserId), isNull(notes.deletedAt)),
       );
     if (!note) return res.status(404).json({ error: 'Note not found' });
-    res.json(serializeNote(note));
+
+    const generated = await readGeneratedHalf([note.id], oxyUserId);
+    res.json(
+      serializeNote(note, {
+        artifacts: generated.artifacts.get(note.id) ?? [],
+        overrides: generated.overrides.get(note.id) ?? [],
+      }),
+    );
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error fetching note');
     res.status(500).json({ error: 'Failed to fetch note' });
@@ -330,6 +401,8 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
       )
       .returning();
     if (!note) return res.status(404).json({ error: 'Note not found' });
+
+    await writeGeneratedHalf(note.id, userId, parsed.data);
 
     const dto = serializeNote(note);
     emitNoteUpdated(userId, dto);
@@ -434,6 +507,11 @@ router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
         and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
       )
       .returning({ id: notes.id });
+
+    // The tombstone clears the note's own content; the generated half has to go
+    // with it. The foreign key would do this eventually — but not for a month,
+    // and "delete forever" cannot mean the transcript-derived text stays.
+    if (note) await deleteGeneratedHalf(note.id, userId);
 
     // Only a row this request actually tombstoned is worth announcing; a repeat
     // would tell every other device to delete a note they deleted long ago.

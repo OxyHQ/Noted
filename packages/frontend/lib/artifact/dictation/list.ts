@@ -21,13 +21,7 @@
 
 import type { ListCommand } from '@/lib/artifact/dictation/instructions';
 import { itemId } from '@/lib/artifact/item-id';
-import type {
-  DocumentIntent,
-  GeneratedChecklist,
-  GeneratedChecklistItem,
-  PendingExpansion,
-  SourceRange,
-} from '@/lib/artifact/types';
+import type { DocumentIntent, GeneratedChecklist, GeneratedChecklistItem, PendingExpansion, SourceRange } from '@noted/shared-types';
 import { isNearDuplicate, normaliseForComparison } from '@/lib/structure/similar';
 
 /** Which checklist a given intent produces. */

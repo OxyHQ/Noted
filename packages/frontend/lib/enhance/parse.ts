@@ -32,7 +32,7 @@ import type {
   EnhancementPerson,
   EnhancementSection,
 } from '@/lib/enhance/contract';
-import type { CaptureProfile } from '@/lib/artifact/types';
+import type { CaptureProfile } from '@noted/shared-types';
 import { BLOCK_TYPES, FIELDS, SCHEMA_PROFILES } from '@/lib/enhance/schema';
 
 /** Longest reply worth parsing. Beyond this the model is not answering. */

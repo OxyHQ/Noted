@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { visibleItems } from '@/lib/artifact/artifact';
-import { emptyOverride, overridesById, type UserItemOverride } from '@/lib/artifact/ownership';
+import type { UserItemOverride } from '@noted/shared-types';
+import { emptyOverride, overridesById } from '@/lib/artifact/ownership';
 import { mergeSources, reconcileItems, reduceLiveArtifact } from '@/lib/artifact/reduce';
 import {
   artifact,

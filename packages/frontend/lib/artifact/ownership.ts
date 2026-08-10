@@ -16,12 +16,7 @@
  * - *What does the reader see?* The user's version, if they gave one.
  */
 
-import type {
-  GeneratedBlock,
-  GeneratedChecklistItem,
-  GeneratedItem,
-  GeneratedNoteArtifact,
-} from '@/lib/artifact/types';
+import type { GeneratedBlock, GeneratedChecklistItem, GeneratedItem, GeneratedNoteArtifact, UserItemOverride } from '@noted/shared-types';
 import { allItems, blockUnits, filterItems, mapItems } from '@/lib/artifact/artifact';
 
 /**
@@ -31,24 +26,6 @@ import { allItems, blockUnits, filterItems, mapItems } from '@/lib/artifact/arti
  * is what lets a regenerated artifact set the tick itself; `checked: false` means
  * they unticked it, which a regeneration must not undo.
  */
-export interface UserItemOverride {
-  itemId: string;
-  /** Replacement text, or null when they only ticked or removed it. */
-  text: string | null;
-  /** The tick the user set, or null when they never touched it. */
-  checked: boolean | null;
-  /** They deleted it. Later passes may not bring it back. */
-  removed: boolean;
-  /**
-   * They took it as their own.
-   *
-   * An adopted item is no longer the app's to reword or retire; it survives every
-   * later pass untouched, which is the promise that makes editing generated text
-   * safe to do while the recording is still running.
-   */
-  adopted: boolean;
-}
-
 export function emptyOverride(itemId: string): UserItemOverride {
   return { itemId, text: null, checked: null, removed: false, adopted: false };
 }

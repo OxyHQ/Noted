@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { allItems } from '@/lib/artifact/artifact';
 import { renderArtifact } from '@/lib/artifact/render';
-import type { GeneratedNoteArtifact } from '@/lib/artifact/types';
+import type { GeneratedNoteArtifact } from '@noted/shared-types';
 import { toBlockSection } from '@/lib/artifact/legacy-sections';
 
 /**

@@ -1,15 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { allItems } from '@/lib/artifact/artifact';
-import {
-  applyOverrides,
-  carryProtectedItems,
-  emptyOverride,
-  isProtected,
-  isTouched,
-  overridesById,
-  type UserItemOverride,
-} from '@/lib/artifact/ownership';
+import type { UserItemOverride } from '@noted/shared-types';
+import { applyOverrides, carryProtectedItems, emptyOverride, isProtected, isTouched, overridesById } from '@/lib/artifact/ownership';
 import {
   artifact,
   checklist,

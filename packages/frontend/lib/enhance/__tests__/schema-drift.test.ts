@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest';
 import { parseEnhancement } from '@/lib/enhance/parse';
 import { buildPrompt } from '@/lib/enhance/prompt';
 import { BLOCK_TYPES, DOCUMENT_SCHEMA, FIELDS, SCHEMA_PROFILES } from '@/lib/enhance/schema';
-import { CAPTURE_PROFILES } from '@/lib/artifact/types';
+import { CAPTURE_PROFILES } from '@noted/shared-types';
 import type { EnhanceLine } from '@/lib/enhance/contract';
 
 const HERE = import.meta.dirname;

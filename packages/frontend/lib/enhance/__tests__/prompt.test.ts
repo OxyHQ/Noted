@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { PendingExpansion } from '@/lib/artifact/types';
+import type { PendingExpansion } from '@noted/shared-types';
 import type { EnhanceLine } from '@/lib/enhance/contract';
 import {
   buildPrompt,
@@ -10,7 +10,7 @@ import {
   splitForContext,
   type PromptOptions,
 } from '@/lib/enhance/prompt';
-import { CAPTURE_PROFILES } from '@/lib/artifact/types';
+import { CAPTURE_PROFILES } from '@noted/shared-types';
 
 function lines(count: number, text: string): EnhanceLine[] {
   return Array.from({ length: count }, (_, index) => ({

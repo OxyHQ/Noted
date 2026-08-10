@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { visibleItems } from '@/lib/artifact/artifact';
 import { parseListCommands } from '@/lib/artifact/dictation/instructions';
 import { buildDictatedList, checklistKindFor } from '@/lib/artifact/dictation/list';
-import type { GeneratedChecklistItem, SourceRange } from '@/lib/artifact/types';
+import type { GeneratedChecklistItem, SourceRange } from '@noted/shared-types';
 
 const CAPTURE_ID = 'c1';
 

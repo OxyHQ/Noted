@@ -6,7 +6,7 @@ import { allItems } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
 import { enhancementToArtifact } from '@/lib/artifact/generate/from-enhancement';
 import { renderArtifact } from '@/lib/artifact/render';
-import type { PendingExpansion } from '@/lib/artifact/types';
+import type { PendingExpansion } from '@noted/shared-types';
 import type { ResolvedBlock, ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/contract';
 
 const CAPTURE_ID = 'c1';

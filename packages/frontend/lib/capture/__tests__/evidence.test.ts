@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TranscriptSegment } from '@/lib/capture/captures-repo';
 import { evidenceFor, isCheckable, playbackStartOf } from '@/lib/capture/evidence';
-import type { GeneratedItem, SourceRange } from '@/lib/artifact/types';
+import type { GeneratedItem, SourceRange } from '@noted/shared-types';
 
 const CAPTURE_ID = 'c1';
 

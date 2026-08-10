@@ -18,12 +18,7 @@
  * reason: the id is a hash of the text, so a reworded point cannot match itself.
  */
 
-import type {
-  GeneratedBlock,
-  GeneratedItem,
-  GeneratedNoteArtifact,
-  SourceRange,
-} from '@/lib/artifact/types';
+import type { GeneratedBlock, GeneratedItem, GeneratedNoteArtifact, SourceRange } from '@noted/shared-types';
 import { blockUnits, transitionItem } from '@/lib/artifact/artifact';
 import { isProtected, type OverrideMap } from '@/lib/artifact/ownership';
 import { isNearDuplicate } from '@/lib/structure/similar';

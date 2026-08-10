@@ -15,10 +15,11 @@
  *   revision. Finalisation has read the whole recording; a live pass never has.
  */
 
-import { execute, executeTransaction, type Row } from '@/lib/db/client';
+import { execute, executeTransaction, type Row, type Statement } from '@/lib/db/client';
 import { useLiveQuery } from '@/lib/db/live-query';
-import type { ArtifactStage, GeneratedNoteArtifact } from '@/lib/artifact/types';
-import { emptyOverride, type UserItemOverride } from '@/lib/artifact/ownership';
+import type { ArtifactStage, GeneratedNoteArtifact } from '@noted/shared-types';
+import type { UserItemOverride } from '@noted/shared-types';
+import { emptyOverride } from '@/lib/artifact/ownership';
 import { toBlockSection } from '@/lib/artifact/legacy-sections';
 
 export interface ArtifactRow extends Row {
@@ -38,7 +39,7 @@ export interface ArtifactRow extends Row {
 /** The parts of an artifact that live inside `doc_json` rather than in a column. */
 type ArtifactDocument = Pick<
   GeneratedNoteArtifact,
-  'title' | 'sections' | 'checklists' | 'openQuestions' | 'pendingExpansions'
+  'title' | 'sections' | 'people' | 'checklists' | 'openQuestions' | 'pendingExpansions'
 >;
 
 const EMPTY_DOCUMENT: ArtifactDocument = { sections: [], checklists: [], openQuestions: [] };
@@ -60,6 +61,7 @@ function parseDocument(json: string): ArtifactDocument {
     return {
       title: document.title,
       sections: Array.isArray(document.sections) ? document.sections.map(toBlockSection) : [],
+      people: Array.isArray(document.people) ? document.people : undefined,
       checklists: Array.isArray(document.checklists) ? document.checklists : [],
       openQuestions: Array.isArray(document.openQuestions) ? document.openQuestions : [],
       pendingExpansions: Array.isArray(document.pendingExpansions)
@@ -86,6 +88,7 @@ export function rowToArtifact(row: ArtifactRow): GeneratedNoteArtifact {
     artifactRevision: row.artifact_revision,
     title: document.title,
     sections: document.sections,
+    people: document.people,
     checklists: document.checklists,
     openQuestions: document.openQuestions,
     pendingExpansions: document.pendingExpansions,
@@ -135,6 +138,19 @@ export async function getNoteArtifacts(noteId: string): Promise<NoteArtifacts> {
   return toNoteArtifacts(rowsToArtifacts(await execute<ArtifactRow>(ARTIFACTS_BY_NOTE_SQL, [noteId])));
 }
 
+/**
+ * Every settled artifact this note holds, one per recording.
+ *
+ * `getNoteArtifacts` collapses to the newest of each stage, which is what a
+ * composer wants and what an upload must not do: a note somebody recorded into
+ * twice has two final artifacts, and sending only the newer one would tell the
+ * server the first recording never happened.
+ */
+export async function listFinalArtifacts(noteId: string): Promise<GeneratedNoteArtifact[]> {
+  const rows = await execute<ArtifactRow>(ARTIFACTS_BY_NOTE_SQL, [noteId]);
+  return rowsToArtifacts(rows).filter((artifact) => artifact.stage === 'final');
+}
+
 export async function getCaptureArtifacts(captureId: string): Promise<NoteArtifacts> {
   return toNoteArtifacts(
     rowsToArtifacts(await execute<ArtifactRow>(ARTIFACTS_BY_CAPTURE_SQL, [captureId])),
@@ -165,6 +181,17 @@ ON CONFLICT (note_id, capture_id, stage) DO UPDATE SET
 WHERE excluded.transcript_revision >= note_artifacts.transcript_revision
 `;
 
+const OVERRIDE_UPSERT_SQL = `
+INSERT INTO note_item_overrides (note_id, item_id, text, checked, removed, adopted, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (note_id, item_id) DO UPDATE SET
+  text = excluded.text,
+  checked = excluded.checked,
+  removed = excluded.removed,
+  adopted = excluded.adopted,
+  updated_at = excluded.updated_at
+`;
+
 const FINAL_EXISTS_SQL = `SELECT id FROM note_artifacts
   WHERE note_id = ? AND capture_id = ? AND stage = 'final' LIMIT 1`;
 
@@ -181,33 +208,64 @@ export async function saveArtifact(artifact: GeneratedNoteArtifact): Promise<boo
     if (finalRows.length > 0) return false;
   }
 
+  const affected = await executeTransaction([artifactUpsertStatement(artifact)]);
+  return (affected[0] ?? 0) > 0;
+}
+
+/**
+ * The upsert, as a statement rather than a call.
+ *
+ * Sync applies a pulled artifact inside the same transaction as the note it
+ * arrived with, so it needs the statement and not the round trip — and it must
+ * be THIS statement, because the revision guard is the `WHERE` clause on it. A
+ * second spelling of that guard for the sync path would be a second rule.
+ */
+export function artifactUpsertStatement(artifact: GeneratedNoteArtifact): Statement {
   const document: ArtifactDocument = {
     title: artifact.title,
     sections: artifact.sections,
+    people: artifact.people,
     checklists: artifact.checklists,
     openQuestions: artifact.openQuestions,
     pendingExpansions: artifact.pendingExpansions,
   };
 
-  const affected = await executeTransaction([
-    {
-      sql: ARTIFACT_UPSERT_SQL,
-      params: [
-        artifact.id,
-        artifact.noteId,
-        artifact.captureId,
-        artifact.stage,
-        artifact.profile,
-        artifact.intent,
-        artifact.transcriptRevision,
-        artifact.artifactRevision,
-        JSON.stringify(document),
-        artifact.createdAt,
-        artifact.updatedAt,
-      ],
-    },
-  ]);
-  return (affected[0] ?? 0) > 0;
+  return {
+    sql: ARTIFACT_UPSERT_SQL,
+    params: [
+      artifact.id,
+      artifact.noteId,
+      artifact.captureId,
+      artifact.stage,
+      artifact.profile,
+      artifact.intent,
+      artifact.transcriptRevision,
+      artifact.artifactRevision,
+      JSON.stringify(document),
+      artifact.createdAt,
+      artifact.updatedAt,
+    ],
+  };
+}
+
+/** The override upsert, as a statement, for the same reason. */
+export function overrideUpsertStatement(
+  noteId: string,
+  override: UserItemOverride,
+  updatedAt: string,
+): Statement {
+  return {
+    sql: OVERRIDE_UPSERT_SQL,
+    params: [
+      noteId,
+      override.itemId,
+      override.text,
+      override.checked === null ? null : override.checked ? 1 : 0,
+      override.removed ? 1 : 0,
+      override.adopted ? 1 : 0,
+      updatedAt,
+    ],
+  };
 }
 
 /** Forget a capture's artifacts — when its recording and notes are deleted together. */
@@ -267,25 +325,7 @@ export async function setNoteOverride(
   const next: UserItemOverride = { ...current, ...patch };
 
   await executeTransaction([
-    {
-      sql: `INSERT INTO note_item_overrides (note_id, item_id, text, checked, removed, adopted, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (note_id, item_id) DO UPDATE SET
-              text = excluded.text,
-              checked = excluded.checked,
-              removed = excluded.removed,
-              adopted = excluded.adopted,
-              updated_at = excluded.updated_at`,
-      params: [
-        noteId,
-        next.itemId,
-        next.text,
-        next.checked === null ? null : next.checked ? 1 : 0,
-        next.removed ? 1 : 0,
-        next.adopted ? 1 : 0,
-        new Date().toISOString(),
-      ],
-    },
+    overrideUpsertStatement(noteId, next, new Date().toISOString()),
   ]);
 }
 

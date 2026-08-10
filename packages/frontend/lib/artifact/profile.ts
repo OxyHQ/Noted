@@ -15,7 +15,7 @@
  */
 
 import type { ListCommand } from '@/lib/artifact/dictation/instructions';
-import type { CaptureProfile } from '@/lib/artifact/types';
+import type { CaptureProfile } from '@noted/shared-types';
 import { splitSentences } from '@/lib/structure/extract';
 
 export interface ProfileSources {

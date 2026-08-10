@@ -50,6 +50,32 @@ deliberate records of why a Postgres decision was made, not leftovers.
 - `packages/backend/src/models/notification.ts` — Notification record
 - `packages/backend/src/models/web-push-subscription.ts` — Web Push subscription
 
+## A note has two halves, and both cross the wire
+
+The body is Markdown. Everything that makes a recorded note checkable — which
+sentence came from which second, who was speaking, which revision of the
+transcript a claim was checked against, which lines the user rewrote — is the
+**artifact**, and it is a separate document with its own tables
+(`note_artifacts`, `note_item_overrides`) on both the device and the server.
+
+Four rules that are not visible from the code:
+
+- **The domain lives in `@noted/shared-types`, not in the app.** The server
+  stores the artifact, so it has an opinion about its shape; two copies of that
+  opinion is the drift that makes a correct write parse to nothing on the far
+  side. `CAPTURE_PROFILES` and `DOCUMENT_INTENTS` are `as const` tuples and their
+  unions are DERIVED from them, so the server's validator and the client's type
+  cannot disagree.
+- **Only `final` artifacts sync.** A `live` one is rewritten every few seconds
+  while somebody is still talking; uploading it would be a request per slice.
+- **The write is a compare-and-swap in SQL, on both sides** — a `WHERE` on the
+  upsert (`transcript_revision >= existing`), never a read-then-write in
+  application code, which a slow request wins.
+- **Absent ≠ empty.** A payload without `artifacts`/`itemOverrides` says nothing
+  about them and changes nothing; an empty array says there are none and clears
+  them. The feed read omits them on purpose, so a note from the feed must never
+  be applied as though it had none.
+
 ## Reminders
 
 `packages/backend/src/lib/reminders.ts` — `startReminderScheduler()` / `stopReminderScheduler()` manage the reminder cron; started in `src/index.ts`.

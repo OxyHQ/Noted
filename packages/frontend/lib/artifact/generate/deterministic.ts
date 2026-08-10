@@ -23,20 +23,9 @@ import { itemId } from '@/lib/artifact/item-id';
 import { parseListCommands } from '@/lib/artifact/dictation/instructions';
 import { buildDictatedList } from '@/lib/artifact/dictation/list';
 import { classifyProfile, resolveProfile, spokenProfile } from '@/lib/artifact/profile';
-import {
-  DEFAULT_ARTIFACT_LABELS,
-  type ArtifactLabels,
-} from '@/lib/artifact/types';
-import type {
-  ArtifactStage,
-  CaptureProfile,
-  DocumentIntent,
-  GeneratedChecklistItem,
-  GeneratedItem,
-  GeneratedNoteArtifact,
-  GeneratedSection,
-  SourceRange,
-} from '@/lib/artifact/types';
+import {  } from '@noted/shared-types';
+import { type ArtifactLabels, DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
+import type { ArtifactStage, CaptureProfile, DocumentIntent, GeneratedChecklistItem, GeneratedItem, GeneratedNoteArtifact, GeneratedSection, SourceRange } from '@noted/shared-types';
 
 /** How long a generated title may run before it is cut at a word boundary. */
 const MAX_TITLE_CHARS = 60;

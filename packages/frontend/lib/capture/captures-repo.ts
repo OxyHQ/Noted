@@ -28,7 +28,7 @@ import {
   type NoteGenerationStatus,
   type TranscriptionStatus,
 } from '@/lib/capture/lifecycle';
-import type { CaptureProfile } from '@/lib/artifact/types';
+import type { CaptureProfile } from '@noted/shared-types';
 import { deleteCaptureAudio } from '@/lib/audio/store';
 import { segmentId } from '@/lib/stt/segment-id';
 

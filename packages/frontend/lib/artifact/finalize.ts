@@ -24,11 +24,7 @@
  * narrow rather than dressed up as reconciliation.
  */
 
-import type {
-  GeneratedItem,
-  GeneratedNoteArtifact,
-  GeneratedSection,
-} from '@/lib/artifact/types';
+import type { GeneratedItem, GeneratedNoteArtifact, GeneratedSection } from '@noted/shared-types';
 import { transitionItem, visibleItems } from '@/lib/artifact/artifact';
 import { isProtected, type OverrideMap } from '@/lib/artifact/ownership';
 import { mergeSources } from '@/lib/artifact/reduce';
