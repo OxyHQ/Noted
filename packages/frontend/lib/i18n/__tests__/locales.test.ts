@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { resolveSupportedLocale, SUPPORTED_LOCALES } from '..';
+// From the catalogue, not the entry point: the entry reaches
+// `expo-localization`, and a question about which JSON files exist does not
+// need a native module — importing one took the whole suite red on `main`.
+import { resolveSupportedLocale, SUPPORTED_LOCALES } from '../catalogue';
 import en from '../locales/en.json';
 
 const localesDirectory = path.resolve(__dirname, '../locales');

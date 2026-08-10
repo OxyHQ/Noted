@@ -264,16 +264,24 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
   [
     `ALTER TABLE captures ADD COLUMN enhancement_status TEXT NOT NULL DEFAULT 'pending'`,
 
-    // WHY the enhancement did not land, kept apart from `error_code`.
-    // `enhancement_status` alone could only ever say "unsupported", which the
-    // user reads as a statement about their device — and it was that for a
-    // truncated reply, a parser rejection and a lost commit race alike. This
-    // column is what lets the screen name the actual reason and offer a retry
-    // where one would help.
-    `ALTER TABLE captures ADD COLUMN enhancement_reason TEXT`,
     `UPDATE captures SET enhancement_status = 'complete'
        WHERE generation_status = 'complete' AND transcription_status = 'complete'`,
   ],
+
+  // WHY the enhancement did not land, kept apart from `error_code`.
+  // `enhancement_status` alone could only ever say "unsupported", which the user
+  // reads as a statement about their device — and it was that for a truncated
+  // reply, a parser rejection and a lost commit race alike. This column is what
+  // lets the screen name the actual reason and offer a retry where one helps.
+  //
+  // ITS OWN MIGRATION, and that is the whole lesson. It was first written into
+  // the entry above, which every existing database had already applied: a
+  // migration list keyed on `user_version` only ever runs entries a device has
+  // not reached, so a statement appended to an old one is a statement that
+  // never runs. A fresh install worked perfectly and every real device failed
+  // with `no such column: enhancement_reason` — on the FIRST WRITE, which is
+  // starting a recording.
+  [`ALTER TABLE captures ADD COLUMN enhancement_reason TEXT`],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
