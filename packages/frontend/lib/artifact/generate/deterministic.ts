@@ -160,6 +160,23 @@ export function buildDeterministicArtifact(input: DeterministicInput): Generated
   // different case, and there both survive.
   const listOnly = profile === 'dictation' && dictated.checklist !== null;
 
+  /**
+   * Whether this recording's commitments are worth trusting an extractor with.
+   *
+   * A talk is full of "we have to" — "we have to evolve as humans", "what we have
+   * to do is think faster" — and none of it is a task anybody agreed to. The
+   * patterns cannot tell rhetoric from a commitment, and this module's own rule
+   * is precision over recall: a missed task is a line the user can still read in
+   * the transcript, an invented one is a commitment nobody made in a note they
+   * trust.
+   *
+   * The cost is real and worth stating: a lecturer who genuinely sets homework
+   * loses it from the checklist here. It stays in the transcript, and the model —
+   * which does run for these profiles and can tell an assignment from a
+   * rhetorical flourish — can still produce it.
+   */
+  const extractsActions = profile !== 'event' && profile !== 'lecture';
+
   const highlights = dedupe(
     blocks.flatMap((block) => extractHighlights(block.text, block.startMs)),
   );
@@ -254,7 +271,7 @@ export function buildDeterministicArtifact(input: DeterministicInput): Generated
     checklists: [
       // What was dictated comes first: the user asked for it in so many words.
       ...(dictated.checklist ? [dictated.checklist] : []),
-      ...(checklistItems.length > 0 && !listOnly
+      ...(checklistItems.length > 0 && !listOnly && extractsActions
         ? [
             {
               id: `checklist:${captureId}:actions`,
