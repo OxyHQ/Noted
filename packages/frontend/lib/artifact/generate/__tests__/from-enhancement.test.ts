@@ -4,46 +4,41 @@ import { allItems } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
 import { enhancementToArtifact } from '@/lib/artifact/generate/from-enhancement';
 import { renderArtifact } from '@/lib/artifact/render';
-import type { Enhancement } from '@/lib/enhance/contract';
-import type { Block } from '@/lib/structure/segment';
+import type { PendingExpansion } from '@/lib/artifact/types';
+import type { ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/contract';
 
 const CAPTURE_ID = 'c1';
 const FALLBACK = '8 Aug 2026, 10:00';
 
-const BLOCKS: Block[] = [
-  {
-    startMs: 0,
-    endMs: 5_000,
-    text: 'Al final vamos a usar el proveedor barato para todo el trimestre',
-    speaker: null,
-    segmentIds: ['c1#0.0'],
-  },
-  {
-    startMs: 6_000,
-    endMs: 11_000,
-    text: 'Hay que enviar el contrato antes del viernes por la mañana',
-    speaker: null,
-    segmentIds: ['c1#0.1'],
-  },
-];
+const EXPANSION: PendingExpansion = {
+  subject: 'una pizza de pollo',
+  instructionSource: { captureId: CAPTURE_ID, startMs: 9_000, endMs: 12_000, segmentIds: ['c1#0.3'] },
+};
 
-function enhancement(over: Partial<Enhancement> = {}): Enhancement {
+function item(text: string, over: Partial<ResolvedItem> = {}): ResolvedItem {
+  return { text, segmentIds: ['c1#0.0'], atMs: 0, ...over };
+}
+
+function enhancement(over: Partial<ResolvedEnhancement> = {}): ResolvedEnhancement {
   return {
     title: 'Revisión del presupuesto',
-    notes: ['Al final vamos a usar el proveedor barato para todo el trimestre'],
-    actions: ['Hay que enviar el contrato antes del viernes por la mañana'],
-    openQuestions: ['¿Quién habla con el proveedor?'],
+    notes: [item('Al final vamos a usar el proveedor barato')],
+    actions: [item('Enviar el contrato antes del viernes', { segmentIds: ['c1#0.1'], atMs: 6_000 })],
+    openQuestions: [item('¿Quién habla con el proveedor?', { segmentIds: ['c1#0.2'], atMs: 12_000 })],
+    listAdditions: [],
     ...over,
   };
 }
 
-function build(over: Partial<Enhancement> = {}) {
+function build(over: Partial<ResolvedEnhancement> = {}, expansions: PendingExpansion[] = []) {
   return enhancementToArtifact({
     enhancement: enhancement(over),
     captureId: CAPTURE_ID,
     noteId: 'n1',
-    blocks: BLOCKS,
     stage: 'final',
+    profile: 'meeting',
+    intent: 'freeform',
+    expansions,
     transcriptRevision: 3,
     now: '2026-08-08T11:00:00.000Z',
     fallbackTitle: FALLBACK,
@@ -56,16 +51,16 @@ describe('the model writes the same shape', () => {
     // that needs no labelling — and the note's structure must not change because
     // a model happened to be installed.
     expect(renderArtifact(build())).toBe(
-      '- Al final vamos a usar el proveedor barato para todo el trimestre\n\n## Open questions\n\n- ¿Quién habla con el proveedor?',
+      '- Al final vamos a usar el proveedor barato\n\n## Open questions\n\n- ¿Quién habla con el proveedor?',
     );
   });
 
   it('puts its actions in the checklist and nowhere else', () => {
     const artifact = build();
     expect(artifact.checklists[0].items.map((entry) => entry.text)).toEqual([
-      'Hay que enviar el contrato antes del viernes por la mañana',
+      'Enviar el contrato antes del viernes',
     ]);
-    expect(renderArtifact(artifact)).not.toContain('enviar el contrato');
+    expect(renderArtifact(artifact)).not.toContain('Enviar el contrato');
   });
 
   it('omits an empty section rather than announcing it', () => {
@@ -74,8 +69,8 @@ describe('the model writes the same shape', () => {
     expect(build({ notes: [] }).sections).toEqual([]);
   });
 
-  it('drops blank lines the model padded its reply with', () => {
-    expect(build({ notes: ['  ', 'Algo real que se dijo'] }).sections[0].items).toHaveLength(1);
+  it('carries the profile through, so the note is organised as what it is', () => {
+    expect(build().profile).toBe('meeting');
   });
 
   it('names the note when the model returned no title', () => {
@@ -84,16 +79,53 @@ describe('the model writes the same shape', () => {
 });
 
 describe('grounding', () => {
-  it('cites the moment an item is plainly about', () => {
+  it('cites the segments the model actually referenced', () => {
+    // The first version of this matched sentences to blocks by similarity and
+    // cited whatever looked closest. That was a guess; these are the lines the
+    // model said it used, checked against the ones it was shown.
     const cited = allItems(build()).find((entry) => entry.text.startsWith('Al final'));
     expect(cited?.sources[0]?.segmentIds).toEqual(['c1#0.0']);
+    expect(cited?.origin).toBe('transcript');
   });
 
-  it('cites nothing rather than the moment it was probably about', () => {
-    // An invented citation is worse than a missing one: a reader who follows it
-    // and finds the wrong moment stops trusting every other citation in the note.
-    const invented = build({ notes: ['El equipo está contento con el resultado general'] });
-    expect(invented.sections[0].items[0].sources).toEqual([]);
+  it('cites nothing when the model cited nothing', () => {
+    // An item a reader can follow to the wrong moment is worse than one they
+    // cannot follow at all.
+    const ungrounded = build({ notes: [item('Según nadie', { segmentIds: [], atMs: null })] });
+    expect(ungrounded.sections[0].items[0].sources).toEqual([]);
+  });
+});
+
+describe('derived items', () => {
+  const derived = item('mozzarella', {
+    segmentIds: [],
+    atMs: null,
+    derived: { subject: 'una pizza de pollo', reason: 'base de la pizza' },
+  });
+
+  it('are marked as knowledge Noted supplied, with the receipt', () => {
+    const artifact = build({ listAdditions: [derived] }, [EXPANSION]);
+    const added = artifact.checklists[0].items[0];
+    expect(added.origin).toBe('derived-from-instruction');
+    expect(added.instructionSource).toEqual(EXPANSION.instructionSource);
+    expect(added.derivationReason).toBe('base de la pizza');
+  });
+
+  it('go into the list the user dictated, not a second one beside it', () => {
+    const artifact = build({ listAdditions: [derived], actions: [] }, [EXPANSION]);
+    expect(artifact.checklists).toHaveLength(1);
+    expect(artifact.checklists[0].id).toBe('checklist:c1:dictated');
+  });
+
+  it('are reported as ordinary content when the receipt is missing', () => {
+    // Without the authorisation there is nothing to point at, and an unmarked
+    // derived item is indistinguishable from something a speaker said. Reporting
+    // it as transcript content is the honest fallback — and it then has to be
+    // grounded like any other, which this one is not.
+    const artifact = build({ listAdditions: [derived] }, []);
+    const added = artifact.checklists[0].items[0];
+    expect(added.origin).toBe('transcript');
+    expect(added.instructionSource).toBeUndefined();
   });
 });
 

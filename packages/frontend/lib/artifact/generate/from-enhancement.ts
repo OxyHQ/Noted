@@ -3,88 +3,132 @@
  *
  * The model and the rule-based pass used to build different shapes and render
  * them through different code, so a note quietly changed structure depending on
- * whether a model happened to be installed. They now converge here: one shape,
- * one composer, one renderer. The user should not be able to tell which one wrote
+ * whether a model happened to be installed. They converge here: one shape, one
+ * composer, one renderer. The user should not be able to tell which one wrote
  * their note apart from it being better.
  *
- * ## Grounding, honestly
+ * ## Grounding is now checked, not guessed
  *
- * The model writes prose, not quotations, so its sentences rarely appear in the
- * transcript verbatim. Each item is matched against the transcript blocks and
- * cites the one it matches; an item that matches nothing cites NOTHING rather
- * than the block it was probably about. An invented citation is worse than a
- * missing one — a reader who follows it and finds the wrong moment stops trusting
- * every other citation in the note.
+ * The first version of this file matched a model's sentence against the
+ * transcript by similarity and cited whatever looked closest. That was honest
+ * about its own weakness and still a guess. The model is now asked which lines it
+ * used, those references are validated against the lines it was actually shown,
+ * and what arrives here is a list of real segment ids. An item that cites nothing
+ * gets no sources — visibly ungrounded, rather than quietly indistinguishable
+ * from one that is.
  *
- * The model returning segment ids directly is the better answer and belongs with
- * the constrained-output work; this is what is honest until then.
+ * ## Derived items
+ *
+ * The only route by which knowledge the recording does not contain may enter a
+ * note, and it is closed unless the user opened it out loud. An item claiming a
+ * subject nobody authorised never reaches this file — the parser drops it — and
+ * one that does carries the sentence that authorised it, so a reader can see both
+ * that it was added and why.
  */
 
-import type { Enhancement } from '@/lib/enhance/contract';
-import type { Block } from '@/lib/structure/segment';
-import { isNearDuplicate } from '@/lib/structure/similar';
+import type { PendingExpansion } from '@/lib/artifact/types';
+import type { ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/summarize';
 import { itemId } from '@/lib/artifact/item-id';
 import type {
   ArtifactStage,
+  CaptureProfile,
+  DocumentIntent,
+  GeneratedChecklist,
   GeneratedChecklistItem,
   GeneratedItem,
   GeneratedNoteArtifact,
   SourceRange,
 } from '@/lib/artifact/types';
-
-/** The block this sentence is about, if one plainly is. */
-function sourcesFor(text: string, blocks: readonly Block[], captureId: string): SourceRange[] {
-  const block = blocks.find((candidate) => isNearDuplicate(candidate.text, text));
-  if (!block) return [];
-  return [
-    { captureId, startMs: block.startMs, endMs: block.endMs, segmentIds: [...block.segmentIds] },
-  ];
-}
-
-function toItem(
-  kind: string,
-  text: string,
-  blocks: readonly Block[],
-  captureId: string,
-): GeneratedItem {
-  return {
-    id: itemId(kind, text),
-    text: text.trim(),
-    status: 'active',
-    origin: 'transcript',
-    sources: sourcesFor(text, blocks, captureId),
-  };
-}
+import { checklistKindFor } from '@/lib/artifact/dictation/list';
 
 export interface FromEnhancementInput {
-  enhancement: Enhancement;
+  enhancement: ResolvedEnhancement;
   captureId: string;
   noteId: string;
-  blocks: readonly Block[];
   stage: ArtifactStage;
+  profile: CaptureProfile;
+  intent: DocumentIntent;
+  /** What the user authorised, so a derived item can cite the sentence that did. */
+  expansions: readonly PendingExpansion[];
   transcriptRevision: number;
   now: string;
   /** Names the note when the model returned no title of its own. */
   fallbackTitle: string;
 }
 
+function sourcesOf(item: ResolvedItem, captureId: string): SourceRange[] {
+  if (item.segmentIds.length === 0) return [];
+  return [
+    {
+      captureId,
+      startMs: item.atMs ?? 0,
+      endMs: item.atMs ?? 0,
+      segmentIds: [...item.segmentIds],
+    },
+  ];
+}
+
+function toItem(
+  kind: string,
+  item: ResolvedItem,
+  input: FromEnhancementInput,
+): GeneratedItem {
+  const derived = item.derived
+    ? input.expansions.find(
+        (expansion) => expansion.subject.trim().toLowerCase() === item.derived?.subject,
+      )
+    : undefined;
+
+  return {
+    id: itemId(kind, item.text),
+    text: item.text.trim(),
+    status: 'active',
+    // A derived item without its authorisation would be indistinguishable from
+    // something a speaker said. If the receipt is missing the item is reported as
+    // ordinary transcript content — which it then has to be grounded like.
+    origin: derived ? 'derived-from-instruction' : 'transcript',
+    sources: sourcesOf(item, input.captureId),
+    ...(derived
+      ? {
+          instructionSource: derived.instructionSource,
+          derivationReason: item.derived?.reason ?? derived.subject,
+        }
+      : {}),
+  };
+}
+
 export function enhancementToArtifact(input: FromEnhancementInput): GeneratedNoteArtifact {
-  const { enhancement, blocks, captureId } = input;
+  const { enhancement, captureId } = input;
 
-  const notes = enhancement.notes
-    .map((text) => text.trim())
-    .filter((text) => text !== '')
-    .map((text) => toItem('note', text, blocks, captureId));
+  const notes = enhancement.notes.map((item) => toItem('note', item, input));
+  const questions = enhancement.openQuestions.map((item) => toItem('question', item, input));
 
-  const actions: GeneratedChecklistItem[] = enhancement.actions
-    .map((text) => text.trim())
-    .filter((text) => text !== '')
-    .map((text) => ({ ...toItem('action', text, blocks, captureId), checked: false }));
+  const actions: GeneratedChecklistItem[] = enhancement.actions.map((item) => ({
+    ...toItem('action', item, input),
+    checked: false,
+  }));
 
-  const questions = enhancement.openQuestions
-    .map((text) => text.trim())
-    .filter((text) => text !== '')
-    .map((text) => toItem('question', text, blocks, captureId));
+  // What the model was asked to complete goes in the list the user dictated, not
+  // in a second one beside it: they asked for one list.
+  const additions: GeneratedChecklistItem[] = enhancement.listAdditions.map((item) => ({
+    ...toItem('list', item, input),
+    checked: false,
+  }));
+
+  const checklists: GeneratedChecklist[] = [
+    ...(additions.length > 0
+      ? [
+          {
+            id: `checklist:${captureId}:dictated`,
+            kind: checklistKindFor(input.intent),
+            items: additions,
+          },
+        ]
+      : []),
+    ...(actions.length > 0
+      ? [{ id: `checklist:${captureId}:actions`, kind: 'actions' as const, items: actions }]
+      : []),
+  ];
 
   const title = enhancement.title.trim() || input.fallbackTitle;
 
@@ -93,8 +137,8 @@ export function enhancementToArtifact(input: FromEnhancementInput): GeneratedNot
     noteId: input.noteId,
     captureId,
     stage: input.stage,
-    profile: 'auto',
-    intent: 'freeform',
+    profile: input.profile,
+    intent: input.intent,
     transcriptRevision: input.transcriptRevision,
     artifactRevision: 0,
     title: {
@@ -102,16 +146,13 @@ export function enhancementToArtifact(input: FromEnhancementInput): GeneratedNot
       text: title,
       status: 'active',
       origin: 'transcript',
-      sources: sourcesFor(title, blocks, captureId),
+      sources: [],
     },
     // The model's notes ARE the note, so they carry no heading — the same shape
     // the deterministic pass produces, which is what keeps the note's structure
     // from depending on whether a model was installed.
     sections: notes.length > 0 ? [{ id: `section:${captureId}:notes`, kind: 'notes', items: notes }] : [],
-    checklists:
-      actions.length > 0
-        ? [{ id: `checklist:${captureId}:actions`, kind: 'actions', items: actions }]
-        : [],
+    checklists,
     openQuestions: questions,
     createdAt: input.now,
     updatedAt: input.now,

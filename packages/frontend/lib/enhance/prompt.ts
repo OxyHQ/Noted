@@ -1,17 +1,34 @@
 /**
  * What the model is asked, and how a meeting is made to fit.
  *
- * A phone-sized model has a small context window, and a two-hour meeting does
- * not fit in it. Truncating loses whatever was said in the part thrown away —
- * and the end of a meeting is usually where the decisions are, so truncating the
- * end is the worst possible choice while looking like the obvious one.
+ * ## One core, plus a fragment per profile
  *
- * So a long transcript is read in windows and the answers are combined. Each
- * window is a complete request the model can answer well, and nothing is
- * silently dropped.
+ * A lecture, a stand-up and a dictated shopping list want different notes, and
+ * the tempting way to serve all three is a prompt per profile. Six copies of a
+ * long instruction drift the moment one of them is improved, and the drift is
+ * invisible — every copy still produces plausible output. So there is one core
+ * that states what a note IS, and a short fragment per profile that says what
+ * matters in that situation. A fragment never repeats the core.
+ *
+ * ## Why the transcript is numbered
+ *
+ * A model writes fluent prose, which is what makes it dangerous: an invented
+ * claim reads better than a real one. Numbering the lines lets it say which ones
+ * each note came from, cheaply — a small model handles `[3, 4]` far better than a
+ * list of segment ids — and the caller checks those numbers against the lines it
+ * actually sent.
+ *
+ * ## Windows
+ *
+ * A phone-sized model has a small context window and a two-hour meeting does not
+ * fit in it. Truncating loses whatever was in the part thrown away, and the end
+ * of a meeting is usually where the decisions are — so truncating the end is the
+ * worst possible choice while looking like the obvious one. A long transcript is
+ * read in windows instead, and nothing is silently dropped.
  */
 
-import type { Enhancement } from "@/lib/enhance/contract";
+import type { CaptureProfile, DocumentIntent, PendingExpansion } from '@/lib/artifact/types';
+import type { EnhanceLine } from '@/lib/enhance/contract';
 
 /**
  * Characters of transcript per request.
@@ -23,11 +40,6 @@ import type { Enhancement } from "@/lib/enhance/contract";
  */
 export const DEFAULT_WINDOW_CHARS = 6_000;
 
-export interface TranscriptLine {
-  atMs: number;
-  text: string;
-}
-
 /**
  * Split a transcript into windows that each fit the budget.
  *
@@ -36,11 +48,11 @@ export interface TranscriptLine {
  * window to itself rather than being cut.
  */
 export function splitForContext(
-  transcript: readonly TranscriptLine[],
+  transcript: readonly EnhanceLine[],
   budget = DEFAULT_WINDOW_CHARS,
-): TranscriptLine[][] {
-  const windows: TranscriptLine[][] = [];
-  let current: TranscriptLine[] = [];
+): EnhanceLine[][] {
+  const windows: EnhanceLine[][] = [];
+  let current: EnhanceLine[] = [];
   let size = 0;
 
   for (const line of transcript) {
@@ -61,42 +73,107 @@ function timestamp(atMs: number): string {
   const totalSeconds = Math.floor(atMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+/**
+ * What a note is, whatever kind of recording produced it.
+ *
+ * The instruction that matters most is the one telling the model it may return
+ * nothing: a meeting where little was decided should produce a short note, and a
+ * model that feels obliged to fill four sections will invent three of them. An
+ * invented action item is worse than a missing one — the user acts on it.
+ */
+export const CORE_INSTRUCTIONS = `Act as an excellent human note-taker listening to this recording.
+
+Write the notes a person would take if they wanted to understand and remember the important information later.
+
+Capture meaning, not the shape of the conversation: explanations, concepts, context, examples, numbers and conclusions.
+Turn an answered question into the useful answer. Keep a question only when something important was genuinely left unresolved.
+Create an action only when someone committed to one, was assigned one, or asked you to write one down.
+Ignore greetings, filler, repetition and small talk.
+Every list may be empty. An empty list is a real answer; inventing something to fill it is not.
+Use only what the transcript says. Do not add knowledge of your own.`;
+
+/**
+ * What matters in each situation.
+ *
+ * Short by construction: a fragment that restated the core would be a second
+ * copy of it, and the two would drift. `auto` adds nothing at all — a recording
+ * nobody classified gets the core, which is a complete instruction.
+ */
+export const PROFILE_INSTRUCTIONS: Readonly<Record<CaptureProfile, string>> = {
+  auto: '',
+  meeting:
+    'This is a meeting. Keep decisions and their latest status, owners and deadlines, and blockers that are still open. Do not repeat a decision as both a note and an action.',
+  lecture:
+    'This is a class. Keep concepts and definitions, explanations and causes, examples, formulas, dates, names and figures, distinctions and conclusions. A class usually has no actions and no decisions; leave those empty.',
+  event:
+    'This is a talk or an event. Keep the speaker or topic when it is said, the main arguments, announcements, figures and examples, and takeaways worth revisiting. An event usually has no actions; leave them empty.',
+  brainstorm:
+    'This is a brainstorm. Keep the ideas, the alternatives and the reasoning, with advantages, disadvantages and constraints. Record a decision only if the group actually settled one.',
+  interview:
+    'This is an interview. Keep the useful answers grouped by topic, with facts, stories and claims worth following up. Do not reproduce it as a question-and-answer transcript.',
+  dictation:
+    'The speaker is dictating a list rather than discussing something. Put what they asked for in listAdditions, one entry per thing. Keep notes, actions and openQuestions empty unless they also said something that belongs there.',
+};
+
+/**
+ * The one thing that lets the model contribute knowledge of its own.
+ *
+ * Empty almost always, and that is the point: ordinary discussion may only be
+ * reported. "Hablamos de hacer una pizza" is not permission. Each authorisation
+ * is named, so an item the model adds can be traced back to the sentence that
+ * allowed it — and anything it adds outside these subjects is refused by the
+ * caller rather than argued with.
+ */
+export function expansionInstructions(expansions: readonly PendingExpansion[]): string {
+  if (expansions.length === 0) return '';
+  const subjects = expansions.map((expansion) => `- ${expansion.subject}`).join('\n');
+  return `
+The speaker explicitly asked you to complete the following, so for these — and ONLY these — you may add standard items that were not said out loud:
+${subjects}
+
+Put each added item in listAdditions with "derived" set to the subject it belongs to and a short reason. Do not add anything for any other subject.`;
 }
 
 export interface PromptOptions {
   /** What the user wrote themselves, so the model adds rather than repeats. */
   existingBody?: string;
-  /** BCP-47-ish code, or `auto` to answer in the language of the meeting. */
+  /** BCP-47-ish code, or `auto` to answer in the language of the recording. */
   language: string;
+  profile: CaptureProfile;
+  intent: DocumentIntent;
+  expansions: readonly PendingExpansion[];
   /** True when this is one window of several, so the model does not conclude. */
   isPartial?: boolean;
 }
 
-/**
- * Build the request.
- *
- * The instruction that matters most is the one telling the model it may return
- * nothing: a meeting where little was decided should produce a short note, and a
- * model that feels obliged to fill five sections will invent four of them. An
- * invented action item is worse than a missing one — the user acts on it.
- */
-export function buildPrompt(
-  window: readonly TranscriptLine[],
-  options: PromptOptions,
-): string {
+/** The reply shape, stated once and constrained by the backends where they can. */
+const REPLY_SHAPE = `Return valid JSON only:
+{"title":"","notes":[],"actions":[],"openQuestions":[],"listAdditions":[]}
+
+Each entry of notes, actions, openQuestions and listAdditions is an object:
+{"text":"the note","s":[3,4]}
+where "s" lists the transcript line numbers the note came from. Use only line numbers shown below. If nothing supports it, use [].
+
+title: a short specific title for what is being discussed.`;
+
+export function buildPrompt(window: readonly EnhanceLine[], options: PromptOptions): string {
+  // Numbered from one, because a model asked for "line 0" reliably answers with
+  // the first line anyway and then everything is off by one.
   const lines = window
-    .map((line) => `[${timestamp(line.atMs)}] ${line.text}`)
-    .join("\n");
+    .map((line, index) => `${String(index + 1)}. [${timestamp(line.atMs)}] ${line.text}`)
+    .join('\n');
 
   const language =
-    options.language === "auto"
-      ? "Write in the language primarily used in the conversation."
+    options.language === 'auto'
+      ? 'Write in the language primarily used in the recording.'
       : `Write in ${options.language}.`;
 
   const scope = options.isPartial
-    ? "This is part of a longer conversation. Take notes only from what is contained here."
-    : "This is the full conversation.";
+    ? 'This is part of a longer recording. Take notes only from what is contained here.'
+    : 'This is the whole recording.';
 
   const existing = options.existingBody?.trim();
   const alreadyWritten = existing
@@ -107,70 +184,18 @@ ${existing}
 """
 Do not repeat them. Add only useful information that is still missing.
 `
-    : "";
+    : '';
 
-  return `Act as an excellent human note-taker listening to this conversation.
-
-Write the notes a person would naturally take if they wanted to understand and remember the important information later.
-
-Capture useful information, explanations, ideas, conclusions, context, examples, numbers, plans and important details. Turn conversational exchanges into clear notes instead of reproducing the conversation.
-
-Do not write down questions that were answered. Capture the useful answer instead.
-Only include an open question when something important was genuinely left unresolved.
-Only create an action when someone actually committed to or was assigned a next step.
-
-Ignore greetings, filler, repetition, small talk and unimportant details.
-Do not invent or infer information that was not said.
-Prefer concise but informative notes rather than a summary of the conversation.
-
-${scope}
-${language}
-${alreadyWritten}
-
-Return valid JSON only:
-{"title":"","notes":[],"actions":[],"openQuestions":[]}
-
-title: a short specific title for what is being discussed.
-notes: the actual notes someone would want to keep and study or refer back to later.
-actions: concrete agreed or assigned next steps, including who when known.
-openQuestions: important unresolved matters only, never questions that were answered.
-
-Transcript:
-${lines}`;
-}
-
-/**
- * Combine the answers from several windows into one note.
- *
- * Order is preserved because a meeting has one, and repeats are dropped because
- * the same decision restated in two windows is one decision. The title comes
- * from the first window that produced one: the beginning of a meeting is where
- * people say what it is about.
- */
-export function mergeEnhancements(
-  parts: readonly Enhancement[],
-): Enhancement | null {
-  const merged: Enhancement = {
-    title: "",
-    notes: [],
-    actions: [],
-    openQuestions: [],
-  };
-
-  for (const part of parts) {
-    if (merged.title === "" && part.title !== "") merged.title = part.title;
-    for (const field of ["notes", "actions", "openQuestions"] as const) {
-      for (const line of part[field]) {
-        const isRepeat = merged[field].some(
-          (existing) => existing.toLowerCase() === line.toLowerCase(),
-        );
-        if (!isRepeat) merged[field].push(line);
-      }
-    }
-  }
-
-  const hasContent =
-    merged.notes.length > 0 || merged.actions.length > 0 || merged.openQuestions.length > 0;
-
-  return hasContent ? merged : null;
+  return [
+    CORE_INSTRUCTIONS,
+    PROFILE_INSTRUCTIONS[options.profile],
+    expansionInstructions(options.expansions),
+    scope,
+    language,
+    alreadyWritten,
+    REPLY_SHAPE,
+    `Transcript:\n${lines}`,
+  ]
+    .filter((part) => part.trim() !== '')
+    .join('\n\n');
 }

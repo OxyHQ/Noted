@@ -217,10 +217,12 @@ export async function enhanceNote(
   const enhancement = await summarizer.enhance({
     // The model is shown the cleaned, block-grouped transcript rather than
     // whisper's raw segments: the filler and repetitions removed there are
-    // tokens a phone's context window would otherwise spend on nothing.
+    // tokens a phone's context window would otherwise spend on nothing. Each
+    // line carries its segments, so a citation can be resolved to real evidence.
     transcript: cleanedBlocks(context.segments).map((block) => ({
       atMs: block.startMs,
       text: block.text,
+      segmentIds: block.segmentIds,
     })),
     // Shown what the USER wrote, never the app's own previous output, or it
     // summarises itself.
@@ -230,6 +232,11 @@ export async function enhanceNote(
       checklist: context.userItems,
     },
     language,
+    profile: settled.profile,
+    intent: settled.intent,
+    // The only thing that lets the model contribute knowledge of its own, and it
+    // is whatever the user authorised out loud — usually nothing.
+    expansions: settled.pendingExpansions ?? [],
   });
   if (!enhancement) {
     logger.info('The model had nothing to add; keeping the structured note');
@@ -240,8 +247,10 @@ export async function enhanceNote(
     enhancement,
     captureId,
     noteId,
-    blocks: cleanedBlocks(context.segments),
     stage: 'final',
+    profile: settled.profile,
+    intent: settled.intent,
+    expansions: settled.pendingExpansions ?? [],
     transcriptRevision,
     now,
     fallbackTitle: deterministic.title?.text ?? startedAt.toLocaleString(),

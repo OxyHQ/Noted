@@ -16,7 +16,11 @@
 import { initLlama, releaseAllLlama, type LlamaContext } from 'llama.rn';
 import { createLogger } from '@oxyhq/core/logger';
 
-import type { EnhanceRequest, Enhancement, OnDeviceSummarizer } from '@/lib/enhance/contract';
+import type {
+  EnhanceRequest,
+  OnDeviceSummarizer,
+  ResolvedEnhancement,
+} from '@/lib/enhance/contract';
 import { isLlmModelPresent, llmModelPath } from '@/lib/enhance/models';
 import { summarize } from '@/lib/enhance/summarize';
 
@@ -84,8 +88,12 @@ export function getSummarizer(): OnDeviceSummarizer {
   return {
     availability: () => Promise.resolve(isLlmModelPresent() ? 'ready' : 'downloadable'),
 
-    async enhance(request: EnhanceRequest): Promise<Enhancement | null> {
+    async enhance(request: EnhanceRequest): Promise<ResolvedEnhancement | null> {
       if (!isLlmModelPresent()) return null;
+      // Loading is seconds and hundreds of megabytes, and from outside it looks
+      // exactly like generating — which is what made "Organizing notes…" over a
+      // silent load feel like a hang.
+      if (!context) request.onProgress?.({ stage: 'loading', ratio: null });
       const llama = await getContext();
 
       // Everything except this call is shared with the browser: windowing, the
