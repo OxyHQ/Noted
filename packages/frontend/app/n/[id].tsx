@@ -58,6 +58,7 @@ import {
   useCreateNote,
   useUpdateNote,
   useTrashNote,
+  useDeleteNote,
   makeDraftNote,
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
@@ -65,6 +66,7 @@ import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import type { LocalNote } from "@/lib/db/notes-repo";
 import { reconcileDraft } from "@/lib/notes/draft-sync";
 import { userBodyOf } from "@/lib/notes/generated-body";
+import { isEmptyNote } from "@/lib/notes/emptiness";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { generateUUID } from "@/lib/utils";
 import type { ChecklistItem, NoteColor } from "@noted/shared-types";
@@ -109,6 +111,7 @@ export default function NoteEditorScreen() {
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
   const trashNote = useTrashNote();
+  const deleteNote = useDeleteNote();
 
   // The note id we PATCH against. Starts null for `n/new` until the first save
   // creates a server note; thereafter all edits PATCH this id.
@@ -205,13 +208,10 @@ export default function NoteEditorScreen() {
       }
 
       // First save for a brand-new note: create once, then route to its id so
-      // subsequent edits PATCH the real server note.
-      const isEmpty =
-        !next.title.trim() &&
-        !userBody.trim() &&
-        next.checklist.length === 0 &&
-        (next.attachments?.length ?? 0) === 0;
-      if (isEmpty || creatingRef.current) return;
+      // subsequent edits PATCH the real server note. The same question the close
+      // path asks, asked in one place — two copies of "is this empty" drift, and
+      // the drift shows up as a note that could be created but not kept.
+      if (isEmptyNote({ ...next, userBody }) || creatingRef.current) return;
 
       creatingRef.current = true;
       createNote.mutate(
@@ -245,13 +245,28 @@ export default function NoteEditorScreen() {
 
   const autosave = useDebouncedCallback(persist, AUTOSAVE_MS);
 
-  // Commit any pending autosave when leaving the editor.
+  // Commit any pending autosave when leaving the editor, and throw the note away
+  // if there is nothing left in it.
+  //
+  // `base` is the guard that matters. It is null until the note has actually
+  // loaded, and the draft starts blank — so without it, opening an existing note
+  // and closing it before it loads would read as "the user emptied this" and
+  // delete something they never even saw.
   React.useEffect(() => {
     const unsub = navigation.addListener("beforeRemove", () => {
       autosave.flush();
+
+      const id = noteIdRef.current;
+      const next = draftRef.current;
+      if (!id || !base) return;
+      if (!isEmptyNote({ ...next, userBody: userBodyOf(next.body, next.generatedBody) })) return;
+
+      // Discarded rather than trashed. There is nothing in it to recover, and a
+      // trash full of blank cards is a chore the user has to clean up after.
+      deleteNote.mutate(id);
     });
     return unsub;
-  }, [navigation, autosave]);
+  }, [navigation, autosave, base, deleteNote]);
 
   // Apply a draft change locally and schedule a debounced autosave (typing).
   const update = React.useCallback(
