@@ -1170,7 +1170,9 @@
       "interrupted": "This recording was interrupted. The audio is safe.",
       "transcriptFailed": "The recording is safe, but Noted could not transcribe it.",
       "notesFailed": "The recording is safe, but Noted could not finish the notes.",
-      "failed": "This recording could not be saved."
+      "failed": "This recording could not be saved.",
+      "enhancementFailed": "Basic notes are ready. Enhanced organization could not be completed.",
+      "basicReady": "Basic notes are ready. This device cannot organize them further."
     },
     "retry": "Retry",
     "microphoneOnly": "In a browser Noted records this device's microphone only, not the other people in a call.",
@@ -1198,7 +1200,8 @@
       "audioKeeps": "The transcript and the note stay.",
       "transcriptCost": "Generated lines stop being checkable.",
       "transcriptKeeps": "The note stays, word for word."
-    }
+    },
+    "retryEnhancement": "Retry enhancement"
   },
   "transcription": {
     "title": "Transcription",

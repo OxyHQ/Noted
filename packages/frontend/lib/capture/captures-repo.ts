@@ -24,6 +24,7 @@ import {
   type CaptureLifecycle,
   type CaptureStatus,
   type LegacyCaptureState,
+  type EnhancementStatus,
   type NoteGenerationStatus,
   type TranscriptionStatus,
 } from '@/lib/capture/lifecycle';
@@ -38,6 +39,7 @@ export interface CaptureRow extends Row {
   capture_status: string;
   transcription_status: string;
   generation_status: string;
+  enhancement_status: string;
   profile: string;
   transcript_revision: number;
   started_at: string;
@@ -78,6 +80,13 @@ const TRANSCRIPTION_STATUSES: readonly string[] = [
   'failed',
 ];
 const GENERATION_STATUSES: readonly string[] = ['idle', 'live', 'finalizing', 'complete', 'failed'];
+const ENHANCEMENT_STATUSES: readonly string[] = [
+  'unsupported',
+  'pending',
+  'running',
+  'complete',
+  'failed',
+];
 const LEGACY_STATES: readonly string[] = [
   'recording',
   'interrupted',
@@ -104,6 +113,11 @@ export function rowToLifecycle(row: CaptureRow): CaptureLifecycle {
       capture: row.capture_status as CaptureStatus,
       transcription: row.transcription_status as TranscriptionStatus,
       generation: row.generation_status as NoteGenerationStatus,
+      // A row written before enhancement had a column of its own reads as
+      // `pending`, which is what it was: nothing had tried yet.
+      enhancement: ENHANCEMENT_STATUSES.includes(row.enhancement_status)
+        ? (row.enhancement_status as EnhancementStatus)
+        : 'pending',
     };
   }
   const legacy = LEGACY_STATES.includes(row.state) ? (row.state as LegacyCaptureState) : 'failed';
@@ -172,14 +186,15 @@ export async function beginCapture(input: {
     capture: 'starting',
     transcription: 'idle',
     generation: 'idle',
+    enhancement: 'pending',
   };
   await executeTransaction([
     {
       sql: `INSERT INTO captures (
               id, note_id, state, capture_status, transcription_status, generation_status,
-              profile, transcript_revision, started_at, ended_at, duration_ms, audio_path,
-              audio_file_id, model_id, language, error_code, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, 0, ?, NULL, NULL, ?, NULL, ?, ?)`,
+              enhancement_status, profile, transcript_revision, started_at, ended_at, duration_ms,
+              audio_path, audio_file_id, model_id, language, error_code, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, 0, ?, NULL, NULL, ?, NULL, ?, ?)`,
       params: [
         input.id,
         input.noteId,
@@ -187,6 +202,7 @@ export async function beginCapture(input: {
         lifecycle.capture,
         lifecycle.transcription,
         lifecycle.generation,
+        lifecycle.enhancement,
         input.profile ?? 'auto',
         now,
         input.audioPath,
@@ -218,13 +234,15 @@ export async function setCaptureLifecycle(
   await executeTransaction([
     {
       sql: `UPDATE captures SET state = ?, capture_status = ?, transcription_status = ?,
-              generation_status = ?, profile = ?, error_code = ?, updated_at = ?
+              generation_status = ?, enhancement_status = ?, profile = ?, error_code = ?,
+              updated_at = ?
             WHERE id = ?`,
       params: [
         legacyStateFromLifecycle(lifecycle),
         lifecycle.capture,
         lifecycle.transcription,
         lifecycle.generation,
+        lifecycle.enhancement,
         patch.profile ?? current.profile,
         patch.errorCode === undefined ? current.errorCode : patch.errorCode,
         now,
@@ -315,11 +333,13 @@ export async function recoverInterruptedCaptures(): Promise<number> {
     capture: 'interrupted',
     transcription: 'pending',
     generation: 'idle',
+    enhancement: 'pending',
   });
   const affected = await executeTransaction([
     {
       sql: `UPDATE captures SET state = ?, capture_status = 'interrupted',
               transcription_status = 'pending', generation_status = 'idle',
+              enhancement_status = 'pending',
               ended_at = COALESCE(ended_at, ?), updated_at = ?
             WHERE capture_status IN ('starting', 'recording', 'stopping')`,
       params: [interrupted, now, now],
@@ -395,8 +415,8 @@ export async function deleteRecordingTranscript(capture: Capture): Promise<void>
 /* ── Reads ─────────────────────────────────────────────────────── */
 
 const CAPTURE_COLUMNS = `id, note_id, state, capture_status, transcription_status,
-  generation_status, profile, transcript_revision, started_at, ended_at, duration_ms,
-  audio_path, language, error_code`;
+  generation_status, enhancement_status, profile, transcript_revision, started_at, ended_at,
+  duration_ms, audio_path, language, error_code`;
 
 const CAPTURE_BY_NOTE_SQL = `SELECT ${CAPTURE_COLUMNS} FROM captures WHERE note_id = ? ORDER BY started_at DESC`;
 
@@ -412,6 +432,7 @@ SELECT ${CAPTURE_COLUMNS} FROM captures
 WHERE capture_status = 'interrupted'
    OR transcription_status IN ('pending', 'running', 'failed')
    OR generation_status IN ('finalizing', 'failed')
+   OR enhancement_status IN ('running', 'failed')
 ORDER BY started_at ASC
 `;
 

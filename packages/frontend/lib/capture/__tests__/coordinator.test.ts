@@ -8,6 +8,8 @@ import {
   type CaptureLifecycle,
 } from '@/lib/capture/lifecycle';
 import type { ProcessingTask } from '@/lib/capture/queue';
+import { NoteProcessingError } from '@/lib/capture/errors';
+import { captureStatus } from '@/lib/capture/status';
 
 const CAPTURE_ID = 'cap_1';
 const NOTE_ID = 'note_1';
@@ -35,6 +37,7 @@ class FakeStore implements CaptureLifecycleStore {
     capture: 'starting',
     transcription: 'idle',
     generation: 'idle',
+    enhancement: 'pending',
   };
   readonly history: CaptureLifecycle[] = [{ ...this.lifecycle }];
   readonly calls: string[] = [];
@@ -81,6 +84,7 @@ function build(
   writers: Partial<{
     live: (task: ProcessingTask) => Promise<void>;
     finalize: (task: ProcessingTask) => Promise<void>;
+    enhance: (task: ProcessingTask) => Promise<boolean>;
   }> = {},
 ): { coordinator: CaptureCoordinator; store: FakeStore; onError: ReturnType<typeof vi.fn> } {
   const store = new FakeStore();
@@ -92,6 +96,7 @@ function build(
     writers: {
       live: writers.live ?? (() => Promise.resolve()),
       finalize: writers.finalize ?? (() => Promise.resolve()),
+      enhance: writers.enhance ?? (() => Promise.resolve(true)),
     },
     onError,
   });
@@ -178,6 +183,7 @@ describe('the lifecycle it emits', () => {
       capture: 'stopped',
       transcription: 'complete',
       generation: 'complete',
+      enhancement: 'complete',
     });
   });
 });
@@ -213,7 +219,11 @@ describe('transcript revisions', () => {
       captureId: CAPTURE_ID,
       noteId: NOTE_ID,
       store,
-      writers: { live, finalize: () => Promise.resolve() },
+      writers: {
+        live,
+        finalize: () => Promise.resolve(),
+        enhance: () => Promise.resolve(true),
+      },
     });
 
     await coordinator.transcriptChanged();
@@ -267,7 +277,8 @@ describe('failure', () => {
 
     expect(store.lifecycle.capture).toBe('stopped');
     expect(store.lifecycle.generation).toBe('failed');
-    expect(store.errorCode).toBe('finalize');
+    // The stage, not one word for eight different failures.
+    expect(store.errorCode).toBe('deterministic_generate');
     expect(onError).toHaveBeenCalled();
   });
 
@@ -311,5 +322,87 @@ describe('retry', () => {
     expect(attempts).toBe(2);
     expect(store.lifecycle.generation).toBe('complete');
     expect(store.errorCode).toBeNull();
+  });
+});
+
+describe('a note that exists and an improvement that failed', () => {
+  // The reported bug, as behaviour. The user recorded a talk, the note was
+  // written, the model died compiling a shader — and the app said "Noted could
+  // not finish the notes" about a document on their screen.
+  it('keeps the note complete and reports only the enhancement as failed', async () => {
+    const { coordinator, store } = build({
+      enhance: () => Promise.reject(new Error('shader has no f16')),
+    });
+
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+
+    expect(store.lifecycle.generation).toBe('complete');
+    expect(store.lifecycle.enhancement).toBe('failed');
+    expect(captureStatus(store.lifecycle).kind).toBe('enhancementFailed');
+    expect(captureStatus(store.lifecycle).retry).toBe('enhancement');
+  });
+
+  it('records which stage failed, so a retry can act on it', async () => {
+    const { store, coordinator } = build({
+      enhance: () => Promise.reject(new NoteProcessingError('model_load')),
+    });
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+    expect(store.errorCode).toBe('model_load');
+  });
+
+  it('retries only the improvement, leaving the note alone', async () => {
+    const finalize = vi.fn(() => Promise.resolve());
+    let attempts = 0;
+    const { coordinator, store } = build({
+      finalize,
+      enhance: () => {
+        attempts += 1;
+        return attempts === 1 ? Promise.reject(new Error('no model')) : Promise.resolve(true);
+      },
+    });
+
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+    expect(store.lifecycle.enhancement).toBe('failed');
+
+    await coordinator.retryEnhancement();
+    expect(attempts).toBe(2);
+    expect(store.lifecycle.enhancement).toBe('complete');
+    // Re-running a rule-based pass that already succeeded costs time and changes
+    // nothing.
+    expect(finalize).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls a device with nothing to add unsupported, not failed', async () => {
+    // No model here is not a broken note. It is this device saying the baseline
+    // is the final answer.
+    const { coordinator, store } = build({ enhance: () => Promise.resolve(false) });
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+    expect(store.lifecycle.enhancement).toBe('unsupported');
+    expect(captureStatus(store.lifecycle).kind).toBe('basicReady');
+    expect(captureStatus(store.lifecycle).retry).toBeNull();
+  });
+});
+
+describe('a note that does not exist', () => {
+  it('is the only thing that reports the notes as failed', async () => {
+    const enhance = vi.fn(() => Promise.resolve(true));
+    const { coordinator, store } = build({
+      finalize: () => Promise.reject(new NoteProcessingError('artifact_persist')),
+      enhance,
+    });
+
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+
+    expect(store.lifecycle.generation).toBe('failed');
+    expect(store.errorCode).toBe('artifact_persist');
+    expect(captureStatus(store.lifecycle).kind).toBe('notesFailed');
+    // Nothing to improve. Running the model would replace one failure with a
+    // more confusing one.
+    expect(enhance).not.toHaveBeenCalled();
   });
 });

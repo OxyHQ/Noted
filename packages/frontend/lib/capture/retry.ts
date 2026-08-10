@@ -16,10 +16,11 @@
 import { createLogger } from '@oxyhq/core/logger';
 
 import { setCaptureLifecycle, type Capture } from '@/lib/capture/captures-repo';
-import { enhanceNote } from '@/lib/capture/restructure';
+import { enhanceNote, finalizeNote } from '@/lib/capture/restructure';
 import { transcribeAfterStop } from '@/lib/capture/transcribe-after';
 import { loadSetting, SETTING_KEYS } from '@/lib/db/settings-repo';
 import type { CaptureProfile } from '@/lib/artifact/types';
+import { errorCodeOf } from '@/lib/capture/errors';
 import type { CaptureRetry } from '@/lib/capture/status';
 
 const logger = createLogger('NotedCapture');
@@ -58,6 +59,33 @@ export async function retryCapture(capture: Capture, what: CaptureRetry): Promis
   if (what === null) return false;
   const startedAt = new Date(capture.startedAt);
 
+  if (what === 'enhancement') {
+    // Only the improvement. The note is already written, and re-running the
+    // rule-based pass that wrote it costs time and changes nothing.
+    await setCaptureLifecycle(capture.id, { enhancement: 'running', errorCode: null });
+    const language = await loadSetting(SETTING_KEYS.sttLanguage, isLanguage, 'auto');
+    try {
+      const improved = await enhanceNote(
+        capture.id,
+        capture.noteId,
+        startedAt,
+        language,
+        capture.transcriptRevision,
+      );
+      await setCaptureLifecycle(capture.id, {
+        enhancement: improved ? 'complete' : 'unsupported',
+        errorCode: null,
+      });
+    } catch (error) {
+      logger.error('The model could not improve the note on retry', { error: String(error) });
+      await setCaptureLifecycle(capture.id, {
+        enhancement: 'failed',
+        errorCode: errorCodeOf(error, 'model_inference'),
+      });
+    }
+    return true;
+  }
+
   if (what === 'transcript') {
     if (capture.audioPath === '') {
       // Nothing to read again. Said out loud rather than silently doing nothing,
@@ -75,14 +103,18 @@ export async function retryCapture(capture: Capture, what: CaptureRetry): Promis
     return true;
   }
 
+  // `notes` means there is no note at all — the rule-based pass is what has to
+  // run again, and it is the one that must always work.
   await setCaptureLifecycle(capture.id, { generation: 'finalizing', errorCode: null });
-  const language = await loadSetting(SETTING_KEYS.sttLanguage, isLanguage, 'auto');
   try {
-    await enhanceNote(capture.id, capture.noteId, startedAt, language, capture.transcriptRevision);
+    await finalizeNote(capture.id, capture.noteId, startedAt, capture.transcriptRevision);
     await setCaptureLifecycle(capture.id, { generation: 'complete', errorCode: null });
   } catch (error) {
-    logger.error('Could not finish the notes on retry', { error: String(error) });
-    await setCaptureLifecycle(capture.id, { generation: 'failed', errorCode: 'finalize' });
+    logger.error('Could not write the notes on retry', { error: String(error) });
+    await setCaptureLifecycle(capture.id, {
+      generation: 'failed',
+      errorCode: errorCodeOf(error, 'deterministic_generate'),
+    });
   }
   return true;
 }

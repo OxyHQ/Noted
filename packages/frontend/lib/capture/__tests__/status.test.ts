@@ -6,7 +6,13 @@ import { captureStatus, CAPTURE_STATUS_KEYS } from '@/lib/capture/status';
 import type { CaptureLifecycle } from '@/lib/capture/lifecycle';
 
 function lifecycle(over: Partial<CaptureLifecycle> = {}): CaptureLifecycle {
-  return { capture: 'stopped', transcription: 'complete', generation: 'complete', ...over };
+  return {
+    capture: 'stopped',
+    transcription: 'complete',
+    generation: 'complete',
+    enhancement: 'complete',
+    ...over,
+  };
 }
 
 describe('what the user is told', () => {

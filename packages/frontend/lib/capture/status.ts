@@ -32,11 +32,16 @@ export type CaptureStatusKind =
   | 'ready'
   | 'interrupted'
   | 'transcriptFailed'
+  /** No usable note exists. Reserved for exactly that. */
   | 'notesFailed'
+  /** The note is written; the model could not improve it. */
+  | 'enhancementFailed'
+  /** The note is written and this device cannot improve it. Not a failure. */
+  | 'basicReady'
   | 'failed';
 
 /** What a Retry button would actually retry. */
-export type CaptureRetry = 'transcript' | 'notes' | null;
+export type CaptureRetry = 'transcript' | 'notes' | 'enhancement' | null;
 
 export interface CaptureStatusView {
   kind: CaptureStatusKind;
@@ -97,6 +102,13 @@ export function captureStatus(lifecycle: CaptureLifecycle): CaptureStatusView {
     return view('organizing', lifecycle, { busy: true });
   }
   if (lifecycle.transcription === 'complete' && lifecycle.generation === 'complete') {
+    // The note exists in every branch below. What differs is whether anything
+    // improved it, and none of these may read as a failure to write a note.
+    if (lifecycle.enhancement === 'running') return view('organizing', lifecycle, { busy: true });
+    if (lifecycle.enhancement === 'failed') {
+      return view('enhancementFailed', lifecycle, { retry: 'enhancement' });
+    }
+    if (lifecycle.enhancement === 'unsupported') return view('basicReady', lifecycle);
     return view('ready', lifecycle);
   }
 
@@ -113,5 +125,7 @@ export const CAPTURE_STATUS_KEYS: readonly string[] = [
   'interrupted',
   'transcriptFailed',
   'notesFailed',
+  'enhancementFailed',
+  'basicReady',
   'failed',
 ].map((kind) => `capture.status.${kind}`);

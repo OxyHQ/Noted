@@ -1170,7 +1170,9 @@
       "interrupted": "Esta grabación se interrumpió. El audio está a salvo.",
       "transcriptFailed": "La grabación está a salvo, pero Noted no pudo transcribirla.",
       "notesFailed": "La grabación está a salvo, pero Noted no pudo terminar las notas.",
-      "failed": "Esta grabación no se pudo guardar."
+      "failed": "Esta grabación no se pudo guardar.",
+      "enhancementFailed": "Las notas básicas están listas. No se pudo completar la organización mejorada.",
+      "basicReady": "Las notas básicas están listas. Este dispositivo no puede organizarlas más."
     },
     "retry": "Reintentar",
     "microphoneOnly": "En el navegador Noted graba solo el micrófono de este dispositivo, no a las demás personas de una llamada.",
@@ -1198,7 +1200,8 @@
       "audioKeeps": "La transcripción y la nota se quedan.",
       "transcriptCost": "Las líneas generadas dejan de poder comprobarse.",
       "transcriptKeeps": "La nota se queda, palabra por palabra."
-    }
+    },
+    "retryEnhancement": "Reintentar la mejora"
   },
   "transcription": {
     "title": "Transcripción",

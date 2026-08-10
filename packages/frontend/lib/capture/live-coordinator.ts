@@ -17,7 +17,7 @@ import {
   setCaptureLifecycle,
 } from '@/lib/capture/captures-repo';
 import { CaptureCoordinator } from '@/lib/capture/coordinator';
-import { enhanceNote, restructureNote } from '@/lib/capture/restructure';
+import { enhanceNote, finalizeNote, restructureNote } from '@/lib/capture/restructure';
 
 const logger = createLogger('NotedCapture');
 
@@ -44,13 +44,11 @@ export function createLiveCoordinator(input: {
       // The task's revision travels with it, because that is what the store's
       // guard compares against when it decides whether this pass may still land.
       live: (task) => restructureNote(captureId, noteId, startedAt, task.transcriptRevision),
-      // One call, not two: `enhanceNote` writes the settled deterministic
-      // artifact first and only then asks the model, so a device without one
-      // still ends with a final artifact rather than a live one.
-      finalize: (task) =>
-        enhanceNote(captureId, noteId, startedAt, input.language, task.transcriptRevision).then(
-          () => undefined,
-        ),
+      // The note that always exists. Its failure is a real failure.
+      finalize: (task) => finalizeNote(captureId, noteId, startedAt, task.transcriptRevision),
+      // The improvement. Its failure leaves the note above standing.
+      enhance: (task) =>
+        enhanceNote(captureId, noteId, startedAt, input.language, task.transcriptRevision),
     },
     onError: (stage, error) => {
       logger.error('Capture processing failed', { stage, error: String(error) });

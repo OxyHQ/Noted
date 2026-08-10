@@ -32,6 +32,7 @@
 
 import type { CaptureLifecycle } from '@/lib/capture/lifecycle';
 import { CaptureProcessingQueue, type ProcessingTask } from '@/lib/capture/queue';
+import { errorCodeOf } from '@/lib/capture/errors';
 
 export interface CaptureLifecycleStore {
   setLifecycle(
@@ -47,8 +48,24 @@ export interface CaptureLifecycleStore {
 export interface CaptureNoteWriters {
   /** Rebuild the provisional note from the transcript so far. */
   live(task: ProcessingTask): Promise<void>;
-  /** Read the whole recording once and write the settled note. */
+  /**
+   * Write the note that always exists.
+   *
+   * The rule-based pass. It needs nothing downloaded and cannot be refused by a
+   * model, so its failure is a real failure: there is no note.
+   */
   finalize(task: ProcessingTask): Promise<void>;
+  /**
+   * Make that note better, if this device can.
+   *
+   * Optional by construction. Its failure leaves the note from `finalize`
+   * standing, which is why it is a separate call rather than the tail of one —
+   * conflated, a model that could not load reported that the notes could not be
+   * finished, over a document already on screen.
+   *
+   * @returns whether anything improved. `false` is an ordinary outcome.
+   */
+  enhance(task: ProcessingTask): Promise<boolean>;
 }
 
 export interface CoordinatorInput {
@@ -153,6 +170,14 @@ export class CaptureCoordinator {
     return this.finalization;
   }
 
+  /**
+   * Write the note, then try to improve it.
+   *
+   * Two stages with two outcomes, and keeping them apart is the whole reason this
+   * method is not one `try`. The baseline either produced a note or it did not;
+   * the enhancement is an improvement that may not be available on this device
+   * and must never make a finished note look lost.
+   */
   private beginFinalization(): void {
     if (this.finalizing) return;
     this.finalizing = (async () => {
@@ -166,11 +191,70 @@ export class CaptureCoordinator {
       } catch (error) {
         this.onError?.('finalize', error);
         await this.store
-          .setLifecycle(this.captureId, { generation: 'failed', errorCode: 'finalize' })
+          .setLifecycle(this.captureId, {
+            generation: 'failed',
+            errorCode: errorCodeOf(error, 'deterministic_generate'),
+          })
           .catch(() => undefined);
-      } finally {
+        // No note exists. There is nothing to improve, and running the model
+        // would only replace one failure with a more confusing one.
         this.finalizing = null;
+        return;
       }
+
+      await this.runEnhancement();
+      this.finalizing = null;
     })();
+  }
+
+  /**
+   * The optional pass.
+   *
+   * Never rethrows. Every outcome it can have — improved, nothing to add, no
+   * model on this device, a model that broke — is a state on the capture, and the
+   * note is already written in all four.
+   */
+  private async runEnhancement(): Promise<void> {
+    const task: ProcessingTask = {
+      transcriptRevision: this.revision,
+      stage: 'final',
+      stale: { isStale: false },
+    };
+    try {
+      await this.store.setLifecycle(this.captureId, { enhancement: 'running' });
+      const improved = await this.writers.enhance(task);
+      await this.store.setLifecycle(this.captureId, {
+        // Nothing to add is not a failure and not an improvement. It is this
+        // device saying the baseline note is the final answer.
+        enhancement: improved ? 'complete' : 'unsupported',
+        errorCode: null,
+      });
+    } catch (error) {
+      this.onError?.('enhance', error);
+      await this.store
+        .setLifecycle(this.captureId, {
+          enhancement: 'failed',
+          errorCode: errorCodeOf(error, 'model_inference'),
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  /**
+   * Try the improvement again, without redoing the note.
+   *
+   * What "Retry enhancement" calls. The baseline note is untouched, which is the
+   * point: re-running a rule-based pass that already succeeded costs time and
+   * changes nothing.
+   */
+  async retryEnhancement(): Promise<void> {
+    if (this.finalizing) {
+      await this.finalizing;
+      return;
+    }
+    this.finalizing = this.runEnhancement().finally(() => {
+      this.finalizing = null;
+    });
+    await this.finalizing;
   }
 }

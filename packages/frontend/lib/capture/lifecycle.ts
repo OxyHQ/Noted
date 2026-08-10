@@ -26,13 +26,36 @@ export type CaptureStatus =
 /** Turning audio into words. */
 export type TranscriptionStatus = 'idle' | 'live' | 'pending' | 'running' | 'complete' | 'failed';
 
-/** Turning words into the note. */
+/**
+ * Turning words into the note that always exists.
+ *
+ * The BASELINE note — the one the rule-based pass writes, which needs nothing
+ * downloaded and cannot be refused by a model. `complete` here means the user has
+ * a note, full stop.
+ */
 export type NoteGenerationStatus = 'idle' | 'live' | 'finalizing' | 'complete' | 'failed';
+
+/**
+ * Making that note better with a model.
+ *
+ * Tracked separately, and separating it is the whole point. Conflated with
+ * generation, a model that failed to load reported "Noted could not finish the
+ * notes" over a finished note — the most alarming sentence in the app, about a
+ * document sitting on the user's screen. `unsupported` is not a failure: a device
+ * with no model that can run is a device whose baseline note is the final answer.
+ */
+export type EnhancementStatus =
+  | 'unsupported'
+  | 'pending'
+  | 'running'
+  | 'complete'
+  | 'failed';
 
 export interface CaptureLifecycle {
   capture: CaptureStatus;
   transcription: TranscriptionStatus;
   generation: NoteGenerationStatus;
+  enhancement: EnhancementStatus;
 }
 
 /**
@@ -90,6 +113,21 @@ export function canTransitionTranscription(
   return from === to || TRANSCRIPTION_TRANSITIONS[from].includes(to);
 }
 
+const ENHANCEMENT_TRANSITIONS: Readonly<Record<EnhancementStatus, readonly EnhancementStatus[]>> = {
+  // A device can discover it cannot run a model at any point before it tries.
+  pending: ['running', 'unsupported', 'failed'],
+  running: ['complete', 'failed', 'unsupported'],
+  // Both are retryable: a better model arrives, a download finishes, the user
+  // asks again. Neither is terminal.
+  complete: ['running'],
+  failed: ['running'],
+  unsupported: ['pending', 'running'],
+};
+
+export function canTransitionEnhancement(from: EnhancementStatus, to: EnhancementStatus): boolean {
+  return from === to || ENHANCEMENT_TRANSITIONS[from].includes(to);
+}
+
 export function canTransitionGeneration(
   from: NoteGenerationStatus,
   to: NoteGenerationStatus,
@@ -115,7 +153,8 @@ export function isSettled(lifecycle: CaptureLifecycle): boolean {
     lifecycle.transcription !== 'running' &&
     lifecycle.transcription !== 'live' &&
     lifecycle.generation !== 'finalizing' &&
-    lifecycle.generation !== 'live'
+    lifecycle.generation !== 'live' &&
+    lifecycle.enhancement !== 'running'
   );
 }
 
@@ -148,17 +187,42 @@ export type LegacyCaptureState =
 export function lifecycleFromLegacyState(state: LegacyCaptureState): CaptureLifecycle {
   switch (state) {
     case 'recording':
-      return { capture: 'recording', transcription: 'live', generation: 'live' };
+      return {
+        capture: 'recording',
+        transcription: 'live',
+        generation: 'live',
+        enhancement: 'pending',
+      };
     case 'interrupted':
       // The audio is on disk and nothing is working on it: exactly the row the
       // recovery affordance exists to offer.
-      return { capture: 'interrupted', transcription: 'pending', generation: 'idle' };
+      return {
+        capture: 'interrupted',
+        transcription: 'pending',
+        generation: 'idle',
+        enhancement: 'pending',
+      };
     case 'transcribing':
-      return { capture: 'stopped', transcription: 'running', generation: 'idle' };
+      return {
+        capture: 'stopped',
+        transcription: 'running',
+        generation: 'idle',
+        enhancement: 'pending',
+      };
     case 'complete':
-      return { capture: 'stopped', transcription: 'complete', generation: 'complete' };
+      return {
+        capture: 'stopped',
+        transcription: 'complete',
+        generation: 'complete',
+        enhancement: 'complete',
+      };
     case 'failed':
-      return { capture: 'failed', transcription: 'failed', generation: 'idle' };
+      return {
+        capture: 'failed',
+        transcription: 'failed',
+        generation: 'idle',
+        enhancement: 'pending',
+      };
   }
 }
 
@@ -174,6 +238,9 @@ export function legacyStateFromLifecycle(lifecycle: CaptureLifecycle): LegacyCap
   if (lifecycle.capture === 'failed') return 'failed';
   if (lifecycle.capture === 'interrupted') return 'interrupted';
   if (isCapturing(lifecycle.capture)) return 'recording';
+  // Deliberately does NOT consult `enhancement`: an old build reading `failed`
+  // would offer to redo everything over an optional improvement that did not
+  // happen, about a note that exists.
   if (lifecycle.transcription === 'failed' || lifecycle.generation === 'failed') return 'failed';
   if (lifecycle.transcription === 'complete' && lifecycle.generation === 'complete') {
     return 'complete';

@@ -34,6 +34,10 @@ export function CaptureStatusLine({ noteId }: { noteId: string }) {
   if (status.kind === 'idle' || status.kind === 'recording') return null;
 
   const failed = status.retry !== null || status.kind === 'failed';
+  // "Retry" over a finished note reads as "redo everything". Naming what it
+  // actually retries is the difference between reassuring and alarming.
+  const retryLabelKey =
+    status.retry === 'enhancement' ? 'capture.retryEnhancement' : 'capture.retry';
 
   return (
     <View className="mb-3 gap-1">
@@ -58,11 +62,11 @@ export function CaptureStatusLine({ noteId }: { noteId: string }) {
               setRetrying(true);
               void retryCapture(capture, status.retry).finally(() => setRetrying(false));
             }}
-            accessibilityLabel={t('capture.retry')}
+            accessibilityLabel={t(retryLabelKey)}
             className="rounded-full bg-muted px-3 py-1 active:opacity-70"
             hitSlop={6}
           >
-            <Text className="text-xs font-medium text-foreground">{t('capture.retry')}</Text>
+            <Text className="text-xs font-medium text-foreground">{t(retryLabelKey)}</Text>
           </Pressable>
         )}
       </View>
