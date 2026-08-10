@@ -21,7 +21,11 @@
 
 import { createLogger } from '@oxyhq/core/logger';
 
-import type { EnhanceRequest, Enhancement, OnDeviceSummarizer } from '@/lib/enhance/contract';
+import type {
+  EnhanceRequest,
+  OnDeviceSummarizer,
+  ResolvedEnhancement,
+} from '@/lib/enhance/contract';
 import { summarize } from '@/lib/enhance/summarize';
 
 const logger = createLogger('NotedEnhance');
@@ -102,8 +106,13 @@ export function getSummarizer(): OnDeviceSummarizer {
   return {
     availability: async () => ((await hasWebGpu()) ? 'ready' : 'unsupported'),
 
-    async enhance(request: EnhanceRequest): Promise<Enhancement | null> {
+    async enhance(request: EnhanceRequest): Promise<ResolvedEnhancement | null> {
       if (!(await hasWebGpu())) return null;
+      // Hundreds of megabytes the first time, and cached afterwards — so this is
+      // reported as a download rather than as work on the notes. A silent
+      // 483 MB fetch under "Organizing notes…" is the thing that makes a stop
+      // button look broken.
+      request.onProgress?.({ stage: 'downloading', ratio: null });
       const generate = await getGenerator();
 
       return summarize(request, async (prompt) => {
