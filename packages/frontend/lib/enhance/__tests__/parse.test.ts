@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import { parseEnhancement, type ParseOptions } from '@/lib/enhance/parse';
 
+/**
+ * The parsed document, or null when the reply was refused.
+ *
+ * The parser now returns a REASON with every refusal. These cases predate that
+ * and only care whether a document came out, so they read through this rather
+ * than being rewritten to assert reasons they were never about — the reasons
+ * get their own file.
+ */
+function parseOrNull(reply: string, options: Parameters<typeof parseEnhancement>[1]) {
+  const result = parseEnhancement(reply, options);
+  return result.ok ? result.value : null;
+}
+
+
 /** Six transcript lines were shown, and nothing was authorised. */
 const SHOWN: ParseOptions = { lineCount: 6, authorisedSubjects: [] };
 
@@ -27,7 +41,7 @@ const CLEAN = JSON.stringify({
 
 describe('finding the JSON', () => {
   it('reads a clean reply', () => {
-    const parsed = parseEnhancement(CLEAN, SHOWN);
+    const parsed = parseOrNull(CLEAN, SHOWN);
     expect(parsed?.title).toBe('Presupuesto Q3');
     expect(parsed?.sections[0].heading).toBe('Infraestructura');
     expect(parsed?.sections[0].blocks[0]).toEqual({
@@ -39,15 +53,15 @@ describe('finding the JSON', () => {
 
   it('reads JSON wrapped in a code fence', () => {
     // The single most common shape a small model replies in.
-    expect(parseEnhancement(`\`\`\`json\n${CLEAN}\n\`\`\``, SHOWN)?.title).toBe('Presupuesto Q3');
+    expect(parseOrNull(`\`\`\`json\n${CLEAN}\n\`\`\``, SHOWN)?.title).toBe('Presupuesto Q3');
   });
 
   it('reads JSON preceded by a sentence', () => {
-    expect(parseEnhancement(`Here are the notes:\n${CLEAN}`, SHOWN)?.title).toBe('Presupuesto Q3');
+    expect(parseOrNull(`Here are the notes:\n${CLEAN}`, SHOWN)?.title).toBe('Presupuesto Q3');
   });
 
   it('is not confused by a brace in the prose after the JSON', () => {
-    expect(parseEnhancement(`${CLEAN}\n\nHope that helps {smile}`, SHOWN)?.title).toBe(
+    expect(parseOrNull(`${CLEAN}\n\nHope that helps {smile}`, SHOWN)?.title).toBe(
       'Presupuesto Q3',
     );
   });
@@ -60,23 +74,23 @@ describe('finding the JSON', () => {
       openQuestions: [],
       listAdditions: [],
     });
-    expect(parseEnhancement(reply, SHOWN)?.sections[0].blocks[0].text).toBe('use {id} here');
+    expect(parseOrNull(reply, SHOWN)?.sections[0].blocks[0].text).toBe('use {id} here');
   });
 
   it('refuses a reply that is not JSON at all', () => {
-    expect(parseEnhancement('I could not summarise that.', SHOWN)).toBeNull();
+    expect(parseOrNull('I could not summarise that.', SHOWN)).toBeNull();
   });
 
   it('refuses malformed JSON rather than salvaging it', () => {
-    expect(parseEnhancement('{"title": "x", "notes": [', SHOWN)).toBeNull();
+    expect(parseOrNull('{"title": "x", "notes": [', SHOWN)).toBeNull();
   });
 
   it('refuses a JSON array', () => {
-    expect(parseEnhancement('["a", "b"]', SHOWN)).toBeNull();
+    expect(parseOrNull('["a", "b"]', SHOWN)).toBeNull();
   });
 
   it('refuses a reply too long to be an answer', () => {
-    expect(parseEnhancement('x'.repeat(20_001), SHOWN)).toBeNull();
+    expect(parseOrNull('x'.repeat(20_001), SHOWN)).toBeNull();
   });
 });
 
@@ -88,33 +102,33 @@ describe('reading a sloppy reply', () => {
   it('accepts a bare string as an item', () => {
     // Asked for a list, a small model with one thing to say often just says it.
     // Refusing that throws away a correct answer over its shape.
-    expect(parseEnhancement(withActions('Una sola acción'), SHOWN)?.actions).toEqual([
+    expect(parseOrNull(withActions('Una sola acción'), SHOWN)?.actions).toEqual([
       { text: 'Una sola acción', sources: [] },
     ]);
   });
 
   it('strips the bullet markers models mirror back', () => {
     expect(
-      parseEnhancement(withActions(['- Primero', '2) Segundo']), SHOWN)?.actions.map(
+      parseOrNull(withActions(['- Primero', '2) Segundo']), SHOWN)?.actions.map(
         (item) => item.text,
       ),
     ).toEqual(['Primero', 'Segundo']);
   });
 
   it('drops repeats, which is how a model pads a list it has nothing for', () => {
-    expect(parseEnhancement(withActions(['Uno', 'uno']), SHOWN)?.actions).toHaveLength(1);
+    expect(parseOrNull(withActions(['Uno', 'uno']), SHOWN)?.actions).toHaveLength(1);
   });
 
   it('drops an item long enough to be a transcript, keeping the rest', () => {
     const long = 'x'.repeat(401);
     expect(
-      parseEnhancement(withActions(['Corta', long]), SHOWN)?.actions.map((item) => item.text),
+      parseOrNull(withActions(['Corta', long]), SHOWN)?.actions.map((item) => item.text),
     ).toEqual(['Corta']);
   });
 
   it('ignores entries that are neither a string nor an item', () => {
     expect(
-      parseEnhancement(withActions([42, null, { text: 'Buena' }]), SHOWN)?.actions.map(
+      parseOrNull(withActions([42, null, { text: 'Buena' }]), SHOWN)?.actions.map(
         (item) => item.text,
       ),
     ).toEqual(['Buena']);
@@ -124,7 +138,7 @@ describe('reading a sloppy reply', () => {
     // A model that had nothing to say about the recording. The rule-based note
     // is better than a heading over emptiness.
     expect(
-      parseEnhancement(
+      parseOrNull(
         '{"title":"Reunión","sections":[],"actions":[],"openQuestions":[],"listAdditions":[]}',
         SHOWN,
       ),
@@ -132,7 +146,7 @@ describe('reading a sloppy reply', () => {
   });
 
   it('drops a title that is really a paragraph, keeping the document', () => {
-    const parsed = parseEnhancement(
+    const parsed = parseOrNull(
       JSON.stringify({
         title: 'x'.repeat(121),
         sections: [{ blocks: [{ type: 'paragraph', text: 'Algo', s: [] }] }],
@@ -150,7 +164,7 @@ describe('reading the document', () => {
   }
 
   it('keeps a paragraph and a list apart', () => {
-    const parsed = parseEnhancement(
+    const parsed = parseOrNull(
       withSections([
         {
           heading: 'Consultas',
@@ -170,7 +184,7 @@ describe('reading the document', () => {
   });
 
   it('keeps a quotation with whose words they are', () => {
-    const parsed = parseEnhancement(
+    const parsed = parseOrNull(
       withSections([
         {
           blocks: [
@@ -188,7 +202,7 @@ describe('reading the document', () => {
 
   it('reads a bare string where a block was asked for as a paragraph', () => {
     // Small models do this constantly and the meaning is not in doubt.
-    const parsed = parseEnhancement(withSections([{ blocks: ['Prosa suelta.'] }]), SHOWN);
+    const parsed = parseOrNull(withSections([{ blocks: ['Prosa suelta.'] }]), SHOWN);
     expect(parsed?.sections[0].blocks[0]).toEqual({
       type: 'paragraph',
       text: 'Prosa suelta.',
@@ -200,7 +214,7 @@ describe('reading the document', () => {
     // Rendering an unknown type as a paragraph would silently turn a list the
     // model meant into prose, and a note that quietly restructures itself is
     // worse than one missing a piece.
-    const parsed = parseEnhancement(
+    const parsed = parseOrNull(
       withSections([
         {
           blocks: [
@@ -216,12 +230,12 @@ describe('reading the document', () => {
 
   it('drops an empty list and a section left with nothing', () => {
     expect(
-      parseEnhancement(withSections([{ heading: 'Vacía', blocks: [{ type: 'bullet-list', items: [] }] }]), SHOWN),
+      parseOrNull(withSections([{ heading: 'Vacía', blocks: [{ type: 'bullet-list', items: [] }] }]), SHOWN),
     ).toBeNull();
   });
 
   it('reads the profile it was given, and ignores one it does not know', () => {
-    const known = parseEnhancement(
+    const known = parseOrNull(
       JSON.stringify({
         profile: 'event',
         title: 'x',
@@ -231,7 +245,7 @@ describe('reading the document', () => {
     );
     expect(known?.profile).toBe('event');
 
-    const unknown = parseEnhancement(
+    const unknown = parseOrNull(
       JSON.stringify({
         profile: 'podcast',
         title: 'x',
@@ -253,7 +267,7 @@ describe('who was speaking', () => {
   }
 
   it('keeps a role the recording stated', () => {
-    expect(parseEnhancement(withPeople([{ role: 'Education minister', s: [1] }]), SHOWN)?.people).toEqual([
+    expect(parseOrNull(withPeople([{ role: 'Education minister', s: [1] }]), SHOWN)?.people).toEqual([
       { role: 'Education minister', sources: [1] },
     ]);
   });
@@ -261,7 +275,7 @@ describe('who was speaking', () => {
   it('drops a person with nothing known about them', () => {
     // An empty person is not information, and rendering one puts a bare
     // "Speaker:" over a note.
-    expect(parseEnhancement(withPeople([{ s: [1] }]), SHOWN)?.people).toEqual([]);
+    expect(parseOrNull(withPeople([{ s: [1] }]), SHOWN)?.people).toEqual([]);
   });
 });
 
@@ -274,7 +288,7 @@ describe('citations are checked, not believed', () => {
   }
 
   it('keeps a reference to a line the model was shown', () => {
-    expect(parseEnhancement(withParagraph([1, 6]), SHOWN)?.sections[0].blocks[0].sources).toEqual([
+    expect(parseOrNull(withParagraph([1, 6]), SHOWN)?.sections[0].blocks[0].sources).toEqual([
       1, 6,
     ]);
   });
@@ -283,14 +297,14 @@ describe('citations are checked, not believed', () => {
     // A citation a reader can follow to the wrong moment is worse than no
     // citation: it costs them their trust in every other one.
     expect(
-      parseEnhancement(withParagraph([2, 99, 0, -1]), SHOWN)?.sections[0].blocks[0].sources,
+      parseOrNull(withParagraph([2, 99, 0, -1]), SHOWN)?.sections[0].blocks[0].sources,
     ).toEqual([2]);
   });
 
   it('keeps the block when every one of its citations was invented', () => {
     // Usually still a real note about the recording; throwing it away costs the
     // user more than showing it ungrounded does.
-    expect(parseEnhancement(withParagraph([99]), SHOWN)?.sections[0].blocks[0]).toEqual({
+    expect(parseOrNull(withParagraph([99]), SHOWN)?.sections[0].blocks[0]).toEqual({
       type: 'paragraph',
       text: 'Algo',
       sources: [],
@@ -313,7 +327,7 @@ describe('derived items', () => {
 
   it('are kept when the user authorised that subject', () => {
     expect(
-      parseEnhancement(reply({ subject: 'una pizza de pollo', reason: 'base de la pizza' }), AUTHORISED)
+      parseOrNull(reply({ subject: 'una pizza de pollo', reason: 'base de la pizza' }), AUTHORISED)
         ?.listAdditions[0],
     ).toEqual({
       text: 'mozzarella',
@@ -326,16 +340,16 @@ describe('derived items', () => {
     // The model helping itself. Not a formatting slip — this is the one route by
     // which knowledge the recording does not contain can enter a note.
     expect(
-      parseEnhancement(reply({ subject: 'una paella', reason: 'me apetece' }), AUTHORISED),
+      parseOrNull(reply({ subject: 'una paella', reason: 'me apetece' }), AUTHORISED),
     ).toBeNull();
   });
 
   it('are refused when nothing at all was authorised', () => {
-    expect(parseEnhancement(reply({ subject: 'una pizza de pollo', reason: 'x' }), SHOWN)).toBeNull();
+    expect(parseOrNull(reply({ subject: 'una pizza de pollo', reason: 'x' }), SHOWN)).toBeNull();
   });
 
   it('do not need the exact wording the user used', () => {
-    expect(parseEnhancement(reply('pizza de pollo'), AUTHORISED)?.listAdditions[0].derived?.subject).toBe(
+    expect(parseOrNull(reply('pizza de pollo'), AUTHORISED)?.listAdditions[0].derived?.subject).toBe(
       'una pizza de pollo',
     );
   });

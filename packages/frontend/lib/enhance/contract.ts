@@ -209,14 +209,62 @@ export interface ResolvedEnhancement {
   listAdditions: ResolvedItem[];
 }
 
+/**
+ * Whether a model can run here, and when it cannot, exactly what stopped it.
+ *
+ * The browser used to answer this with `(await requestAdapter()) !== null`, and
+ * every "no" became one sentence to the user: *this device cannot organize
+ * them further*. Three of the reasons below are not about the device at all —
+ * a page served over plain HTTP, a browser without `navigator.gpu`, a runtime
+ * that failed to initialise — and telling somebody their laptop is incapable
+ * when the actual fix is the URL is worse than saying nothing.
+ *
+ * Deliberately carries no GPU identifiers. The adapter's vendor and device
+ * strings are a fingerprinting surface and none of them are needed to explain
+ * what happened.
+ */
+export type LocalModelCapability =
+  | {
+      kind: 'ready';
+      backend: 'webgpu' | 'native';
+      dtype: 'q4f16' | 'q4';
+      /** Whether half-precision shaders are available, which decides the dtype. */
+      shaderF16: boolean;
+    }
+  | {
+      kind: 'unavailable';
+      reason:
+        /** Not HTTPS or localhost: `navigator.gpu` is withheld from the page. */
+        | 'insecure_context'
+        | 'navigator_gpu_missing'
+        | 'adapter_unavailable'
+        /** An adapter exists and would not give up a device. */
+        | 'device_request_failed'
+        | 'runtime_initialization_failed'
+        | 'model_files_unavailable';
+    };
+
+/**
+ * What one attempt at the model produced.
+ *
+ * The three arms are the distinction the old `ResolvedEnhancement | null` could
+ * not make: the model never ran, the model ran and its answer was unusable, or
+ * it worked. Only the first is a statement about the device.
+ */
+export type EnhanceAttempt =
+  | { ok: true; value: ResolvedEnhancement }
+  | { ok: false; kind: 'unavailable'; capability: LocalModelCapability }
+  | { ok: false; kind: 'invalid-output'; reason: string };
+
 export interface OnDeviceSummarizer {
-  availability: () => Promise<SummarizerAvailability>;
   /**
-   * Read the transcript and write the note.
+   * Probed once per runtime lifecycle and cached — see the backends.
    *
-   * @returns null when the model could not produce something usable. Null is a
-   *   normal outcome, not an exception: the deterministic note is already
-   *   written, so "no improvement" is a complete answer.
+   * It used to request an adapter three separate times per enhancement, so the
+   * answer that chose the dtype was not necessarily the answer the inference
+   * runtime later got.
    */
-  enhance: (request: EnhanceRequest) => Promise<ResolvedEnhancement | null>;
+  capability: () => Promise<LocalModelCapability>;
+  /** Read the transcript and write the note, or say why it could not. */
+  enhance: (request: EnhanceRequest) => Promise<EnhanceAttempt>;
 }

@@ -196,9 +196,10 @@ describe('the document the model is asked for, once it comes back', () => {
   };
 
   async function build() {
-    const enhancement = await summarize(request, vi.fn().mockResolvedValue(modelReply()));
-    expect(enhancement).not.toBeNull();
-    if (!enhancement) throw new Error('unreachable');
+    const result = await summarize(request, vi.fn().mockResolvedValue(modelReply()));
+    expect(result.ok, result.ok ? '' : `refused: ${result.reason}`).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    const enhancement = result.value;
     return enhancementToArtifact({
       enhancement,
       captureId: TALK_CAPTURE_ID,

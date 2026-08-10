@@ -4,6 +4,13 @@ import type { PendingExpansion } from '@noted/shared-types';
 import type { EnhanceRequest, SummarizerProgress } from '@/lib/enhance/contract';
 import { summarize } from '@/lib/enhance/summarize';
 
+/** The merged document, or null when no window produced one. */
+async function summarizeOrNull(...args: Parameters<typeof summarize>) {
+  const result = await summarize(...args);
+  return result.ok ? result.value : null;
+}
+
+
 /** A document with one paragraph per line given, which is what the model returns now. */
 function reply(
   paragraphs: (string | { text: string; s?: number[] })[],
@@ -54,7 +61,7 @@ function request(lineCount: number, over: Partial<EnhanceRequest> = {}): Enhance
 describe('asking the model', () => {
   it('returns what it understood', async () => {
     const generate = vi.fn().mockResolvedValue(reply(['El gasto subió un 12%']));
-    const result = await summarize(request(1), generate);
+    const result = await summarizeOrNull(request(1), generate);
     expect(paragraphsOf(result)[0]).toBe('El gasto subió un 12%');
     expect(generate).toHaveBeenCalledTimes(1);
   });
@@ -67,20 +74,20 @@ describe('asking the model', () => {
       // A long transcript is more than two windows; without a default the third
       // call resolves undefined and the failure looks like a parser bug.
       .mockResolvedValue(reply(['Resto']));
-    const result = await summarize(request(30), generate);
+    const result = await summarizeOrNull(request(30), generate);
     expect(generate.mock.calls.length).toBeGreaterThan(1);
     expect(paragraphsOf(result)).toContain('Primera parte');
   });
 
   it('never asks about an empty transcript', async () => {
     const generate = vi.fn();
-    expect(await summarize(request(0), generate)).toBeNull();
+    expect(await summarizeOrNull(request(0), generate)).toBeNull();
     expect(generate).not.toHaveBeenCalled();
   });
 
   it('shows the model what the user already wrote', async () => {
     const generate = vi.fn().mockResolvedValue(reply(['Algo']));
-    await summarize(
+    await summarizeOrNull(
       request(1, { existing: { title: '', body: 'ojo con el margen', checklist: [] } }),
       generate,
     );
@@ -92,13 +99,13 @@ describe('asking the model', () => {
       .fn()
       .mockResolvedValueOnce('lo siento, no puedo')
       .mockResolvedValue(reply(['Lo que sí entendió']));
-    const result = await summarize(request(30), generate);
+    const result = await summarizeOrNull(request(30), generate);
     expect(paragraphsOf(result)).toEqual(['Lo que sí entendió']);
   });
 
   it('reports nothing when every reply is unusable', async () => {
     const generate = vi.fn().mockResolvedValue('nada de JSON aquí');
-    expect(await summarize(request(4), generate)).toBeNull();
+    expect(await summarizeOrNull(request(4), generate)).toBeNull();
   });
 });
 
@@ -106,16 +113,17 @@ describe('citations become evidence', () => {
   it('turns a line number into the segments behind that line', () => {
     // Line numbers are meaningless outside the window the model was shown, so
     // they are resolved while that window is still in hand.
-    return summarize(request(3), vi.fn().mockResolvedValue(reply([{ text: 'Algo', s: [2] }]))).then(
-      (result) => {
-        expect(result?.sections[0].blocks[0].segmentIds).toEqual(['c1#0.1']);
-        expect(result?.sections[0].blocks[0].atMs).toBe(1000);
-      },
-    );
+    return summarizeOrNull(
+      request(3),
+      vi.fn().mockResolvedValue(reply([{ text: 'Algo', s: [2] }])),
+    ).then((result) => {
+      expect(result?.sections[0].blocks[0].segmentIds).toEqual(['c1#0.1']);
+      expect(result?.sections[0].blocks[0].atMs).toBe(1000);
+    });
   });
 
   it('leaves an item with no citations visibly ungrounded', async () => {
-    const result = await summarize(
+    const result = await summarizeOrNull(
       request(3),
       vi.fn().mockResolvedValue(reply([{ text: 'Según nadie', s: [] }])),
     );
@@ -142,7 +150,7 @@ describe('citations become evidence', () => {
       .fn()
       .mockResolvedValueOnce(withHeading('Primera mitad.', 1))
       .mockResolvedValue(withHeading('Segunda mitad.', 1));
-    const result = await summarize(request(30), generate);
+    const result = await summarizeOrNull(request(30), generate);
     expect(result?.sections).toHaveLength(1);
     expect(result?.sections[0].blocks.length).toBeGreaterThan(1);
   });
@@ -162,7 +170,7 @@ describe('authorised expansion', () => {
         ],
       }),
     );
-    const result = await summarize(request(2, { expansions: [expansion] }), generate);
+    const result = await summarizeOrNull(request(2, { expansions: [expansion] }), generate);
     expect(result?.listAdditions[0].derived?.subject).toBe('una pizza de pollo');
   });
 
@@ -174,7 +182,7 @@ describe('authorised expansion', () => {
         ],
       }),
     );
-    expect(await summarize(request(2, { expansions: [expansion] }), generate)).toBeNull();
+    expect(await summarizeOrNull(request(2, { expansions: [expansion] }), generate)).toBeNull();
   });
 });
 
@@ -183,7 +191,7 @@ describe('progress', () => {
     // A 300 MB download and a two-second load look identical from outside, and
     // "Organizing notes…" over silence is what made stopping feel broken.
     const seen: SummarizerProgress[] = [];
-    await summarize(
+    await summarizeOrNull(
       request(30, { onProgress: (progress) => seen.push(progress) }),
       vi.fn().mockResolvedValue(reply(['Algo'])),
     );

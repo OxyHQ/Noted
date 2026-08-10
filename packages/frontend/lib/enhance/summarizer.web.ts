@@ -22,9 +22,10 @@
 import { createLogger } from '@oxyhq/core/logger';
 
 import type {
+  EnhanceAttempt,
   EnhanceRequest,
+  LocalModelCapability,
   OnDeviceSummarizer,
-  ResolvedEnhancement,
 } from '@/lib/enhance/contract';
 import { summarize } from '@/lib/enhance/summarize';
 
@@ -57,8 +58,26 @@ const MODEL_ID = 'onnx-community/Qwen2.5-0.5B-Instruct';
 const DTYPE_WITH_F16 = 'q4f16' as const;
 const DTYPE_WITHOUT_F16 = 'q4' as const;
 
-/** Enough for the JSON reply; past this the model is repeating itself. */
-const MAX_REPLY_TOKENS = 700;
+/**
+ * How much room the reply gets, computed rather than fixed.
+ *
+ * It was a flat 700, chosen when a reply was four arrays of short strings. The
+ * canonical document is a different size — a title, people, thematic sections
+ * each holding paragraph blocks with source arrays, actions, open questions —
+ * and 700 tokens ends a correct answer somewhere inside it. The parser then saw
+ * an object that never closed, returned nothing, and the user was told their
+ * device was incapable.
+ *
+ * So the budget scales with how much there is to say, and the ceiling is a
+ * safety limit rather than the working value.
+ */
+const REPLY_TOKENS_BASE = 700;
+const REPLY_TOKENS_PER_LINE = 60;
+const REPLY_TOKENS_CEILING = 3_000;
+
+function replyBudget(lineCount: number): number {
+  return Math.min(REPLY_TOKENS_CEILING, REPLY_TOKENS_BASE + lineCount * REPLY_TOKENS_PER_LINE);
+}
 
 /**
  * The pipeline's own type, rather than one written by hand here.
@@ -71,55 +90,99 @@ type Generator = Awaited<ReturnType<typeof import('@huggingface/transformers').p
 
 let generatorPromise: Promise<Generator> | null = null;
 
-/** What the adapter advertises, or null when there is no adapter at all. */
-interface AdapterLike {
+/**
+ * The capability answer for this runtime lifecycle.
+ *
+ * Cached because it used to be asked three times per enhancement — in
+ * `availability()`, again at the start of `enhance()`, and again while building
+ * the pipeline — so the adapter that chose the dtype was not necessarily the
+ * one inference ran on, and two answers could disagree within a single attempt.
+ *
+ * Cleared deliberately by `releaseSummarizer` and after a runtime failure, so a
+ * transient refusal is retryable rather than sticky for the life of the tab.
+ */
+let capabilityPromise: Promise<LocalModelCapability> | null = null;
+
+interface GpuDeviceLike {
   features?: { has(feature: string): boolean };
 }
 
-async function requestAdapter(): Promise<AdapterLike | null> {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<AdapterLike | null> } })
-    .gpu;
-  if (!gpu) return null;
-  try {
-    return await gpu.requestAdapter();
-  } catch {
-    // An adapter that is advertised and then refused — a blocklisted driver, a
-    // headless context — is no adapter.
-    return null;
-  }
+interface GpuAdapterLike {
+  features?: { has(feature: string): boolean };
+  requestDevice?: () => Promise<GpuDeviceLike | null>;
+}
+
+interface GpuLike {
+  requestAdapter: () => Promise<GpuAdapterLike | null>;
 }
 
 /**
- * The quantisation this device can run.
+ * Ask the browser what it can actually do, all the way to a device.
  *
- * Asked of the adapter rather than assumed, because assuming is what produced a
- * 483 MB download followed by a shader compilation failure.
+ * An adapter is not the thing that runs shaders. A machine can advertise one
+ * and refuse `requestDevice()` — a blocklisted driver, an exhausted context, a
+ * headless session — and the old probe called that "supported", loaded 483 MB,
+ * and failed afterwards. So the probe goes one step further than the question it
+ * is answering.
  */
-function dtypeFor(adapter: AdapterLike): typeof DTYPE_WITH_F16 | typeof DTYPE_WITHOUT_F16 {
-  return adapter.features?.has('shader-f16') === true ? DTYPE_WITH_F16 : DTYPE_WITHOUT_F16;
+async function probeCapability(): Promise<LocalModelCapability> {
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    // `navigator.gpu` is withheld from an insecure page, so without this check
+    // the reason reads as "your browser has no WebGPU" when the fix is the URL.
+    return { kind: 'unavailable', reason: 'insecure_context' };
+  }
+
+  const gpu = (navigator as Navigator & { gpu?: GpuLike }).gpu;
+  if (!gpu) return { kind: 'unavailable', reason: 'navigator_gpu_missing' };
+
+  let adapter: GpuAdapterLike | null;
+  try {
+    adapter = await gpu.requestAdapter();
+  } catch {
+    adapter = null;
+  }
+  if (!adapter) return { kind: 'unavailable', reason: 'adapter_unavailable' };
+
+  let device: GpuDeviceLike | null = null;
+  try {
+    device = (await adapter.requestDevice?.()) ?? null;
+  } catch {
+    device = null;
+  }
+  if (!device) return { kind: 'unavailable', reason: 'device_request_failed' };
+
+  // Asked of the DEVICE where it can answer, since that is what compiles the
+  // shaders; the adapter is the fallback for a runtime that hands back a device
+  // without a feature set. Getting this wrong produced a 483 MB download
+  // followed by `Program Gather requires f16 but the device does not support it`.
+  const shaderF16 =
+    device.features?.has('shader-f16') === true || adapter.features?.has('shader-f16') === true;
+
+  return { kind: 'ready', backend: 'webgpu', dtype: shaderF16 ? 'q4f16' : 'q4', shaderF16 };
 }
 
-async function hasWebGpu(): Promise<boolean> {
-  return (await requestAdapter()) !== null;
+function capability(): Promise<LocalModelCapability> {
+  capabilityPromise ??= probeCapability();
+  return capabilityPromise;
 }
 
-async function getGenerator(): Promise<Generator> {
+async function getGenerator(dtype: 'q4f16' | 'q4'): Promise<Generator> {
   if (!generatorPromise) {
     generatorPromise = (async () => {
       const { pipeline } = await import('@huggingface/transformers');
-      const adapter = await requestAdapter();
-      if (!adapter) throw new Error('this browser has no WebGPU adapter');
-      const dtype = dtypeFor(adapter);
       logger.info('Loading the browser language model', { model: MODEL_ID, dtype });
       return pipeline('text-generation', MODEL_ID, { device: 'webgpu', dtype });
     })().catch((error: unknown) => {
       // Cleared so a later attempt can retry: the usual cause is a network
-      // failure fetching the weights, which is not permanent.
+      // failure fetching the weights, which is not permanent. The capability
+      // answer goes with it, because a runtime that would not initialise is a
+      // capability fact and the next attempt must re-establish it.
       generatorPromise = null;
+      capabilityPromise = null;
       throw error;
     });
   }
-  return generatorPromise as Promise<Generator>;
+  return generatorPromise;
 }
 
 /**
@@ -143,30 +206,63 @@ function textOf(output: Awaited<ReturnType<Generator>>): string {
   return typeof last?.content === 'string' ? last.content : '';
 }
 
+/**
+ * Whether generation stopped because the model finished or because it ran out
+ * of room.
+ *
+ * Counted with the pipeline's own tokenizer rather than guessed from the last
+ * character: a reply can end on `}` and still be truncated, and one can end
+ * mid-word and be a complete refusal. The count is the real signal — a reply
+ * whose token length reaches the budget did not choose to stop.
+ */
+function hitTokenCap(generator: Generator, text: string, budget: number): boolean {
+  try {
+    const tokenizer = (generator as unknown as { tokenizer?: { encode: (input: string) => unknown[] } })
+      .tokenizer;
+    const tokens = tokenizer?.encode(text);
+    return Array.isArray(tokens) && tokens.length >= budget;
+  } catch {
+    // A tokenizer that will not answer is not a reason to fail the attempt; the
+    // parser's own brace check still identifies an object that never closed.
+    return false;
+  }
+}
+
 export function getSummarizer(): OnDeviceSummarizer {
   return {
-    availability: async () => ((await hasWebGpu()) ? 'ready' : 'unsupported'),
+    capability,
 
-    async enhance(request: EnhanceRequest): Promise<ResolvedEnhancement | null> {
-      if (!(await hasWebGpu())) return null;
+    async enhance(request: EnhanceRequest): Promise<EnhanceAttempt> {
+      const capable = await capability();
+      if (capable.kind !== 'ready') return { ok: false, kind: 'unavailable', capability: capable };
+
       // Hundreds of megabytes the first time, and cached afterwards — so this is
       // reported as a download rather than as work on the notes. A silent
       // 483 MB fetch under "Organizing notes…" is the thing that makes a stop
       // button look broken.
       request.onProgress?.({ stage: 'downloading', ratio: null });
-      const generate = await getGenerator();
+      const generate = await getGenerator(capable.dtype);
 
-      return summarize(request, async (prompt) => {
+      let truncated = false;
+      const result = await summarize(request, async (prompt, lineCount) => {
+        const budget = replyBudget(lineCount);
         const output = await generate([{ role: 'user', content: prompt }], {
-          max_new_tokens: MAX_REPLY_TOKENS,
+          max_new_tokens: budget,
           // Low, not zero: this is extraction, not invention, and a model left
           // free to be creative here invents action items.
           temperature: 0.2,
           do_sample: true,
           return_full_text: false,
         });
-        return textOf(output);
+        const text = textOf(output);
+        if (hitTokenCap(generate, text, budget)) truncated = true;
+        return text;
       });
+
+      if (result.ok) return { ok: true, value: result.value };
+      // The runtime knows something the parser cannot: a reply that reached the
+      // ceiling was cut off even if its braces happened to balance.
+      return { ok: false, kind: 'invalid-output', reason: truncated ? 'truncated' : result.reason };
     },
   };
 }
@@ -174,5 +270,6 @@ export function getSummarizer(): OnDeviceSummarizer {
 /** Free the loaded model (low memory, sign-out). */
 export function releaseSummarizer(): Promise<void> {
   generatorPromise = null;
+  capabilityPromise = null;
   return Promise.resolve();
 }
