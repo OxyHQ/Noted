@@ -28,6 +28,7 @@ import {
   type TranscriptionStatus,
 } from '@/lib/capture/lifecycle';
 import type { CaptureProfile } from '@/lib/artifact/types';
+import { deleteCaptureAudio } from '@/lib/audio/store';
 import { segmentId } from '@/lib/stt/segment-id';
 
 export interface CaptureRow extends Row {
@@ -325,6 +326,37 @@ export async function recoverInterruptedCaptures(): Promise<number> {
     },
   ]);
   return affected[0] ?? 0;
+}
+
+/**
+ * Delete a note's recordings: the audio, the transcript, the artifacts, the rows.
+ *
+ * One place, because a recording is four things in three stores and forgetting
+ * one of them means a user who deleted a meeting still has its audio on their
+ * device. The audio goes first: it is the part that is not in SQLite, so a
+ * failure half-way leaves rows pointing at nothing rather than bytes nobody can
+ * find.
+ *
+ * @returns how many captures were removed.
+ */
+export async function deleteNoteRecordings(noteId: string): Promise<number> {
+  const captures = rowsToCaptures(await execute<CaptureRow>(CAPTURE_BY_NOTE_SQL, [noteId]));
+
+  for (const capture of captures) {
+    await deleteCaptureAudio(capture.audioPath, capture.id).catch(() => undefined);
+  }
+
+  const affected = await executeTransaction([
+    {
+      sql: `DELETE FROM transcript_segments WHERE capture_id IN
+              (SELECT id FROM captures WHERE note_id = ?)`,
+      params: [noteId],
+    },
+    { sql: 'DELETE FROM note_artifacts WHERE note_id = ?', params: [noteId] },
+    { sql: 'DELETE FROM note_item_overrides WHERE note_id = ?', params: [noteId] },
+    { sql: 'DELETE FROM captures WHERE note_id = ?', params: [noteId] },
+  ]);
+  return affected[affected.length - 1] ?? 0;
 }
 
 /* ── Reads ─────────────────────────────────────────────────────── */

@@ -15,6 +15,7 @@ import {
 } from '@noted/shared-types';
 
 import { execute, executeTransaction, type Row, type Statement } from '@/lib/db/client';
+import { deleteNoteRecordings } from '@/lib/capture/captures-repo';
 import { nextNoteBody } from '@/lib/notes/generated-body';
 
 /** Marks a note as carrying local edits the server has not acknowledged. */
@@ -408,8 +409,12 @@ export function restoreNote(id: string): Promise<number[]> {
  * server, and until the outbox drains, the tombstone is the only record that it
  * was asked for. `lib/db/sync.ts` removes the row once the server confirms.
  */
-export function deleteNote(id: string): Promise<number[]> {
+export async function deleteNote(id: string): Promise<number[]> {
   const now = nowIso();
+  // The recordings go first. A note is the only thing that points at them, so
+  // tombstoning the note without this leaves a device holding the audio and the
+  // transcript of a meeting its owner deleted, with nothing left to find them by.
+  await deleteNoteRecordings(id).catch(() => undefined);
   return executeTransaction([
     {
       sql: 'UPDATE notes SET deleted_at = ?, dirty = ?, updated_at = ? WHERE id = ?',

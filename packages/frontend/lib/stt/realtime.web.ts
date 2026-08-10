@@ -45,11 +45,26 @@
 
 import { createLogger } from '@oxyhq/core/logger';
 
+import { audioRef } from '@/lib/audio/artifact-store';
+import { getAudioStore } from '@/lib/audio/store';
 import { upsertSegments } from '@/lib/capture/captures-repo';
 import { SAMPLE_RATE, transcribeSamples } from '@/lib/stt/engine.web';
 import type { RealtimeOptions, RealtimeSession } from '@/lib/stt/realtime';
 
 const logger = createLogger('NotedSTT');
+
+/**
+ * How often the recorder hands over audio.
+ *
+ * The memory bound, in one number: at most this much of the recording is ever
+ * held before it is written. Five seconds is short enough that a tab closed
+ * abruptly loses almost nothing, and long enough that a two-hour meeting is
+ * ~1,440 chunks rather than a file per frame.
+ */
+const CHUNK_MS = 5_000;
+
+/** What to record as when the browser will not say what it chose. */
+const DEFAULT_MIME_TYPE = 'audio/webm';
 
 /**
  * How much audio each transcription covers.
@@ -120,11 +135,35 @@ export async function startRealtimeTranscription(
   // The audio the user keeps. The same stream, so nothing competes for the
   // microphone and the recording matches the transcript exactly.
   const recorder = new MediaRecorder(stream);
-  const recordedChunks: Blob[] = [];
+
+  // Written to durable storage as it arrives, rather than accumulated. The old
+  // code held the whole recording in memory until stop and then handed back a
+  // `blob:` URL — an hour of audio in a backgrounded tab, and a capture row that
+  // resolved to nothing after a reload.
+  const writer = getAudioStore().open(options.captureId, recorder.mimeType || DEFAULT_MIME_TYPE);
+  /** Serialises the writes, so chunks are stored in the order they arrived. */
+  let writes: Promise<void> = Promise.resolve();
+
   recorder.ondataavailable = (event) => {
-    if (event.data.size > 0) recordedChunks.push(event.data);
+    if (event.data.size === 0) return;
+    const chunk = event.data;
+    writes = writes
+      .then(async () => {
+        const audio = await writer;
+        await audio.write(new Uint8Array(await chunk.arrayBuffer()));
+      })
+      .catch((error: unknown) => {
+        // The transcript is unaffected and the meeting is still being recorded
+        // into whatever did land. Reported, not thrown: there is nobody above
+        // this to handle it and stopping the recorder would lose more.
+        logger.error('Could not store an audio chunk', { error: String(error) });
+      });
   };
-  recorder.start();
+
+  // A timeslice is what makes the recorder hand over audio DURING the recording.
+  // Without one `ondataavailable` fires once, at stop, with everything — which is
+  // the in-memory accumulation this replaces, wearing a different hat.
+  recorder.start(CHUNK_MS);
 
   let pending: Float32Array[] = [];
   let pendingLength = 0;
@@ -261,6 +300,10 @@ export async function startRealtimeTranscription(
       });
       recorder.stop();
       await recorded;
+      // `stop` emits one last chunk, so the writes are drained AFTER it rather
+      // than beside it — the tail of a meeting is where the decisions are.
+      await writes;
+      await (await writer).close();
 
       capture.port.onmessage = null;
       source.disconnect();
@@ -274,8 +317,10 @@ export async function startRealtimeTranscription(
       await inFlight;
       logger.info('Live browser transcription stopped');
 
-      if (recordedChunks.length === 0) return null;
-      return URL.createObjectURL(new Blob(recordedChunks, { type: recorder.mimeType }));
+      const stored = await getAudioStore().describe(options.captureId);
+      // A durable reference, not a handle. Playback mints an object URL from the
+      // store when something actually needs one, and revokes it afterwards.
+      return stored && stored.chunkCount > 0 ? audioRef(options.captureId) : null;
     },
   };
 }

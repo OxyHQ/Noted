@@ -112,6 +112,45 @@ describe('the coordinator', () => {
   });
 });
 
+describe('the browser’s audio', () => {
+  const AUDIO_STORE = read('audio/store.ts');
+  const NOTES_REPO = read('db/notes-repo.ts');
+
+  it('reads the files it thinks it does', () => {
+    expect(AUDIO_STORE).toContain('export async function createPlaybackUrl');
+    expect(NOTES_REPO).toContain('export async function deleteNote');
+  });
+
+  it('is written as it arrives, not accumulated until stop', () => {
+    // An hour-long meeting used to sit in memory in a backgrounded tab. A
+    // timeslice is what makes the recorder hand audio over DURING the recording;
+    // without one `ondataavailable` fires once, at the end, with everything.
+    expect(REALTIME_WEB).toContain('recorder.start(CHUNK_MS)');
+    expect(REALTIME_WEB).not.toContain('recordedChunks');
+  });
+
+  it('stores a durable reference rather than a handle', () => {
+    // A row holding a `blob:` URL looked valid and resolved to nothing after a
+    // reload, because the object it named died with the page.
+    expect(REALTIME_WEB).toContain('audioRef(options.captureId)');
+    expect(REALTIME_WEB).not.toContain('URL.createObjectURL');
+  });
+
+  it('mints and revokes playback handles in one place', () => {
+    // An object URL pins its blob for the lifetime of the document, so a screen
+    // that mints one per render leaks a recording per render.
+    expect(AUDIO_STORE).toContain('URL.createObjectURL');
+    expect(AUDIO_STORE).toContain('URL.revokeObjectURL');
+  });
+
+  it('is deleted along with the note that pointed at it', () => {
+    // A note is the only thing that points at its recordings; tombstoning it
+    // without this leaves the audio and the transcript of a deleted meeting on
+    // the device with nothing left to find them by.
+    expect(NOTES_REPO).toContain('deleteNoteRecordings(');
+  });
+});
+
 describe('the recognisers', () => {
   it('derive a segment id from its position rather than minting one', () => {
     // A minted id means `INSERT OR REPLACE` has nothing to replace, so each
