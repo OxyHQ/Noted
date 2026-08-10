@@ -1172,7 +1172,15 @@
       "notesFailed": "The recording is safe, but Noted could not finish the notes.",
       "failed": "This recording could not be saved.",
       "enhancementFailed": "Basic notes are ready. Enhanced organization could not be completed.",
-      "basicReady": "Basic notes are ready. This device cannot organize them further."
+      "basicReady": "Basic notes are ready. This device cannot organize them further.",
+      "basicReadyInsecureContext": "Enhanced notes need a secure connection. Open Noted over HTTPS or localhost, then retry.",
+      "basicReadyNoWebGpu": "This browser does not support WebGPU, so enhanced notes cannot run here. Basic transcript highlights are shown.",
+      "basicReadyNoAdapter": "No WebGPU adapter is available to this browser. Basic transcript highlights are shown.",
+      "basicReadyNoDevice": "This browser has WebGPU but would not start it. Basic transcript highlights are shown.",
+      "basicReadyRuntime": "The on-device model could not start. Basic transcript highlights are shown.",
+      "basicReadyNoModel": "The on-device model is not installed. Basic transcript highlights are shown.",
+      "enhancementTruncated": "The enhanced note was cut off before it finished. Retry enhanced notes.",
+      "enhancementDropped": "The enhanced note came back in a form Noted could not use. Retry enhanced notes."
     },
     "retry": "Retry",
     "microphoneOnly": "In a browser Noted records this device's microphone only, not the other people in a call.",

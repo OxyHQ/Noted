@@ -30,7 +30,11 @@ export function CaptureStatusLine({ noteId }: { noteId: string }) {
   const capture: Capture | undefined = captures[0];
   if (!capture) return null;
 
-  const status = captureStatus(capture.lifecycle);
+  // The reason travels with the lifecycle so the line can name what actually
+  // happened. Without it every one of six capability reasons and two output
+  // failures rendered as "this device cannot organize them further" — including
+  // the ones about the page and the ones a retry fixes.
+  const status = captureStatus(capture.lifecycle, capture.enhancementReason);
   if (status.kind === 'idle' || status.kind === 'recording') return null;
 
   const failed = status.retry !== null || status.kind === 'failed';

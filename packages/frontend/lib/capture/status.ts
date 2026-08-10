@@ -77,7 +77,36 @@ function view(
  * never reached storage is read before either, because there is nothing to retry
  * against.
  */
-export function captureStatus(lifecycle: CaptureLifecycle): CaptureStatusView {
+/**
+ * The specific sentence for a reason, where there is one.
+ *
+ * Every one of these used to be the same line — *this device cannot organize
+ * them further* — including the two that are about the PAGE rather than the
+ * machine and the two that a retry would fix. A person on an http:// URL was
+ * told their laptop was incapable, which is both wrong and unactionable.
+ *
+ * A reason with no entry here falls back to the generic line, so an unknown
+ * reason degrades to what the app said before rather than to a missing key.
+ */
+const REASON_KEYS: Record<string, string> = {
+  // Not the device: the browser withholds `navigator.gpu` from an insecure page.
+  insecure_context: 'basicReadyInsecureContext',
+  navigator_gpu_missing: 'basicReadyNoWebGpu',
+  adapter_unavailable: 'basicReadyNoAdapter',
+  device_request_failed: 'basicReadyNoDevice',
+  runtime_initialization_failed: 'basicReadyRuntime',
+  model_files_unavailable: 'basicReadyNoModel',
+  // Ran, answered, and the answer was unusable. Both retryable, and the first
+  // names its own remedy — ask again with more room.
+  truncated: 'enhancementTruncated',
+  all_content_dropped: 'enhancementDropped',
+};
+
+export function captureStatus(
+  lifecycle: CaptureLifecycle,
+  /** Why enhancement did not land. Absent means no opinion, not "no reason". */
+  reason?: string | null,
+): CaptureStatusView {
   if (lifecycle.capture === 'failed') return view('failed', lifecycle);
 
   if (isCapturing(lifecycle.capture)) return view('recording', lifecycle, { busy: true });
@@ -106,17 +135,40 @@ export function captureStatus(lifecycle: CaptureLifecycle): CaptureStatusView {
     // improved it, and none of these may read as a failure to write a note.
     if (lifecycle.enhancement === 'running') return view('organizing', lifecycle, { busy: true });
     if (lifecycle.enhancement === 'failed') {
-      return view('enhancementFailed', lifecycle, { retry: 'enhancement' });
+      return specific('enhancementFailed', lifecycle, reason, { retry: 'enhancement' });
     }
-    if (lifecycle.enhancement === 'unsupported') return view('basicReady', lifecycle);
+    if (lifecycle.enhancement === 'unsupported') {
+      return specific('basicReady', lifecycle, reason);
+    }
     return view('ready', lifecycle);
   }
 
   return view('idle', lifecycle);
 }
 
+/**
+ * The view, with the more specific sentence when the reason names one.
+ *
+ * `kind` deliberately does NOT change: it is what the rest of the app branches
+ * on, and splitting it per reason would push this distinction into every
+ * caller. Only the sentence gets more precise.
+ */
+function specific(
+  kind: CaptureStatusKind,
+  lifecycle: CaptureLifecycle,
+  reason: string | null | undefined,
+  options: { retry?: CaptureRetry } = {},
+): CaptureStatusView {
+  const base = view(kind, lifecycle, options);
+  const key = reason ? REASON_KEYS[reason] : undefined;
+  return key ? { ...base, messageKey: `capture.status.${key}` } : base;
+}
+
 /** Every message key this module can produce, so a locale can be checked against it. */
 export const CAPTURE_STATUS_KEYS: readonly string[] = [
+  // Derived from the map rather than listed again: a reason added there with
+  // no copy would otherwise render as its own key in the middle of a note.
+  ...Object.values(REASON_KEYS),
   'idle',
   'recording',
   'transcribing',

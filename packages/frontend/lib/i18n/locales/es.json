@@ -1172,7 +1172,15 @@
       "notesFailed": "La grabación está a salvo, pero Noted no pudo terminar las notas.",
       "failed": "Esta grabación no se pudo guardar.",
       "enhancementFailed": "Las notas básicas están listas. No se pudo completar la organización mejorada.",
-      "basicReady": "Las notas básicas están listas. Este dispositivo no puede organizarlas más."
+      "basicReady": "Las notas básicas están listas. Este dispositivo no puede organizarlas más.",
+      "basicReadyInsecureContext": "Las notas mejoradas necesitan una conexión segura. Abre Noted por HTTPS o localhost y reinténtalo.",
+      "basicReadyNoWebGpu": "Este navegador no admite WebGPU, así que las notas mejoradas no pueden ejecutarse aquí. Se muestran los fragmentos básicos del transcript.",
+      "basicReadyNoAdapter": "No hay ningún adaptador WebGPU disponible para este navegador. Se muestran los fragmentos básicos del transcript.",
+      "basicReadyNoDevice": "Este navegador tiene WebGPU pero no ha querido iniciarlo. Se muestran los fragmentos básicos del transcript.",
+      "basicReadyRuntime": "El modelo del dispositivo no ha podido arrancar. Se muestran los fragmentos básicos del transcript.",
+      "basicReadyNoModel": "El modelo del dispositivo no está instalado. Se muestran los fragmentos básicos del transcript.",
+      "enhancementTruncated": "La nota mejorada se cortó antes de terminar. Reintenta las notas mejoradas.",
+      "enhancementDropped": "La nota mejorada llegó en un formato que Noted no pudo usar. Reintenta las notas mejoradas."
     },
     "retry": "Reintentar",
     "microphoneOnly": "En el navegador Noted graba solo el micrófono de este dispositivo, no a las demás personas de una llamada.",
