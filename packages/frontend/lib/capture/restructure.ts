@@ -45,8 +45,30 @@ import { isGeneratedItemId } from '@/lib/artifact/item-id';
 import { overridesById } from '@/lib/artifact/ownership';
 import { reduceLiveArtifact } from '@/lib/artifact/reduce';
 import { getSummarizer } from '@/lib/enhance/summarizer';
+import type { OnDeviceSummarizer } from '@/lib/enhance/contract';
+import { errorCodeOf, NoteProcessingError } from '@/lib/capture/errors';
 
 const logger = createLogger('NotedCapture');
+
+/**
+ * Run the model, turning whatever it throws into a stage.
+ *
+ * A summarizer that knows which stage it failed at says so by throwing a
+ * `NoteProcessingError`, and that code is kept. Anything else — an opaque
+ * exception from inside a runtime — becomes `model_inference`, because guessing
+ * between download, load and generation by matching error TEXT is how a code
+ * becomes wrong the next time that library rewords a message.
+ */
+async function runModel(
+  summarizer: OnDeviceSummarizer,
+  request: Parameters<OnDeviceSummarizer['enhance']>[0],
+): Promise<Awaited<ReturnType<OnDeviceSummarizer['enhance']>>> {
+  try {
+    return await summarizer.enhance(request);
+  } catch (error) {
+    throw new NoteProcessingError(errorCodeOf(error, 'model_inference'), error);
+  }
+}
 
 /**
  * The checklist items the user owns.
@@ -183,15 +205,14 @@ export async function restructureNote(
  * the user still has their note. A model that answers replaces the artifact's
  * contents; one that does not is not an error, it is the floor being enough.
  */
-export async function enhanceNote(
+export async function finalizeNote(
   captureId: string,
   noteId: string,
   startedAt: Date,
-  language: string,
   transcriptRevision = 0,
-): Promise<boolean> {
+): Promise<void> {
   const context = await readContext(captureId, noteId, startedAt);
-  if (!context) return false;
+  if (!context) return;
 
   const now = new Date().toISOString();
   const deterministic = buildDeterministicArtifact({
@@ -212,29 +233,48 @@ export async function enhanceNote(
   });
   await commit(context, committed(settled, { transcriptRevision, now }), startedAt);
 
-  // Everything from here on is the IMPROVEMENT, and the note is already
-  // finished. A model that is absent, refuses, or dies compiling a shader on a
-  // GPU that turned out not to support half precision must not turn a settled
-  // note into "Noted could not finish the notes" — the user has their note, and
-  // telling them otherwise sends them to a Retry button that will fail the same
-  // way. Only a failure BEFORE the commit above is a failed finalisation.
-  try {
-    return await enhanceWithModel(context, {
-      captureId,
-      noteId,
-      startedAt,
-      language,
-      transcriptRevision,
-      now,
-      settled,
-      deterministic,
-    });
-  } catch (error) {
-    logger.warn('The model could not improve the note; keeping the structured one', {
-      error: String(error),
-    });
-    return false;
-  }
+}
+
+/**
+ * Make the settled note better, if this device can.
+ *
+ * A separate operation from writing it, and separating them is the fix for the
+ * loudest bug this file had: a model that could not load reported "Noted could
+ * not finish the notes" over a document already on the user's screen. Everything
+ * here is optional. The note exists before this runs and still exists if it
+ * fails.
+ *
+ * @returns whether the note actually improved. `false` means this device had
+ *   nothing to add — no model, or a model with no opinion — which is a complete
+ *   answer rather than a failure.
+ */
+export async function enhanceNote(
+  captureId: string,
+  noteId: string,
+  startedAt: Date,
+  language: string,
+  transcriptRevision = 0,
+): Promise<boolean> {
+  const context = await readContext(captureId, noteId, startedAt);
+  if (!context) return false;
+
+  // Read back what was actually persisted rather than rebuilding it. The stored
+  // artifact is what the user is looking at; regenerating a second opinion here
+  // and improving THAT would show them a note nobody committed.
+  const settled = context.artifacts.final;
+  if (!settled) return false;
+
+  const now = new Date().toISOString();
+  return enhanceWithModel(context, {
+    captureId,
+    noteId,
+    startedAt,
+    language,
+    transcriptRevision,
+    now,
+    settled,
+    fallbackTitle: settled.title?.text ?? startedAt.toLocaleString(),
+  });
 }
 
 interface ModelPassInput {
@@ -245,20 +285,19 @@ interface ModelPassInput {
   transcriptRevision: number;
   now: string;
   settled: GeneratedNoteArtifact;
-  deterministic: GeneratedNoteArtifact;
+  fallbackTitle: string;
 }
 
 async function enhanceWithModel(
   context: CaptureContext,
   input: ModelPassInput,
 ): Promise<boolean> {
-  const { captureId, noteId, startedAt, language, transcriptRevision, now, settled, deterministic } =
-    input;
+  const { captureId, noteId, startedAt, language, transcriptRevision, now, settled } = input;
 
   const summarizer = getSummarizer();
   if ((await summarizer.availability()) !== 'ready') return false;
 
-  const enhancement = await summarizer.enhance({
+  const enhancement = await runModel(summarizer, {
     // The model is shown the cleaned, block-grouped transcript rather than
     // whisper's raw segments: the filler and repetitions removed there are
     // tokens a phone's context window would otherwise spend on nothing. Each
@@ -297,7 +336,7 @@ async function enhanceWithModel(
     expansions: settled.pendingExpansions ?? [],
     transcriptRevision,
     now,
-    fallbackTitle: deterministic.title?.text ?? startedAt.toLocaleString(),
+    fallbackTitle: input.fallbackTitle,
   });
 
   const landed = await commit(

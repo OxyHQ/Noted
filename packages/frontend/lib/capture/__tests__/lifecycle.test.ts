@@ -13,7 +13,13 @@ import {
 } from '@/lib/capture/lifecycle';
 
 function lifecycle(over: Partial<CaptureLifecycle> = {}): CaptureLifecycle {
-  return { capture: 'stopped', transcription: 'complete', generation: 'complete', ...over };
+  return {
+    capture: 'stopped',
+    transcription: 'complete',
+    generation: 'complete',
+    enhancement: 'complete',
+    ...over,
+  };
 }
 
 describe('the microphone', () => {
@@ -98,16 +104,19 @@ describe('the old single enum', () => {
       capture: 'recording',
       transcription: 'live',
       generation: 'live',
+      enhancement: 'pending',
     });
     expect(lifecycleFromLegacyState('interrupted')).toEqual({
       capture: 'interrupted',
       transcription: 'pending',
       generation: 'idle',
+      enhancement: 'pending',
     });
     expect(lifecycleFromLegacyState('complete')).toEqual({
       capture: 'stopped',
       transcription: 'complete',
       generation: 'complete',
+      enhancement: 'complete',
     });
   });
 

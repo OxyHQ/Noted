@@ -19,8 +19,15 @@ import { describe, expect, it } from 'vitest';
 import { LOCAL_TABLES, MIGRATIONS } from '@/lib/db/migrations';
 import { lifecycleFromLegacyState, type LegacyCaptureState } from '@/lib/capture/lifecycle';
 
-/** The migration under test: the one this file was added alongside. */
-const ARTIFACT_MIGRATION = MIGRATIONS[MIGRATIONS.length - 1];
+/**
+ * The migration under test, found by what it CONTAINS rather than by position.
+ *
+ * It used to be `MIGRATIONS.at(-1)`, which is true exactly until somebody appends
+ * the next migration — and then every assertion below starts describing a
+ * different one. The guard caught it; this is the fix.
+ */
+const ARTIFACT_MIGRATION =
+  MIGRATIONS.find((migration) => migration.some((sql) => sql.includes('note_artifacts'))) ?? [];
 
 const LEGACY_STATES: readonly LegacyCaptureState[] = [
   'recording',
@@ -75,6 +82,10 @@ describe('the lifecycle backfill', () => {
       expect(statement).toBeDefined();
       if (!statement) continue;
 
+      // Compared field by field rather than as a whole object, because this
+      // migration is SHIPPED and frozen: it predates `enhancement_status`, which
+      // has a migration of its own. Comparing the whole lifecycle would demand
+      // that a migration set a column that did not exist when it ran.
       const expected = lifecycleFromLegacyState(state);
       expect(
         {
@@ -83,7 +94,11 @@ describe('the lifecycle backfill', () => {
           generation: value(statement, 'generation_status'),
         },
         `backfill for ${state} disagrees with lifecycleFromLegacyState`,
-      ).toEqual(expected);
+      ).toEqual({
+        capture: expected.capture,
+        transcription: expected.transcription,
+        generation: expected.generation,
+      });
     }
   });
 
@@ -95,6 +110,28 @@ describe('the lifecycle backfill', () => {
       'failed',
     );
     expect(value('UPDATE captures SET capture_status = x WHERE y', 'capture_status')).toBeNull();
+  });
+});
+
+describe('the enhancement column', () => {
+  const ENHANCEMENT_MIGRATION =
+    MIGRATIONS.find((migration) => migration.some((sql) => sql.includes('enhancement_status'))) ??
+    [];
+
+  it('exists as its own migration', () => {
+    expect(ENHANCEMENT_MIGRATION.length).toBeGreaterThan(0);
+  });
+
+  it('leaves an existing row pending, because nothing had tried yet', () => {
+    expect(ENHANCEMENT_MIGRATION[0]).toContain("DEFAULT 'pending'");
+  });
+
+  it('does not offer to redo a capture that already finished', () => {
+    // A note that is already as good as it will get should not come back saying
+    // its enhancement is outstanding.
+    const backfill = ENHANCEMENT_MIGRATION.find((sql) => sql.startsWith('UPDATE captures'));
+    expect(backfill).toContain("enhancement_status = 'complete'");
+    expect(backfill).toContain("generation_status = 'complete'");
   });
 });
 

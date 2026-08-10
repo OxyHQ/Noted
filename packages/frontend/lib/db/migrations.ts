@@ -252,6 +252,20 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
     `CREATE UNIQUE INDEX IF NOT EXISTS transcript_segments_logical
       ON transcript_segments (capture_id, slice_index, segment_index)`,
   ],
+
+  // Making a note better is not the same operation as writing one, and one
+  // column could not say both. A model that failed to load reported "Noted could
+  // not finish the notes" over a finished document — the most alarming sentence
+  // in the app, about a note sitting on the user's screen.
+  //
+  // `pending` for existing rows because that is what they were: nothing had
+  // tried. A capture that genuinely finished is corrected below, so a note that
+  // is already as good as it will get does not offer to redo itself.
+  [
+    `ALTER TABLE captures ADD COLUMN enhancement_status TEXT NOT NULL DEFAULT 'pending'`,
+    `UPDATE captures SET enhancement_status = 'complete'
+       WHERE generation_status = 'complete' AND transcription_status = 'complete'`,
+  ],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */

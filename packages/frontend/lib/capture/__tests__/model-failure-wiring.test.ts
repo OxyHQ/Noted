@@ -31,27 +31,53 @@ const SUMMARIZER_WEB = read('enhance/summarizer.web.ts');
 
 describe('the files this checks', () => {
   it('are the files it thinks they are', () => {
+    expect(RESTRUCTURE).toContain('export async function finalizeNote');
     expect(RESTRUCTURE).toContain('export async function enhanceNote');
     expect(SUMMARIZER_WEB).toContain('export function getSummarizer');
   });
 });
 
-describe('the settled note is written before the model is asked', () => {
-  it('commits the deterministic artifact first', () => {
-    // The order is the guarantee. Asking the model first and committing
-    // afterwards would make every model failure a lost note.
-    const commitAt = RESTRUCTURE.indexOf('committed(settled,');
-    const modelAt = RESTRUCTURE.indexOf('summarizer.enhance(');
-    expect(commitAt).toBeGreaterThanOrEqual(0);
-    expect(modelAt).toBeGreaterThan(commitAt);
+describe('the note and the improvement are two operations', () => {
+  const COORDINATOR = read('capture/coordinator.ts');
+
+  it('writes the note without asking a model anything', () => {
+    // `finalizeNote` is the pass that must always work. It reaching for a model
+    // is what made a model failure look like a lost note in the first place.
+    const finalize = RESTRUCTURE.slice(
+      RESTRUCTURE.indexOf('export async function finalizeNote'),
+      RESTRUCTURE.indexOf('export async function enhanceNote'),
+    );
+    expect(finalize).toContain('committed(settled,');
+    expect(finalize).not.toContain('getSummarizer(');
+    expect(finalize).not.toContain('summarizer.enhance');
   });
 
-  it('does not let the model pass throw out of finalisation', () => {
-    // The queue rethrows a failed FINAL task on purpose, so the capture can be
-    // marked failed. That is right for a finalisation that produced nothing, and
-    // wrong for one that produced a complete note and then failed to improve it.
-    expect(RESTRUCTURE).toContain('enhanceWithModel(');
-    expect(RESTRUCTURE).toMatch(/} catch \(error\) \{[\s\S]*could not improve the note/);
+  it('improves it from a separate entry point', () => {
+    expect(RESTRUCTURE).toContain('export async function enhanceNote');
+    expect(RESTRUCTURE).toContain('runModel(summarizer');
+  });
+
+  it('improves what was actually persisted, not a second opinion', () => {
+    // Rebuilding the artifact here and improving THAT would show the user a note
+    // nobody committed.
+    expect(RESTRUCTURE).toContain('const settled = context.artifacts.final;');
+  });
+
+  it('does not let a failed improvement mark the note failed', () => {
+    // The reported symptom, as a gate: `generation` is the note, `enhancement`
+    // is the improvement, and the second failing must never write the first.
+    const enhancement = COORDINATOR.slice(COORDINATOR.indexOf('private async runEnhancement'));
+    expect(enhancement).toContain("enhancement: 'failed'");
+    expect(enhancement).not.toContain("generation: 'failed'");
+  });
+
+  it('stops before the improvement when there is no note to improve', () => {
+    expect(COORDINATOR).toContain('this.finalizing = null;\n        return;');
+  });
+
+  it('records the stage that failed, not one word for all of them', () => {
+    expect(COORDINATOR).toContain("errorCodeOf(error, 'deterministic_generate')");
+    expect(COORDINATOR).toContain("errorCodeOf(error, 'model_inference')");
   });
 });
 
