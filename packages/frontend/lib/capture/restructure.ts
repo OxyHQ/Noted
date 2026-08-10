@@ -35,6 +35,7 @@ import {
 } from '@/lib/db/artifacts-repo';
 import { userAuthoredPart } from '@/lib/capture/placeholder-title';
 import { userBodyOf } from '@/lib/notes/generated-body';
+import type { GeneratedNoteArtifact } from '@/lib/artifact/types';
 import { committed } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
 import { buildDeterministicArtifact, cleanedBlocks } from '@/lib/artifact/generate/deterministic';
@@ -210,6 +211,49 @@ export async function enhanceNote(
     now,
   });
   await commit(context, committed(settled, { transcriptRevision, now }), startedAt);
+
+  // Everything from here on is the IMPROVEMENT, and the note is already
+  // finished. A model that is absent, refuses, or dies compiling a shader on a
+  // GPU that turned out not to support half precision must not turn a settled
+  // note into "Noted could not finish the notes" — the user has their note, and
+  // telling them otherwise sends them to a Retry button that will fail the same
+  // way. Only a failure BEFORE the commit above is a failed finalisation.
+  try {
+    return await enhanceWithModel(context, {
+      captureId,
+      noteId,
+      startedAt,
+      language,
+      transcriptRevision,
+      now,
+      settled,
+      deterministic,
+    });
+  } catch (error) {
+    logger.warn('The model could not improve the note; keeping the structured one', {
+      error: String(error),
+    });
+    return false;
+  }
+}
+
+interface ModelPassInput {
+  captureId: string;
+  noteId: string;
+  startedAt: Date;
+  language: string;
+  transcriptRevision: number;
+  now: string;
+  settled: GeneratedNoteArtifact;
+  deterministic: GeneratedNoteArtifact;
+}
+
+async function enhanceWithModel(
+  context: CaptureContext,
+  input: ModelPassInput,
+): Promise<boolean> {
+  const { captureId, noteId, startedAt, language, transcriptRevision, now, settled, deterministic } =
+    input;
 
   const summarizer = getSummarizer();
   if ((await summarizer.availability()) !== 'ready') return false;

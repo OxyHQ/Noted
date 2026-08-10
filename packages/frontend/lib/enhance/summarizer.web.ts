@@ -39,7 +39,23 @@ const logger = createLogger('NotedEnhance');
  */
 const MODEL_ID = 'onnx-community/Qwen2.5-0.5B-Instruct';
 
-const DTYPE = 'q4f16';
+/**
+ * Which quantisation to load, decided by what the GPU can actually run.
+ *
+ * `q4f16` is half the download and half the memory, and it needs the adapter to
+ * support half-precision shaders. Plenty do not — and the failure is not a
+ * graceful fallback, it is the model loading, the recording finishing, and
+ * generation dying mid-sentence with:
+ *
+ *     Program Gather requires f16 but the device does not support it.
+ *
+ * by which point the user has recorded a meeting and waited for a 483 MB
+ * download. `shader-f16` is a feature the adapter advertises, so this is a
+ * question that can be asked before anything is fetched rather than discovered
+ * afterwards.
+ */
+const DTYPE_WITH_F16 = 'q4f16' as const;
+const DTYPE_WITHOUT_F16 = 'q4' as const;
 
 /** Enough for the JSON reply; past this the model is repeating itself. */
 const MAX_REPLY_TOKENS = 700;
@@ -55,22 +71,47 @@ type Generator = Awaited<ReturnType<typeof import('@huggingface/transformers').p
 
 let generatorPromise: Promise<Generator> | null = null;
 
-async function hasWebGpu(): Promise<boolean> {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
-  if (!gpu) return false;
+/** What the adapter advertises, or null when there is no adapter at all. */
+interface AdapterLike {
+  features?: { has(feature: string): boolean };
+}
+
+async function requestAdapter(): Promise<AdapterLike | null> {
+  const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<AdapterLike | null> } })
+    .gpu;
+  if (!gpu) return null;
   try {
-    return (await gpu.requestAdapter()) !== null;
+    return await gpu.requestAdapter();
   } catch {
-    return false;
+    // An adapter that is advertised and then refused — a blocklisted driver, a
+    // headless context — is no adapter.
+    return null;
   }
+}
+
+/**
+ * The quantisation this device can run.
+ *
+ * Asked of the adapter rather than assumed, because assuming is what produced a
+ * 483 MB download followed by a shader compilation failure.
+ */
+function dtypeFor(adapter: AdapterLike): typeof DTYPE_WITH_F16 | typeof DTYPE_WITHOUT_F16 {
+  return adapter.features?.has('shader-f16') === true ? DTYPE_WITH_F16 : DTYPE_WITHOUT_F16;
+}
+
+async function hasWebGpu(): Promise<boolean> {
+  return (await requestAdapter()) !== null;
 }
 
 async function getGenerator(): Promise<Generator> {
   if (!generatorPromise) {
     generatorPromise = (async () => {
       const { pipeline } = await import('@huggingface/transformers');
-      logger.info('Loading the browser language model', { model: MODEL_ID, dtype: DTYPE });
-      return pipeline('text-generation', MODEL_ID, { device: 'webgpu', dtype: DTYPE });
+      const adapter = await requestAdapter();
+      if (!adapter) throw new Error('this browser has no WebGPU adapter');
+      const dtype = dtypeFor(adapter);
+      logger.info('Loading the browser language model', { model: MODEL_ID, dtype });
+      return pipeline('text-generation', MODEL_ID, { device: 'webgpu', dtype });
     })().catch((error: unknown) => {
       // Cleared so a later attempt can retry: the usual cause is a network
       // failure fetching the weights, which is not permanent.
