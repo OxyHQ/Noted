@@ -23,6 +23,7 @@
 
 import { createLogger } from '@oxyhq/core/logger';
 
+import { createPlaybackUrl, releasePlaybackUrl } from '@/lib/audio/store';
 import { makeSegment, type TranscriptSegment } from '@/lib/capture/captures-repo';
 import type { SttEngine, TranscribeRequest } from '@/lib/stt/engine';
 
@@ -186,9 +187,21 @@ async function getTranscriber(): Promise<Transcriber> {
  * both faster and more correct than resampling by hand.
  */
 async function decodeToSamples(audioPath: string): Promise<Float32Array> {
-  const response = await fetch(audioPath);
-  const encoded = await response.arrayBuffer();
+  // A capture recorded in this browser is a durable reference, not a URL, so it
+  // is resolved to a temporary handle here and given straight back. Retrying a
+  // transcription is exactly the path that used to break after a reload, because
+  // the `blob:` URL in the row had died with the page that minted it.
+  const handle = await createPlaybackUrl(audioPath);
+  try {
+    const response = await fetch(handle ?? audioPath);
+    const encoded = await response.arrayBuffer();
+    return await resample(encoded);
+  } finally {
+    releasePlaybackUrl(handle);
+  }
+}
 
+async function resample(encoded: ArrayBuffer): Promise<Float32Array> {
   const decodeContext = new AudioContext();
   try {
     const decoded = await decodeContext.decodeAudioData(encoded);
