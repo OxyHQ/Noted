@@ -170,7 +170,7 @@ describe('the honest states', () => {
   it('derives what it says from the capture row rather than from the screen', () => {
     // So a note reopened after a restart says the same thing, and two screens
     // showing the same recording cannot disagree.
-    expect(STATUS_LINE).toContain('captureStatus(capture.lifecycle)');
+    expect(STATUS_LINE).toContain('captureStatus(capture.lifecycle, capture.enhancementReason)');
     expect(STATUS_LINE).toContain('useNoteCaptures(');
   });
 
