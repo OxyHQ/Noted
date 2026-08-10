@@ -19,12 +19,33 @@ import { setCaptureLifecycle, type Capture } from '@/lib/capture/captures-repo';
 import { enhanceNote } from '@/lib/capture/restructure';
 import { transcribeAfterStop } from '@/lib/capture/transcribe-after';
 import { loadSetting, SETTING_KEYS } from '@/lib/db/settings-repo';
+import type { CaptureProfile } from '@/lib/artifact/types';
 import type { CaptureRetry } from '@/lib/capture/status';
 
 const logger = createLogger('NotedCapture');
 
 function isLanguage(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
+}
+
+/**
+ * Change how the note is organised and write it again.
+ *
+ * A profile is a claim about what the recording IS — a class, a stand-up, somebody
+ * dictating a list — and the user is the authority on that. Changing it has to
+ * rewrite the note, or the setting is a preference that does nothing.
+ *
+ * The profile is stored BEFORE the pass runs, so the generator reads the user's
+ * answer rather than being handed it: a pass that took the profile as an argument
+ * would leave the row saying one thing and the note showing another the moment
+ * anything else regenerated.
+ */
+export async function regenerateWithProfile(
+  capture: Capture,
+  profile: CaptureProfile,
+): Promise<void> {
+  await setCaptureLifecycle(capture.id, { profile });
+  await retryCapture({ ...capture, profile }, 'notes');
 }
 
 /**

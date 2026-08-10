@@ -222,6 +222,38 @@ describe('the transcript surface', () => {
   });
 });
 
+describe('the recording controls', () => {
+  const CONTROLS = read('../components/capture/recording-controls.tsx');
+  const EDITOR = read('../app/n/[id].tsx');
+  const REPO = read('capture/captures-repo.ts');
+
+  it('reads the files it thinks it does', () => {
+    expect(CONTROLS).toContain('export function RecordingControls');
+  });
+
+  it('is on the note, not two screens away', () => {
+    // Burying retention in settings is how an hour of audio stays on a phone
+    // forever.
+    expect(EDITOR).toContain('<RecordingControls');
+  });
+
+  it('stores the profile before rewriting, so the row and the note agree', () => {
+    // A pass handed the profile as an argument would leave the row saying one
+    // thing and the note showing another the moment anything else regenerated.
+    expect(read('capture/retry.ts')).toContain("setCaptureLifecycle(capture.id, { profile })");
+  });
+
+  it('clears the path when it deletes the audio', () => {
+    // A row naming a deleted file is how a play button appears and then fails.
+    expect(REPO).toContain("SET audio_path = ''");
+  });
+
+  it('deletes the transcript without touching the note', () => {
+    expect(REPO).toContain('DELETE FROM transcript_segments WHERE capture_id = ?');
+    expect(CONTROLS).toContain('deleteRecordingTranscript(capture)');
+  });
+});
+
 describe('the recognisers', () => {
   it('derive a segment id from its position rather than minting one', () => {
     // A minted id means `INSERT OR REPLACE` has nothing to replace, so each

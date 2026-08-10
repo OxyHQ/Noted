@@ -42,6 +42,7 @@ import { saveTextFile } from "@/lib/export/save";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import { CaptureStatusLine } from "@/components/capture/capture-status";
 import { TranscriptPanel } from "@/components/capture/transcript-panel";
+import { RecordingControls } from "@/components/capture/recording-controls";
 import { ChecklistEditor } from "@/components/notes/checklist-editor";
 import { recordChecklistOverrides } from "@/lib/artifact/record-checklist";
 import { MarkdownBodyEditor } from "@/components/notes/markdown-body-editor";
@@ -534,6 +535,12 @@ export default function NoteEditorScreen() {
             opening the transcript unasked puts the work the app exists to save
             back in front of the reader. */}
         <TranscriptPanel noteId={isNew ? '' : params.id} />
+
+        {/* What this recording was, and what it is still keeping. Both belong on
+            the note rather than in settings: both are about THIS recording, and
+            burying retention two screens away is how an hour of audio stays on a
+            phone forever. */}
+        <RecordingControls noteId={isNew ? '' : params.id} />
       </ScrollView>
 
       {/* Color picker strip */}
