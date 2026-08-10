@@ -151,6 +151,42 @@ describe('the browser’s audio', () => {
   });
 });
 
+describe('the honest states', () => {
+  const STATUS_LINE = read('../components/capture/capture-status.tsx');
+  const EDITOR = read('../app/n/[id].tsx');
+
+  it('reads the files it thinks it does', () => {
+    expect(STATUS_LINE).toContain('export function CaptureStatusLine');
+    expect(EDITOR).toContain('export default function NoteEditorScreen');
+  });
+
+  it('is on the screen the user opens, not only in a module', () => {
+    // A status nobody renders is a status nobody reads. This is the assertion
+    // that keeps `captureStatus` from being a well-tested function with no
+    // consumer.
+    expect(EDITOR).toContain('<CaptureStatusLine');
+  });
+
+  it('derives what it says from the capture row rather than from the screen', () => {
+    // So a note reopened after a restart says the same thing, and two screens
+    // showing the same recording cannot disagree.
+    expect(STATUS_LINE).toContain('captureStatus(capture.lifecycle)');
+    expect(STATUS_LINE).toContain('useNoteCaptures(');
+  });
+
+  it('wires the retry to something that actually repairs it', () => {
+    // A Retry button that does nothing is worse than one that is absent.
+    expect(STATUS_LINE).toContain('retryCapture(capture, status.retry)');
+  });
+
+  it('does not read a ref during render', () => {
+    // With the React Compiler, a `.current` read from a memoised position is
+    // frozen at its first value forever — the note id would stick to whatever it
+    // was when the screen first rendered.
+    expect(EDITOR).not.toContain('noteId={noteIdRef.current');
+  });
+});
+
 describe('the recognisers', () => {
   it('derive a segment id from its position rather than minting one', () => {
     // A minted id means `INSERT OR REPLACE` has nothing to replace, so each

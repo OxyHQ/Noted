@@ -1160,7 +1160,20 @@
     "notificationBody": "Noted is taking notes",
     "denied": "Noted needs the microphone to record. Allow it in your settings and try again.",
     "failed": "The recording could not be started.",
-    "webOnlyMobile": "Recording works in the Noted mobile app."
+    "webOnlyMobile": "Recording works in the Noted mobile app.",
+    "status": {
+      "idle": "Recording saved",
+      "recording": "Recording",
+      "transcribing": "Finalizing transcript…",
+      "organizing": "Organizing notes…",
+      "ready": "Notes ready",
+      "interrupted": "This recording was interrupted. The audio is safe.",
+      "transcriptFailed": "The recording is safe, but Noted could not transcribe it.",
+      "notesFailed": "The recording is safe, but Noted could not finish the notes.",
+      "failed": "This recording could not be saved."
+    },
+    "retry": "Retry",
+    "microphoneOnly": "In a browser Noted records this device's microphone only, not the other people in a call."
   },
   "transcription": {
     "title": "Transcription",

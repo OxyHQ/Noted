@@ -40,6 +40,7 @@ import { createLogger } from "@oxyhq/core/logger";
 import { noteFilename, noteToMarkdown } from "@/lib/export/markdown";
 import { saveTextFile } from "@/lib/export/save";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
+import { CaptureStatusLine } from "@/components/capture/capture-status";
 import { ChecklistEditor } from "@/components/notes/checklist-editor";
 import { MarkdownBodyEditor } from "@/components/notes/markdown-body-editor";
 import { LabelChips } from "@/components/notes/label-chips";
@@ -487,6 +488,11 @@ export default function NoteEditorScreen() {
             />
           </View>
         )}
+
+        {/* What is happening to this note's recording, read from the capture row
+            rather than from anything this screen remembers — so it says the same
+            thing after a restart, and offers the same repair. */}
+        <CaptureStatusLine noteId={isNew ? '' : params.id} />
 
         <TextInput
           value={draft.title}
