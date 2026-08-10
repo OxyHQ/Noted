@@ -17,9 +17,14 @@ import { createLogger } from '@oxyhq/core/logger';
 import type {
   EnhanceLine,
   EnhanceRequest,
-  EnhancementItem,
+  EnhancementBlock,
+  EnhancementListItem,
+  EnhancementSection,
+  Resolved,
+  ResolvedBlock,
   ResolvedEnhancement,
   ResolvedItem,
+  ResolvedSection,
 } from '@/lib/enhance/contract';
 import { parseEnhancement } from '@/lib/enhance/parse';
 import { buildPrompt, splitForContext } from '@/lib/enhance/prompt';
@@ -40,29 +45,66 @@ export type { ResolvedEnhancement, ResolvedItem };
  */
 export type Generate = (prompt: string) => Promise<string>;
 
-function resolveItem(item: EnhancementItem, window: readonly EnhanceLine[]): ResolvedItem {
-  const lines = item.sources.map((source) => window[source - 1]).filter(Boolean);
+/** Where a set of cited line numbers points, in the recording. */
+function resolve(sources: readonly number[], window: readonly EnhanceLine[]): Resolved {
+  const lines = sources.map((source) => window[source - 1]).filter(Boolean);
   return {
-    text: item.text,
     segmentIds: [...new Set(lines.flatMap((line) => line.segmentIds))],
     atMs: lines.length > 0 ? Math.min(...lines.map((line) => line.atMs)) : null,
+  };
+}
+
+function resolveItem(item: EnhancementListItem, window: readonly EnhanceLine[]): ResolvedItem {
+  return {
+    text: item.text,
+    ...resolve(item.sources, window),
     ...(item.derived ? { derived: item.derived } : {}),
   };
 }
 
+function resolveBlock(block: EnhancementBlock, window: readonly EnhanceLine[]): ResolvedBlock {
+  return {
+    type: block.type,
+    ...resolve(block.sources, window),
+    ...(block.text === undefined ? {} : { text: block.text }),
+    ...(block.attribution === undefined ? {} : { attribution: block.attribution }),
+    ...(block.items ? { items: block.items.map((item) => resolveItem(item, window)) } : {}),
+  };
+}
+
+function resolveSection(
+  section: EnhancementSection,
+  window: readonly EnhanceLine[],
+): ResolvedSection {
+  return {
+    ...(section.heading === undefined ? {} : { heading: section.heading }),
+    blocks: section.blocks.map((block) => resolveBlock(block, window)),
+  };
+}
+
 /**
- * Combine the answers from several windows into one note.
+ * Combine the answers from several windows into one document.
  *
- * Order is preserved because a recording has one, and repeats are dropped because
- * the same decision restated in two windows is one decision — with the citations
- * of both kept, since it really was said twice. The title comes from the first
- * window that produced one: the beginning of a recording is where people say what
- * it is about.
+ * Sections are matched BY HEADING, because that is what a section is: two windows
+ * that both wrote "The printing-press analogy" wrote about the same thing, and
+ * appending them as separate sections would give the note the same heading twice.
+ * Their blocks are concatenated in the order the recording produced them.
+ *
+ * The title comes from the first window that produced one — the beginning of a
+ * recording is where people say what it is about — and so does the profile, for
+ * the same reason.
  */
+/** What makes two blocks the same block, for merging across windows. */
+function blockKey(block: ResolvedBlock): string {
+  const body = block.text ?? (block.items ?? []).map((item) => item.text).join('|');
+  return `${block.type}:${body.trim().toLowerCase()}`;
+}
+
 function merge(parts: readonly ResolvedEnhancement[]): ResolvedEnhancement | null {
   const merged: ResolvedEnhancement = {
     title: '',
-    notes: [],
+    people: [],
+    sections: [],
     actions: [],
     openQuestions: [],
     listAdditions: [],
@@ -70,7 +112,37 @@ function merge(parts: readonly ResolvedEnhancement[]): ResolvedEnhancement | nul
 
   for (const part of parts) {
     if (merged.title === '' && part.title !== '') merged.title = part.title;
-    for (const field of ['notes', 'actions', 'openQuestions', 'listAdditions'] as const) {
+    merged.profile ??= part.profile;
+
+    for (const person of part.people) {
+      const already = merged.people.some(
+        (candidate) =>
+          (candidate.name ?? candidate.role ?? '').toLowerCase() ===
+          (person.name ?? person.role ?? '').toLowerCase(),
+      );
+      if (!already) merged.people.push(person);
+    }
+
+    for (const section of part.sections) {
+      const existing = merged.sections.find(
+        (candidate) =>
+          (candidate.heading ?? '').toLowerCase() === (section.heading ?? '').toLowerCase(),
+      );
+      if (existing) {
+        // The same paragraph produced by two windows is one paragraph. Without
+        // this, a subject discussed across a window boundary comes back written
+        // twice, word for word.
+        const already = new Set(existing.blocks.map(blockKey));
+        existing.blocks = [
+          ...existing.blocks,
+          ...section.blocks.filter((block) => !already.has(blockKey(block))),
+        ];
+      } else {
+        merged.sections.push({ ...section, blocks: [...section.blocks] });
+      }
+    }
+
+    for (const field of ['actions', 'openQuestions', 'listAdditions'] as const) {
       for (const item of part[field]) {
         const existing = merged[field].find(
           (candidate) => candidate.text.toLowerCase() === item.text.toLowerCase(),
@@ -85,7 +157,7 @@ function merge(parts: readonly ResolvedEnhancement[]): ResolvedEnhancement | nul
   }
 
   const hasContent =
-    merged.notes.length > 0 ||
+    merged.sections.length > 0 ||
     merged.actions.length > 0 ||
     merged.openQuestions.length > 0 ||
     merged.listAdditions.length > 0;
@@ -138,8 +210,15 @@ export async function summarize(
     }
 
     parts.push({
+      profile: parsed.profile,
       title: parsed.title,
-      notes: parsed.notes.map((item) => resolveItem(item, window)),
+      people: parsed.people.map((person) => ({
+        ...resolve(person.sources, window),
+        ...(person.name === undefined ? {} : { name: person.name }),
+        ...(person.role === undefined ? {} : { role: person.role }),
+        ...(person.organization === undefined ? {} : { organization: person.organization }),
+      })),
+      sections: parsed.sections.map((section) => resolveSection(section, window)),
       actions: parsed.actions.map((item) => resolveItem(item, window)),
       openQuestions: parsed.openQuestions.map((item) => resolveItem(item, window)),
       listAdditions: parsed.listAdditions.map((item) => resolveItem(item, window)),

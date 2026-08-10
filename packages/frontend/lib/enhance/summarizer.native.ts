@@ -23,6 +23,7 @@ import type {
 } from '@/lib/enhance/contract';
 import { isLlmModelPresent, llmModelPath } from '@/lib/enhance/models';
 import { summarize } from '@/lib/enhance/summarize';
+import { DOCUMENT_SCHEMA } from '@/lib/enhance/schema';
 
 const logger = createLogger('NotedEnhance');
 
@@ -43,20 +44,12 @@ const MAX_REPLY_TOKENS = 700;
 /**
  * The shape the model is constrained to emit.
  *
- * Every field is required so the model cannot answer with a subset it finds
- * easier — an empty array is a meaningful answer here and a missing key is not.
+ * The CANONICAL schema, imported rather than restated. This file used to carry
+ * its own copy requiring arrays of strings, which stayed correct for exactly as
+ * long as nobody changed the contract — and then constrained generation against
+ * a document nothing else expected, silently, because a grammar guarantees the
+ * shape and says nothing about whether anyone agrees with it.
  */
-const REPLY_SCHEMA = {
-  type: 'object',
-  properties: {
-    title: { type: 'string' },
-    notes: { type: 'array', items: { type: 'string' } },
-    actions: { type: 'array', items: { type: 'string' } },
-    openQuestions: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['title', 'notes', 'actions', 'openQuestions'],
-} as const;
-
 /**
  * One loaded model at a time.
  *
@@ -107,7 +100,7 @@ export function getSummarizer(): OnDeviceSummarizer {
           temperature: 0.2,
           response_format: {
             type: 'json_schema',
-            json_schema: { strict: true, schema: REPLY_SCHEMA },
+            json_schema: { strict: true, schema: DOCUMENT_SCHEMA },
           },
         });
         return result.text;
