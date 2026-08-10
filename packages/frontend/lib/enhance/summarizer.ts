@@ -13,8 +13,15 @@ import type { OnDeviceSummarizer } from '@/lib/enhance/contract';
 
 export function getSummarizer(): OnDeviceSummarizer {
   return {
-    availability: () => Promise.resolve('unsupported'),
-    enhance: () => Promise.resolve(null),
+    // `model_files_unavailable` rather than a hardware reason: this build is the
+    // one no platform backend claimed, so nothing about the machine is known.
+    capability: () => Promise.resolve({ kind: 'unavailable', reason: 'model_files_unavailable' }),
+    enhance: () =>
+      Promise.resolve({
+        ok: false,
+        kind: 'unavailable',
+        capability: { kind: 'unavailable', reason: 'model_files_unavailable' },
+      }),
   };
 }
 

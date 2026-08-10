@@ -82,15 +82,29 @@ describe('the note and the improvement are two operations', () => {
 });
 
 describe('the browser model asks the GPU what it can run', () => {
-  it('picks the quantisation from the adapter rather than assuming', () => {
+  it('picks the quantisation from what the device reports, not from an assumption', () => {
     // `q4f16` needs `shader-f16`. Assuming it produced a 483 MB download and
     // then a shader compilation failure, by which point the user had recorded a
     // meeting and waited.
     expect(SUMMARIZER_WEB).toContain("has('shader-f16')");
-    expect(SUMMARIZER_WEB).toContain('dtypeFor(adapter)');
+    // Asked of the DEVICE first. An adapter is not what compiles shaders, and
+    // the probe now goes all the way to a `GPUDevice` — so the answer that
+    // chooses the dtype is the one inference actually runs on.
+    expect(SUMMARIZER_WEB).toContain('device.features?.has');
+  });
+
+  it('asks for a device, not only an adapter', () => {
+    // A machine can advertise an adapter and refuse `requestDevice()`. The old
+    // probe called that supported, downloaded the weights, and failed after.
+    expect(SUMMARIZER_WEB).toContain('requestDevice');
+    expect(SUMMARIZER_WEB).toContain("reason: 'device_request_failed'");
   });
 
   it('does not hardcode one dtype at the call site', () => {
-    expect(SUMMARIZER_WEB).not.toMatch(/dtype: 'q4f16'/);
+    // The pipeline is handed the value the probe decided, never a literal. A
+    // plain "the string q4f16 does not appear" would now fail on the type
+    // annotation `dtype: 'q4f16' | 'q4'`, which is the opposite of a problem.
+    expect(SUMMARIZER_WEB).toContain("{ device: 'webgpu', dtype }");
+    expect(SUMMARIZER_WEB).not.toMatch(/dtype: 'q4f16' \}/);
   });
 });

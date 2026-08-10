@@ -10,6 +10,7 @@ import {
 import type { ProcessingTask } from '@/lib/capture/queue';
 import { NoteProcessingError } from '@/lib/capture/errors';
 import { captureStatus } from '@/lib/capture/status';
+import type { EnhancementOutcome } from '@/lib/capture/enhancement-outcome';
 
 const CAPTURE_ID = 'cap_1';
 const NOTE_ID = 'note_1';
@@ -43,15 +44,23 @@ class FakeStore implements CaptureLifecycleStore {
   readonly calls: string[] = [];
   revision = 0;
   errorCode: string | null = null;
+  enhancementReason: string | null = null;
   finished: { durationMs: number; audioPath: string } | null = null;
 
   setLifecycle(
     _captureId: string,
-    patch: Partial<CaptureLifecycle> & { errorCode?: string | null },
+    patch: Partial<CaptureLifecycle> & {
+      errorCode?: string | null;
+      enhancementReason?: string | null;
+    },
   ): Promise<unknown> {
-    const { errorCode, ...statuses } = patch;
+    // Both are recorded ALONGSIDE the lifecycle rather than inside it: they are
+    // why something happened, and folding them into the status is how one status
+    // ended up meaning seven different things.
+    const { errorCode, enhancementReason, ...statuses } = patch;
     this.lifecycle = { ...this.lifecycle, ...statuses };
     if (errorCode !== undefined) this.errorCode = errorCode;
+    if (enhancementReason !== undefined) this.enhancementReason = enhancementReason;
     this.history.push({ ...this.lifecycle });
     this.calls.push('setLifecycle');
     return Promise.resolve(this.lifecycle);
@@ -84,7 +93,7 @@ function build(
   writers: Partial<{
     live: (task: ProcessingTask) => Promise<void>;
     finalize: (task: ProcessingTask) => Promise<void>;
-    enhance: (task: ProcessingTask) => Promise<boolean>;
+    enhance: (task: ProcessingTask) => Promise<EnhancementOutcome>;
   }> = {},
 ): { coordinator: CaptureCoordinator; store: FakeStore; onError: ReturnType<typeof vi.fn> } {
   const store = new FakeStore();
@@ -96,7 +105,9 @@ function build(
     writers: {
       live: writers.live ?? (() => Promise.resolve()),
       finalize: writers.finalize ?? (() => Promise.resolve()),
-      enhance: writers.enhance ?? (() => Promise.resolve(true)),
+      enhance:
+        writers.enhance ??
+        (() => Promise.resolve({ kind: 'improved', artifactRevision: 1 } as const)),
     },
     onError,
   });
@@ -222,7 +233,7 @@ describe('transcript revisions', () => {
       writers: {
         live,
         finalize: () => Promise.resolve(),
-        enhance: () => Promise.resolve(true),
+        enhance: () => Promise.resolve({ kind: 'improved', artifactRevision: 1 } as const),
       },
     });
 
@@ -359,7 +370,9 @@ describe('a note that exists and an improvement that failed', () => {
       finalize,
       enhance: () => {
         attempts += 1;
-        return attempts === 1 ? Promise.reject(new Error('no model')) : Promise.resolve(true);
+        return attempts === 1
+          ? Promise.reject(new Error('no model'))
+          : Promise.resolve({ kind: 'improved', artifactRevision: 2 } as const);
       },
     });
 
@@ -375,21 +388,61 @@ describe('a note that exists and an improvement that failed', () => {
     expect(finalize).toHaveBeenCalledTimes(1);
   });
 
-  it('calls a device with nothing to add unsupported, not failed', async () => {
+  it('calls a device that cannot run a model unsupported, not failed', async () => {
     // No model here is not a broken note. It is this device saying the baseline
-    // is the final answer.
-    const { coordinator, store } = build({ enhance: () => Promise.resolve(false) });
+    // is the final answer — and it is the ONLY outcome allowed to say that.
+    const { coordinator, store } = build({
+      enhance: () =>
+        Promise.resolve({
+          kind: 'unavailable',
+          capability: { kind: 'unavailable', reason: 'adapter_unavailable' },
+        } as const),
+    });
     await coordinator.markStopped(1_000, 'a.wav');
     await coordinator.finalization;
     expect(store.lifecycle.enhancement).toBe('unsupported');
     expect(captureStatus(store.lifecycle).kind).toBe('basicReady');
     expect(captureStatus(store.lifecycle).retry).toBeNull();
   });
+
+  it('does not call a model that answered badly unsupported', async () => {
+    // The defect #68 is about. The model ran, on a device that can run it, and
+    // its reply was cut off — reporting that as a missing capability tells the
+    // user to buy a new machine to fix a token budget.
+    const { coordinator, store } = build({
+      enhance: () => Promise.resolve({ kind: 'invalid-output', reason: 'truncated' } as const),
+    });
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+    expect(store.lifecycle.enhancement).toBe('failed');
+    expect(store.errorCode).toBe('model_output_truncated');
+    expect(captureStatus(store.lifecycle).retry).toBe('enhancement');
+  });
+
+  it('does not call a lost commit race unsupported either', async () => {
+    // A newer artifact won. The user has something at least as fresh, so this
+    // is ordinary superseded work rather than a gap in the device.
+    const { coordinator, store } = build({
+      enhance: () => Promise.resolve({ kind: 'stale', currentRevision: 9 } as const),
+    });
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+    expect(store.lifecycle.enhancement).toBe('complete');
+  });
+
+  it('treats an honest "nothing to add" as complete', async () => {
+    const { coordinator, store } = build({
+      enhance: () => Promise.resolve({ kind: 'no-change', reason: 'equivalent' } as const),
+    });
+    await coordinator.markStopped(1_000, 'a.wav');
+    await coordinator.finalization;
+    expect(store.lifecycle.enhancement).toBe('complete');
+  });
 });
 
 describe('a note that does not exist', () => {
   it('is the only thing that reports the notes as failed', async () => {
-    const enhance = vi.fn(() => Promise.resolve(true));
+    const enhance = vi.fn(() => Promise.resolve({ kind: 'improved', artifactRevision: 1 } as const));
     const { coordinator, store } = build({
       finalize: () => Promise.reject(new NoteProcessingError('artifact_persist')),
       enhance,

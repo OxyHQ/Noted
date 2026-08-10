@@ -47,6 +47,7 @@ import { reduceLiveArtifact } from '@/lib/artifact/reduce';
 import { getSummarizer } from '@/lib/enhance/summarizer';
 import type { OnDeviceSummarizer } from '@/lib/enhance/contract';
 import { errorCodeOf, NoteProcessingError } from '@/lib/capture/errors';
+import type { EnhancementOutcome } from '@/lib/capture/enhancement-outcome';
 
 const logger = createLogger('NotedCapture');
 
@@ -254,15 +255,18 @@ export async function enhanceNote(
   startedAt: Date,
   language: string,
   transcriptRevision = 0,
-): Promise<boolean> {
+): Promise<EnhancementOutcome> {
   const context = await readContext(captureId, noteId, startedAt);
-  if (!context) return false;
+  // No capture and no settled artifact are both "there is nothing to improve",
+  // which is a state of the WORK rather than of the device — reporting them as
+  // unsupported hardware is what this whole outcome type exists to stop.
+  if (!context) return { kind: 'stale', currentRevision: transcriptRevision };
 
   // Read back what was actually persisted rather than rebuilding it. The stored
   // artifact is what the user is looking at; regenerating a second opinion here
   // and improving THAT would show them a note nobody committed.
   const settled = context.artifacts.final;
-  if (!settled) return false;
+  if (!settled) return { kind: 'stale', currentRevision: transcriptRevision };
 
   const now = new Date().toISOString();
   return enhanceWithModel(context, {
@@ -291,13 +295,14 @@ interface ModelPassInput {
 async function enhanceWithModel(
   context: CaptureContext,
   input: ModelPassInput,
-): Promise<boolean> {
+): Promise<EnhancementOutcome> {
   const { captureId, noteId, startedAt, language, transcriptRevision, now, settled } = input;
 
   const summarizer = getSummarizer();
-  if ((await summarizer.availability()) !== 'ready') return false;
+  const capability = await summarizer.capability();
+  if (capability.kind !== 'ready') return { kind: 'unavailable', capability };
 
-  const enhancement = await runModel(summarizer, {
+  const attempt = await runModel(summarizer, {
     // The model is shown the cleaned, block-grouped transcript rather than
     // whisper's raw segments: the filler and repetitions removed there are
     // tokens a phone's context window would otherwise spend on nothing. Each
@@ -321,13 +326,17 @@ async function enhanceWithModel(
     // is whatever the user authorised out loud — usually nothing.
     expansions: settled.pendingExpansions ?? [],
   });
-  if (!enhancement) {
-    logger.info('The model had nothing to add; keeping the structured note');
-    return false;
+  if (!attempt.ok) {
+    if (attempt.kind === 'unavailable') return { kind: 'unavailable', capability: attempt.capability };
+    // The model ran and its answer was unusable. That is retryable and it is
+    // NOT a statement about the device — which is exactly the confusion the old
+    // boolean created.
+    logger.info('The model produced no usable document', { reason: attempt.reason });
+    return { kind: 'invalid-output', reason: attempt.reason };
   }
 
   const fromModel = enhancementToArtifact({
-    enhancement,
+    enhancement: attempt.value,
     captureId,
     noteId,
     stage: 'final',
@@ -339,19 +348,18 @@ async function enhanceWithModel(
     fallbackTitle: input.fallbackTitle,
   });
 
-  const landed = await commit(
-    context,
-    committed(
-      finalizeArtifact({
-        previous: settled,
-        next: fromModel,
-        overrides: context.overrides,
-        now,
-      }),
-      { transcriptRevision, now },
-    ),
-    startedAt,
+  const enhanced = committed(
+    finalizeArtifact({ previous: settled, next: fromModel, overrides: context.overrides, now }),
+    { transcriptRevision, now },
   );
-  if (landed) logger.info('Note rewritten by the on-device model', { noteId });
-  return landed;
+  const landed = await commit(context, enhanced, startedAt);
+  if (!landed) {
+    // A newer artifact won the compare-and-swap. Ordinary superseded work: the
+    // user has something at least as fresh, and calling that "unsupported" told
+    // them their device had failed at the moment it had actually raced itself.
+    return { kind: 'stale', currentRevision: transcriptRevision };
+  }
+
+  logger.info('Note rewritten by the on-device model', { noteId });
+  return { kind: 'improved', artifactRevision: enhanced.artifactRevision };
 }

@@ -38,11 +38,123 @@ import { BLOCK_TYPES, FIELDS, SCHEMA_PROFILES } from '@/lib/enhance/schema';
 /** Longest reply worth parsing. Beyond this the model is not answering. */
 const MAX_REPLY_CHARS = 20_000;
 
-/** Beyond this a "bullet" is a paragraph, and the model has ignored the brief. */
-const MAX_ITEM_CHARS = 400;
+/**
+ * How long each kind of document unit may be.
+ *
+ * One number used to cover all of them, and it was 400 — a limit written for
+ * bullets, back when the reply was four arrays of short strings. `readText`
+ * then started being used for paragraphs too, so a coherent explanatory
+ * paragraph over 400 characters was silently replaced with the empty string and
+ * dropped. If every paragraph in a reply crossed it, the whole model result
+ * became `null`, and the user was told their DEVICE could not organise notes.
+ *
+ * A paragraph is not a long bullet. The units are listed separately because
+ * they are different things, and because a single shared number cannot be
+ * raised for one of them without loosening the rest.
+ */
+const LIMITS = {
+  /** A title of paragraph length is the model answering the wrong question. */
+  title: 120,
+  heading: 200,
+  /** Connected reasoning. The unit this whole limit family got wrong. */
+  paragraph: 4_000,
+  /** Somebody's exact words, which can run long in a talk. */
+  quote: 2_000,
+  /** A line of a list. Beyond this it is prose wearing a bullet. */
+  listItem: 400,
+  /** A person's name, role or organisation. */
+  person: 200,
+} as const;
 
 /** More than this is a transcript, not a summary. */
 const MAX_ITEMS = 20;
+
+/** How many sections a document may have before it is just the transcript again. */
+const MAX_SECTIONS = 20;
+
+/** Blocks in one section. */
+const MAX_BLOCKS_PER_SECTION = 40;
+
+/**
+ * Why a reply could not be used.
+ *
+ * `null` used to carry all of these, and the caller turned every one of them
+ * into "this device cannot organize notes" — which is false for all but the
+ * last and actively misleading for the first three, since they describe the
+ * model's OUTPUT rather than the machine.
+ */
+export type ParseFailureReason =
+  /** No `{` anywhere: the model answered in prose. */
+  | 'no_json_object'
+  /** A JSON object started and never closed — generation stopped mid-answer. */
+  | 'truncated'
+  /** Balanced braces that `JSON.parse` still refused. */
+  | 'malformed_json'
+  /** Parsed, but the top level was not an object. */
+  | 'schema_rejected'
+  /** Every block was refused: a document arrived and nothing in it survived. */
+  | 'all_content_dropped'
+  /** A title and nothing else — the model had nothing to say. */
+  | 'nothing_useful'
+  /** Longer than anything worth reading. */
+  | 'reply_too_long';
+
+/**
+ * What the parse saw, in numbers rather than text.
+ *
+ * Deliberately contains no transcript and no model output: this is meant to be
+ * loggable and attachable to a support report, and the one thing that must
+ * never leave the device is what the user recorded.
+ */
+export interface ParseDiagnostics {
+  replyChars: number;
+  /** Whether a `{` appeared at all. */
+  jsonObjectStarted: boolean;
+  /** Whether that object ever closed. False here IS the truncation signal. */
+  bracesBalanced: boolean;
+  jsonParsed: boolean;
+  sectionsAccepted: number;
+  sectionsDropped: number;
+  blocksAccepted: number;
+  blocksDropped: number;
+  /** Units refused for being longer than their kind allows. */
+  oversizeDropped: number;
+  /** References to transcript lines the model was never shown. */
+  invalidSourceRefs: number;
+  /** Set by the caller when the runtime reported hitting its token ceiling. */
+  hitGenerationCap?: boolean;
+}
+
+export type ParseEnhancementResult =
+  | { ok: true; value: Enhancement; diagnostics: ParseDiagnostics }
+  | { ok: false; reason: ParseFailureReason; diagnostics: ParseDiagnostics };
+
+/**
+ * Counters filled in as one reply is read.
+ *
+ * Threaded through the readers rather than kept in a module-level variable: two
+ * windows of one recording are parsed one after another, and a shared counter
+ * would attribute the first window's drops to the second.
+ */
+interface Tally {
+  sectionsAccepted: number;
+  sectionsDropped: number;
+  blocksAccepted: number;
+  blocksDropped: number;
+  oversizeDropped: number;
+  invalidSourceRefs: number;
+}
+
+function emptyTally(): Tally {
+  return {
+    sectionsAccepted: 0,
+    sectionsDropped: 0,
+    blocksAccepted: 0,
+    blocksDropped: 0,
+    oversizeDropped: 0,
+    invalidSourceRefs: 0,
+  };
+}
 
 /**
  * Pull the JSON object out of a reply that may be wrapped in prose or fences.
@@ -113,12 +225,18 @@ export interface ParseOptions {
  * user more than showing it ungrounded does. What must never happen is the
  * citation being believed.
  */
-function readSources(value: unknown, lineCount: number): number[] {
+function readSources(value: unknown, lineCount: number, tally: Tally): number[] {
   const raw = Array.isArray(value) ? value : typeof value === 'number' ? [value] : [];
   const sources: number[] = [];
   for (const entry of raw) {
     const line = typeof entry === 'number' ? entry : Number(entry);
-    if (!Number.isInteger(line) || line < 1 || line > lineCount) continue;
+    if (!Number.isInteger(line) || line < 1 || line > lineCount) {
+      // Counted, because a reply full of these is a model citing lines it was
+      // never shown — worth seeing in a diagnostic even though each one alone is
+      // dropped quietly.
+      tally.invalidSourceRefs += 1;
+      continue;
+    }
     if (!sources.includes(line)) sources.push(line);
   }
   return sources;
@@ -157,9 +275,18 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function readText(value: unknown): string {
+/**
+ * Read one piece of text, against the limit for the KIND of unit it is.
+ *
+ * A refusal is counted rather than silent. The whole reason this file now
+ * carries a tally is that a dropped paragraph used to be indistinguishable from
+ * a paragraph the model never wrote.
+ */
+function readText(value: unknown, unit: keyof typeof LIMITS, tally: Tally): string {
   const text = typeof value === 'string' ? cleanLine(value) : '';
-  return text.length > MAX_ITEM_CHARS ? '' : text;
+  if (text.length <= LIMITS[unit]) return text;
+  tally.oversizeDropped += 1;
+  return '';
 }
 
 /**
@@ -170,13 +297,13 @@ function readText(value: unknown): string {
  * often just says it, and refusing that would throw away a correct answer over
  * its shape.
  */
-function readItems(value: unknown, options: ParseOptions): EnhancementListItem[] {
+function readItems(value: unknown, options: ParseOptions, tally: Tally): EnhancementListItem[] {
   const raw = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
   const items: EnhancementListItem[] = [];
 
   for (const entry of raw) {
     const fields = record(entry);
-    const text = readText(typeof entry === 'string' ? entry : fields?.[FIELDS.text]);
+    const text = readText(typeof entry === 'string' ? entry : fields?.[FIELDS.text], 'listItem', tally);
     if (text === '') continue;
     // Repeats are the most common way a small model fills a list it has nothing
     // left to put in.
@@ -187,7 +314,7 @@ function readItems(value: unknown, options: ParseOptions): EnhancementListItem[]
 
     items.push({
       text,
-      sources: readSources(fields?.[FIELDS.sources], options.lineCount),
+      sources: readSources(fields?.[FIELDS.sources], options.lineCount, tally),
       ...(derived ? { derived } : {}),
     });
     if (items.length === MAX_ITEMS) break;
@@ -203,25 +330,25 @@ function readItems(value: unknown, options: ParseOptions): EnhancementListItem[]
  * into prose, and a note that quietly restructures itself is worse than one
  * missing a piece.
  */
-function readBlock(value: unknown, options: ParseOptions): EnhancementBlock | null {
+function readBlock(value: unknown, options: ParseOptions, tally: Tally): EnhancementBlock | null {
   const fields = record(value);
   if (!fields) {
     // A bare string where a block was asked for is a paragraph. Small models do
     // this constantly and the meaning is not in doubt.
-    const text = readText(value);
+    const text = readText(value, 'paragraph', tally);
     return text === '' ? null : { type: 'paragraph', text, sources: [] };
   }
 
   const type = fields[FIELDS.type];
   if (typeof type !== 'string' || !(BLOCK_TYPES as readonly string[]).includes(type)) return null;
-  const sources = readSources(fields[FIELDS.sources], options.lineCount);
+  const sources = readSources(fields[FIELDS.sources], options.lineCount, tally);
 
   if (type === 'bullet-list' || type === 'numbered-list') {
-    const items = readItems(fields[FIELDS.items], options);
+    const items = readItems(fields[FIELDS.items], options, tally);
     return items.length > 0 ? { type, items, sources } : null;
   }
 
-  const text = readText(fields[FIELDS.text]);
+  const text = readText(fields[FIELDS.text], type === 'quote' ? 'quote' : 'paragraph', tally);
   if (text === '') return null;
   const rawAttribution = fields[FIELDS.attribution];
   const attribution = typeof rawAttribution === 'string' ? cleanLine(rawAttribution) : '';
@@ -233,22 +360,31 @@ function readBlock(value: unknown, options: ParseOptions): EnhancementBlock | nu
   };
 }
 
-function readSections(value: unknown, options: ParseOptions): EnhancementSection[] {
+function readSections(value: unknown, options: ParseOptions, tally: Tally): EnhancementSection[] {
   if (!Array.isArray(value)) return [];
   const sections: EnhancementSection[] = [];
   for (const entry of value) {
     const fields = record(entry);
     if (!fields) continue;
-    const blocks = Array.isArray(fields[FIELDS.blocks])
-      ? (fields[FIELDS.blocks] as unknown[])
-          .map((block) => readBlock(block, options))
-          .filter((block): block is EnhancementBlock => block !== null)
+    const raw = Array.isArray(fields[FIELDS.blocks])
+      ? (fields[FIELDS.blocks] as unknown[]).slice(0, MAX_BLOCKS_PER_SECTION)
       : [];
-    if (blocks.length === 0) continue;
-    const rawHeading = fields[FIELDS.heading];
-    const heading = typeof rawHeading === 'string' ? cleanLine(rawHeading) : '';
+    const blocks = raw
+      .map((block) => readBlock(block, options, tally))
+      .filter((block): block is EnhancementBlock => block !== null);
+    tally.blocksAccepted += blocks.length;
+    tally.blocksDropped += raw.length - blocks.length;
+    // A section every one of whose blocks was refused is itself a drop, and the
+    // count is what tells a reader "the model answered and we threw it away"
+    // apart from "the model said nothing".
+    if (blocks.length === 0) {
+      tally.sectionsDropped += 1;
+      continue;
+    }
+    const heading = readText(fields[FIELDS.heading], 'heading', tally);
     sections.push({ blocks, ...(heading === '' ? {} : { heading }) });
-    if (sections.length === MAX_ITEMS) break;
+    tally.sectionsAccepted += 1;
+    if (sections.length === MAX_SECTIONS) break;
   }
   return sections;
 }
@@ -259,17 +395,17 @@ function readSections(value: unknown, options: ParseOptions): EnhancementSection
  * An entry with no name, role or organisation is dropped: an empty person is not
  * information, and rendering one would put a bare "Speaker:" over a note.
  */
-function readPeople(value: unknown, options: ParseOptions): EnhancementPerson[] {
+function readPeople(value: unknown, options: ParseOptions, tally: Tally): EnhancementPerson[] {
   if (!Array.isArray(value)) return [];
   const people: EnhancementPerson[] = [];
   for (const entry of value) {
     const fields = record(entry);
     if (!fields) continue;
     const person: EnhancementPerson = {
-      sources: readSources(fields[FIELDS.sources], options.lineCount),
+      sources: readSources(fields[FIELDS.sources], options.lineCount, tally),
     };
     for (const key of ['name', 'role', 'organization'] as const) {
-      const text = readText(fields[key]);
+      const text = readText(fields[key], 'person', tally);
       if (text !== '') person[key] = text;
     }
     if (person.name ?? person.role ?? person.organization) people.push(person);
@@ -283,52 +419,97 @@ function readProfile(value: unknown): CaptureProfile | undefined {
     : undefined;
 }
 
-function readTitle(value: unknown): string {
+function readTitle(value: unknown, tally: Tally): string {
   if (typeof value !== 'string') return '';
   const title = cleanLine(value).replace(/^#+\s*/, '');
-  // A "title" of paragraph length is the model answering the wrong question.
-  return title.length <= 120 ? title : '';
+  if (title.length <= LIMITS.title) return title;
+  tally.oversizeDropped += 1;
+  return '';
 }
 
 /**
- * Turn a model's reply into an enhancement, or refuse it.
+ * Turn a model's reply into an enhancement, or say why not.
  *
- * @returns null when nothing usable came back. The caller keeps the deterministic
- *   note, so null costs the user nothing.
+ * It used to return `Enhancement | null`, and `null` meant seven different
+ * things — no JSON at all, JSON that stopped mid-object, a document whose every
+ * paragraph was dropped for being longer than a bullet, a title with nothing
+ * under it. The caller turned all of them into "this device cannot organize
+ * notes", which is a statement about the MACHINE and was false in every case
+ * but the last.
  */
-export function parseEnhancement(reply: string, options: ParseOptions): Enhancement | null {
-  if (reply.length > MAX_REPLY_CHARS) return null;
-
+export function parseEnhancement(reply: string, options: ParseOptions): ParseEnhancementResult {
+  const tally = emptyTally();
   const json = extractJsonObject(reply);
-  if (json === null) return null;
+  const started = reply.includes('{');
+
+  const diagnose = (over: Partial<ParseDiagnostics> = {}): ParseDiagnostics => ({
+    replyChars: reply.length,
+    jsonObjectStarted: started,
+    bracesBalanced: json !== null,
+    jsonParsed: false,
+    sectionsAccepted: tally.sectionsAccepted,
+    sectionsDropped: tally.sectionsDropped,
+    blocksAccepted: tally.blocksAccepted,
+    blocksDropped: tally.blocksDropped,
+    oversizeDropped: tally.oversizeDropped,
+    invalidSourceRefs: tally.invalidSourceRefs,
+    ...over,
+  });
+
+  if (reply.length > MAX_REPLY_CHARS) {
+    return { ok: false, reason: 'reply_too_long', diagnostics: diagnose() };
+  }
+
+  if (json === null) {
+    // The discrimination this whole result type exists for. An object that
+    // opened and never closed is generation stopping mid-answer — the model was
+    // working, it ran out of room, and asking it again with more room is a real
+    // remedy. No `{` at all is a model that answered in prose instead.
+    return {
+      ok: false,
+      reason: started ? 'truncated' : 'no_json_object',
+      diagnostics: diagnose(),
+    };
+  }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
   } catch {
-    return null;
+    return { ok: false, reason: 'malformed_json', diagnostics: diagnose() };
   }
+
   const fields = record(parsed);
-  if (!fields) return null;
+  if (!fields) {
+    return { ok: false, reason: 'schema_rejected', diagnostics: diagnose({ jsonParsed: true }) };
+  }
 
   const enhancement: Enhancement = {
     profile: readProfile(fields[FIELDS.profile]),
-    title: readTitle(fields[FIELDS.title]),
-    people: readPeople(fields[FIELDS.people], options),
-    sections: readSections(fields[FIELDS.sections], options),
-    actions: readItems(fields[FIELDS.actions], options),
-    openQuestions: readItems(fields[FIELDS.openQuestions], options),
-    listAdditions: readItems(fields[FIELDS.listAdditions], options),
+    title: readTitle(fields[FIELDS.title], tally),
+    people: readPeople(fields[FIELDS.people], options, tally),
+    sections: readSections(fields[FIELDS.sections], options, tally),
+    actions: readItems(fields[FIELDS.actions], options, tally),
+    openQuestions: readItems(fields[FIELDS.openQuestions], options, tally),
+    listAdditions: readItems(fields[FIELDS.listAdditions], options, tally),
   };
 
-  // A reply with a title and nothing else is a model that had nothing to say
-  // about the recording. The rule-based note is better than a heading over
-  // emptiness, so this counts as no answer.
   const hasContent =
     enhancement.sections.length > 0 ||
     enhancement.actions.length > 0 ||
     enhancement.openQuestions.length > 0 ||
     enhancement.listAdditions.length > 0;
 
-  return hasContent ? enhancement : null;
+  if (hasContent) return { ok: true, value: enhancement, diagnostics: diagnose({ jsonParsed: true }) };
+
+  // Two different failures, and only the second is the model's fault. Content
+  // arrived and every piece of it was refused — an oversized paragraph, an
+  // unauthorised derivation, an unknown block type — versus a model that sent a
+  // heading over emptiness.
+  const dropped = tally.blocksDropped > 0 || tally.sectionsDropped > 0 || tally.oversizeDropped > 0;
+  return {
+    ok: false,
+    reason: dropped ? 'all_content_dropped' : 'nothing_useful',
+    diagnostics: diagnose({ jsonParsed: true }),
+  };
 }

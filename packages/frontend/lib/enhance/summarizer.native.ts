@@ -19,7 +19,7 @@ import { createLogger } from '@oxyhq/core/logger';
 import type {
   EnhanceRequest,
   OnDeviceSummarizer,
-  ResolvedEnhancement,
+  EnhanceAttempt,
 } from '@/lib/enhance/contract';
 import { isLlmModelPresent, llmModelPath } from '@/lib/enhance/models';
 import { summarize } from '@/lib/enhance/summarize';
@@ -39,7 +39,21 @@ const CONTEXT_TOKENS = 4096;
 const THREADS = 4;
 
 /** Enough for the JSON reply; past this the model is repeating itself. */
-const MAX_REPLY_TOKENS = 700;
+/**
+ * How much room the reply gets, sized against the window rather than fixed.
+ *
+ * The same 700 that truncated the browser's document — the canonical document
+ * is a title, people, thematic sections of paragraph blocks with source arrays,
+ * actions and open questions, and 700 tokens ends a correct answer inside it.
+ * Constrained generation makes the shape valid, not the length sufficient.
+ */
+const REPLY_TOKENS_BASE = 700;
+const REPLY_TOKENS_PER_LINE = 60;
+const REPLY_TOKENS_CEILING = 3_000;
+
+function replyBudget(lineCount: number): number {
+  return Math.min(REPLY_TOKENS_CEILING, REPLY_TOKENS_BASE + lineCount * REPLY_TOKENS_PER_LINE);
+}
 
 /**
  * The shape the model is constrained to emit.
@@ -79,10 +93,24 @@ async function getContext(): Promise<LlamaContext> {
 
 export function getSummarizer(): OnDeviceSummarizer {
   return {
-    availability: () => Promise.resolve(isLlmModelPresent() ? 'ready' : 'downloadable'),
+    // The phone's capability question is a file question, not a GPU one: the
+    // weights are downloaded and managed by the app rather than by the browser
+    // cache. `q4` because that is what the native build loads.
+    capability: () =>
+      Promise.resolve(
+        isLlmModelPresent()
+          ? { kind: 'ready', backend: 'native', dtype: 'q4', shaderF16: false }
+          : { kind: 'unavailable', reason: 'model_files_unavailable' },
+      ),
 
-    async enhance(request: EnhanceRequest): Promise<ResolvedEnhancement | null> {
-      if (!isLlmModelPresent()) return null;
+    async enhance(request: EnhanceRequest): Promise<EnhanceAttempt> {
+      if (!isLlmModelPresent()) {
+        return {
+          ok: false,
+          kind: 'unavailable',
+          capability: { kind: 'unavailable', reason: 'model_files_unavailable' },
+        };
+      }
       // Loading is seconds and hundreds of megabytes, and from outside it looks
       // exactly like generating — which is what made "Organizing notes…" over a
       // silent load feel like a hang.
@@ -91,10 +119,10 @@ export function getSummarizer(): OnDeviceSummarizer {
 
       // Everything except this call is shared with the browser: windowing, the
       // prompt, refusing an unusable reply, combining the answers.
-      return summarize(request, async (prompt) => {
+      const outcome = await summarize(request, async (prompt, lineCount) => {
         const result = await llama.completion({
           messages: [{ role: 'user', content: prompt }],
-          n_predict: MAX_REPLY_TOKENS,
+          n_predict: replyBudget(lineCount),
           // Low, not zero: this is extraction, not invention, and a model left
           // free to be creative here invents action items.
           temperature: 0.2,
@@ -105,6 +133,10 @@ export function getSummarizer(): OnDeviceSummarizer {
         });
         return result.text;
       });
+
+      return outcome.ok
+        ? { ok: true, value: outcome.value }
+        : { ok: false, kind: 'invalid-output', reason: outcome.reason };
     },
   };
 }

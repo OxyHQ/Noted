@@ -48,6 +48,7 @@ export interface CaptureRow extends Row {
   audio_path: string;
   language: string | null;
   error_code: string | null;
+  enhancement_reason: string | null;
 }
 
 export interface Capture {
@@ -61,6 +62,8 @@ export interface Capture {
   durationMs: number;
   audioPath: string;
   errorCode: string | null;
+  /** Why enhancement did not land — a capability or output reason, never a device claim. */
+  enhancementReason: string | null;
 }
 
 const CAPTURE_STATUSES: readonly string[] = [
@@ -149,6 +152,7 @@ function rowToCapture(row: CaptureRow): Capture {
     durationMs: row.duration_ms,
     audioPath: row.audio_path,
     errorCode: row.error_code,
+    enhancementReason: row.enhancement_reason ?? null,
   };
 }
 
@@ -224,7 +228,11 @@ export async function beginCapture(input: {
  */
 export async function setCaptureLifecycle(
   id: string,
-  patch: Partial<CaptureLifecycle> & { errorCode?: string | null; profile?: CaptureProfile },
+  patch: Partial<CaptureLifecycle> & {
+    errorCode?: string | null;
+    enhancementReason?: string | null;
+    profile?: CaptureProfile;
+  },
 ): Promise<CaptureLifecycle | null> {
   const current = await getCapture(id);
   if (!current) return null;
@@ -235,7 +243,7 @@ export async function setCaptureLifecycle(
     {
       sql: `UPDATE captures SET state = ?, capture_status = ?, transcription_status = ?,
               generation_status = ?, enhancement_status = ?, profile = ?, error_code = ?,
-              updated_at = ?
+              enhancement_reason = ?, updated_at = ?
             WHERE id = ?`,
       params: [
         legacyStateFromLifecycle(lifecycle),
@@ -245,6 +253,7 @@ export async function setCaptureLifecycle(
         lifecycle.enhancement,
         patch.profile ?? current.profile,
         patch.errorCode === undefined ? current.errorCode : patch.errorCode,
+        patch.enhancementReason === undefined ? current.enhancementReason : patch.enhancementReason,
         now,
         id,
       ],

@@ -30,7 +30,8 @@
  * safe — and order is only testable if none of it needs SQLite to run.
  */
 
-import type { CaptureLifecycle } from '@/lib/capture/lifecycle';
+import type { CaptureLifecycle, EnhancementStatus } from '@/lib/capture/lifecycle';
+import type { EnhancementOutcome } from '@/lib/capture/enhancement-outcome';
 import { CaptureProcessingQueue, type ProcessingTask } from '@/lib/capture/queue';
 import { errorCodeOf } from '@/lib/capture/errors';
 
@@ -63,9 +64,10 @@ export interface CaptureNoteWriters {
    * conflated, a model that could not load reported that the notes could not be
    * finished, over a document already on screen.
    *
-   * @returns whether anything improved. `false` is an ordinary outcome.
+   * @returns what happened, discriminated. A boolean here was the defect #68
+   *   is about: it made a truncated reply and a missing GPU the same answer.
    */
-  enhance(task: ProcessingTask): Promise<boolean>;
+  enhance(task: ProcessingTask): Promise<EnhancementOutcome>;
 }
 
 export interface CoordinatorInput {
@@ -210,9 +212,10 @@ export class CaptureCoordinator {
   /**
    * The optional pass.
    *
-   * Never rethrows. Every outcome it can have — improved, nothing to add, no
-   * model on this device, a model that broke — is a state on the capture, and the
-   * note is already written in all four.
+   * Never rethrows. Every outcome it can have is a state on the capture, and the
+   * note is already written in all of them — but they are NOT the same state.
+   * `unsupported` is reserved for the one case that is genuinely about this
+   * device or page; an unusable reply is a failure the user can retry.
    */
   private async runEnhancement(): Promise<void> {
     const task: ProcessingTask = {
@@ -222,13 +225,8 @@ export class CaptureCoordinator {
     };
     try {
       await this.store.setLifecycle(this.captureId, { enhancement: 'running' });
-      const improved = await this.writers.enhance(task);
-      await this.store.setLifecycle(this.captureId, {
-        // Nothing to add is not a failure and not an improvement. It is this
-        // device saying the baseline note is the final answer.
-        enhancement: improved ? 'complete' : 'unsupported',
-        errorCode: null,
-      });
+      const outcome = await this.writers.enhance(task);
+      await this.store.setLifecycle(this.captureId, lifecycleFor(outcome));
     } catch (error) {
       this.onError?.('enhance', error);
       await this.store
@@ -256,5 +254,51 @@ export class CaptureCoordinator {
       this.finalizing = null;
     });
     await this.finalizing;
+  }
+}
+
+/**
+ * Which lifecycle state each outcome is.
+ *
+ * The mapping is the fix. Everything used to collapse onto `unsupported`, so a
+ * model that ran, answered, and had its answer thrown away by a parser limit
+ * told the user their device could not organise notes.
+ */
+export function lifecycleFor(outcome: EnhancementOutcome): {
+  enhancement: EnhancementStatus;
+  errorCode: string | null;
+  enhancementReason: string | null;
+} {
+  switch (outcome.kind) {
+    case 'improved':
+      return { enhancement: 'complete', errorCode: null, enhancementReason: null };
+    // Nothing to add is a complete answer: this device read the recording and
+    // the baseline note is the final one. It is not a missing capability.
+    case 'no-change':
+      return { enhancement: 'complete', errorCode: null, enhancementReason: outcome.reason };
+    // A newer artifact won the commit. The user already has something at least
+    // as fresh, so this is ordinary superseded work rather than any kind of gap.
+    case 'stale':
+      return { enhancement: 'complete', errorCode: null, enhancementReason: 'superseded' };
+    // The only arm that may claim a limitation, and it carries WHICH one — an
+    // insecure page and a missing adapter need different sentences and only one
+    // of them is about the machine.
+    case 'unavailable':
+      return {
+        enhancement: 'unsupported',
+        errorCode: null,
+        enhancementReason: outcome.capability.kind === 'unavailable' ? outcome.capability.reason : null,
+      };
+    // It ran and its answer was unusable. Retryable, and the retry is the point.
+    case 'invalid-output':
+      return {
+        enhancement: 'failed',
+        // Two codes rather than one: a reply cut off by the token ceiling and a
+        // reply that was never JSON need different sentences, and only the
+        // first is fixed by asking again with more room.
+        errorCode:
+          outcome.reason === 'truncated' ? 'model_output_truncated' : 'model_output_invalid',
+        enhancementReason: outcome.reason,
+      };
   }
 }

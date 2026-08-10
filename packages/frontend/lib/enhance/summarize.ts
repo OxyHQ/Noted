@@ -27,6 +27,7 @@ import type {
   ResolvedSection,
 } from '@/lib/enhance/contract';
 import { parseEnhancement } from '@/lib/enhance/parse';
+import type { ParseDiagnostics, ParseFailureReason } from '@/lib/enhance/parse';
 import { buildPrompt, splitForContext } from '@/lib/enhance/prompt';
 
 const logger = createLogger('NotedEnhance');
@@ -43,7 +44,14 @@ export type { ResolvedEnhancement, ResolvedItem };
  * user's note, and that judgement belongs in one place rather than in each
  * backend.
  */
-export type Generate = (prompt: string) => Promise<string>;
+/**
+ * Run the model on one prompt.
+ *
+ * `lineCount` is how many transcript lines this window holds, and it is here so
+ * a backend can size the reply budget against how much there is to say. A fixed
+ * budget is what truncated the document and reported it as a device limitation.
+ */
+export type Generate = (prompt: string, lineCount: number) => Promise<string>;
 
 /** Where a set of cited line numbers points, in the recording. */
 function resolve(sources: readonly number[], window: readonly EnhanceLine[]): Resolved {
@@ -165,23 +173,62 @@ function merge(parts: readonly ResolvedEnhancement[]): ResolvedEnhancement | nul
 }
 
 /**
+ * What one run of the model produced, or why it produced nothing.
+ *
+ * This used to be `ResolvedEnhancement | null`, and the caller turned `null`
+ * into "this device cannot organize notes". Every window failing because each
+ * paragraph was longer than a bullet limit reported as a hardware limitation.
+ */
+export type SummarizeResult =
+  | { ok: true; value: ResolvedEnhancement; diagnostics: ParseDiagnostics[] }
+  | {
+      ok: false;
+      /** The reason from the window that got furthest, not the first to fail. */
+      reason: ParseFailureReason | 'no_transcript' | 'no_window_succeeded';
+      diagnostics: ParseDiagnostics[];
+    };
+
+/**
+ * How bad each failure is, so a run over several windows reports the most
+ * informative reason rather than whichever window failed first.
+ *
+ * `truncated` outranks the rest deliberately: it is the one that names a
+ * remedy — generate again with more room — so it must not be hidden behind a
+ * window that merely had nothing to say.
+ */
+const REASON_RANK: Record<ParseFailureReason, number> = {
+  truncated: 6,
+  all_content_dropped: 5,
+  malformed_json: 4,
+  schema_rejected: 3,
+  no_json_object: 2,
+  reply_too_long: 2,
+  nothing_useful: 1,
+};
+
+/**
  * Turn a transcript into a note.
  *
- * @returns null when nothing usable came back — a complete answer, not a failure:
- *   the deterministic note is already written, so "no improvement" costs the user
- *   nothing.
+ * A window the model made nothing of is skipped rather than fatal — the rest of
+ * the recording still has something to say. What is NOT skipped is the reason:
+ * if no window survives, the worst reason seen is what the caller reports, so a
+ * truncated reply never arrives at the user as a statement about their device.
  */
 export async function summarize(
   request: EnhanceRequest,
   generate: Generate,
-): Promise<ResolvedEnhancement | null> {
-  if (request.transcript.length === 0) return null;
+): Promise<SummarizeResult> {
+  if (request.transcript.length === 0) {
+    return { ok: false, reason: 'no_transcript', diagnostics: [] };
+  }
 
   const windows = splitForContext(request.transcript);
   const authorisedSubjects = request.expansions.map((expansion) =>
     expansion.subject.trim().toLowerCase(),
   );
   const parts: ResolvedEnhancement[] = [];
+  const diagnostics: ParseDiagnostics[] = [];
+  let worst: ParseFailureReason | null = null;
 
   for (const [index, window] of windows.entries()) {
     request.onProgress?.({
@@ -199,15 +246,23 @@ export async function summarize(
       isPartial: windows.length > 1,
     });
 
-    const reply = await generate(prompt);
-    const parsed = parseEnhancement(reply, { lineCount: window.length, authorisedSubjects });
-    if (!parsed) {
-      // A window the model made nothing of is skipped rather than fatal: the rest
-      // of the recording still has something to say, and one bad reply should not
-      // cost the user the whole note.
-      logger.warn('The model returned nothing usable for one window');
+    const reply = await generate(prompt, window.length);
+    const result = parseEnhancement(reply, { lineCount: window.length, authorisedSubjects });
+    diagnostics.push(result.diagnostics);
+    if (!result.ok) {
+      // Skipped, but no longer silent. The counts say whether the model answered
+      // and we threw it away or never answered at all — and both go to the
+      // caller, which is what stops a parser problem being reported as a device
+      // problem.
+      logger.warn('One window produced no usable document', {
+        reason: result.reason,
+        blocksDropped: result.diagnostics.blocksDropped,
+        oversizeDropped: result.diagnostics.oversizeDropped,
+      });
+      if (worst === null || REASON_RANK[result.reason] > REASON_RANK[worst]) worst = result.reason;
       continue;
     }
+    const parsed = result.value;
 
     parts.push({
       profile: parsed.profile,
@@ -225,5 +280,7 @@ export async function summarize(
     });
   }
 
-  return merge(parts);
+  const merged = merge(parts);
+  if (!merged) return { ok: false, reason: worst ?? 'no_window_succeeded', diagnostics };
+  return { ok: true, value: merged, diagnostics };
 }

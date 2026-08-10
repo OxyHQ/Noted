@@ -263,6 +263,14 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
   // is already as good as it will get does not offer to redo itself.
   [
     `ALTER TABLE captures ADD COLUMN enhancement_status TEXT NOT NULL DEFAULT 'pending'`,
+
+    // WHY the enhancement did not land, kept apart from `error_code`.
+    // `enhancement_status` alone could only ever say "unsupported", which the
+    // user reads as a statement about their device — and it was that for a
+    // truncated reply, a parser rejection and a lost commit race alike. This
+    // column is what lets the screen name the actual reason and offer a retry
+    // where one would help.
+    `ALTER TABLE captures ADD COLUMN enhancement_reason TEXT`,
     `UPDATE captures SET enhancement_status = 'complete'
        WHERE generation_status = 'complete' AND transcription_status = 'complete'`,
   ],

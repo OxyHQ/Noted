@@ -23,6 +23,20 @@ import { BLOCK_TYPES, DOCUMENT_SCHEMA, FIELDS, SCHEMA_PROFILES } from '@/lib/enh
 import { CAPTURE_PROFILES } from '@noted/shared-types';
 import type { EnhanceLine } from '@/lib/enhance/contract';
 
+/**
+ * The parsed document, or null when the reply was refused.
+ *
+ * The parser now returns a REASON with every refusal. These cases predate that
+ * and only care whether a document came out, so they read through this rather
+ * than being rewritten to assert reasons they were never about — the reasons
+ * get their own file.
+ */
+function parseOrNull(reply: string, options: Parameters<typeof parseEnhancement>[1]) {
+  const result = parseEnhancement(reply, options);
+  return result.ok ? result.value : null;
+}
+
+
 const HERE = import.meta.dirname;
 const read = (path: string): string => readFileSync(join(HERE, '..', '..', path), 'utf8');
 
@@ -142,7 +156,7 @@ describe('the parser reads what the schema promises', () => {
       [FIELDS.listAdditions]: [],
     });
 
-    const parsed = parseEnhancement(reply, { lineCount: WINDOW.length, authorisedSubjects: [] });
+    const parsed = parseOrNull(reply, { lineCount: WINDOW.length, authorisedSubjects: [] });
     expect(parsed).not.toBeNull();
     expect(parsed?.profile).toBe('event');
     expect(parsed?.people[0].role).toBe('Ministro');
@@ -166,7 +180,7 @@ describe('the parser reads what the schema promises', () => {
       actions: [],
       openQuestions: [],
     });
-    expect(parseEnhancement(stale, { lineCount: 2, authorisedSubjects: [] })).toBeNull();
+    expect(parseOrNull(stale, { lineCount: 2, authorisedSubjects: [] })).toBeNull();
   });
 });
 
