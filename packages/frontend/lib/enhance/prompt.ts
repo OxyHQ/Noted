@@ -199,7 +199,7 @@ Do not repeat them. Add only useful information that is still missing.
     scope,
     language,
     alreadyWritten,
-    describeSchema(),
+    describeSchema(window.length),
     `Transcript:\n${lines}`,
   ]
     .filter((part) => part.trim() !== '')
