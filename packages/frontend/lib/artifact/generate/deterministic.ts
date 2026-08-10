@@ -20,6 +20,9 @@ import { selectKeyPoints } from '@/lib/structure/keypoints';
 import { groupIntoBlocks, type Block } from '@/lib/structure/segment';
 import { dropNearDuplicates } from '@/lib/structure/similar';
 import { itemId } from '@/lib/artifact/item-id';
+import { parseListCommands } from '@/lib/artifact/dictation/instructions';
+import { buildDictatedList } from '@/lib/artifact/dictation/list';
+import { classifyProfile, resolveProfile, spokenProfile } from '@/lib/artifact/profile';
 import type {
   ArtifactStage,
   CaptureProfile,
@@ -132,6 +135,24 @@ export function buildDeterministicArtifact(input: DeterministicInput): Generated
   const blocks = cleanedBlocks(input.segments);
   const captureId = input.captureId;
 
+  const commands = parseListCommands(blocks);
+  const profile = resolveProfile({
+    selected: input.profile,
+    spoken: spokenProfile(blocks),
+    classified: classifyProfile(blocks, commands),
+  });
+  const dictated = buildDictatedList({
+    commands,
+    captureId,
+    sourceAt: (atMs) => sourceAt(blocks, captureId, atMs),
+  });
+
+  // A recording that IS a dictation is the list, and nothing else. Reading the
+  // instruction back as a bullet — "quiero una lista de la compra" — is the app
+  // narrating the user to themselves. A list dictated inside a meeting is a
+  // different case, and there both survive.
+  const listOnly = profile === 'dictation' && dictated.checklist !== null;
+
   const highlights = dedupe(
     blocks.flatMap((block) => extractHighlights(block.text, block.startMs)),
   );
@@ -158,8 +179,8 @@ export function buildDeterministicArtifact(input: DeterministicInput): Generated
     noteId: input.noteId,
     captureId,
     stage: input.stage,
-    profile: input.profile ?? 'auto',
-    intent: input.intent ?? 'freeform',
+    profile,
+    intent: input.intent ?? dictated.intent,
     transcriptRevision: input.transcriptRevision,
     artifactRevision: 0,
     title: {
@@ -172,7 +193,9 @@ export function buildDeterministicArtifact(input: DeterministicInput): Generated
       // and not derived either", which is exactly what it is.
       sources: blocks.length > 0 ? sourceAt(blocks, captureId, blocks[0].startMs) : [],
     },
-    sections: (
+    sections: listOnly
+      ? []
+      : (
       [
         // The points carry no heading: they ARE the note, not a section of it.
         {
@@ -189,13 +212,25 @@ export function buildDeterministicArtifact(input: DeterministicInput): Generated
         },
       ] satisfies GeneratedSection[]
     ).filter((section) => section.items.length > 0),
-    checklists:
-      checklistItems.length > 0
-        ? [{ id: `checklist:${captureId}:actions`, kind: 'actions', items: checklistItems }]
-        : [],
-    openQuestions: questions.map((question) =>
-      toItem('question', question.text, question.atMs, blocks, captureId),
-    ),
+    checklists: [
+      // What was dictated comes first: the user asked for it in so many words.
+      ...(dictated.checklist ? [dictated.checklist] : []),
+      ...(checklistItems.length > 0 && !listOnly
+        ? [
+            {
+              id: `checklist:${captureId}:actions`,
+              kind: 'actions' as const,
+              items: checklistItems,
+            },
+          ]
+        : []),
+    ],
+    openQuestions: listOnly
+      ? []
+      : questions.map((question) =>
+          toItem('question', question.text, question.atMs, blocks, captureId),
+        ),
+    pendingExpansions: dictated.pendingExpansions,
     createdAt: input.now,
     updatedAt: input.now,
   };

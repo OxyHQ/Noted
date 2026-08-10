@@ -198,8 +198,26 @@ export interface GeneratedNoteArtifact {
   checklists: GeneratedChecklist[];
   /** Only what is genuinely still open. An answered question belongs in a section. */
   openQuestions: GeneratedItem[];
+  /**
+   * Knowledge the user authorised and nothing has supplied yet.
+   *
+   * "Añade todos los ingredientes para una pizza de pollo" is a permission, and
+   * the deterministic pass can never act on it — it has nothing of its own to
+   * contribute, and inventing a recipe is the exact failure the origin field
+   * exists to prevent. So the permission is RECORDED, and the UI can say the
+   * suggestion is pending rather than implying it happened.
+   */
+  pendingExpansions?: PendingExpansion[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** An authorised expansion waiting for something able to perform it. */
+export interface PendingExpansion {
+  /** What the user asked to have completed — "una pizza de pollo". */
+  subject: string;
+  /** The sentence that granted the permission. */
+  instructionSource: SourceRange;
 }
 
 /** Section and checklist headings, so the caller can translate them. */

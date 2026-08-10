@@ -37,7 +37,7 @@ export interface ArtifactRow extends Row {
 /** The parts of an artifact that live inside `doc_json` rather than in a column. */
 type ArtifactDocument = Pick<
   GeneratedNoteArtifact,
-  'title' | 'sections' | 'checklists' | 'openQuestions'
+  'title' | 'sections' | 'checklists' | 'openQuestions' | 'pendingExpansions'
 >;
 
 const EMPTY_DOCUMENT: ArtifactDocument = { sections: [], checklists: [], openQuestions: [] };
@@ -61,6 +61,9 @@ function parseDocument(json: string): ArtifactDocument {
       sections: Array.isArray(document.sections) ? document.sections : [],
       checklists: Array.isArray(document.checklists) ? document.checklists : [],
       openQuestions: Array.isArray(document.openQuestions) ? document.openQuestions : [],
+      pendingExpansions: Array.isArray(document.pendingExpansions)
+        ? document.pendingExpansions
+        : undefined,
     };
   } catch {
     // A corrupt row renders as an artifact with nothing in it rather than taking
@@ -84,6 +87,7 @@ export function rowToArtifact(row: ArtifactRow): GeneratedNoteArtifact {
     sections: document.sections,
     checklists: document.checklists,
     openQuestions: document.openQuestions,
+    pendingExpansions: document.pendingExpansions,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -181,6 +185,7 @@ export async function saveArtifact(artifact: GeneratedNoteArtifact): Promise<boo
     sections: artifact.sections,
     checklists: artifact.checklists,
     openQuestions: artifact.openQuestions,
+    pendingExpansions: artifact.pendingExpansions,
   };
 
   const affected = await executeTransaction([
