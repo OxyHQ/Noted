@@ -48,6 +48,7 @@ import { getSummarizer } from '@/lib/enhance/summarizer';
 import type { OnDeviceSummarizer } from '@/lib/enhance/contract';
 import { errorCodeOf, NoteProcessingError } from '@/lib/capture/errors';
 import type { EnhancementOutcome } from '@/lib/capture/enhancement-outcome';
+import { groundingOf, isCheckable } from '@/lib/artifact/grounding';
 
 const logger = createLogger('NotedCapture');
 
@@ -353,6 +354,18 @@ async function enhanceWithModel(
     now,
     fallbackTitle: input.fallbackTitle,
   });
+
+  // A document nobody can check does not replace fragments they can. Measured:
+  // one run produced sixteen fluent paragraphs with not one source between
+  // them, and it would have won purely by reading better.
+  if (!isCheckable(fromModel)) {
+    const grounding = groundingOf(fromModel);
+    logger.info('The model document was not checkable; keeping the structured note', {
+      units: grounding.units,
+      grounded: grounding.grounded,
+    });
+    return { kind: 'no-change', reason: 'nothing_useful' };
+  }
 
   const enhanced = committed(
     finalizeArtifact({ previous: settled, next: fromModel, overrides: context.overrides, now }),
