@@ -25,7 +25,7 @@
  */
 
 import type { GeneratedItem, GeneratedNoteArtifact, GeneratedSection } from '@noted/shared-types';
-import { transitionItem, visibleItems } from '@/lib/artifact/artifact';
+import { allItems, mapItems, transitionItem, visibleItems } from '@/lib/artifact/artifact';
 import { isProtected, type OverrideMap } from '@/lib/artifact/ownership';
 import { mergeSources } from '@/lib/artifact/reduce';
 import { isNearDuplicate } from '@/lib/structure/similar';
@@ -131,7 +131,10 @@ export function finalizeArtifact(input: {
   overrides: OverrideMap;
   now: string;
 }): GeneratedNoteArtifact {
-  const { next, overrides } = input;
+  const { overrides } = input;
+  // The complete reading is the truth about CONTENT: nothing the live pass
+  // guessed survives it. What does survive is identity — see `carryIdentities`.
+  const next = carryIdentities(input.previous, input.next);
 
   const sections: GeneratedSection[] = next.sections
     .map((section) => ({
@@ -177,4 +180,40 @@ export function finalizeArtifact(input: {
     createdAt: input.previous?.createdAt ?? next.createdAt,
     updatedAt: input.now,
   };
+}
+
+/**
+ * Give the final reading the ids the live pass already established.
+ *
+ * Item ids are content hashes, so a task whose WORDING changed between the live
+ * pass and the end of the recording comes back with a different id — and the
+ * user's tick, stored against the old one, stops applying. It only bites when
+ * the recogniser corrects a sentence it already emitted, which is why it went
+ * unnoticed for so long: with the text unchanged the hash matches by luck.
+ *
+ * Only the id is carried. The whole live artifact is deliberately NOT folded in:
+ * a live guess the complete reading no longer makes must disappear, and folding
+ * kept it — which is the invented-commitment failure this module exists to
+ * prevent, arriving through the door meant to fix a different bug.
+ */
+function carryIdentities(
+  previous: GeneratedNoteArtifact | null,
+  next: GeneratedNoteArtifact,
+): GeneratedNoteArtifact {
+  if (!previous) return next;
+
+  const earlier = allItems(previous);
+  const taken = new Set<string>();
+  const rename = <T extends { id: string; text: string }>(entry: T): T => {
+    const match = earlier.find(
+      (candidate) =>
+        !taken.has(candidate.id) &&
+        (candidate.id === entry.id || isNearDuplicate(candidate.text, entry.text)),
+    );
+    if (!match) return entry;
+    taken.add(match.id);
+    return { ...entry, id: match.id };
+  };
+
+  return mapItems(next, rename, rename);
 }
