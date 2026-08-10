@@ -252,9 +252,40 @@ export type LocalModelCapability =
  * it worked. Only the first is a statement about the device.
  */
 export type EnhanceAttempt =
-  | { ok: true; value: ResolvedEnhancement }
+  | { ok: true; value: ResolvedEnhancement; diagnostics: EnhanceDiagnostics }
   | { ok: false; kind: 'unavailable'; capability: LocalModelCapability }
-  | { ok: false; kind: 'invalid-output'; reason: string };
+  | { ok: false; kind: 'invalid-output'; reason: string; diagnostics: EnhanceDiagnostics };
+
+/**
+ * What the run saw, in numbers, for the caller to log or show.
+ *
+ * The parser computed these and `summarize` accumulated them, and then this
+ * type threw them away — so the one question a real run raised could not be
+ * answered from outside: a document whose every block came back with NO source
+ * range is either a model that ignores the citation field, or a model that
+ * cites lines it was never shown and has them all dropped. Those need opposite
+ * fixes, and `invalidSourceRefs` is the number that tells them apart.
+ *
+ * Counts only. No transcript, no model output.
+ */
+export interface EnhanceDiagnostics {
+  windows: number;
+  /** Windows whose reply produced a usable document. */
+  windowsAccepted: number;
+  blocksAccepted: number;
+  blocksDropped: number;
+  oversizeDropped: number;
+  /** Citations to lines the model was never shown, summed over windows. */
+  invalidSourceRefs: number;
+  /**
+   * Whether the runtime reported hitting its token ceiling.
+   *
+   * `null` when it could not be measured, which is a different fact from
+   * `false`: `false` says the model chose to stop and left its object open — a
+   * quality failure the budget cannot fix — while `null` says nobody knows.
+   */
+  hitGenerationCap: boolean | null;
+}
 
 export interface OnDeviceSummarizer {
   /**

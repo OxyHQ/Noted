@@ -27,7 +27,7 @@ import type {
   LocalModelCapability,
   OnDeviceSummarizer,
 } from '@/lib/enhance/contract';
-import { summarize } from '@/lib/enhance/summarize';
+import { summarize, summariseDiagnostics } from '@/lib/enhance/summarize';
 
 const logger = createLogger('NotedEnhance');
 
@@ -230,16 +230,18 @@ function textOf(output: Awaited<ReturnType<Generator>>): string {
  * mid-word and be a complete refusal. The count is the real signal — a reply
  * whose token length reaches the budget did not choose to stop.
  */
-function hitTokenCap(generator: Generator, text: string, budget: number): boolean {
+function hitTokenCap(generator: Generator, text: string, budget: number): boolean | null {
   try {
     const tokenizer = (generator as unknown as { tokenizer?: { encode: (input: string) => unknown[] } })
       .tokenizer;
     const tokens = tokenizer?.encode(text);
-    return Array.isArray(tokens) && tokens.length >= budget;
+    // `null`, not `false`, when the tokenizer will not answer. They are opposite
+    // facts: `false` says the model chose to stop and left the object open —
+    // a quality failure — while `null` says nobody knows. Returning `false` for
+    // both is the same collapse this whole issue is about, one level down.
+    return Array.isArray(tokens) ? tokens.length >= budget : null;
   } catch {
-    // A tokenizer that will not answer is not a reason to fail the attempt; the
-    // parser's own brace check still identifies an object that never closed.
-    return false;
+    return null;
   }
 }
 
@@ -258,7 +260,10 @@ export function getSummarizer(): OnDeviceSummarizer {
       request.onProgress?.({ stage: 'downloading', ratio: null });
       const generate = await getGenerator(capable.dtype);
 
-      let truncated = false;
+      // Three states, not two: hit the ceiling, chose to stop, or the tokenizer
+      // would not say. Collapsing the third onto the second is how a model that
+      // stops early looks like a budget that is too small.
+      let hitCap: boolean | null = false as boolean | null;
       const result = await summarize(request, async (prompt, _lineCount, windowChars) => {
         const budget = replyBudget(windowChars);
         const output = await generate([{ role: 'user', content: prompt }], {
@@ -270,14 +275,25 @@ export function getSummarizer(): OnDeviceSummarizer {
           return_full_text: false,
         });
         const text = textOf(output);
-        if (hitTokenCap(generate, text, budget)) truncated = true;
+        const capped: boolean | null = hitTokenCap(generate, text, budget);
+        if (capped !== false) hitCap = capped;
         return text;
       });
 
-      if (result.ok) return { ok: true, value: result.value };
+      const diagnostics = summariseDiagnostics(
+        result.diagnostics,
+        result.ok ? result.accepted : 0,
+        hitCap,
+      );
+      if (result.ok) return { ok: true, value: result.value, diagnostics };
       // The runtime knows something the parser cannot: a reply that reached the
       // ceiling was cut off even if its braces happened to balance.
-      return { ok: false, kind: 'invalid-output', reason: truncated ? 'truncated' : result.reason };
+      return {
+        ok: false,
+        kind: 'invalid-output',
+        reason: hitCap === true ? 'truncated' : result.reason,
+        diagnostics,
+      };
     },
   };
 }

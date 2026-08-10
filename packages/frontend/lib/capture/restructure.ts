@@ -331,7 +331,13 @@ async function enhanceWithModel(
     // The model ran and its answer was unusable. That is retryable and it is
     // NOT a statement about the device — which is exactly the confusion the old
     // boolean created.
-    logger.info('The model produced no usable document', { reason: attempt.reason });
+    // The counts go into the log with the reason, because "every block came
+    // back with no source" and "the model cited lines it was never shown" look
+    // identical from the outside and need opposite fixes.
+    logger.info('The model produced no usable document', {
+      reason: attempt.reason,
+      ...attempt.diagnostics,
+    });
     return { kind: 'invalid-output', reason: attempt.reason };
   }
 
@@ -360,6 +366,6 @@ async function enhanceWithModel(
     return { kind: 'stale', currentRevision: transcriptRevision };
   }
 
-  logger.info('Note rewritten by the on-device model', { noteId });
+  logger.info('Note rewritten by the on-device model', { noteId, ...attempt.diagnostics });
   return { kind: 'improved', artifactRevision: enhanced.artifactRevision };
 }

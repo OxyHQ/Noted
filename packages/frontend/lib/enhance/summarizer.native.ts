@@ -22,7 +22,7 @@ import type {
   EnhanceAttempt,
 } from '@/lib/enhance/contract';
 import { isLlmModelPresent, llmModelPath } from '@/lib/enhance/models';
-import { summarize } from '@/lib/enhance/summarize';
+import { summarize, summariseDiagnostics } from '@/lib/enhance/summarize';
 import { DOCUMENT_SCHEMA } from '@/lib/enhance/schema';
 
 const logger = createLogger('NotedEnhance');
@@ -149,9 +149,14 @@ export function getSummarizer(): OnDeviceSummarizer {
         return result.text;
       });
 
+      const diagnostics = summariseDiagnostics(
+        outcome.diagnostics,
+        outcome.ok ? outcome.accepted : 0,
+        false,
+      );
       return outcome.ok
-        ? { ok: true, value: outcome.value }
-        : { ok: false, kind: 'invalid-output', reason: outcome.reason };
+        ? { ok: true, value: outcome.value, diagnostics }
+        : { ok: false, kind: 'invalid-output', reason: outcome.reason, diagnostics };
     },
   };
 }

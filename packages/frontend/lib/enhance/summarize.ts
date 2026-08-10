@@ -28,6 +28,7 @@ import type {
 } from '@/lib/enhance/contract';
 import { parseEnhancement } from '@/lib/enhance/parse';
 import type { ParseDiagnostics, ParseFailureReason } from '@/lib/enhance/parse';
+import type { EnhanceDiagnostics } from '@/lib/enhance/contract';
 import { buildPrompt, splitForContext } from '@/lib/enhance/prompt';
 
 const logger = createLogger('NotedEnhance');
@@ -185,7 +186,13 @@ function merge(parts: readonly ResolvedEnhancement[]): ResolvedEnhancement | nul
  * paragraph was longer than a bullet limit reported as a hardware limitation.
  */
 export type SummarizeResult =
-  | { ok: true; value: ResolvedEnhancement; diagnostics: ParseDiagnostics[] }
+  | {
+      ok: true;
+      value: ResolvedEnhancement;
+      diagnostics: ParseDiagnostics[];
+      /** How many windows produced a usable document. */
+      accepted: number;
+    }
   | {
       ok: false;
       /** The reason from the window that got furthest, not the first to fail. */
@@ -291,5 +298,27 @@ export async function summarize(
 
   const merged = merge(parts);
   if (!merged) return { ok: false, reason: worst ?? 'no_window_succeeded', diagnostics };
-  return { ok: true, value: merged, diagnostics };
+  return { ok: true, value: merged, diagnostics, accepted: parts.length };
+}
+
+/**
+ * Fold per-window parse counts into one answer for the caller.
+ *
+ * Summed rather than kept per window: the caller's question is "did the model
+ * cite anything the parser refused", and that is a property of the run.
+ */
+export function summariseDiagnostics(
+  windows: readonly ParseDiagnostics[],
+  windowsAccepted: number,
+  hitGenerationCap: boolean | null,
+): EnhanceDiagnostics {
+  return {
+    windows: windows.length,
+    windowsAccepted,
+    blocksAccepted: windows.reduce((total, one) => total + one.blocksAccepted, 0),
+    blocksDropped: windows.reduce((total, one) => total + one.blocksDropped, 0),
+    oversizeDropped: windows.reduce((total, one) => total + one.oversizeDropped, 0),
+    invalidSourceRefs: windows.reduce((total, one) => total + one.invalidSourceRefs, 0),
+    hitGenerationCap,
+  };
 }
