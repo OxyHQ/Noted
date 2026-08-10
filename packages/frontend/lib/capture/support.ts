@@ -44,13 +44,35 @@ export function hasDownloadableModels(): boolean {
 }
 
 /**
- * Whether recordings survive the app being closed.
+ * Whether a recording made by the `expo-audio` engine survives the app closing.
  *
- * Native writes the audio into the app's document directory. On web the recorder
- * hands back a blob URL, which lives only as long as the page — so a capture is
- * real while the tab is open and gone after a reload. Worth knowing before
- * promising recovery.
+ * Narrower than its name once suggested, and the narrowing matters. Native writes
+ * the audio into the app's document directory. On web `expo-audio` hands back a
+ * blob URL, which lives only as long as the page — so a capture from THAT engine
+ * is real while the tab is open and gone after a reload.
+ *
+ * The live engine is a different story now: it writes chunks to durable browser
+ * storage as they arrive (`lib/audio/`), so a browser recording made that way
+ * does survive a reload. Anything asking "can I promise recovery?" has to know
+ * which engine recorded it, which is why this is only consulted inside
+ * `use-recorder.ts`.
  */
 export function isCaptureDurable(): boolean {
   return Platform.OS === 'ios' || Platform.OS === 'android';
+}
+
+/**
+ * Whether this device can record anything other than its own microphone.
+ *
+ * Nowhere, today — and saying so is the point. A browser's `getUserMedia` gives
+ * the microphone, so the other people in a call are simply not in the audio when
+ * the user is wearing headphones. That is a limitation worth stating next to the
+ * recording rather than leaving somebody to discover it afterwards from a note
+ * with half a meeting in it.
+ *
+ * A desktop adapter is what changes this answer, and that is a later phase of the
+ * capture epic rather than something a browser workaround can fake.
+ */
+export function capturesSystemAudio(): boolean {
+  return false;
 }

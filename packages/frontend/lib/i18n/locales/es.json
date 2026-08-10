@@ -1160,7 +1160,20 @@
     "notificationBody": "Noted está tomando apuntes",
     "denied": "Noted necesita el micrófono para grabar. Permítelo en los ajustes y vuelve a intentarlo.",
     "failed": "No se pudo iniciar la grabación.",
-    "webOnlyMobile": "La grabación funciona en la app móvil de Noted."
+    "webOnlyMobile": "La grabación funciona en la app móvil de Noted.",
+    "status": {
+      "idle": "Grabación guardada",
+      "recording": "Grabando",
+      "transcribing": "Terminando la transcripción…",
+      "organizing": "Organizando las notas…",
+      "ready": "Notas listas",
+      "interrupted": "Esta grabación se interrumpió. El audio está a salvo.",
+      "transcriptFailed": "La grabación está a salvo, pero Noted no pudo transcribirla.",
+      "notesFailed": "La grabación está a salvo, pero Noted no pudo terminar las notas.",
+      "failed": "Esta grabación no se pudo guardar."
+    },
+    "retry": "Reintentar",
+    "microphoneOnly": "En el navegador Noted graba solo el micrófono de este dispositivo, no a las demás personas de una llamada."
   },
   "transcription": {
     "title": "Transcripción",
