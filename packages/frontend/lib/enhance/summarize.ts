@@ -51,7 +51,12 @@ export type { ResolvedEnhancement, ResolvedItem };
  * a backend can size the reply budget against how much there is to say. A fixed
  * budget is what truncated the document and reported it as a device limitation.
  */
-export type Generate = (prompt: string, lineCount: number) => Promise<string>;
+export type Generate = (
+  prompt: string,
+  lineCount: number,
+  /** Characters of transcript in this window — what the reply's size tracks. */
+  windowChars: number,
+) => Promise<string>;
 
 /** Where a set of cited line numbers points, in the recording. */
 function resolve(sources: readonly number[], window: readonly EnhanceLine[]): Resolved {
@@ -246,7 +251,11 @@ export async function summarize(
       isPartial: windows.length > 1,
     });
 
-    const reply = await generate(prompt, window.length);
+    const reply = await generate(
+      prompt,
+      window.length,
+      window.reduce((total, line) => total + line.text.length, 0),
+    );
     const result = parseEnhancement(reply, { lineCount: window.length, authorisedSubjects });
     diagnostics.push(result.diagnostics);
     if (!result.ok) {

@@ -18,6 +18,8 @@
  * button exists.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { lifecycleFor } from '@/lib/capture/coordinator';
@@ -241,5 +243,46 @@ describe('a paragraph is not a long bullet', () => {
     expect(result.value.sections[0].blocks).toHaveLength(1);
     expect(result.diagnostics.blocksAccepted).toBe(1);
     expect(result.diagnostics.blocksDropped).toBe(1);
+  });
+});
+
+describe('the reply budget tracks how much there is to summarise', () => {
+  /**
+   * Measured, not guessed.
+   *
+   * On a real RTX 5090 with the real model, the #59 talk (~4,000 characters in
+   * one window) truncated at 940 reply tokens and again at 2,000. It completed
+   * only when the window was cut to ~2,000 characters — which then cost
+   * grounding, because the model had too little context and invented connective
+   * prose. Both numbers are in #68.
+   *
+   * What the budget must never go back to is a constant: a window is a slice of
+   * speech and can be one word or four minutes of it, so a fixed ceiling ends a
+   * correct answer somewhere inside the document and the parser can only report
+   * that it stopped.
+   */
+  const source = readFileSync(
+    join(import.meta.dirname, '..', 'summarizer.web.ts'),
+    'utf8',
+  );
+
+  it('is derived from the window, not fixed', () => {
+    expect(source).toContain('function replyBudget(transcriptChars: number)');
+    expect(source).toContain('CHARS_PER_REPLY_TOKEN');
+    // The old shape, which is what truncated the document.
+    expect(source).not.toMatch(/max_new_tokens: \d/);
+  });
+
+  it('keeps a floor and a ceiling, and the ceiling is not the working value', () => {
+    expect(source).toContain('REPLY_TOKENS_FLOOR');
+    expect(source).toContain('REPLY_TOKENS_CEILING');
+    expect(source).toContain('Math.min(REPLY_TOKENS_CEILING, Math.max(REPLY_TOKENS_FLOOR');
+  });
+
+  it('is the same rule on the phone, since the document is the same size there', () => {
+    const native = readFileSync(join(import.meta.dirname, '..', 'summarizer.native.ts'), 'utf8');
+    expect(native).toContain('function replyBudget(transcriptChars: number)');
+    // Constrained generation makes the SHAPE valid, never the length sufficient.
+    expect(native).not.toMatch(/n_predict: \d/);
   });
 });

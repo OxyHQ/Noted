@@ -47,12 +47,27 @@ const THREADS = 4;
  * actions and open questions, and 700 tokens ends a correct answer inside it.
  * Constrained generation makes the shape valid, not the length sufficient.
  */
-const REPLY_TOKENS_BASE = 700;
-const REPLY_TOKENS_PER_LINE = 60;
-const REPLY_TOKENS_CEILING = 3_000;
+const REPLY_TOKENS_FLOOR = 900;
+const REPLY_TOKENS_CEILING = 4_000;
+/** Roughly one reply token per two characters of transcript, measured. */
+const CHARS_PER_REPLY_TOKEN = 2;
 
-function replyBudget(lineCount: number): number {
-  return Math.min(REPLY_TOKENS_CEILING, REPLY_TOKENS_BASE + lineCount * REPLY_TOKENS_PER_LINE);
+/**
+ * How much room the reply gets, derived from how much there is to summarise.
+ *
+ * It was a flat 700, chosen when a reply was four arrays of short strings, and
+ * then a per-LINE estimate — which is wrong because a line is a slice of speech
+ * and can be one word or a minute of it. Measured on the #59 talk on a real
+ * WebGPU device: a 4,000-character window needs about 2,000 reply tokens, and
+ * 940 stopped the document mid-object. The parser reported `truncated`, which
+ * is the honest answer, but the user still lost the note.
+ *
+ * Deriving it from CHARACTERS is the one input that tracks the size of the
+ * answer. The ceiling is a safety limit, not the working value.
+ */
+function replyBudget(transcriptChars: number): number {
+  const wanted = Math.ceil(transcriptChars / CHARS_PER_REPLY_TOKEN);
+  return Math.min(REPLY_TOKENS_CEILING, Math.max(REPLY_TOKENS_FLOOR, wanted));
 }
 
 /**
@@ -119,10 +134,10 @@ export function getSummarizer(): OnDeviceSummarizer {
 
       // Everything except this call is shared with the browser: windowing, the
       // prompt, refusing an unusable reply, combining the answers.
-      const outcome = await summarize(request, async (prompt, lineCount) => {
+      const outcome = await summarize(request, async (prompt, _lineCount, windowChars) => {
         const result = await llama.completion({
           messages: [{ role: 'user', content: prompt }],
-          n_predict: replyBudget(lineCount),
+          n_predict: replyBudget(windowChars),
           // Low, not zero: this is extraction, not invention, and a model left
           // free to be creative here invents action items.
           temperature: 0.2,

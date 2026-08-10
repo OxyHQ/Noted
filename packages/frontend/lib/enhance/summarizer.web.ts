@@ -71,12 +71,27 @@ const DTYPE_WITHOUT_F16 = 'q4' as const;
  * So the budget scales with how much there is to say, and the ceiling is a
  * safety limit rather than the working value.
  */
-const REPLY_TOKENS_BASE = 700;
-const REPLY_TOKENS_PER_LINE = 60;
-const REPLY_TOKENS_CEILING = 3_000;
+const REPLY_TOKENS_FLOOR = 900;
+const REPLY_TOKENS_CEILING = 4_000;
+/** Roughly one reply token per two characters of transcript, measured. */
+const CHARS_PER_REPLY_TOKEN = 2;
 
-function replyBudget(lineCount: number): number {
-  return Math.min(REPLY_TOKENS_CEILING, REPLY_TOKENS_BASE + lineCount * REPLY_TOKENS_PER_LINE);
+/**
+ * How much room the reply gets, derived from how much there is to summarise.
+ *
+ * It was a flat 700, chosen when a reply was four arrays of short strings, and
+ * then a per-LINE estimate — which is wrong because a line is a slice of speech
+ * and can be one word or a minute of it. Measured on the #59 talk on a real
+ * WebGPU device: a 4,000-character window needs about 2,000 reply tokens, and
+ * 940 stopped the document mid-object. The parser reported `truncated`, which
+ * is the honest answer, but the user still lost the note.
+ *
+ * Deriving it from CHARACTERS is the one input that tracks the size of the
+ * answer. The ceiling is a safety limit, not the working value.
+ */
+function replyBudget(transcriptChars: number): number {
+  const wanted = Math.ceil(transcriptChars / CHARS_PER_REPLY_TOKEN);
+  return Math.min(REPLY_TOKENS_CEILING, Math.max(REPLY_TOKENS_FLOOR, wanted));
 }
 
 /**
@@ -244,8 +259,8 @@ export function getSummarizer(): OnDeviceSummarizer {
       const generate = await getGenerator(capable.dtype);
 
       let truncated = false;
-      const result = await summarize(request, async (prompt, lineCount) => {
-        const budget = replyBudget(lineCount);
+      const result = await summarize(request, async (prompt, _lineCount, windowChars) => {
+        const budget = replyBudget(windowChars);
         const output = await generate([{ role: 'user', content: prompt }], {
           max_new_tokens: budget,
           // Low, not zero: this is extraction, not invention, and a model left
