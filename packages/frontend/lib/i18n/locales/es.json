@@ -1178,6 +1178,26 @@
       "title": "Transcripción",
       "search": "Buscar en la transcripción",
       "noMatches": "No hay coincidencias."
+    },
+    "profile": {
+      "title": "Tipo de grabación",
+      "auto": "Automático",
+      "meeting": "Reunión",
+      "lecture": "Clase",
+      "event": "Evento o charla",
+      "brainstorm": "Lluvia de ideas",
+      "interview": "Entrevista",
+      "dictation": "Dictado o lista"
+    },
+    "regenerate": "Reescribir las notas",
+    "retention": {
+      "title": "Esta grabación",
+      "audio": "Borrar el audio",
+      "transcript": "Borrar la transcripción",
+      "audioCost": "Deja de poder reproducirse.",
+      "audioKeeps": "La transcripción y la nota se quedan.",
+      "transcriptCost": "Las líneas generadas dejan de poder comprobarse.",
+      "transcriptKeeps": "La nota se queda, palabra por palabra."
     }
   },
   "transcription": {

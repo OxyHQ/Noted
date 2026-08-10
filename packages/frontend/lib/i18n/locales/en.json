@@ -1178,6 +1178,26 @@
       "title": "Transcript",
       "search": "Search the transcript",
       "noMatches": "Nothing matches that."
+    },
+    "profile": {
+      "title": "Kind of recording",
+      "auto": "Automatic",
+      "meeting": "Meeting",
+      "lecture": "Class or lecture",
+      "event": "Event or talk",
+      "brainstorm": "Brainstorm",
+      "interview": "Interview",
+      "dictation": "Dictation or list"
+    },
+    "regenerate": "Rewrite the notes",
+    "retention": {
+      "title": "This recording",
+      "audio": "Delete the audio",
+      "transcript": "Delete the transcript",
+      "audioCost": "Playback stops working.",
+      "audioKeeps": "The transcript and the note stay.",
+      "transcriptCost": "Generated lines stop being checkable.",
+      "transcriptKeeps": "The note stays, word for word."
     }
   },
   "transcription": {

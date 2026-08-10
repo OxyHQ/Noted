@@ -359,6 +359,39 @@ export async function deleteNoteRecordings(noteId: string): Promise<number> {
   return affected[affected.length - 1] ?? 0;
 }
 
+/**
+ * Delete one recording's audio, keeping everything else.
+ *
+ * The note stays, the transcript stays, and the note's citations still resolve to
+ * text — what is lost is playback. `audio_path` is cleared in the same breath, so
+ * nothing is left pointing at bytes that are gone: a row naming a deleted file is
+ * how a "play" button appears and then fails.
+ */
+export async function deleteRecordingAudio(capture: Capture): Promise<void> {
+  await deleteCaptureAudio(capture.audioPath, capture.id);
+  await executeTransaction([
+    {
+      sql: `UPDATE captures SET audio_path = '', updated_at = ? WHERE id = ?`,
+      params: [nowIso(), capture.id],
+    },
+  ]);
+}
+
+/**
+ * Delete one recording's transcript, keeping the note and the audio.
+ *
+ * The note survives word for word — it was written INTO the note, not held in the
+ * transcript — but its generated lines stop being checkable, and that is the
+ * whole cost of this control. The transcript revision is left where it is on
+ * purpose: it counts what the recogniser has produced, and pretending none of it
+ * ever existed would let a stale processing task believe it is current again.
+ */
+export async function deleteRecordingTranscript(capture: Capture): Promise<void> {
+  await executeTransaction([
+    { sql: 'DELETE FROM transcript_segments WHERE capture_id = ?', params: [capture.id] },
+  ]);
+}
+
 /* ── Reads ─────────────────────────────────────────────────────── */
 
 const CAPTURE_COLUMNS = `id, note_id, state, capture_status, transcription_status,
