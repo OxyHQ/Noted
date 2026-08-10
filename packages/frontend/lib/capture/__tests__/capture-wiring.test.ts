@@ -187,6 +187,41 @@ describe('the honest states', () => {
   });
 });
 
+describe('the transcript surface', () => {
+  const PANEL = read('../components/capture/transcript-panel.tsx');
+  const EDITOR = read('../app/n/[id].tsx');
+
+  it('reads the files it thinks it does', () => {
+    expect(PANEL).toContain('export function TranscriptPanel');
+  });
+
+  it('is on the screen, so the evidence is reachable', () => {
+    // The app has stored segments since the beginning and never showed them,
+    // which left every generated line unverifiable in practice.
+    expect(EDITOR).toContain('<TranscriptPanel');
+  });
+
+  it('shows what was said verbatim rather than the cleaned-up version', () => {
+    // The note is where filler is removed. A record that quietly tidies itself
+    // cannot be used to check anything.
+    expect(PANEL).not.toContain('cleanSpeech');
+    expect(PANEL).toContain('transcriptLines(');
+  });
+
+  it('marks matches from the search rather than re-deriving them', () => {
+    // The search folded accents to find them; re-deriving offsets from the
+    // displayed text puts every highlight in an accented line in the wrong place.
+    expect(PANEL).toContain('searchTranscript(');
+    expect(PANEL).toContain('highlight(line.text, matches)');
+  });
+
+  it('records a tick on a generated item so it survives finalisation', () => {
+    // Otherwise the next pass rebuilds the artifact, finds no record that
+    // anybody touched anything, and the tick disappears minutes later.
+    expect(EDITOR).toContain('recordChecklistOverrides(');
+  });
+});
+
 describe('the recognisers', () => {
   it('derive a segment id from its position rather than minting one', () => {
     // A minted id means `INSERT OR REPLACE` has nothing to replace, so each

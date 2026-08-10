@@ -41,7 +41,9 @@ import { noteFilename, noteToMarkdown } from "@/lib/export/markdown";
 import { saveTextFile } from "@/lib/export/save";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import { CaptureStatusLine } from "@/components/capture/capture-status";
+import { TranscriptPanel } from "@/components/capture/transcript-panel";
 import { ChecklistEditor } from "@/components/notes/checklist-editor";
+import { recordChecklistOverrides } from "@/lib/artifact/record-checklist";
 import { MarkdownBodyEditor } from "@/components/notes/markdown-body-editor";
 import { LabelChips } from "@/components/notes/label-chips";
 import { LabelAssignDialog } from "@/components/notes/label-assign-dialog";
@@ -506,7 +508,14 @@ export default function NoteEditorScreen() {
         {showChecklist ? (
           <ChecklistEditor
             items={draft.checklist}
-            onChange={(checklist) => update({ checklist })}
+            onChange={(checklist) => {
+              // The list write keeps the screen honest now; the overrides keep it
+              // honest after the next finalisation. Without them the next pass
+              // rebuilds the artifact, finds no record that anybody touched a
+              // generated item, and the tick disappears minutes later.
+              void recordChecklistOverrides(params.id, draft.checklist, checklist);
+              update({ checklist });
+            }}
           />
         ) : (
           <MarkdownBodyEditor
@@ -519,6 +528,12 @@ export default function NoteEditorScreen() {
         {draft.labels.length > 0 && (
           <LabelChips labelIds={draft.labels} allLabels={allLabels} />
         )}
+
+        {/* What was actually said, for when the note is not enough. Collapsed by
+            default: a note is the handful of things worth reading again, and
+            opening the transcript unasked puts the work the app exists to save
+            back in front of the reader. */}
+        <TranscriptPanel noteId={isNew ? '' : params.id} />
       </ScrollView>
 
       {/* Color picker strip */}
