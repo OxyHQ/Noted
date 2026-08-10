@@ -56,6 +56,15 @@ jobs:
       # it is ever moved to arm64 runners.
       - run: bun install --frozen-lockfile --ignore-scripts
 
+      # `@noted/shared-types` is a workspace package the backend imports from its
+      # BUILT output, so lint and test cannot run until it exists. It used to be
+      # built only by `build:backend` below, which is after both of them — so the
+      # test step passed for as long as no backend test happened to import a type,
+      # and failed the day one did, with `Failed to resolve entry for package
+      # "@noted/shared-types"` rather than anything naming the real cause. A local
+      # run does not reproduce it, because a developer's `dist/` is already there.
+      - run: bun run build:types
+
       - run: bun run --filter @noted/backend lint
 
       - run: bun run --filter @noted/backend test
