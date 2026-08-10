@@ -61,14 +61,18 @@ describe('status transitions', () => {
 });
 
 describe('visibility', () => {
-  it('shows what is current and what was settled, and hides the rest', () => {
+  it('shows only what is still standing', () => {
+    // `resolved` is the interesting exclusion: an answered question does not
+    // belong in a list of open questions. Its ANSWER belongs in the notes, and
+    // keeping the item rather than deleting it is what leaves the user's edit
+    // pointing at something.
     const items = [
       item('a', 'activa'),
       item('b', 'resuelta', { status: 'resolved' }),
       item('c', 'reemplazada', { status: 'superseded' }),
       item('d', 'borrada', { status: 'removed' }),
     ];
-    expect(visibleItems(items).map((visible) => visible.id)).toEqual(['a', 'b']);
+    expect(visibleItems(items).map((visible) => visible.id)).toEqual(['a']);
   });
 });
 

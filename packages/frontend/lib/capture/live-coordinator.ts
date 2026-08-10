@@ -41,18 +41,16 @@ export function createLiveCoordinator(input: {
     writers: {
       // The deterministic pass. It is the floor: it runs everywhere, needs
       // nothing downloaded, and is what makes every failure below survivable.
-      live: () => restructureNote(captureId, noteId, startedAt),
-      finalize: async () => {
-        await restructureNote(captureId, noteId, startedAt);
-        // The model reads the whole recording once, here. Its failure is not the
-        // capture's failure — the structured note is already written — so it is
-        // swallowed rather than allowed to mark the note unfinished.
-        await enhanceNote(captureId, noteId, startedAt, input.language).catch(
-          (error: unknown) => {
-            logger.error('Could not enhance the note', { error: String(error) });
-          },
-        );
-      },
+      // The task's revision travels with it, because that is what the store's
+      // guard compares against when it decides whether this pass may still land.
+      live: (task) => restructureNote(captureId, noteId, startedAt, task.transcriptRevision),
+      // One call, not two: `enhanceNote` writes the settled deterministic
+      // artifact first and only then asks the model, so a device without one
+      // still ends with a final artifact rather than a live one.
+      finalize: (task) =>
+        enhanceNote(captureId, noteId, startedAt, input.language, task.transcriptRevision).then(
+          () => undefined,
+        ),
     },
     onError: (stage, error) => {
       logger.error('Capture processing failed', { stage, error: String(error) });

@@ -33,6 +33,14 @@ export interface Block {
   text: string;
   /** The speaker the recogniser attributed this to, when it attributed one. */
   speaker: string | null;
+  /**
+   * The segments this block was built from.
+   *
+   * Carried through so a generated point can name its evidence: the reader jumps
+   * from a bullet to the words it came from, and a later pass can tell an item
+   * grounded in the recording from one a model supplied.
+   */
+  segmentIds: string[];
 }
 
 /**
@@ -61,11 +69,13 @@ export function groupIntoBlocks(segments: readonly TranscriptSegment[]): Block[]
         endMs: segment.endMs,
         text,
         speaker: segment.speakerHint,
+        segmentIds: [segment.id],
       };
       blocks.push(current);
     } else {
       current.text = `${current.text} ${text}`;
       current.endMs = segment.endMs;
+      current.segmentIds.push(segment.id);
     }
 
     previousEndMs = segment.endMs;

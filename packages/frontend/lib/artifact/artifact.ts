@@ -56,9 +56,18 @@ export function transitionItem<T extends GeneratedItem>(item: T, to: GeneratedIt
   return canTransition(item.status, to) ? { ...item, status: to } : item;
 }
 
-/** Items the reader should see. Superseded and removed ones are history. */
+/**
+ * Items the reader should see: the ones still standing.
+ *
+ * Only `active`, and `resolved` is the interesting exclusion. An answered
+ * question does not belong in a list of open questions — its answer belongs in
+ * the notes, which is where the finaliser puts it. What `resolved` buys over
+ * deleting the item is the id: the user's edit still points at something, and a
+ * later pass can tell "this was settled" from "this was overturned" and from
+ * "the user threw it away".
+ */
 export function visibleItems<T extends GeneratedItem>(items: readonly T[]): T[] {
-  return items.filter((item) => item.status === 'active' || item.status === 'resolved');
+  return items.filter((item) => item.status === 'active');
 }
 
 /**
