@@ -9,7 +9,16 @@ import {
 } from '@/lib/artifact/finalize';
 import type { UserItemOverride } from '@noted/shared-types';
 import { emptyOverride, overridesById } from '@/lib/artifact/ownership';
-import { artifact, item, section, source, unitsOf } from '@/lib/artifact/__tests__/fixtures';
+import {
+  artifact,
+  checklist,
+  checklistItem,
+  item,
+  NOW,
+  section,
+  source,
+  unitsOf,
+} from '@/lib/artifact/__tests__/fixtures';
 
 const NONE = overridesById([]);
 
@@ -214,5 +223,88 @@ describe('finalizeArtifact', () => {
       now: '2026-08-10T12:00:00.000Z',
     });
     expect(settled.createdAt).toBe(live.createdAt);
+  });
+});
+
+describe('what the user ticked while the recording was still running', () => {
+  /**
+   * The failure this exists for.
+   *
+   * Item ids are content hashes, so a task whose WORDING changes between the
+   * live pass and the end of the recording comes back with a different id — and
+   * the tick, which is stored against the old one, stops applying. It only
+   * happens when the recogniser corrects a sentence it already emitted, which is
+   * why it went unnoticed: with the text unchanged the hash matches by luck.
+   *
+   * Found by the evaluation corpus, on the scenario written for exactly that
+   * ("Whisper repetitions and corrected/re-emitted segments").
+   */
+  const live = artifact({
+    stage: 'live',
+    checklists: [
+      checklist('checklist:cap_1:actions', [
+        checklistItem('action:early', 'Y hay que mandarlo a contabilidad', { checked: true }),
+      ]),
+    ],
+  });
+
+  // The same commitment, as the recogniser finally heard it.
+  const corrected = artifact({
+    stage: 'final',
+    checklists: [
+      checklist('checklist:cap_1:actions', [
+        checklistItem(
+          'action:late',
+          'El informe se entrega el viernes y hay que mandarlo a contabilidad',
+        ),
+      ]),
+    ],
+  });
+
+  it('is still the same item after the recogniser corrects the sentence', () => {
+    const settled = finalizeArtifact({
+      previous: live,
+      next: corrected,
+      overrides: overrides({ itemId: 'action:early', checked: true }),
+      now: NOW,
+    });
+    expect(settled.checklists[0].items.map((entry) => entry.id)).toEqual(['action:early']);
+  });
+
+  it('is not vacuous — an unrelated task keeps its own identity', () => {
+    // If the reconciliation matched anything to anything, this would also
+    // collapse onto the live item.
+    const unrelated = artifact({
+      stage: 'final',
+      checklists: [
+        checklist('checklist:cap_1:actions', [
+          checklistItem('action:other', 'Reservar la sala para el martes'),
+        ]),
+      ],
+    });
+    const settled = finalizeArtifact({
+      previous: live,
+      next: unrelated,
+      overrides: NONE,
+      now: NOW,
+    });
+    expect(settled.checklists[0].items.map((entry) => entry.id)).toEqual(['action:other']);
+  });
+
+  it('still lets the complete reading drop a task nobody touched', () => {
+    // The finaliser has read the whole recording; a live guess it no longer
+    // makes should go. Only what the user touched is kept against its judgement.
+    const settled = finalizeArtifact({
+      previous: artifact({
+        stage: 'live',
+        checklists: [
+          checklist('checklist:cap_1:actions', [checklistItem('action:guess', 'Algo que se oyó mal')]),
+        ],
+      }),
+      next: artifact({ stage: 'final', checklists: [] }),
+      overrides: NONE,
+      now: NOW,
+    });
+    expect(settled.checklists).toEqual([]);
   });
 });

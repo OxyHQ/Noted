@@ -46,7 +46,15 @@ const ACTION_PATTERNS: readonly RegExp[] = [
   /\b(?:hay que|tenemos que|tengo que|tienes que|tiene que|tenéis que|tienen que)\b/i,
   /\b(?:me encargo|te encargas|se encarga|nos encargamos)\b/i,
   /\b(?:quedamos en|queda pendiente|pendiente de)\b/i,
-  /\b(?:hace falta|habría que|habrá que)\b/i,
+  // `habría que` is NOT here, and the difference is the conditional. "Hay que
+  // avisar" and "habrá que avisar" are somebody saying it will be done;
+  // "habría que verlo con calma" is somebody floating an idea, and the sentence
+  // after it is usually "de momento lo dejamos ahí". Measured on the evaluation
+  // corpus: it was the one construction turning a discarded suggestion into a
+  // task. The cost is stated rather than hidden — a meeting where "habría que
+  // avisar" is then agreed to loses that task from the checklist, and it stays
+  // in the transcript where the reader can still find it.
+  /\b(?:hace falta|habrá que)\b/i,
   // English — obligation and assignment
   /\b(?:we need to|i need to|you need to|we have to|i have to|you have to)\b/i,
   /\b(?:i'?ll|we'?ll|you'?ll)\s+(?:take|handle|send|write|check|do|look|follow)\b/i,
