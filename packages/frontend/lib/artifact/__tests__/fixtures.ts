@@ -8,6 +8,7 @@
  */
 
 import type {
+  GeneratedBlock,
   GeneratedChecklist,
   GeneratedChecklistItem,
   GeneratedItem,
@@ -43,12 +44,54 @@ export function checklistItem(
   return { ...item(id, text), checked: false, ...over };
 }
 
+/**
+ * A section holding one bullet list.
+ *
+ * Most of these tests are about what happens to ITEMS — statuses, overrides,
+ * reconciliation — and a list is the shape that used to be the only one. Prose
+ * has its own builder below, so a test about paragraphs says so.
+ */
 export function section(
   id: string,
   items: GeneratedItem[],
   over: Partial<GeneratedSection> = {},
 ): GeneratedSection {
-  return { id, kind: 'notes', items, ...over };
+  return {
+    id,
+    kind: 'notes',
+    blocks:
+      items.length > 0
+        ? [
+            {
+              id: `${id}:list`,
+              kind: 'bullet-list',
+              status: 'active',
+              origin: 'transcript',
+              sources: [],
+              items,
+            },
+          ]
+        : [],
+    ...over,
+  };
+}
+
+/** A paragraph, as its own block. */
+export function paragraph(id: string, text: string, over: Partial<GeneratedBlock> = {}): GeneratedBlock {
+  return {
+    id,
+    kind: 'paragraph',
+    text,
+    status: 'active',
+    origin: 'transcript',
+    sources: [source(0, 1000, `${id}-seg`)],
+    ...over,
+  } as GeneratedBlock;
+}
+
+/** A section of prose. */
+export function prose(id: string, blocks: GeneratedBlock[], over: Partial<GeneratedSection> = {}): GeneratedSection {
+  return { id, kind: 'notes', blocks, ...over };
 }
 
 export function checklist(
@@ -76,4 +119,11 @@ export function artifact(over: Partial<GeneratedNoteArtifact> = {}): GeneratedNo
     updatedAt: NOW,
     ...over,
   };
+}
+
+/** The units inside a section, whatever blocks it is made of. */
+export function unitsOf(section: GeneratedSection): GeneratedItem[] {
+  return section.blocks.flatMap((block) =>
+    block.kind === 'paragraph' || block.kind === 'quote' ? [block] : block.items,
+  );
 }

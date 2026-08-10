@@ -4,7 +4,7 @@ import { composeNote } from '@/lib/artifact/compose';
 import { legacyArtifact, legacyArtifactId, legacyItemId } from '@/lib/artifact/legacy';
 import { renderArtifact } from '@/lib/artifact/render';
 import { composeNoteBody } from '@/lib/notes/generated-body';
-import { NOW } from '@/lib/artifact/__tests__/fixtures';
+import { NOW, unitsOf } from '@/lib/artifact/__tests__/fixtures';
 
 /** A real generated block, of the shape the old path wrote. */
 const GENERATED = [
@@ -31,15 +31,19 @@ describe('legacyArtifact', () => {
     const second = legacyArtifact({ ...INPUT, now: '2027-01-01T00:00:00.000Z' });
     expect(first?.id).toBe(legacyArtifactId('note_1'));
     expect(first?.id).toBe(second?.id);
-    expect(first?.sections[0].items[0].id).toBe(legacyItemId('note_1'));
+    expect(first).not.toBeNull();
+    if (!first) return;
+    expect(unitsOf(first.sections[0])[0].id).toBe(legacyItemId('note_1'));
   });
 
   it('claims no evidence it does not have', () => {
     // The old path never recorded which part of the recording anything came
     // from. A source range here would be invented.
     const migrated = legacyArtifact(INPUT);
-    expect(migrated?.sections[0].items[0].sources).toEqual([]);
-    expect(migrated?.sections[0].items[0].origin).toBe('legacy');
+    expect(migrated).not.toBeNull();
+    if (!migrated) return;
+    expect(unitsOf(migrated.sections[0])[0].sources).toEqual([]);
+    expect(unitsOf(migrated.sections[0])[0].origin).toBe('legacy');
   });
 
   it('is settled, so no live pass can overwrite it', () => {

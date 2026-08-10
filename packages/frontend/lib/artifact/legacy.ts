@@ -70,9 +70,10 @@ export function legacyArtifact(input: {
       {
         id: legacySectionId(input.noteId),
         kind: 'custom',
-        items: [
+        blocks: [
           {
             id: legacyItemId(input.noteId),
+            kind: 'paragraph',
             text,
             status: 'active',
             origin: 'legacy',

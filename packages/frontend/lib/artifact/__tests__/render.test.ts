@@ -7,6 +7,8 @@ import {
   checklist,
   checklistItem,
   item,
+  paragraph,
+  prose,
   section,
 } from '@/lib/artifact/__tests__/fixtures';
 
@@ -99,8 +101,12 @@ describe('renderArtifact', () => {
     const old = '## Open questions\n\n- ¿Está leyendo todo internet?';
     const rendered = renderArtifact(
       artifact({
+        // The shape `legacy.ts` actually writes: one paragraph carrying the whole
+        // old block, not a list line.
         sections: [
-          section('s', [item('legacy', old, { origin: 'legacy', sources: [] })], { kind: 'custom' }),
+          prose('s', [paragraph('legacy', old, { origin: 'legacy', sources: [] })], {
+            kind: 'custom',
+          }),
         ],
       }),
     );

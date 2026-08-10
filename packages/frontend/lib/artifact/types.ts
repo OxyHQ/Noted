@@ -148,12 +148,79 @@ export type GeneratedSectionKind =
   | 'takeaways'
   | 'custom';
 
+/**
+ * Everything a block carries regardless of what it is.
+ *
+ * Provenance lives at the smallest editable unit, which is what makes a note
+ * checkable line by line rather than as a whole: a reader can ask where THIS
+ * paragraph came from, and a later pass can retire it without touching the one
+ * beside it.
+ */
+export interface GeneratedBlockBase {
+  id: string;
+  status: GeneratedItemStatus;
+  origin: GeneratedItemOrigin;
+  sources: SourceRange[];
+  instructionSource?: SourceRange;
+  derivationReason?: string;
+}
+
+/** One line of a list. Its own unit, because a reader edits one line, not the list. */
+export interface GeneratedListItem {
+  id: string;
+  text: string;
+  status: GeneratedItemStatus;
+  origin: GeneratedItemOrigin;
+  sources: SourceRange[];
+}
+
+/**
+ * A piece of the document.
+ *
+ * The reason this is a union rather than an array of strings: a note about a
+ * talk is mostly PROSE. Connected reasoning belongs in a paragraph, and forcing
+ * it into bullets does not style it badly — it destroys the connection, because
+ * a bullet list asserts that its lines are peers and a paragraph asserts that
+ * they follow from each other.
+ *
+ * Deliberately four kinds and not forty. A note needs prose, two kinds of list
+ * and a way to quote somebody exactly; tables and callouts are a different
+ * product.
+ */
+export type GeneratedBlock =
+  | (GeneratedBlockBase & { kind: 'paragraph'; text: string })
+  | (GeneratedBlockBase & { kind: 'bullet-list'; items: GeneratedListItem[] })
+  | (GeneratedBlockBase & { kind: 'numbered-list'; items: GeneratedListItem[] })
+  /**
+   * Somebody's words, kept as theirs.
+   *
+   * The one place first person is allowed to survive into the note, because a
+   * quotation is explicitly not the note speaking.
+   */
+  | (GeneratedBlockBase & { kind: 'quote'; text: string; attribution?: string });
+
 export interface GeneratedSection {
   id: string;
   kind: GeneratedSectionKind;
-  /** Shown as the section heading. Absent means the items ARE the note. */
+  /** Shown as the section heading. Absent means the blocks ARE the note. */
   heading?: string;
-  items: GeneratedItem[];
+  blocks: GeneratedBlock[];
+}
+
+/**
+ * Somebody the recording is about.
+ *
+ * Every field optional and every one source-grounded, because the failure mode
+ * here is inventing a person. A talk whose speaker never says their name must
+ * produce a note that does not contain one — the role is known, the name is not,
+ * and the note has to be able to say exactly that.
+ */
+export interface GeneratedPerson {
+  id: string;
+  name?: string;
+  role?: string;
+  organization?: string;
+  sources: SourceRange[];
 }
 
 export type GeneratedChecklistKind = 'actions' | 'shopping' | 'packing' | 'steps' | 'custom';
@@ -195,6 +262,8 @@ export interface GeneratedNoteArtifact {
   /** The generated title. The user's own title always wins over it — see the composer. */
   title?: GeneratedItem;
   sections: GeneratedSection[];
+  /** Who the recording is about, when the recording says. */
+  people?: GeneratedPerson[];
   checklists: GeneratedChecklist[];
   /** Only what is genuinely still open. An answered question belongs in a section. */
   openQuestions: GeneratedItem[];
@@ -232,6 +301,16 @@ export interface ArtifactLabels {
   shopping: string;
   packing: string;
   steps: string;
+  /** Label for the person a recording is about. */
+  speaker: string;
+  /**
+   * What the rule-based pass produces.
+   *
+   * Named for what it is. It selects sentences somebody said; calling that a
+   * finished note is how a talk ended up reading as though the speaker had
+   * written it.
+   */
+  highlights: string;
 }
 
 export const DEFAULT_ARTIFACT_LABELS: ArtifactLabels = {
@@ -245,4 +324,6 @@ export const DEFAULT_ARTIFACT_LABELS: ArtifactLabels = {
   shopping: 'Shopping list',
   packing: 'Packing list',
   steps: 'Steps',
+  speaker: 'Speaker',
+  highlights: 'Transcript highlights',
 };

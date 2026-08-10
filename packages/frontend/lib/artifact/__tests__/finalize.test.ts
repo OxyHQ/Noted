@@ -8,7 +8,7 @@ import {
   supersedeRevisedDecisions,
 } from '@/lib/artifact/finalize';
 import { emptyOverride, overridesById, type UserItemOverride } from '@/lib/artifact/ownership';
-import { artifact, item, section, source } from '@/lib/artifact/__tests__/fixtures';
+import { artifact, item, section, source, unitsOf } from '@/lib/artifact/__tests__/fixtures';
 
 const NONE = overridesById([]);
 
@@ -170,7 +170,7 @@ describe('finalizeArtifact', () => {
       overrides: NONE,
       now: '2026-08-10T12:00:00.000Z',
     });
-    expect(settled.sections[0].items).toHaveLength(1);
+    expect(unitsOf(settled.sections[0])).toHaveLength(1);
   });
 
   it('retires an overturned decision and keeps the current one', () => {
@@ -189,7 +189,7 @@ describe('finalizeArtifact', () => {
       overrides: NONE,
       now: '2026-08-10T12:00:00.000Z',
     });
-    expect(visibleItems(settled.sections[0].items).map((entry) => entry.id)).toEqual(['lunes']);
+    expect(visibleItems(unitsOf(settled.sections[0])).map((entry) => entry.id)).toEqual(['lunes']);
   });
 
   it('drops a section whose every item was retired', () => {

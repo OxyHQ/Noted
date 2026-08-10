@@ -14,7 +14,7 @@
 import {
   DEFAULT_ARTIFACT_LABELS,
   type ArtifactLabels,
-  type GeneratedItem,
+  type GeneratedBlock,
   type GeneratedNoteArtifact,
   type GeneratedSection,
 } from '@/lib/artifact/types';
@@ -48,20 +48,35 @@ export function headingFor(section: GeneratedSection, labels: ArtifactLabels): s
 }
 
 /**
- * One item as a line.
+ * One block as Markdown.
  *
- * A legacy item is emitted exactly as it was stored, with no bullet added: its
+ * A paragraph is a paragraph. That sentence is the entire point of this file
+ * changing: the old renderer prefixed every item with `- `, so connected
+ * reasoning came out as a list of peers no matter what the generator understood,
+ * and no prompt could defeat a dash added after the fact.
+ *
+ * A legacy block is emitted exactly as it was stored, with nothing added: its
  * text is a whole Markdown block from a note written before this domain existed,
  * and decorating it would rewrite somebody's old note during a migration.
  */
-function renderItem(item: GeneratedItem): string {
-  return item.origin === 'legacy' ? item.text.trim() : `- ${item.text.trim()}`;
-}
-
-function renderBlock(heading: string | null, items: readonly GeneratedItem[]): string[] {
-  if (items.length === 0) return [];
-  const lines = items.map(renderItem);
-  return heading ? [`## ${heading}`, '', ...lines, ''] : [...lines, ''];
+function renderBlock(block: GeneratedBlock): string[] {
+  if (block.kind === 'paragraph') {
+    return block.origin === 'legacy' ? [block.text.trim()] : [block.text.trim()];
+  }
+  if (block.kind === 'quote') {
+    const lines = block.text
+      .trim()
+      .split('\n')
+      .map((line) => `> ${line}`);
+    // The attribution belongs to the quotation, so it stays inside it — a line
+    // after the block reads as the note speaking, which is the one thing a quote
+    // exists to avoid.
+    return block.attribution ? [...lines, `>`, `> — ${block.attribution}`] : lines;
+  }
+  if (block.kind === 'numbered-list') {
+    return block.items.map((item, index) => `${String(index + 1)}. ${item.text.trim()}`);
+  }
+  return block.items.map((item) => `- ${item.text.trim()}`);
 }
 
 /**
@@ -71,17 +86,53 @@ function renderBlock(heading: string | null, items: readonly GeneratedItem[]): s
  * app's contribution alone, and `lib/artifact/compose.ts` is the only thing that
  * puts the two together.
  */
+/**
+ * Who the recording is about, when it says.
+ *
+ * First, because a note about a talk is unreadable until you know whose talk it
+ * was — and because the absence of a name is itself information the reader
+ * deserves rather than a gap they have to notice.
+ */
+function renderPeople(artifact: GeneratedNoteArtifact, labels: ArtifactLabels): string[] {
+  const people = (artifact.people ?? []).filter(
+    (person) => person.name ?? person.role ?? person.organization,
+  );
+  if (people.length === 0) return [];
+
+  return [
+    ...people.map((person) => {
+      const described = [person.name, person.role, person.organization]
+        .filter((part): part is string => (part ?? '').trim() !== '')
+        .join(' — ');
+      return `**${labels.speaker}:** ${described}`;
+    }),
+    '',
+  ];
+}
+
 export function renderArtifact(
   artifact: GeneratedNoteArtifact,
   labels: ArtifactLabels = DEFAULT_ARTIFACT_LABELS,
 ): string {
-  const sections = nonEmptySections(artifact).flatMap((section) =>
-    renderBlock(headingFor(section, labels), section.items),
-  );
+  const people = renderPeople(artifact, labels);
 
-  // Only when there is genuinely something unresolved. A "Open questions: none"
+  const sections = nonEmptySections(artifact).flatMap((section) => {
+    const heading = headingFor(section, labels);
+    // A blank line between blocks, so two paragraphs stay two paragraphs and a
+    // list does not weld itself to the sentence above it.
+    const body = section.blocks.flatMap((block, index) =>
+      index === 0 ? renderBlock(block) : ['', ...renderBlock(block)],
+    );
+    return heading ? [`## ${heading}`, '', ...body, ''] : [...body, ''];
+  });
+
+  // Only when there is genuinely something unresolved. An "Open questions: none"
   // heading reads as a finding about the meeting; its absence reads as what it is.
-  const questions = renderBlock(labels.questions, visibleItems(artifact.openQuestions));
+  const open = visibleItems(artifact.openQuestions);
+  const questions =
+    open.length > 0
+      ? [`## ${labels.questions}`, '', ...open.map((item) => `- ${item.text.trim()}`), '']
+      : [];
 
-  return [...sections, ...questions].join('\n').trim();
+  return [...people, ...sections, ...questions].join('\n').trim();
 }

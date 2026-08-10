@@ -19,6 +19,7 @@ import { execute, executeTransaction, type Row } from '@/lib/db/client';
 import { useLiveQuery } from '@/lib/db/live-query';
 import type { ArtifactStage, GeneratedNoteArtifact } from '@/lib/artifact/types';
 import { emptyOverride, type UserItemOverride } from '@/lib/artifact/ownership';
+import { toBlockSection } from '@/lib/artifact/legacy-sections';
 
 export interface ArtifactRow extends Row {
   id: string;
@@ -58,7 +59,7 @@ function parseDocument(json: string): ArtifactDocument {
     const document = parsed as Partial<ArtifactDocument>;
     return {
       title: document.title,
-      sections: Array.isArray(document.sections) ? document.sections : [],
+      sections: Array.isArray(document.sections) ? document.sections.map(toBlockSection) : [],
       checklists: Array.isArray(document.checklists) ? document.checklists : [],
       openQuestions: Array.isArray(document.openQuestions) ? document.openQuestions : [],
       pendingExpansions: Array.isArray(document.pendingExpansions)

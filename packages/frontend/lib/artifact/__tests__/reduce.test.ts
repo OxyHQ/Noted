@@ -10,6 +10,7 @@ import {
   item,
   section,
   source,
+  unitsOf,
 } from '@/lib/artifact/__tests__/fixtures';
 
 const NONE = overridesById([]);
@@ -149,7 +150,7 @@ describe('reduceLiveArtifact', () => {
     });
     const reduced = reduceLiveArtifact(previous, next, NONE);
     expect(reduced.sections).toHaveLength(1);
-    expect(reduced.sections[0].items.map((entry) => entry.id)).toEqual(['n1', 'n2', 'n3']);
+    expect(unitsOf(reduced.sections[0]).map((entry) => entry.id)).toEqual(['n1', 'n2', 'n3']);
   });
 
   it('keeps the note’s own creation time through every rebuild', () => {

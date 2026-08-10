@@ -151,7 +151,21 @@ export function enhancementToArtifact(input: FromEnhancementInput): GeneratedNot
     // The model's notes ARE the note, so they carry no heading — the same shape
     // the deterministic pass produces, which is what keeps the note's structure
     // from depending on whether a model was installed.
-    sections: notes.length > 0 ? [{ id: `section:${captureId}:notes`, kind: 'notes', items: notes }] : [],
+    // Each note becomes its own PARAGRAPH rather than a line of one list. The
+    // model writes connected reasoning, and a bullet list asserts that its lines
+    // are peers — which destroys the connection rather than styling it badly.
+    // The canonical document schema (sections with headings) lands next; this is
+    // the domain being able to hold it.
+    sections:
+      notes.length > 0
+        ? [
+            {
+              id: `section:${captureId}:notes`,
+              kind: 'notes' as const,
+              blocks: notes.map((note) => ({ ...note, kind: 'paragraph' as const })),
+            },
+          ]
+        : [],
     checklists,
     openQuestions: questions,
     createdAt: input.now,

@@ -17,11 +17,12 @@
  */
 
 import type {
+  GeneratedBlock,
   GeneratedChecklistItem,
   GeneratedItem,
   GeneratedNoteArtifact,
 } from '@/lib/artifact/types';
-import { allItems, filterItems, mapItems } from '@/lib/artifact/artifact';
+import { allItems, blockUnits, filterItems, mapItems } from '@/lib/artifact/artifact';
 
 /**
  * One user decision about one generated item.
@@ -134,7 +135,7 @@ export function carryProtectedItems(
 
   const present = new Set(allItems(next).map((item) => item.id));
 
-  const shouldCarry = (item: GeneratedItem): boolean =>
+  const shouldCarry = (item: { id: string }): boolean =>
     !present.has(item.id) && isProtected(item.id, overrides) && !overrides.get(item.id)?.removed;
 
   const sections = next.sections.map((section) => ({ ...section }));
@@ -142,11 +143,23 @@ export function carryProtectedItems(
   let openQuestions = [...next.openQuestions];
 
   for (const previousSection of previous.sections) {
-    const carried = previousSection.items.filter(shouldCarry);
+    // Only the protected UNITS come back, not the block that held them. A list
+    // the user ticked one line of is not a reason to restore the four lines the
+    // finaliser deliberately dropped — carrying those would undo the merge the
+    // final pass exists to perform.
+    const carried = previousSection.blocks
+      .map((block) => {
+        if (block.kind === 'paragraph' || block.kind === 'quote') {
+          return shouldCarry(block) ? block : null;
+        }
+        const items = block.items.filter(shouldCarry);
+        return items.length > 0 ? { ...block, items } : null;
+      })
+      .filter((block): block is GeneratedBlock => block !== null);
     if (carried.length === 0) continue;
     const target = sections.find((section) => section.id === previousSection.id);
-    if (target) target.items = [...target.items, ...carried];
-    else sections.push({ ...previousSection, items: carried });
+    if (target) target.blocks = [...target.blocks, ...carried];
+    else sections.push({ ...previousSection, blocks: carried });
   }
 
   for (const previousChecklist of previous.checklists) {

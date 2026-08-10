@@ -18,8 +18,13 @@
  * reason: the id is a hash of the text, so a reworded point cannot match itself.
  */
 
-import type { GeneratedItem, GeneratedNoteArtifact, SourceRange } from '@/lib/artifact/types';
-import { transitionItem } from '@/lib/artifact/artifact';
+import type {
+  GeneratedBlock,
+  GeneratedItem,
+  GeneratedNoteArtifact,
+  SourceRange,
+} from '@/lib/artifact/types';
+import { blockUnits, transitionItem } from '@/lib/artifact/artifact';
 import { isProtected, type OverrideMap } from '@/lib/artifact/ownership';
 import { isNearDuplicate } from '@/lib/structure/similar';
 
@@ -127,7 +132,7 @@ export function reduceLiveArtifact(
   for (const section of next.sections) {
     const target = sections.find((candidate) => candidate.id === section.id);
     if (target) {
-      target.items = reconcileItems(target.items, section.items, { overrides, missing: 'drop' });
+      target.blocks = reconcileBlocks(target.blocks, section.blocks, overrides);
       target.heading = section.heading;
     } else {
       sections.push({ ...section });
@@ -153,7 +158,7 @@ export function reduceLiveArtifact(
     // something.
     title:
       previous.title && isProtected(previous.title.id, overrides) ? previous.title : next.title,
-    sections: sections.filter((section) => section.items.length > 0),
+    sections: sections.filter((section) => section.blocks.length > 0),
     checklists: checklists.filter((checklist) => checklist.items.length > 0),
     openQuestions: reconcileItems(previous.openQuestions, next.openQuestions, {
       overrides,
@@ -161,4 +166,67 @@ export function reduceLiveArtifact(
     }),
     createdAt: previous.createdAt,
   };
+}
+
+/**
+ * Reconcile a section's blocks.
+ *
+ * Matched by id first and by what they SAY second, exactly as items are — a
+ * paragraph reworded between passes is the same paragraph, and treating it as a
+ * new one is what makes a live note rearrange itself under the reader.
+ *
+ * A list block reconciles its lines rather than being replaced wholesale, so a
+ * list that gained an entry keeps the order of the ones already read.
+ */
+function reconcileBlocks(
+  previous: readonly GeneratedBlock[],
+  next: readonly GeneratedBlock[],
+  overrides: OverrideMap,
+): GeneratedBlock[] {
+  const claimed = new Set<string>();
+  const reconciled: GeneratedBlock[] = [];
+
+  for (const block of previous) {
+    const match = next.find(
+      (candidate) =>
+        candidate.id === block.id ||
+        (candidate.kind === block.kind && sameBlockText(candidate, block)),
+    );
+    if (!match) {
+      // Kept only when the user touched it; otherwise the newer reading merged
+      // or dropped it, which is its job.
+      if (blockUnits(block).some((unit) => isProtected(unit.id, overrides))) reconciled.push(block);
+      continue;
+    }
+
+    claimed.add(match.id);
+    if (match.kind === 'bullet-list' || match.kind === 'numbered-list') {
+      const before = block.kind === match.kind ? block.items : [];
+      reconciled.push({
+        ...match,
+        id: block.id,
+        items: reconcileItems(before, match.items, { overrides, missing: 'drop' }),
+      });
+      continue;
+    }
+    reconciled.push(
+      isProtected(block.id, overrides)
+        ? block
+        : { ...match, id: block.id, sources: mergeSources(block.sources, match.sources) },
+    );
+  }
+
+  for (const block of next) {
+    if (!claimed.has(block.id) && !reconciled.some((kept) => kept.id === block.id)) {
+      reconciled.push(block);
+    }
+  }
+  return reconciled;
+}
+
+/** Whether two prose blocks say the same thing. Lists are matched by id alone. */
+function sameBlockText(left: GeneratedBlock, right: GeneratedBlock): boolean {
+  if (left.kind === 'bullet-list' || left.kind === 'numbered-list') return false;
+  if (right.kind === 'bullet-list' || right.kind === 'numbered-list') return false;
+  return isNearDuplicate(left.text, right.text);
 }
