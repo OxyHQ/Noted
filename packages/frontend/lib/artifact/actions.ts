@@ -11,7 +11,7 @@
  * rather than a decision-maker.
  */
 
-import type { UserItemOverride } from '@/lib/artifact/ownership';
+import type { UserItemOverride } from '@noted/shared-types';
 
 export type ItemPatch = Partial<UserItemOverride> & { itemId: string };
 

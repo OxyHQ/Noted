@@ -16,7 +16,7 @@ import { visibleItems } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
 import { buildDeterministicArtifact } from '@/lib/artifact/generate/deterministic';
 import { renderArtifact } from '@/lib/artifact/render';
-import type { CaptureProfile, GeneratedNoteArtifact } from '@/lib/artifact/types';
+import type { CaptureProfile, GeneratedNoteArtifact } from '@noted/shared-types';
 import type { TranscriptSegment } from '@/lib/capture/captures-repo';
 
 const CAPTURE_ID = 'c1';

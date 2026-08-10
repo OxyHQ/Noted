@@ -24,7 +24,7 @@
  */
 
 import type { ChecklistItem } from '@noted/shared-types';
-import type { CaptureProfile, DocumentIntent, PendingExpansion } from '@/lib/artifact/types';
+import type { CaptureProfile, DocumentIntent, PendingExpansion } from '@noted/shared-types';
 import type { BlockType } from '@/lib/enhance/schema';
 
 /** Whether a device can run a model at all, before anything is asked of it. */

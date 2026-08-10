@@ -27,7 +27,7 @@
  * read in windows instead, and nothing is silently dropped.
  */
 
-import type { CaptureProfile, DocumentIntent, PendingExpansion } from '@/lib/artifact/types';
+import type { CaptureProfile, DocumentIntent, PendingExpansion } from '@noted/shared-types';
 import type { EnhanceLine } from '@/lib/enhance/contract';
 import { describeSchema, FIELDS } from '@/lib/enhance/schema';
 

@@ -32,7 +32,7 @@ import type { TranscriptSegment } from '@/lib/capture/captures-repo';
 import { visibleItems } from '@/lib/artifact/artifact';
 import { buildDeterministicArtifact } from '@/lib/artifact/generate/deterministic';
 import { renderArtifact } from '@/lib/artifact/render';
-import type { GeneratedNoteArtifact } from '@/lib/artifact/types';
+import type { GeneratedNoteArtifact } from '@noted/shared-types';
 
 const startedAt = new Date('2026-03-04T10:00:00.000Z');
 

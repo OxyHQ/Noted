@@ -19,7 +19,7 @@ import { setCaptureLifecycle, type Capture } from '@/lib/capture/captures-repo';
 import { enhanceNote, finalizeNote } from '@/lib/capture/restructure';
 import { transcribeAfterStop } from '@/lib/capture/transcribe-after';
 import { loadSetting, SETTING_KEYS } from '@/lib/db/settings-repo';
-import type { CaptureProfile } from '@/lib/artifact/types';
+import type { CaptureProfile } from '@noted/shared-types';
 import { errorCodeOf } from '@/lib/capture/errors';
 import type { CaptureRetry } from '@/lib/capture/status';
 

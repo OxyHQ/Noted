@@ -7,15 +7,7 @@
  * exactly what most of these tests are checking.
  */
 
-import type {
-  GeneratedBlock,
-  GeneratedChecklist,
-  GeneratedChecklistItem,
-  GeneratedItem,
-  GeneratedNoteArtifact,
-  GeneratedSection,
-  SourceRange,
-} from '@/lib/artifact/types';
+import type { GeneratedBlock, GeneratedChecklist, GeneratedChecklistItem, GeneratedItem, GeneratedNoteArtifact, GeneratedSection, SourceRange } from '@noted/shared-types';
 
 export const CAPTURE_ID = 'cap_1';
 export const NOTE_ID = 'note_1';

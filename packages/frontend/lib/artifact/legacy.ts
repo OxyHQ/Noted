@@ -17,7 +17,7 @@
  * sources take over.
  */
 
-import type { GeneratedNoteArtifact } from '@/lib/artifact/types';
+import type { GeneratedNoteArtifact } from '@noted/shared-types';
 
 /**
  * Ids derived from the note rather than minted.

@@ -7,7 +7,8 @@ import {
   mergeSemanticDuplicates,
   supersedeRevisedDecisions,
 } from '@/lib/artifact/finalize';
-import { emptyOverride, overridesById, type UserItemOverride } from '@/lib/artifact/ownership';
+import type { UserItemOverride } from '@noted/shared-types';
+import { emptyOverride, overridesById } from '@/lib/artifact/ownership';
 import { artifact, item, section, source, unitsOf } from '@/lib/artifact/__tests__/fixtures';
 
 const NONE = overridesById([]);

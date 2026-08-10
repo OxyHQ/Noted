@@ -24,6 +24,12 @@ import {
 } from '@/lib/db/client';
 import { saveLabels } from '@/lib/db/labels-repo';
 import {
+  artifactUpsertStatement,
+  getNoteOverrides,
+  listFinalArtifacts,
+  overrideUpsertStatement,
+} from '@/lib/db/artifacts-repo';
+import {
   decideMerge,
   OUTBOX_MAX_ATTEMPTS,
   outboxRetryDelayMs,
@@ -65,6 +71,25 @@ interface LocalStateRow extends Row {
  * `server_updated_at` recording what we agreed on, which is what the next merge
  * compares against.
  */
+/**
+ * The generated half that arrived with a note.
+ *
+ * Absent means the server said nothing about it — the feed read does not carry
+ * it — and nothing is touched. An empty array is a real answer and would clear
+ * what is here, so the two must not be conflated.
+ */
+function generatedHalfStatements(note: Note, now: string): Statement[] {
+  const statements: Statement[] = [];
+  // The upsert carries the revision guard, so an artifact this device already
+  // built from a newer transcript is refused by the database rather than by a
+  // check here that a slow request could get past.
+  for (const artifact of note.artifacts ?? []) statements.push(artifactUpsertStatement(artifact));
+  for (const override of note.itemOverrides ?? []) {
+    statements.push(overrideUpsertStatement(note.id, override, now));
+  }
+  return statements;
+}
+
 function applyServerNoteStatements(note: Note): Statement[] {
   return [
     {
@@ -201,7 +226,7 @@ export async function pullNotes(makeConflictId: () => string): Promise<{ applied
     const action = decideMerge(states.get(note.id) ?? null, note.updatedAt);
     if (action === 'skip') continue;
     if (action === 'apply') {
-      statements.push(...applyServerNoteStatements(note));
+      statements.push(...applyServerNoteStatements(note), ...generatedHalfStatements(note, now));
       applied += 1;
       continue;
     }
@@ -270,6 +295,21 @@ function parseArray(value: string): unknown[] {
   }
 }
 
+/**
+ * A note as the server should see it, generated half included.
+ *
+ * Only `final` artifacts go: a `live` one is rewritten every few seconds while
+ * somebody is still talking, and uploading it would be a request per slice
+ * describing a recording that has not finished.
+ */
+async function notePayloadWithGenerated(row: PushableNoteRow): Promise<Record<string, unknown>> {
+  const [artifacts, overrides] = await Promise.all([
+    listFinalArtifacts(row.id),
+    getNoteOverrides(row.id),
+  ]);
+  return { ...notePayload(row), artifacts, itemOverrides: overrides };
+}
+
 function notePayload(row: PushableNoteRow): Record<string, unknown> {
   return {
     title: row.title,
@@ -306,8 +346,18 @@ async function pushNote(entityId: string): Promise<void> {
   // returns the existing note instead of duplicating it.
   const note =
     row.server_updated_at === null
-      ? (await apiClient.post<Note>(API_ROUTES.notes.create, { id: row.id, ...notePayload(row) })).data
-      : (await apiClient.patch<Note>(API_ROUTES.notes.update(row.id), notePayload(row))).data;
+      ? (
+          await apiClient.post<Note>(API_ROUTES.notes.create, {
+            id: row.id,
+            ...(await notePayloadWithGenerated(row)),
+          })
+        ).data
+      : (
+          await apiClient.patch<Note>(
+            API_ROUTES.notes.update(row.id),
+            await notePayloadWithGenerated(row),
+          )
+        ).data;
 
   await executeTransaction([
     // We now know which server version this note agrees with, whatever else has

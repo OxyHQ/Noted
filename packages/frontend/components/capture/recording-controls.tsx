@@ -11,7 +11,7 @@ import {
 } from '@/lib/capture/captures-repo';
 import { regenerateWithProfile } from '@/lib/capture/retry';
 import { hasRemovableParts, retentionParts } from '@/lib/capture/retention';
-import { CAPTURE_PROFILES, type CaptureProfile } from '@/lib/artifact/types';
+import { CAPTURE_PROFILES } from '@noted/shared-types';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/hooks/useTranslation';
 

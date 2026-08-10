@@ -23,7 +23,7 @@
  * database to run.
  */
 
-import type { ArtifactStage } from '@/lib/artifact/types';
+import type { ArtifactStage } from '@noted/shared-types';
 
 /**
  * Told to a running task when it has been overtaken.

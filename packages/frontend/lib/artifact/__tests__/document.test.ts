@@ -15,7 +15,8 @@ import { describe, expect, it } from 'vitest';
 
 import { allItems, blockUnits, nonEmptySections } from '@/lib/artifact/artifact';
 import { renderArtifact } from '@/lib/artifact/render';
-import { DEFAULT_ARTIFACT_LABELS, type GeneratedBlock } from '@/lib/artifact/types';
+import { type GeneratedBlock } from '@noted/shared-types';
+import { DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
 import { artifact, item, paragraph, prose, source } from '@/lib/artifact/__tests__/fixtures';
 
 function list(

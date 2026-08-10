@@ -35,7 +35,7 @@ import {
 } from '@/lib/db/artifacts-repo';
 import { userAuthoredPart } from '@/lib/capture/placeholder-title';
 import { userBodyOf } from '@/lib/notes/generated-body';
-import type { GeneratedNoteArtifact } from '@/lib/artifact/types';
+import type { GeneratedNoteArtifact } from '@noted/shared-types';
 import { committed } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
 import { buildDeterministicArtifact, cleanedBlocks } from '@/lib/artifact/generate/deterministic';

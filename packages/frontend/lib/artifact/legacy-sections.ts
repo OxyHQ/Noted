@@ -12,7 +12,7 @@
  * dropping it would be deleting somebody's note during an upgrade.
  */
 
-import type { GeneratedListItem, GeneratedSection } from '@/lib/artifact/types';
+import type { GeneratedListItem, GeneratedSection } from '@noted/shared-types';
 
 /**
  * A section stored before blocks existed.

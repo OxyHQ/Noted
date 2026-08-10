@@ -17,7 +17,7 @@ import {
   deriveTitle,
 } from '@/lib/artifact/generate/deterministic';
 import { renderArtifact } from '@/lib/artifact/render';
-import type { GeneratedNoteArtifact } from '@/lib/artifact/types';
+import type { GeneratedNoteArtifact } from '@noted/shared-types';
 
 const CAPTURE_ID = 'c1';
 const NOTE_ID = 'n1';

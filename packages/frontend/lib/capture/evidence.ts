@@ -13,7 +13,7 @@
  */
 
 import type { TranscriptSegment } from '@/lib/capture/captures-repo';
-import type { GeneratedItem, SourceRange } from '@/lib/artifact/types';
+import type { GeneratedItem, SourceRange } from '@noted/shared-types';
 
 export interface Evidence {
   startMs: number;

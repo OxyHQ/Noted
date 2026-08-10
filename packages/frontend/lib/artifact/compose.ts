@@ -20,13 +20,11 @@
 
 import type { ChecklistItem } from '@noted/shared-types';
 
-import {
-  DEFAULT_ARTIFACT_LABELS,
-  type ArtifactLabels,
-  type GeneratedNoteArtifact,
-} from '@/lib/artifact/types';
+import { type GeneratedNoteArtifact } from '@noted/shared-types';
+import { type ArtifactLabels, DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
 import { nonEmptyChecklists } from '@/lib/artifact/artifact';
-import { applyOverrides, overridesById, type UserItemOverride } from '@/lib/artifact/ownership';
+import type { UserItemOverride } from '@noted/shared-types';
+import { applyOverrides, overridesById } from '@/lib/artifact/ownership';
 import { renderArtifact } from '@/lib/artifact/render';
 import { isNearDuplicate } from '@/lib/structure/similar';
 

@@ -19,7 +19,7 @@
  * note they will trust.
  */
 
-import type { DocumentIntent } from '@/lib/artifact/types';
+import type { DocumentIntent } from '@noted/shared-types';
 import { splitSentences } from '@/lib/structure/extract';
 
 export interface Located {

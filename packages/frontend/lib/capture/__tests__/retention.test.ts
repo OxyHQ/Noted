@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { hasRemovableParts, RETENTION_KEYS, retentionParts } from '@/lib/capture/retention';
-import { CAPTURE_PROFILES } from '@/lib/artifact/types';
+import { CAPTURE_PROFILES } from '@noted/shared-types';
 
 describe('what a recording is keeping', () => {
   it('offers the audio first, because that is the one people delete for space', () => {

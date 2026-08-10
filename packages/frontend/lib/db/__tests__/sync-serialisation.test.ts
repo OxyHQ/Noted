@@ -23,6 +23,10 @@ vi.mock('@/lib/db/client', () => ({
   execute: (...args: unknown[]) => execute(...args),
   executeTransaction: (...args: unknown[]) => executeTransaction(...args),
   isDbAvailable: () => true,
+  // Sync reads the artifacts repo, which also exposes React bindings built on
+  // the store's change signal. Nothing here subscribes; the export has to exist
+  // for the module to load at all.
+  subscribe: () => () => undefined,
 }));
 
 const get = vi.fn();

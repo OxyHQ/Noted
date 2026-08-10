@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { composeNote, preferredArtifact, type UserContent } from '@/lib/artifact/compose';
-import { emptyOverride, type UserItemOverride } from '@/lib/artifact/ownership';
+import type { UserItemOverride } from '@noted/shared-types';
+import { emptyOverride } from '@/lib/artifact/ownership';
 import {
   artifact,
   checklist,

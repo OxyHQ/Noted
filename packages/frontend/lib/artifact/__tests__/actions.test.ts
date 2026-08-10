@@ -8,7 +8,8 @@ import {
   removeItem,
   restoreItem,
 } from '@/lib/artifact/actions';
-import { emptyOverride, type UserItemOverride } from '@/lib/artifact/ownership';
+import type { UserItemOverride } from '@noted/shared-types';
+import { emptyOverride } from '@/lib/artifact/ownership';
 
 function override(over: Partial<UserItemOverride> = {}): UserItemOverride {
   return { ...emptyOverride('a'), ...over };

@@ -8,19 +8,7 @@
  * tested as arithmetic rather than as a recording.
  */
 
-import type {
-  ArtifactStage,
-  GeneratedBlock,
-  GeneratedListItem,
-  CaptureProfile,
-  DocumentIntent,
-  GeneratedChecklist,
-  GeneratedChecklistItem,
-  GeneratedItem,
-  GeneratedItemStatus,
-  GeneratedNoteArtifact,
-  GeneratedSection,
-} from '@/lib/artifact/types';
+import type { ArtifactStage, GeneratedBlock, GeneratedListItem, CaptureProfile, DocumentIntent, GeneratedChecklist, GeneratedChecklistItem, GeneratedItem, GeneratedItemStatus, GeneratedNoteArtifact, GeneratedSection } from '@noted/shared-types';
 
 /**
  * Which status changes a later revision is allowed to make.
