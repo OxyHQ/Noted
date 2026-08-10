@@ -3,19 +3,13 @@ import { Text } from '@/components/ui/text';
 import { useTranslation } from '@/hooks/useTranslation';
 import { ChevronDown, Globe2 } from 'lucide-react-native';
 import * as DropdownMenu from '@/components/ui/dropdown-menu';
-
-const SUPPORTED_LOCALES = [
-  { code: 'en-US', label: 'English', nativeLabel: 'English' },
-  { code: 'en-GB', label: 'English (UK)', nativeLabel: 'English (UK)' },
-  { code: 'es-ES', label: 'Spanish', nativeLabel: 'Español' },
-  { code: 'es-MX', label: 'Spanish (Mexico)', nativeLabel: 'Español (México)' },
-];
+import { SUPPORTED_LOCALES, resolveSupportedLocale } from '@/lib/i18n';
 
 export function LanguageSelector() {
   const { locale, changeLocale, t } = useTranslation();
 
   const getCurrentLocaleLabel = () => {
-    const current = SUPPORTED_LOCALES.find((l) => l.code === locale);
+    const current = SUPPORTED_LOCALES.find((l) => l.code === resolveSupportedLocale(locale));
     return current?.nativeLabel || SUPPORTED_LOCALES[0].nativeLabel;
   };
 
@@ -44,9 +38,6 @@ export function LanguageSelector() {
             >
               <DropdownMenu.ItemIndicator />
               <DropdownMenu.ItemTitle>{lang.nativeLabel}</DropdownMenu.ItemTitle>
-              {lang.label !== lang.nativeLabel && (
-                <DropdownMenu.ItemSubtitle>{lang.label}</DropdownMenu.ItemSubtitle>
-              )}
             </DropdownMenu.CheckboxItem>
           ))}
         </DropdownMenu.Content>

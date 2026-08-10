@@ -1,50 +1,61 @@
 import { I18n } from 'i18n-js';
 import { getLocales } from 'expo-localization';
+import ar from './locales/ar.json';
+import bn from './locales/bn.json';
+import ca from './locales/ca.json';
+import de from './locales/de.json';
 import en from './locales/en.json';
 import es from './locales/es.json';
+import fr from './locales/fr.json';
+import hi from './locales/hi.json';
+import id from './locales/id.json';
+import ja from './locales/ja.json';
+import mr from './locales/mr.json';
+import pt from './locales/pt.json';
+import ru from './locales/ru.json';
+import sw from './locales/sw.json';
+import ur from './locales/ur.json';
+import zh from './locales/zh.json';
 
-// Create i18n instance with translations
-// Using BCP 47 locale codes (en-US, es-ES) with fallback to language codes (en, es)
-const i18n = new I18n({
-  'en': en,
-  'en-US': en,
-  'en-GB': en,
-  'en-CA': en,
-  'es': es,
-  'es-ES': es,
-  'es-MX': es,
-  'es-AR': es,
-});
+export const SUPPORTED_LOCALES = [
+  { code: 'en', nativeLabel: 'English', direction: 'ltr' },
+  { code: 'zh', nativeLabel: '简体中文', direction: 'ltr' },
+  { code: 'hi', nativeLabel: 'हिन्दी', direction: 'ltr' },
+  { code: 'es', nativeLabel: 'Español', direction: 'ltr' },
+  { code: 'fr', nativeLabel: 'Français', direction: 'ltr' },
+  { code: 'ar', nativeLabel: 'العربية', direction: 'rtl' },
+  { code: 'bn', nativeLabel: 'বাংলা', direction: 'ltr' },
+  { code: 'pt', nativeLabel: 'Português', direction: 'ltr' },
+  { code: 'ru', nativeLabel: 'Русский', direction: 'ltr' },
+  { code: 'ur', nativeLabel: 'اردو', direction: 'rtl' },
+  { code: 'id', nativeLabel: 'Bahasa Indonesia', direction: 'ltr' },
+  { code: 'de', nativeLabel: 'Deutsch', direction: 'ltr' },
+  { code: 'ja', nativeLabel: '日本語', direction: 'ltr' },
+  { code: 'sw', nativeLabel: 'Kiswahili', direction: 'ltr' },
+  { code: 'mr', nativeLabel: 'मराठी', direction: 'ltr' },
+  { code: 'ca', nativeLabel: 'Català', direction: 'ltr' },
+] as const;
 
-/**
- * Get the device's current locale
- * Returns full locale code (e.g., "en-US") or falls back to language code (e.g., "en")
- */
-function getDeviceLocale(): string {
-  const locales = getLocales();
-  if (!locales || locales.length === 0) {
-    return 'en-US';
-  }
+export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]['code'];
 
-  // Try to use full locale code (e.g., "en-US")
-  const fullLocale = locales[0]?.languageTag;
-  if (fullLocale) {
-    return fullLocale;
-  }
+const translations = { ar, bn, ca, de, en, es, fr, hi, id, ja, mr, pt, ru, sw, ur, zh };
+const supportedCodes = new Set<string>(SUPPORTED_LOCALES.map(({ code }) => code));
 
-  // Fallback to language code (e.g., "en")
-  return locales[0]?.languageCode ?? 'en-US';
+/** Converts a device BCP-47 tag (such as pt-BR) to a supported language. */
+export function resolveSupportedLocale(locale?: string | null): SupportedLocale {
+  const language = locale?.trim().toLowerCase().split(/[-_]/)[0];
+  return (language && supportedCodes.has(language) ? language : 'en') as SupportedLocale;
 }
 
-// Set the locale from device settings
+function getDeviceLocale(): SupportedLocale {
+  const locale = getLocales()[0];
+  return resolveSupportedLocale(locale?.languageTag ?? locale?.languageCode);
+}
+
+const i18n = new I18n(translations);
 i18n.locale = getDeviceLocale();
-
-// Enable fallback to base language if specific regional variant is missing
-// e.g., if es-MX is not found, it will try 'es', then 'en'
 i18n.enableFallback = true;
-i18n.missingBehavior = 'guess';
-
-// Default locale
-i18n.defaultLocale = 'en-US';
+i18n.defaultLocale = 'en';
+i18n.missingBehavior = 'error';
 
 export default i18n;
