@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 import { parseEnhancement } from '@/lib/enhance/parse';
 import { buildPrompt } from '@/lib/enhance/prompt';
-import { BLOCK_TYPES, DOCUMENT_SCHEMA, FIELDS, SCHEMA_PROFILES } from '@/lib/enhance/schema';
+import { BLOCK_TYPES, describeSchema, DOCUMENT_SCHEMA, FIELDS, SCHEMA_PROFILES } from '@/lib/enhance/schema';
 import { CAPTURE_PROFILES } from '@noted/shared-types';
 import type { EnhanceLine } from '@/lib/enhance/contract';
 
@@ -212,5 +212,40 @@ describe('both backends generate against that schema', () => {
       expect(source, name).toContain('summarize(request');
       expect(source, name).not.toContain('parseEnhancement');
     }
+  });
+});
+
+describe('the example never teaches a citation the window cannot contain', () => {
+  /**
+   * Measured on a real device: 7 of 8 citations invalid, 1 of 9 blocks left
+   * with any evidence.
+   *
+   * The example in the prompt showed `"s": [1, 2]` and `"s": [3]`, and a small
+   * model copies an example literally. On a window with two lines it therefore
+   * cited line 3, the parser dropped the citation as one the model was never
+   * shown, and the block arrived ungrounded — prose nobody can check against
+   * the recording, which is the property the whole `sources` mechanism exists
+   * to provide.
+   */
+  it('cites only line 1, whatever the window size', () => {
+    for (const lineCount of [1, 2, 5, 40]) {
+      const described = describeSchema(lineCount);
+      const cited = [...described.matchAll(/"s": \[([^\]]*)\]/g)].flatMap((match) =>
+        match[1]
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter(Boolean),
+      );
+      expect(cited.length, `no example citation at ${String(lineCount)} lines`).toBeGreaterThan(0);
+      expect([...new Set(cited)], `window of ${String(lineCount)}`).toEqual(['1']);
+    }
+  });
+
+  it('states the range the model may cite, in the model\'s own units', () => {
+    // Saying "use only numbers shown below" was already there and was not
+    // enough: it does not say how many there are.
+    expect(describeSchema(2)).toContain('numbered 1 to 2');
+    expect(describeSchema(1)).toContain('has 1 line');
+    expect(describeSchema(7)).toContain('has 7 lines');
   });
 });

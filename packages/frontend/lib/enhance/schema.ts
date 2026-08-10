@@ -155,18 +155,24 @@ export const DOCUMENT_SCHEMA = {
  * another. A model reads an example far better than it reads a JSON Schema, which
  * is why this is an example and the schema is what constrains it.
  */
-export function describeSchema(): string {
+export function describeSchema(lineCount: number): string {
+  // Every source number in the example is 1. It used to show `[1, 2]` and `[3]`,
+  // and a small model copies an example literally — so on a window with two
+  // lines it cited line 3, the parser dropped the citation as one the model was
+  // never shown, and the block arrived ungrounded. Measured on a real device:
+  // 7 of 8 citations invalid, 1 of 9 blocks left with any evidence at all.
+  const cite = `[1]`;
   return `Return valid JSON only, in this shape:
 {
   "${FIELDS.profile}": "event",
   "${FIELDS.title}": "",
-  "${FIELDS.people}": [{ "role": "", "name": "", "organization": "", "${FIELDS.sources}": [1] }],
+  "${FIELDS.people}": [{ "role": "", "name": "", "organization": "", "${FIELDS.sources}": ${cite} }],
   "${FIELDS.sections}": [
     {
       "${FIELDS.heading}": "",
       "${FIELDS.blocks}": [
-        { "${FIELDS.type}": "paragraph", "${FIELDS.text}": "", "${FIELDS.sources}": [1, 2] },
-        { "${FIELDS.type}": "bullet-list", "${FIELDS.items}": [{ "${FIELDS.text}": "", "${FIELDS.sources}": [3] }] }
+        { "${FIELDS.type}": "paragraph", "${FIELDS.text}": "", "${FIELDS.sources}": ${cite} },
+        { "${FIELDS.type}": "bullet-list", "${FIELDS.items}": [{ "${FIELDS.text}": "", "${FIELDS.sources}": ${cite} }] }
       ]
     }
   ],
@@ -176,7 +182,7 @@ export function describeSchema(): string {
 }
 
 "${FIELDS.type}" is one of: ${BLOCK_TYPES.join(', ')}.
-"${FIELDS.sources}" lists the transcript line numbers a piece came from. Use only numbers shown below; use [] if nothing supports it.
+"${FIELDS.sources}" lists the transcript line numbers a piece came from. This transcript has ${String(lineCount)} ${lineCount === 1 ? 'line' : 'lines'}, numbered 1 to ${String(lineCount)} — every number you write must be one of those. Use [] if nothing supports it.
 "${FIELDS.heading}" names what a section is about. Omit it only when the whole note is one subject.
 Use "paragraph" for connected reasoning and "bullet-list" only for genuinely list-shaped information.
 Use "quote" with "${FIELDS.attribution}" when you keep somebody's exact words.
