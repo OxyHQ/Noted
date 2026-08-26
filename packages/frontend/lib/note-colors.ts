@@ -1,4 +1,5 @@
-import { APP_COLOR_PRESETS, getPresetVars, type AppColorName } from "@oxyhq/bloom/theme";
+import { APP_COLOR_PRESETS, type AppColorName } from "@oxyhq/bloom/theme";
+import { getPresetVars } from "@oxyhq/bloom/design-tokens";
 import type { NoteColor } from "@noted/shared-types";
 
 /**
