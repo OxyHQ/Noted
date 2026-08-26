@@ -4,7 +4,7 @@ import { Trash2, RotateCcw, X } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { NotesHeader } from "@/components/notes/notes-header";
-import { alert } from "@oxyhq/bloom/dialog";
+import { alert } from "@oxyhq/bloom/surfaces";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { useNotes, useRestoreNote, useDeleteNote } from "@/lib/hooks/use-notes";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -21,9 +21,9 @@ export default function TrashScreen() {
 
   const allNotes = notes ?? [];
 
-  // Both confirmations are Bloom's: the dialog is drawn by the
-  // `BloomDialogProvider` the Oxy SDK already mounts at the root, so a screen
-  // asks the question and holds no dialog state of its own.
+  // Both confirmations are Bloom's: the dialog is drawn by the surface stack
+  // the Oxy SDK already mounts at the root, so a screen asks the question and
+  // holds no dialog state of its own.
   const askEmptyTrash = React.useCallback(() => {
     alert(t("notes.emptyTrash"), t("notes.emptyTrashConfirm"), [
       { text: t("common.cancel"), style: "cancel" },

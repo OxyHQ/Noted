@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { Tag, Plus, Trash2, Check, X } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { NotesHeader } from "@/components/notes/notes-header";
-import { alert } from "@oxyhq/bloom/dialog";
+import { alert } from "@oxyhq/bloom/surfaces";
 import {
   useLabels,
   useCreateLabel,
