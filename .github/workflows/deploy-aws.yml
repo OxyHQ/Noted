@@ -378,14 +378,27 @@ jobs:
                 | .[0:10]
               ' <<<"$tasks_json" || true
 
+          log_config=$(aws ecs describe-task-definition --task-definition "$TASK_DEFINITION" \
+            --query "taskDefinition.containerDefinitions[?name=='$APP'].[name,logConfiguration.options.\"awslogs-group\",logConfiguration.options.\"awslogs-stream-prefix\"] | [0]" \
+            --output json || true)
+          container_name=$(jq -r '.[0] // empty' <<<"$log_config")
+          log_group=$(jq -r '.[1] // empty' <<<"$log_config")
+          log_prefix=$(jq -r '.[2] // empty' <<<"$log_config")
+          if [ -z "$container_name" ] || [ -z "$log_group" ] || [ -z "$log_prefix" ]; then
+            echo "No awslogs configuration was found for $APP in $TASK_DEFINITION."
+            exit 0
+          fi
+
           echo "Recent logs from stopped tasks in this rollout:"
-          while IFS= read -r log_stream; do
-            if [ -z "$log_stream" ]; then
+          while IFS= read -r task_arn; do
+            if [ -z "$task_arn" ]; then
               continue
             fi
+            task_id="${task_arn##*/}"
+            log_stream="$log_prefix/$container_name/$task_id"
             echo "--- $log_stream"
             aws logs get-log-events \
-              --log-group-name /oxy/ecs \
+              --log-group-name "$log_group" \
               --log-stream-name "$log_stream" \
               --limit 100 \
               --query 'events[].message' \
@@ -393,7 +406,7 @@ jobs:
           done < <(jq -r --arg task_definition "$TASK_DEFINITION" '
             .tasks[]
             | select(.taskDefinitionArn == $task_definition)
-            | .containers[].logStreamName // empty
+            | .taskArn
           ' <<<"$tasks_json" | sort -u)
 
       # Publish discovery only after the matching handlers are healthy. If this
