@@ -15,6 +15,7 @@ import notesRouter from './routes/notes.js';
 import labelsRouter from './routes/labels.js';
 import feedbackRouter from './routes/feedback.js';
 import notificationsRouter from './routes/notifications.js';
+import capabilitiesRouter from './routes/capabilities.js';
 
 // Socket.io
 import { initSocket } from './socket.js';
@@ -118,6 +119,7 @@ app.use('/notes', notesRouter);
 app.use('/labels', labelsRouter);
 app.use('/feedback', feedbackRouter);
 app.use('/notifications', notificationsRouter);
+app.use('/_oxy/capabilities', capabilitiesRouter);
 
 // Root route
 app.get('/', (_req, res) => {

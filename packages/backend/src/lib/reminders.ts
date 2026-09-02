@@ -17,6 +17,7 @@ import { sweepExpired } from '../db/expiry.js';
 import { notes } from '../db/schema/notes.js';
 import { sendNotification } from './notification-service.js';
 import { log } from './logger.js';
+import { publishReminderDueEvent } from '../capabilities/noted.events.js';
 
 // BullMQ queue names cannot contain ':'.
 const QUEUE_NAME = 'noted-reminders';
@@ -36,7 +37,13 @@ const REMINDER_BODY_LENGTH = 200;
 async function sweepDueReminders(): Promise<number> {
   const db = getDb();
   const due = await db
-    .select({ id: notes.id, oxyUserId: notes.oxyUserId, title: notes.title, body: notes.body })
+    .select({
+      id: notes.id,
+      oxyUserId: notes.oxyUserId,
+      title: notes.title,
+      body: notes.body,
+      reminderAt: notes.reminderAt,
+    })
     .from(notes)
     .where(
       and(
@@ -54,6 +61,14 @@ async function sweepDueReminders(): Promise<number> {
 
   let delivered = 0;
   for (const note of due) {
+    const claimedAt = new Date();
+    const [claimed] = await db
+      .update(notes)
+      .set({ reminderSentAt: claimedAt })
+      .where(and(eq(notes.id, note.id), isNull(notes.reminderSentAt)))
+      .returning({ id: notes.id });
+    if (!claimed) continue;
+
     try {
       await sendNotification({
         userId: note.oxyUserId,
@@ -62,14 +77,21 @@ async function sweepDueReminders(): Promise<number> {
         body: note.body.slice(0, REMINDER_BODY_LENGTH) || 'You have a note reminder.',
         data: { noteId: note.id },
       });
-      // Guarded on `reminderSentAt` still being null: two workers picking up the
-      // same row must not both count it, and the user must not get it twice.
-      await db
-        .update(notes)
-        .set({ reminderSentAt: new Date() })
-        .where(and(eq(notes.id, note.id), isNull(notes.reminderSentAt)));
+      if (note.reminderAt) {
+        await publishReminderDueEvent({
+          accountId: note.oxyUserId,
+          noteId: note.id,
+          reminderAt: note.reminderAt,
+        });
+      }
       delivered += 1;
     } catch (error: unknown) {
+      // Release only this worker's claim. A newer reminder edit resets the
+      // column to NULL and must not be overwritten by this failed delivery.
+      await db
+        .update(notes)
+        .set({ reminderSentAt: null })
+        .where(and(eq(notes.id, note.id), eq(notes.reminderSentAt, claimedAt)));
       log.notes.error({ err: error, noteId: note.id }, 'Failed to deliver note reminder');
     }
   }

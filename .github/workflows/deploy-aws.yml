@@ -26,7 +26,11 @@ jobs:
   test:
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -75,10 +79,10 @@ jobs:
     needs: test
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials (OIDC, no stored keys)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
@@ -109,6 +113,8 @@ jobs:
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           APP_VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          APP_OXY_APPLICATION_KEY: ${{ secrets.OXY_APPLICATION_KEY }}
+          APP_OXY_APPLICATION_SECRET: ${{ secrets.OXY_APPLICATION_SECRET }}
           SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           SHARED_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SHARED_REDIS_URL: ${{ secrets.REDIS_URL }}
@@ -128,6 +134,8 @@ jobs:
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
           sync_secret VAPID_SUBJECT "$APP_VAPID_SUBJECT" "/oxy/$APP/VAPID_SUBJECT"
+          sync_secret OXY_APPLICATION_KEY "$APP_OXY_APPLICATION_KEY" "/oxy/$APP/OXY_APPLICATION_KEY"
+          sync_secret OXY_APPLICATION_SECRET "$APP_OXY_APPLICATION_SECRET" "/oxy/$APP/OXY_APPLICATION_SECRET"
           sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
           sync_secret AWS_SECRET_ACCESS_KEY "$SHARED_AWS_SECRET_ACCESS_KEY" "/oxy/_shared/AWS_SECRET_ACCESS_KEY"
 
@@ -144,10 +152,12 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and push (linux/arm64)
+        id: build
         run: |
+          set -euo pipefail
           IMG=$ECR_REGISTRY/oxy/$APP
           docker buildx build \
             --platform linux/arm64 \
@@ -156,8 +166,76 @@ jobs:
             -f "$DOCKERFILE" \
             -t "$IMG:${{ github.sha }}" \
             -t "$IMG:latest" \
+            --metadata-file "$RUNNER_TEMP/build-metadata.json" \
             --push \
             .
+
+          DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::buildx produced no usable image digest"
+            exit 1
+          fi
+          echo "image_uri=$IMG@$DIGEST" >>"$GITHUB_OUTPUT"
+
+      - name: Register immutable task definition
+        id: task_definition
+        env:
+          IMAGE_URI: ${{ steps.build.outputs.image_uri }}
+        run: |
+          set -euo pipefail
+          service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")
+          if [ "$(jq -r '.services[0].status // "NONE"' <<<"$service_json")" != "ACTIVE" ]; then
+            echo "::error::ECS service $APP is not active"
+            exit 1
+          fi
+
+          for parameter in OXY_APPLICATION_KEY OXY_APPLICATION_SECRET; do
+            aws ssm get-parameter --name "/oxy/$APP/$parameter" --query 'Parameter.Name' --output text >/dev/null
+          done
+
+          current_task_definition=$(jq -r '.services[0].taskDefinition' <<<"$service_json")
+          source_file=$(mktemp)
+          rendered_file=$(mktemp)
+          trap 'rm -f "$source_file" "$rendered_file"' EXIT
+          aws ecs describe-task-definition --task-definition "$current_task_definition" \
+            --query taskDefinition --output json >"$source_file"
+
+          jq \
+            --arg app "$APP" \
+            --arg image "$IMAGE_URI" \
+            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_APPLICATION_KEY" \
+            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_APPLICATION_SECRET" \
+            '
+              .containerDefinitions |= map(
+                if .name == $app then
+                  .image = $image
+                  | .secrets = (
+                      ((.secrets // []) | map(select(
+                        .name != "OXY_APPLICATION_KEY" and
+                        .name != "OXY_APPLICATION_SECRET"
+                      ))) + [
+                        {name: "OXY_APPLICATION_KEY", valueFrom: $key},
+                        {name: "OXY_APPLICATION_SECRET", valueFrom: $secret}
+                      ]
+                    )
+                else . end
+              )
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy,
+                  .deregisteredAt
+                )
+            ' "$source_file" >"$rendered_file"
+
+          task_definition_arn=$(aws ecs register-task-definition \
+            --cli-input-json "file://$rendered_file" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_definition_arn=$task_definition_arn" >>"$GITHUB_OUTPUT"
 
       # Migrations run BEFORE the rollout, as a one-shot task on the image that
       # is about to serve — so the schema the new tasks expect is already there
@@ -175,22 +253,23 @@ jobs:
       # The network configuration is read back from the running service rather
       # than written out here, so there is one place subnets and security groups
       # are defined and this cannot drift from it.
-      - name: Apply pre-deploy migrations (skipped until the service exists)
+      - name: Apply pre-deploy migrations
+        env:
+          TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
         run: |
+          set -euo pipefail
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
             echo "ECS service $APP not created yet — nothing to migrate against, skipping"
             exit 0
           fi
 
-          TASK_DEF=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
-            --query 'services[0].taskDefinition' --output text)
           NETWORK=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
             --query 'services[0].networkConfiguration' --output json)
 
-          TASK_ARN=$(aws ecs run-task \
+          run_json=$(aws ecs run-task \
             --cluster "$CLUSTER" \
-            --task-definition "$TASK_DEF" \
+            --task-definition "$TASK_DEFINITION" \
             --launch-type FARGATE \
             --network-configuration "$NETWORK" \
             --overrides "$(jq -nc --arg app "$APP" '{
@@ -198,14 +277,18 @@ jobs:
                 name: $app,
                 command: ["node", "packages/backend/dist/migrate.js", "--target-database=noted", "--phase=pre"]
               }]
-            }')" \
-            --query 'tasks[0].taskArn' --output text)
+            }')")
+          TASK_ARN=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
+          if [ -z "$TASK_ARN" ]; then
+            echo "::error::ECS did not start the migration task: $(jq -c '.failures' <<<"$run_json")"
+            exit 1
+          fi
 
           echo "migration task: $TASK_ARN"
           aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
 
           EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' --output text)
+            --query "tasks[0].containers[?name=='$APP'].exitCode | [0]" --output text)
           if [ "$EXIT_CODE" != "0" ]; then
             REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
               --query 'tasks[0].stoppedReason' --output text)
@@ -214,13 +297,77 @@ jobs:
           fi
           echo "migrations applied"
 
-      - name: Deploy to ECS (rolling; skipped until the service exists)
+      - name: Deploy immutable task definition to ECS
+        env:
+          TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
+          IMAGE_URI: ${{ steps.build.outputs.image_uri }}
         run: |
-          STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" = "ACTIVE" ]; then
-            aws ecs update-service --cluster "$CLUSTER" --service "$APP" --force-new-deployment >/dev/null
-            aws ecs wait services-stable --cluster "$CLUSTER" --services "$APP"
-            echo "deployed $APP"
-          else
-            echo "ECS service $APP not created yet — image is in ECR, skipping deploy"
+          set -euo pipefail
+          update_json=$(aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$APP" \
+            --task-definition "$TASK_DEFINITION")
+          deployment_id=$(jq -r '.service.deployments[] | select(.status == "PRIMARY") | .id' <<<"$update_json" | head -1)
+          if [ -z "$deployment_id" ]; then
+            echo "::error::ECS returned no primary deployment id"
+            exit 1
           fi
+
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$APP"
+          service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")
+          primary=$(jq -c --arg id "$deployment_id" '.services[0].deployments[] | select(.id == $id)' <<<"$service_json")
+          running=$(jq -r '.runningCount' <<<"$primary")
+          desired=$(jq -r '.desiredCount' <<<"$primary")
+          if [ "$(jq -r '.status' <<<"$primary")" != "PRIMARY" ] ||
+             [ "$(jq -r '.rolloutState' <<<"$primary")" != "COMPLETED" ] ||
+             [ "$desired" -lt 1 ] || [ "$running" -ne "$desired" ]; then
+            echo "::error::deployment $deployment_id did not complete as the running primary"
+            exit 1
+          fi
+
+          live_task_definition=$(jq -r '.services[0].taskDefinition' <<<"$service_json")
+          live_image=$(aws ecs describe-task-definition --task-definition "$live_task_definition" \
+            --query "taskDefinition.containerDefinitions[?name=='$APP'].image | [0]" --output text)
+          if [ "$live_image" != "$IMAGE_URI" ]; then
+            echo "::error::live image $live_image does not match built image $IMAGE_URI"
+            exit 1
+          fi
+          curl --fail --silent --show-error "https://api.noted.oxy.so/health/ready" >/dev/null
+          echo "deployed $APP as $live_task_definition ($live_image)"
+
+      # Publish discovery only after the matching handlers are healthy. If this
+      # step has to be retried, the catalog endpoint is digest-idempotent.
+      - name: Register canonical capability catalog
+        env:
+          TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
+        run: |
+          set -euo pipefail
+          NETWORK=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
+            --query 'services[0].networkConfiguration' --output json)
+          run_json=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK" \
+            --overrides "$(jq -nc --arg app "$APP" '{
+              containerOverrides: [{
+                name: $app,
+                command: ["node", "packages/backend/dist/register-capability-catalog.js"]
+              }]
+            }')")
+          TASK_ARN=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
+          if [ -z "$TASK_ARN" ]; then
+            echo "::error::ECS did not start catalog registration: $(jq -c '.failures' <<<"$run_json")"
+            exit 1
+          fi
+          echo "catalog registration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query "tasks[0].containers[?name=='$APP'].exitCode | [0]" --output text)
+          if [ "$EXIT_CODE" != "0" ]; then
+            REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+              --query 'tasks[0].stoppedReason' --output text)
+            echo "::error::capability catalog registration exited $EXIT_CODE ($REASON)"
+            exit 1
+          fi
+          echo "capability catalog registered"

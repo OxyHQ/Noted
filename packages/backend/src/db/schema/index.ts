@@ -17,3 +17,4 @@ export * from './feedback.js';
 export * from './notifications.js';
 export * from './pushTokens.js';
 export * from './note-artifacts.js';
+export * from './capability-executions.js';

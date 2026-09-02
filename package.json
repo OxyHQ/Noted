@@ -7,6 +7,9 @@
     "packages/*"
   ],
   "packageManager": "bun@1.3.14",
+  "engines": {
+    "node": ">=24.20.0"
+  },
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "dev:frontend": "bun run --filter @noted/frontend dev -- --clear --tunnel",
@@ -57,19 +60,19 @@
     "@react-native/babel-preset": "0.85.3",
     "@react-native/metro-babel-transformer": "0.85.3",
     "@react-native/metro-config": "0.85.3",
-    "@oxyhq/bloom": "^1.8.0",
-    "@oxyhq/contracts": "^0.34.0",
-    "@oxyhq/core": "^23.0.0",
-    "@oxyhq/services": "^30.2.0",
+    "@oxyhq/bloom": "^1.9.2",
+    "@oxyhq/contracts": "^0.36.0",
+    "@oxyhq/core": "^23.0.1",
+    "@oxyhq/services": "^30.2.1",
     "lightningcss": "1.30.1",
     "lightningcss-linux-x64-gnu": "1.30.1",
     "lightningcss-linux-x64-musl": "1.30.1"
   },
   "dependencies": {
-    "@oxyhq/bloom": "^1.8.0",
-    "@oxyhq/contracts": "^0.34.0",
-    "@oxyhq/core": "^23.0.0",
-    "@oxyhq/services": "^30.2.0"
+    "@oxyhq/bloom": "^1.9.2",
+    "@oxyhq/contracts": "^0.36.0",
+    "@oxyhq/core": "^23.0.1",
+    "@oxyhq/services": "^30.2.1"
   },
   "trustedDependencies": [
     "llama.rn"

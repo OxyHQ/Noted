@@ -24,6 +24,7 @@ import {
 
 import { log } from '../lib/logger.js';
 import { getDb } from './postgres.js';
+import { capabilityExecutions } from './schema/capability-executions.js';
 import { notes } from './schema/notes.js';
 import { notifications } from './schema/notifications.js';
 
@@ -40,6 +41,9 @@ export const DELETED_NOTE_TTL_DAYS = 30;
 
 /** How long a dismissed notification is kept before it is dropped. */
 export const DISMISSED_NOTIFICATION_TTL_DAYS = 90;
+
+/** How long completed catalog-call receipts remain available for safe retries. */
+export const CAPABILITY_EXECUTION_TTL_DAYS = 30;
 
 const TARGETS: readonly ExpirySweepTarget[] = [
   {
@@ -63,6 +67,15 @@ const TARGETS: readonly ExpirySweepTarget[] = [
       'nullable column IS the filter. Registering `createdAt` — the column Mongo ' +
       'TTL-indexed, with a partial filter it could express and this cannot — ' +
       'would delete every notification past the retention, dismissed or not.',
+  },
+  {
+    table: capabilityExecutions,
+    column: capabilityExecutions.createdAt,
+    retentionSeconds: CAPABILITY_EXECUTION_TTL_DAYS * DAY_SECONDS,
+    reason:
+      'Completed catalog-call receipt retained only to make delayed retries ' +
+      'idempotent. It contains the structured tool result, not credentials or ' +
+      'a user session, and is no longer useful after the retry window.',
   },
 ];
 

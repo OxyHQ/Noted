@@ -15,6 +15,13 @@
       "when": 1786334839758,
       "tag": "0001_parallel_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788307437700,
+      "tag": "0002_common_shooting_star",
+      "breakpoints": true
     }
   ]
 }

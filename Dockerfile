@@ -2,7 +2,7 @@
 #
 # Production image for the @noted/backend service.
 #
-# Multi-stage, multi-arch. `node:22-alpine` and `oven/bun` are multi-arch
+# Multi-stage, multi-arch. `node:24.20-alpine` and `oven/bun` are multi-arch
 # manifests, so this image builds natively on AWS Graviton (linux/arm64) as well
 # as x86_64 — Docker selects the right base layer per target platform.
 #
@@ -20,7 +20,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: builder — install the full dependency graph and bundle the API.
 # ---------------------------------------------------------------------------
-FROM node:22-alpine AS builder
+FROM node:24.20-alpine AS builder
 
 # Bun is the package manager / script runner at build time; the runtime stays
 # Node. The musl build from the matching alpine image works on amd64 and arm64.
@@ -89,6 +89,8 @@ RUN test -f packages/backend/dist/index.js \
 # service starts, and only the migration task fails — after the rollout has begun.
 RUN test -f packages/backend/dist/migrate.js \
  || (echo "ERROR: packages/backend/dist/migrate.js was not produced by the build" && exit 1)
+RUN test -f packages/backend/dist/register-capability-catalog.js \
+ || (echo "ERROR: packages/backend/dist/register-capability-catalog.js was not produced by the build" && exit 1)
 
 # Strip devDependencies so only production modules are carried into the runtime
 # image (bun has no `prune`; a clean production install from the same lockfile is
@@ -100,7 +102,7 @@ RUN rm -rf node_modules \
 # ---------------------------------------------------------------------------
 # Stage 2: runner — minimal runtime with production deps and the bundle.
 # ---------------------------------------------------------------------------
-FROM node:22-alpine AS runner
+FROM node:24.20-alpine AS runner
 
 ENV NODE_ENV=production \
     PORT=3001

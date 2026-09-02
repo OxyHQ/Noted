@@ -1,14 +1,21 @@
 import * as esbuild from 'esbuild';
 
 await esbuild.build({
-  // Two entry points, not one. `src/db/migrate.ts` is what the deploy runs as a
+  // Operational entry points ship beside the server. `src/db/migrate.ts` is
+  // what the deploy runs as a
   // one-shot task before the rollout, and it has to be in the SAME image as the
   // server it migrates for — otherwise the image ships a service whose readiness
   // probe asserts a migration nothing in that image can apply.
-  entryPoints: ['src/index.ts', 'src/db/migrate.ts'],
+  // `register-capability-catalog.ts` publishes the exact catalog compiled into
+  // this image after migrations and before the rollout.
+  entryPoints: [
+    'src/index.ts',
+    'src/db/migrate.ts',
+    'src/register-capability-catalog.ts',
+  ],
   bundle: true,
   platform: 'node',
-  target: 'node20',
+  target: 'node24',
   format: 'esm',
   outdir: 'dist',
   entryNames: '[name]',

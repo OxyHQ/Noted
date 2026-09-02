@@ -4,6 +4,9 @@
   "description": "Noted API — notes app backend by Oxy",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24.20.0"
+  },
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun --watch src/index.ts",
@@ -18,8 +21,10 @@
   },
   "dependencies": {
     "@noted/shared-types": "workspace:*",
-    "@oxyhq/core": "^23.0.0",
+    "@oxyhq/contracts": "^0.36.0",
+    "@oxyhq/core": "^23.0.1",
     "@oxyhq/db": "^0.1.2",
+    "@oxyhq/mcp": "^0.1.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "bullmq": "^5.70.1",
     "cors": "^2.8.5",
