@@ -30,7 +30,7 @@ const labelOutput = {
 type ToolInput = Omit<
   CatalogTool,
   'version' | 'capabilityPackage' | 'requiredCapabilities' | 'resourceTypes' |
-  'effect' | 'idempotency' | 'rollback' | 'exposure'
+  'effect' | 'idempotency' | 'rollback' | 'exposure' | 'limitKeys'
 >;
 
 function readTool(input: ToolInput, resourceTypes: string[]): CatalogTool {
@@ -44,6 +44,7 @@ function readTool(input: ToolInput, resourceTypes: string[]): CatalogTool {
     idempotency: 'none',
     rollback: 'none',
     exposure: ['internal', 'mcp'],
+    limitKeys: [],
   };
 }
 
@@ -66,14 +67,16 @@ function writeTool(
     idempotency: 'required',
     rollback: options.rollback,
     exposure: ['internal', 'mcp'],
+    limitKeys: [],
   };
 }
 
 export const NOTED_CAPABILITY_CATALOG: AppCapabilityCatalog = {
   schemaVersion: '1',
   appId: 'noted',
-  version: '1.0.0',
+  version: '1.1.0',
   audience: 'oxy-noted-api',
+  internalBaseUrl: 'https://api.noted.oxy.so',
   accountResourceType: 'noted_account',
   tools: [
     readTool({
