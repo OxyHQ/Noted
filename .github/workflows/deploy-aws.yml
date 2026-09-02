@@ -194,6 +194,7 @@ jobs:
           done
 
           current_task_definition=$(jq -r '.services[0].taskDefinition' <<<"$service_json")
+          echo "previous_task_definition=$current_task_definition" >>"$GITHUB_OUTPUT"
           source_file=$(mktemp)
           rendered_file=$(mktemp)
           trap 'rm -f "$source_file" "$rendered_file"' EXIT
@@ -308,6 +309,7 @@ jobs:
             --cluster "$CLUSTER" \
             --service "$APP" \
             --task-definition "$TASK_DEFINITION")
+          echo "deployment_started=true" >>"$GITHUB_OUTPUT"
           deployment_id=$(jq -r '.service.deployments[] | select(.status == "PRIMARY") | .id' <<<"$update_json" | head -1)
           if [ -z "$deployment_id" ]; then
             echo "::error::ECS returned no primary deployment id"
@@ -409,6 +411,21 @@ jobs:
             | .taskArn
           ' <<<"$tasks_json" | sort -u)
 
+      - name: Verify live Noted MCP and central OAuth contract
+        id: mcp_smoke
+        run: |
+          set +e
+          bash scripts/smoke-mcp.sh
+          smoke_status=$?
+          external_dependency_exit=42
+          echo "status=$smoke_status" >>"$GITHUB_OUTPUT"
+          if [ "$smoke_status" = "$external_dependency_exit" ]; then
+            echo "rollback_safe=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "rollback_safe=true" >>"$GITHUB_OUTPUT"
+          fi
+          exit "$smoke_status"
+
       # Publish discovery only after the matching handlers are healthy. If this
       # step has to be retried, the catalog endpoint is digest-idempotent.
       - name: Register canonical capability catalog
@@ -445,3 +462,61 @@ jobs:
             exit 1
           fi
           echo "capability catalog registered"
+
+      - name: Roll back a failed release and restore its catalog
+        if: >-
+          ${{
+            failure() &&
+            steps.ecs_deploy.outputs.deployment_started == 'true' &&
+            steps.mcp_smoke.outputs.rollback_safe != 'false'
+          }}
+        env:
+          PREVIOUS_TASK_DEFINITION: ${{ steps.task_definition.outputs.previous_task_definition }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PREVIOUS_TASK_DEFINITION" ]; then
+            echo "::error::No previous task definition was recorded for rollback"
+            exit 1
+          fi
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$APP" \
+            --task-definition "$PREVIOUS_TASK_DEFINITION" \
+            >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$APP"
+
+          service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")
+          live_task_definition=$(jq -r '.services[0].taskDefinition' <<<"$service_json")
+          if [ "$live_task_definition" != "$PREVIOUS_TASK_DEFINITION" ]; then
+            echo "::error::Rollback left $live_task_definition live instead of $PREVIOUS_TASK_DEFINITION"
+            exit 1
+          fi
+
+          NETWORK=$(jq -c '.services[0].networkConfiguration' <<<"$service_json")
+          run_json=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$PREVIOUS_TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK" \
+            --overrides "$(jq -nc --arg app "$APP" '{
+              containerOverrides: [{
+                name: $app,
+                command: ["node", "packages/backend/dist/register-capability-catalog.js"]
+              }]
+            }')")
+          task_arn=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
+          if [ -z "$task_arn" ]; then
+            echo "::error::ECS did not start catalog restoration: $(jq -c '.failures' <<<"$run_json")"
+            exit 1
+          fi
+
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+          exit_code=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
+            --query "tasks[0].containers[?name=='$APP'].exitCode | [0]" --output text)
+          if [ "$exit_code" != "0" ]; then
+            echo "::error::Previous catalog restoration exited $exit_code"
+            exit 1
+          fi
+
+          echo "Rolled back to $PREVIOUS_TASK_DEFINITION and restored its capability catalog"
