@@ -298,6 +298,7 @@ jobs:
           echo "migrations applied"
 
       - name: Deploy immutable task definition to ECS
+        id: ecs_deploy
         env:
           TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
           IMAGE_URI: ${{ steps.build.outputs.image_uri }}
@@ -334,6 +335,48 @@ jobs:
           fi
           curl --fail --silent --show-error "https://api.noted.oxy.so/health/ready" >/dev/null
           echo "deployed $APP as $live_task_definition ($live_image)"
+
+      - name: Diagnose a failed ECS rollout
+        if: ${{ failure() && steps.ecs_deploy.outcome == 'failure' }}
+        env:
+          TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
+        run: |
+          set -u
+          echo "Service deployments and recent events:"
+          aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
+            --query 'services[0].{deployments:deployments[*].{id:id,status:status,rolloutState:rolloutState,rolloutStateReason:rolloutStateReason,taskDefinition:taskDefinition,desired:desiredCount,running:runningCount,failed:failedTasks},events:events[0:10].{createdAt:createdAt,message:message}}' \
+            --output json || true
+
+          task_arns=$(aws ecs list-tasks --cluster "$CLUSTER" --family "oxy-$APP" \
+            --desired-status STOPPED --max-results 25 --query 'taskArns' --output text || true)
+          if [ -z "$task_arns" ] || [ "$task_arns" = "None" ]; then
+            echo "No stopped oxy-$APP tasks were returned."
+            exit 0
+          fi
+
+          aws ecs describe-tasks --cluster "$CLUSTER" --tasks $task_arns --output json \
+            | jq --arg task_definition "$TASK_DEFINITION" '
+                [.tasks[]
+                  | select(.taskDefinitionArn == $task_definition)
+                  | {
+                      taskArn,
+                      createdAt,
+                      stoppedAt,
+                      stopCode,
+                      stoppedReason,
+                      containers: [.containers[] | {
+                        name,
+                        lastStatus,
+                        exitCode,
+                        reason,
+                        healthStatus
+                      }]
+                    }
+                ]
+                | sort_by(.stoppedAt)
+                | reverse
+                | .[0:10]
+              ' || true
 
       # Publish discovery only after the matching handlers are healthy. If this
       # step has to be retried, the catalog endpoint is digest-idempotent.
