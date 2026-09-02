@@ -354,8 +354,8 @@ jobs:
             exit 0
           fi
 
-          aws ecs describe-tasks --cluster "$CLUSTER" --tasks $task_arns --output json \
-            | jq --arg task_definition "$TASK_DEFINITION" '
+          tasks_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks $task_arns --output json)
+          jq --arg task_definition "$TASK_DEFINITION" '
                 [.tasks[]
                   | select(.taskDefinitionArn == $task_definition)
                   | {
@@ -376,7 +376,25 @@ jobs:
                 | sort_by(.stoppedAt)
                 | reverse
                 | .[0:10]
-              ' || true
+              ' <<<"$tasks_json" || true
+
+          echo "Recent logs from stopped tasks in this rollout:"
+          while IFS= read -r log_stream; do
+            if [ -z "$log_stream" ]; then
+              continue
+            fi
+            echo "--- $log_stream"
+            aws logs get-log-events \
+              --log-group-name /oxy/ecs \
+              --log-stream-name "$log_stream" \
+              --limit 100 \
+              --query 'events[].message' \
+              --output text || true
+          done < <(jq -r --arg task_definition "$TASK_DEFINITION" '
+            .tasks[]
+            | select(.taskDefinitionArn == $task_definition)
+            | .containers[].logStreamName // empty
+          ' <<<"$tasks_json" | sort -u)
 
       # Publish discovery only after the matching handlers are healthy. If this
       # step has to be retried, the catalog endpoint is digest-idempotent.
