@@ -16,6 +16,7 @@ import labelsRouter from './routes/labels.js';
 import feedbackRouter from './routes/feedback.js';
 import notificationsRouter from './routes/notifications.js';
 import capabilitiesRouter from './routes/capabilities.js';
+import { createNotedMcpHttpService } from './capabilities/noted-mcp-http.js';
 
 // Socket.io
 import { initSocket } from './socket.js';
@@ -31,6 +32,7 @@ dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
+const notedMcpHttpService = createNotedMcpHttpService();
 
 // Create HTTP server with optimized settings
 const server = http.createServer({
@@ -57,6 +59,19 @@ server.on('connection', (socket) => {
 });
 
 initSocket(server);
+
+// The MCP transport owns its raw request body, exact-host validation, OAuth
+// challenge, and origin policy. Mount it before the app-wide CORS and body
+// parser so those layers cannot weaken or consume the protocol request.
+app.all(
+  notedMcpHttpService.protectedResourceMetadataPath,
+  (request, response) => {
+    notedMcpHttpService.handleProtectedResourceMetadata(request, response);
+  },
+);
+app.all(notedMcpHttpService.mcpPath, (request, response) => {
+  void notedMcpHttpService.handleMcp(request, response);
+});
 
 // CORS — restricted to known origins
 const PRODUCTION_ORIGINS = [

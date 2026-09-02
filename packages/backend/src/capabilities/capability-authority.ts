@@ -24,10 +24,10 @@ const publicJwkSchema = z.object({
   alg: z.string().optional(),
 });
 const jwksSchema = z.object({ keys: z.array(publicJwkSchema) });
-const introspectionSchema = z.object({
+const introspectionEnvelopeSchema = z.object({
   active: z.boolean(),
-  claims: capabilityTicketClaimsSchema.optional(),
-  decision: policyDecisionSchema.optional(),
+  claims: z.unknown().optional(),
+  decision: z.unknown().optional(),
   error: z.string().optional(),
 });
 
@@ -85,15 +85,21 @@ export async function introspectNotedCapabilityTicket(
   token: string,
   localClaims: CapabilityTicketClaims,
 ): Promise<boolean> {
-  const result = introspectionSchema.parse(
+  const envelope = introspectionEnvelopeSchema.parse(
     await authorityRequest('/capabilities/tickets/introspect', { ticket: token }),
   );
-  return result.active === true
-    && result.decision?.allowed === true
-    && result.claims?.jti === localClaims.jti
-    && result.claims.aud === localClaims.aud
-    && result.claims.tool === localClaims.tool
-    && result.claims.resource.effectiveAccountId === localClaims.resource.effectiveAccountId;
+  const claims = envelope.claims === undefined
+    ? undefined
+    : capabilityTicketClaimsSchema.parse(envelope.claims);
+  const decision = envelope.decision === undefined
+    ? undefined
+    : policyDecisionSchema.parse(envelope.decision);
+  return envelope.active === true
+    && decision?.allowed === true
+    && claims?.jti === localClaims.jti
+    && claims.aud === localClaims.aud
+    && claims.tool === localClaims.tool
+    && claims.resource.effectiveAccountId === localClaims.resource.effectiveAccountId;
 }
 
 export async function auditNotedCapabilityTicket(input: {
