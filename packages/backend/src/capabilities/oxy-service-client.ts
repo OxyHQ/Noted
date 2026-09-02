@@ -22,3 +22,7 @@ export async function requiredOxyServiceToken(): Promise<string> {
   if (!configured) throw new Error('Oxy application credentials are not configured');
   return configured.getServiceToken();
 }
+
+export function invalidateOxyServiceToken(): void {
+  oxyServiceClient()?.invalidateServiceToken();
+}

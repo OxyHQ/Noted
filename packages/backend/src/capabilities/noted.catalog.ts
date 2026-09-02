@@ -74,9 +74,10 @@ function writeTool(
 export const NOTED_CAPABILITY_CATALOG: AppCapabilityCatalog = {
   schemaVersion: '1',
   appId: 'noted',
-  version: '1.1.0',
+  version: '1.2.0',
   audience: 'oxy-noted-api',
   internalBaseUrl: 'https://api.noted.oxy.so',
+  externalMcp: { resource: 'https://mcp.noted.oxy.so' },
   accountResourceType: 'noted_account',
   tools: [
     readTool({

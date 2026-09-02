@@ -12,6 +12,9 @@ describe('Noted capability catalog', () => {
 
     const names = NOTED_CAPABILITY_CATALOG.tools.map(({ name }) => name);
     expect(new Set(names).size).toBe(names.length);
+    expect(NOTED_CAPABILITY_CATALOG.externalMcp).toEqual({
+      resource: 'https://mcp.noted.oxy.so',
+    });
   });
 
   it('uses the same names, schemas, capabilities, and versions for MCP', () => {
