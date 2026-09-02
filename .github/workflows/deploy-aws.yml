@@ -316,7 +316,7 @@ jobs:
             exit 1
           fi
 
-          aws ecs wait services-stable --cluster "$CLUSTER" --services "$APP"
+          bash scripts/wait-for-ecs-deployment.sh "$CLUSTER" "$APP" "$deployment_id"
           service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")
           primary=$(jq -c --arg id "$deployment_id" '.services[0].deployments[] | select(.id == $id)' <<<"$service_json")
           running=$(jq -r '.runningCount' <<<"$primary")
@@ -479,12 +479,16 @@ jobs:
             exit 1
           fi
 
-          aws ecs update-service \
+          rollback_json=$(aws ecs update-service \
             --cluster "$CLUSTER" \
             --service "$APP" \
-            --task-definition "$PREVIOUS_TASK_DEFINITION" \
-            >/dev/null
-          aws ecs wait services-stable --cluster "$CLUSTER" --services "$APP"
+            --task-definition "$PREVIOUS_TASK_DEFINITION")
+          rollback_deployment_id=$(jq -r '.service.deployments[] | select(.status == "PRIMARY") | .id' <<<"$rollback_json" | head -1)
+          if [ -z "$rollback_deployment_id" ]; then
+            echo "::error::ECS returned no primary rollback deployment id"
+            exit 1
+          fi
+          bash scripts/wait-for-ecs-deployment.sh "$CLUSTER" "$APP" "$rollback_deployment_id"
 
           service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")
           live_task_definition=$(jq -r '.services[0].taskDefinition' <<<"$service_json")

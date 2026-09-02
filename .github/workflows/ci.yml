@@ -37,10 +37,11 @@ jobs:
       - name: Guard against MongoDB returning
         run: bun run validate:no-mongo
 
-      - name: Verify production MCP smoke gate fixtures
+      - name: Verify production deployment gate fixtures
         run: |
-          bash -n scripts/smoke-mcp.sh scripts/test-smoke-mcp.sh
+          bash -n scripts/*.sh
           bash scripts/test-smoke-mcp.sh
+          bash scripts/test-wait-for-ecs-deployment.sh
 
       # `@noted/shared-types` resolves through `main: ./dist/index.js`, and
       # `dist/` is gitignored — so on a clean checkout the package cannot be
