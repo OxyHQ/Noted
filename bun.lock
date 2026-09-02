@@ -22,7 +22,7 @@
         "@oxyhq/contracts": "^0.38.0",
         "@oxyhq/core": "^23.0.2",
         "@oxyhq/db": "^0.1.2",
-        "@oxyhq/mcp": "^0.4.0",
+        "@oxyhq/mcp": "^0.5.0",
         "@socket.io/redis-adapter": "^8.3.0",
         "bullmq": "^5.70.1",
         "cors": "^2.8.5",
@@ -742,7 +742,7 @@
 
     "@oxyhq/db": ["@oxyhq/db@0.1.2", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" } }, "sha512-a7T8oMYgQJvIRzf4KRTljHShFcPTR42ZN1yRwv07P1FekqERDoNtTEbppUExamTuzjm5IWUZ0c3enW+YQCxddg=="],
 
-    "@oxyhq/mcp": ["@oxyhq/mcp@0.4.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxyhq/contracts": "^0.38.0", "zod": "^4.5.4" } }, "sha512-ftxCnkPJAANP0N+gJ8Qy4enxqV4JUagAkGc2oEbKWcM3cCrSWOfUsiaSOZqe86ND+GXW+D4j56gegFy63LHHWw=="],
+    "@oxyhq/mcp": ["@oxyhq/mcp@0.5.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxyhq/contracts": "^0.38.0", "zod": "^4.5.4" } }, "sha512-7YgIu5/lJmfd6q8zt6USqLy8cjBG28b4xjHc/t5TQ5m5hKmJVgjWGHz1E50IhdKmUXZW4T4gVWUzW9TbgadMow=="],
 
     "@oxyhq/protocol": ["@oxyhq/protocol@0.3.0", "", { "dependencies": { "@noble/curves": "^1.9.7", "@oxyhq/contracts": "^0.37.0", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-modules-core": "*", "expo-secure-store": "*", "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-jp4cKMcDVHwq3cJQK6NZS0bhWjtBrSsStI4GN0BIL7LSQ2XvQl31vcMAwsihLvHKoWfvGKhf28WNyzzZ/3gMig=="],
 
