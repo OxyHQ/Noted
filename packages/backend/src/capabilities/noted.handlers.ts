@@ -29,7 +29,7 @@ import {
 } from '../socket.js';
 import { executeIdempotently } from './capability-idempotency.js';
 import { NOTED_CAPABILITY_CATALOG } from './noted.catalog.js';
-import { publishNoteChangedEvent } from './noted.events.js';
+import { enqueueNoteChangedEvent } from './noted.events.js';
 
 export class NotedCapabilityError extends Error {
   constructor(
@@ -196,17 +196,18 @@ async function createNote(
         })
         .returning();
       if (!note) throw new Error('Created note was not returned');
-      return { note: serializeNote(note) };
+      const serialized = serializeNote(note);
+      await enqueueNoteChangedEvent(transaction, {
+        accountId,
+        noteId: note.id,
+        change: 'created',
+        idempotencyKey: idempotencyKey(input),
+        occurredAt: serialized.updatedAt,
+      });
+      return { note: serialized };
     },
   });
   if (!execution.replayed) emitNoteCreated(accountId, execution.result.note);
-  await publishNoteChangedEvent({
-    accountId,
-    noteId: execution.result.note.id,
-    change: 'created',
-    idempotencyKey: idempotencyKey(input),
-    occurredAt: execution.result.note.updatedAt,
-  });
   return execution.result;
 }
 
@@ -242,17 +243,18 @@ async function updateNote(
         ))
         .returning();
       if (!note) throw new NotedCapabilityError('note_not_found', 'Note not found', 404);
-      return { note: serializeNote(note) };
+      const serialized = serializeNote(note);
+      await enqueueNoteChangedEvent(transaction, {
+        accountId,
+        noteId: note.id,
+        change: 'updated',
+        idempotencyKey: idempotencyKey(input),
+        occurredAt: serialized.updatedAt,
+      });
+      return { note: serialized };
     },
   });
   if (!execution.replayed) emitNoteUpdated(accountId, execution.result.note);
-  await publishNoteChangedEvent({
-    accountId,
-    noteId: execution.result.note.id,
-    change: 'updated',
-    idempotencyKey: idempotencyKey(input),
-    occurredAt: execution.result.note.updatedAt,
-  });
   return execution.result;
 }
 
@@ -281,17 +283,18 @@ async function setNoteState(
         ))
         .returning();
       if (!note) throw new NotedCapabilityError('note_not_found', 'Note not found', 404);
-      return { note: serializeNote(note) };
+      const serialized = serializeNote(note);
+      await enqueueNoteChangedEvent(transaction, {
+        accountId,
+        noteId: note.id,
+        change: tool === 'archiveNote' ? 'archived' : 'restored',
+        idempotencyKey: idempotencyKey(input),
+        occurredAt: serialized.updatedAt,
+      });
+      return { note: serialized };
     },
   });
   if (!execution.replayed) emitNoteUpdated(accountId, execution.result.note);
-  await publishNoteChangedEvent({
-    accountId,
-    noteId: execution.result.note.id,
-    change: tool === 'archiveNote' ? 'archived' : 'restored',
-    idempotencyKey: idempotencyKey(input),
-    occurredAt: execution.result.note.updatedAt,
-  });
   return execution.result;
 }
 
@@ -442,7 +445,7 @@ async function setReminder(
     execute: async (transaction) => {
       const [note] = await transaction
         .update(notes)
-        .set({ reminderAt, reminderSentAt: null, updatedAt: new Date() })
+        .set({ reminderAt, reminderQueuedAt: null, reminderSentAt: null, updatedAt: new Date() })
         .where(and(
           eq(notes.id, noteId),
           eq(notes.oxyUserId, accountId),
@@ -450,17 +453,18 @@ async function setReminder(
         ))
         .returning();
       if (!note) throw new NotedCapabilityError('note_not_found', 'Note not found', 404);
-      return { note: serializeNote(note) };
+      const serialized = serializeNote(note);
+      await enqueueNoteChangedEvent(transaction, {
+        accountId,
+        noteId: note.id,
+        change: 'updated',
+        idempotencyKey: idempotencyKey(input),
+        occurredAt: serialized.updatedAt,
+      });
+      return { note: serialized };
     },
   });
   if (!execution.replayed) emitNoteUpdated(accountId, execution.result.note);
-  await publishNoteChangedEvent({
-    accountId,
-    noteId: execution.result.note.id,
-    change: 'updated',
-    idempotencyKey: idempotencyKey(input),
-    occurredAt: execution.result.note.updatedAt,
-  });
   return execution.result;
 }
 

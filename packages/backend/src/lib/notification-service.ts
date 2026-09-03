@@ -41,6 +41,7 @@ type NotificationPriority = NotificationRow['priority'];
 
 export interface SendNotificationOptions {
   userId: string;
+  sourceEventId?: string;
   type: NotificationType;
   title: string;
   body: string;
@@ -319,15 +320,16 @@ async function deliverWebPush(userId: string, notification: NotificationRow): Pr
 export async function sendNotification(
   options: SendNotificationOptions,
 ): Promise<NotificationRow> {
-  const { userId, type, title, body, priority = 'normal', data } = options;
+  const { userId, sourceEventId, type, title, body, priority = 'normal', data } = options;
 
   const channels = await resolveChannels(userId, options.channels);
   const db = getDb();
 
-  const [notification] = await db
+  const [inserted] = await db
     .insert(notifications)
     .values({
       oxyUserId: userId,
+      sourceEventId,
       type,
       title,
       body: body.slice(0, MAX_BODY_LENGTH),
@@ -337,7 +339,22 @@ export async function sendNotification(
       status: 'sent',
       priority,
     })
+    .onConflictDoNothing()
     .returning();
+
+  if (!inserted) {
+    if (!sourceEventId) throw new Error('Notification insert returned no row');
+    const [existing] = await db
+      .select()
+      .from(notifications)
+      .where(and(
+        eq(notifications.sourceEventId, sourceEventId),
+        eq(notifications.oxyUserId, userId),
+      ));
+    if (!existing) throw new Error('Notification idempotency conflict');
+    return existing;
+  }
+  const notification = inserted;
 
   const deliveryStatus: DeliveryStatus = { ...notification.deliveryStatus };
   await Promise.allSettled(

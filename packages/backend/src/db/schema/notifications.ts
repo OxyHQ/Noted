@@ -4,7 +4,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 
 export const NOTIFICATION_TYPES = [
@@ -40,6 +40,8 @@ export const notifications = pgTable(
     id: generatedId(),
     /** An Oxy account id — a foreign service's key, so no foreign key here. */
     oxyUserId: text().notNull(),
+    /** Stable normalized-event identity when this notification is an outbox effect. */
+    sourceEventId: text(),
     type: text({ enum: NOTIFICATION_TYPES }).notNull(),
     title: text().notNull(),
     body: text().notNull(),
@@ -76,6 +78,7 @@ export const notifications = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    unique('notifications_source_event_id_key').on(t.sourceEventId),
     // The notification screen: this user's, newest first.
     index('notifications_feed_idx').on(t.oxyUserId, t.status, t.createdAt.desc()),
     // The unread badge, which only ever counts these two states.

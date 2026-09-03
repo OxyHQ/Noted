@@ -22,6 +22,20 @@
       "when": 1788307437700,
       "tag": "0002_common_shooting_star",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788430764825,
+      "tag": "0003_wandering_harrier",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788430974242,
+      "tag": "0004_pink_riptide",
+      "breakpoints": true
     }
   ]
 }

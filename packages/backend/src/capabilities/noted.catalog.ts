@@ -74,7 +74,7 @@ function writeTool(
 export const NOTED_CAPABILITY_CATALOG: AppCapabilityCatalog = {
   schemaVersion: '1',
   appId: 'noted',
-  version: '1.2.0',
+  version: '1.3.0',
   audience: 'oxy-noted-api',
   internalBaseUrl: 'https://api.noted.oxy.so',
   externalMcp: { resource: 'https://mcp.noted.oxy.so' },
@@ -320,14 +320,14 @@ export const NOTED_CAPABILITY_CATALOG: AppCapabilityCatalog = {
     {
       type: 'note_changed',
       version: TOOL_VERSION,
-      description: 'A note was created, updated, archived, trashed, or restored.',
+      description: 'A note was created, updated, archived, trashed, restored, or deleted.',
       dataSchema: {
         type: 'object',
         properties: {
           noteId: identifier,
           change: {
             type: 'string',
-            enum: ['created', 'updated', 'archived', 'trashed', 'restored'],
+            enum: ['created', 'updated', 'archived', 'trashed', 'restored', 'deleted'],
           },
         },
         required: ['noteId', 'change'],
@@ -336,7 +336,7 @@ export const NOTED_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       resourceTypes: ['noted_account', 'note'],
     },
     {
-      type: 'reminder_due',
+      type: 'reminder',
       version: TOOL_VERSION,
       description: 'A note reminder became due for delivery.',
       dataSchema: {
