@@ -21,6 +21,10 @@ env:
   APP: noted
   CLUSTER: oxy-cluster
   DOCKERFILE: Dockerfile
+  ALIA_API_URL: https://api.alia.onl
+  # Delivery is a reviewed production switch. The application still defaults
+  # to disabled when run outside this deploy path.
+  NOTED_EVENT_OUTBOX_WORKER_ENABLED: ${{ vars.NOTED_EVENT_OUTBOX_WORKER_ENABLED || 'false' }}
 
 jobs:
   test:
@@ -183,6 +187,13 @@ jobs:
           IMAGE_URI: ${{ steps.build.outputs.image_uri }}
         run: |
           set -euo pipefail
+          case "$NOTED_EVENT_OUTBOX_WORKER_ENABLED" in
+            true|false) ;;
+            *)
+              echo "::error::NOTED_EVENT_OUTBOX_WORKER_ENABLED must be exactly true or false"
+              exit 64
+              ;;
+          esac
           service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")
           if [ "$(jq -r '.services[0].status // "NONE"' <<<"$service_json")" != "ACTIVE" ]; then
             echo "::error::ECS service $APP is not active"
@@ -206,10 +217,21 @@ jobs:
             --arg image "$IMAGE_URI" \
             --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_APPLICATION_KEY" \
             --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_APPLICATION_SECRET" \
+            --arg alia_api_url "$ALIA_API_URL" \
+            --arg event_worker_enabled "$NOTED_EVENT_OUTBOX_WORKER_ENABLED" \
             '
               .containerDefinitions |= map(
                 if .name == $app then
                   .image = $image
+                  | .environment = (
+                      ((.environment // []) | map(select(
+                        .name != "ALIA_API_URL" and
+                        .name != "NOTED_EVENT_OUTBOX_WORKER_ENABLED"
+                      ))) + [
+                        {name: "ALIA_API_URL", value: $alia_api_url},
+                        {name: "NOTED_EVENT_OUTBOX_WORKER_ENABLED", value: $event_worker_enabled}
+                      ]
+                    )
                   | .secrets = (
                       ((.secrets // []) | map(select(
                         .name != "OXY_APPLICATION_KEY" and
