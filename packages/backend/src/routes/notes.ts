@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Request, Response } from 'express';
@@ -7,7 +8,7 @@ import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
 import { normalizeNoteColor } from '@noted/shared-types';
 
 import { authenticateToken } from '../middleware/auth.js';
-import { getDb } from '../db/postgres.js';
+import { getDb, type Transaction } from '../db/postgres.js';
 import { notes } from '../db/schema/notes.js';
 import { serializeNote } from '../lib/serializers.js';
 import {
@@ -22,6 +23,7 @@ import {
 import { makeRateLimiter } from '../lib/rate-limit.js';
 import { emitNoteCreated, emitNoteUpdated, emitNoteDeleted } from '../socket.js';
 import { log } from '../lib/logger.js';
+import { enqueueNoteChangedEvent, type NoteChange } from '../capabilities/noted.events.js';
 
 const router = Router();
 
@@ -101,6 +103,7 @@ function toColumns(input: NoteWrite): Record<string, unknown> {
   if (input.reminderAt !== undefined) {
     columns.reminderAt = input.reminderAt ? new Date(input.reminderAt) : null;
     // A new or changed reminder must be eligible for delivery again.
+    columns.reminderQueuedAt = null;
     columns.reminderSentAt = null;
   }
   return columns;
@@ -109,6 +112,29 @@ function toColumns(input: NoteWrite): Record<string, unknown> {
 /** `updatedAt` is ours to move, not the caller's — every write touches it. */
 function touched(columns: Record<string, unknown>): Record<string, unknown> {
   return { ...columns, updatedAt: new Date() };
+}
+
+async function enqueueRouteNoteChange(
+  transaction: Transaction,
+  note: { id: string; updatedAt: Date },
+  accountId: string,
+  change: NoteChange,
+): Promise<void> {
+  const revision = note.updatedAt.toISOString();
+  await enqueueNoteChangedEvent(transaction, {
+    accountId,
+    noteId: note.id,
+    change,
+    idempotencyKey: `route:${randomUUID()}`,
+    occurredAt: revision,
+  });
+}
+
+function noteChangeForPatch(input: NoteWrite): NoteChange {
+  if (input.trashed === true) return 'trashed';
+  if (input.archived === true) return 'archived';
+  if (input.trashed === false || input.archived === false) return 'restored';
+  return 'updated';
 }
 
 /**
@@ -212,15 +238,21 @@ router.post('/', writeLimiter, async (req: Request, res: Response) => {
       }
     }
 
-    const [note] = await getDb()
-      .insert(notes)
-      .values({
-        ...(requestedId ? { id: requestedId } : {}),
-        oxyUserId: userId,
-        ...toColumns(parsed.data),
-      })
-      .onConflictDoNothing()
-      .returning();
+    const [note] = await getDb().transaction(async (transaction) => {
+      const inserted = await transaction
+        .insert(notes)
+        .values({
+          ...(requestedId ? { id: requestedId } : {}),
+          oxyUserId: userId,
+          ...toColumns(parsed.data),
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (inserted[0]) {
+        await enqueueRouteNoteChange(transaction, inserted[0], userId, 'created');
+      }
+      return inserted;
+    });
 
     // Two devices racing the same client-generated id: the loser's insert hits
     // the conflict clause and returns nothing, so it reads the winner's note.
@@ -334,13 +366,27 @@ router.post('/reorder', writeLimiter, async (req: Request, res: Response) => {
       ids.map((id: string, index: number) => sql`(${id}, ${index}::double precision)`),
       sql`, `,
     );
-    await getDb().execute(sql`
-      update ${notes} set sort_order = ordering.position, updated_at = now()
-      from (values ${positions}) as ordering(id, position)
-      where ${notes.id} = ordering.id
-        and ${notes.oxyUserId} = ${oxyUserId}
-        and ${notes.deletedAt} is null
-    `);
+    const changedAt = new Date();
+    await getDb().transaction(async (transaction) => {
+      await transaction.execute(sql`
+        update ${notes} set sort_order = ordering.position, updated_at = ${changedAt}
+        from (values ${positions}) as ordering(id, position)
+        where ${notes.id} = ordering.id
+          and ${notes.oxyUserId} = ${oxyUserId}
+          and ${notes.deletedAt} is null
+      `);
+      const changed = await transaction
+        .select({ id: notes.id, updatedAt: notes.updatedAt })
+        .from(notes)
+        .where(and(
+          eq(notes.oxyUserId, oxyUserId),
+          inArray(notes.id, ids as string[]),
+          isNull(notes.deletedAt),
+        ));
+      for (const note of changed) {
+        await enqueueRouteNoteChange(transaction, note, oxyUserId, 'updated');
+      }
+    });
 
     res.json({ success: true });
   } catch (error: unknown) {
@@ -393,13 +439,24 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid note payload' });
     }
 
-    const [note] = await getDb()
-      .update(notes)
-      .set(touched(toColumns(parsed.data)))
-      .where(
-        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-      )
-      .returning();
+    const [note] = await getDb().transaction(async (transaction) => {
+      const updated = await transaction
+        .update(notes)
+        .set(touched(toColumns(parsed.data)))
+        .where(
+          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+        )
+        .returning();
+      if (updated[0]) {
+        await enqueueRouteNoteChange(
+          transaction,
+          updated[0],
+          userId,
+          noteChangeForPatch(parsed.data),
+        );
+      }
+      return updated;
+    });
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     await writeGeneratedHalf(note.id, userId, parsed.data);
@@ -422,13 +479,17 @@ router.post('/:id/trash', writeLimiter, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid note id' });
     }
 
-    const [note] = await getDb()
-      .update(notes)
-      .set({ trashed: true, updatedAt: new Date() })
-      .where(
-        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-      )
-      .returning();
+    const [note] = await getDb().transaction(async (transaction) => {
+      const updated = await transaction
+        .update(notes)
+        .set({ trashed: true, updatedAt: new Date() })
+        .where(
+          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+        )
+        .returning();
+      if (updated[0]) await enqueueRouteNoteChange(transaction, updated[0], userId, 'trashed');
+      return updated;
+    });
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     const dto = serializeNote(note);
@@ -449,13 +510,17 @@ router.post('/:id/restore', writeLimiter, async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'Invalid note id' });
     }
 
-    const [note] = await getDb()
-      .update(notes)
-      .set({ trashed: false, archived: false, updatedAt: new Date() })
-      .where(
-        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-      )
-      .returning();
+    const [note] = await getDb().transaction(async (transaction) => {
+      const updated = await transaction
+        .update(notes)
+        .set({ trashed: false, archived: false, updatedAt: new Date() })
+        .where(
+          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+        )
+        .returning();
+      if (updated[0]) await enqueueRouteNoteChange(transaction, updated[0], userId, 'restored');
+      return updated;
+    });
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     const dto = serializeNote(note);
@@ -490,23 +555,28 @@ router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
     }
 
     const now = new Date();
-    const [note] = await getDb()
-      .update(notes)
-      .set({
-        deletedAt: now,
-        updatedAt: now,
-        title: '',
-        body: '',
-        checklist: [],
-        attachments: [],
-        labels: [],
-        reminderAt: null,
-        reminderSentAt: null,
-      })
-      .where(
-        and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-      )
-      .returning({ id: notes.id });
+    const [note] = await getDb().transaction(async (transaction) => {
+      const updated = await transaction
+        .update(notes)
+        .set({
+          deletedAt: now,
+          updatedAt: now,
+          title: '',
+          body: '',
+          checklist: [],
+          attachments: [],
+          labels: [],
+          reminderAt: null,
+          reminderQueuedAt: null,
+          reminderSentAt: null,
+        })
+        .where(
+          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
+        )
+        .returning({ id: notes.id, updatedAt: notes.updatedAt });
+      if (updated[0]) await enqueueRouteNoteChange(transaction, updated[0], userId, 'deleted');
+      return updated;
+    });
 
     // The tombstone clears the note's own content; the generated half has to go
     // with it. The foreign key would do this eventually — but not for a month,
@@ -528,6 +598,7 @@ export function dueReminderFilter(now: Date) {
   return and(
     isNotNull(notes.reminderAt),
     sql`${notes.reminderAt} <= ${now}`,
+    isNull(notes.reminderQueuedAt),
     isNull(notes.reminderSentAt),
     eq(notes.trashed, false),
     // Deleting a note clears its reminder, so this is redundant today — and

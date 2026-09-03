@@ -21,6 +21,10 @@ import { createNotedMcpHttpService } from './capabilities/noted-mcp-http.js';
 // Socket.io
 import { initSocket } from './socket.js';
 import { startReminderScheduler, stopReminderScheduler } from './lib/reminders.js';
+import {
+  startNotedEventOutboxWorker,
+  stopNotedEventOutboxWorker,
+} from './lib/normalized-event-outbox.js';
 import { makeRateLimiter } from './lib/rate-limit.js';
 
 // Fix for ES Modules __dirname
@@ -206,6 +210,7 @@ connectPostgres()
       });
       // Start the note-reminder sweep (no-op without REDIS_URL)
       startReminderScheduler().catch((err) => log.general.error({ err }, 'Failed to start reminder scheduler'));
+      startNotedEventOutboxWorker();
     });
 
     // Graceful shutdown handler
@@ -231,6 +236,7 @@ connectPostgres()
         // Stop the reminder scheduler (BullMQ worker + queue)
         await stopReminderScheduler();
         log.general.info('Reminder scheduler stopped');
+        stopNotedEventOutboxWorker();
 
         // Close Socket.IO connections
         const { getIO } = await import('./socket.js');

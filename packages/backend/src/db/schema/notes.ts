@@ -47,6 +47,8 @@ export const notes = pgTable(
     /** Oxy file-manager ids of any type. Bytes live in Oxy storage, not here. */
     attachments: text().array().notNull().default(sql`'{}'`),
     reminderAt: timestamptz(),
+    /** Set when the reminder event was atomically placed in the durable outbox. */
+    reminderQueuedAt: timestamptz(),
     /** Set once the current reminder has been delivered — keeps the sweep idempotent. */
     reminderSentAt: timestamptz(),
     /** Explicit position within a view, set by drag-reorder. */
@@ -92,7 +94,9 @@ export const notes = pgTable(
     // The reminder sweep: due and undelivered.
     index('notes_reminder_idx')
       .on(t.reminderAt)
-      .where(sql`${t.reminderSentAt} is null and ${t.deletedAt} is null`),
+      .where(
+        sql`${t.reminderQueuedAt} is null and ${t.reminderSentAt} is null and ${t.deletedAt} is null`,
+      ),
     index('notes_labels_idx').using('gin', t.labels),
     index('notes_search_idx').using('gin', t.searchVector),
     // The expiry sweep's own read path.

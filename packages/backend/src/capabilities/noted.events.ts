@@ -1,44 +1,37 @@
 import { createHash } from 'node:crypto';
 import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxyhq/contracts';
 
-import { log } from '../lib/logger.js';
-import { oxyServiceClient } from './oxy-service-client.js';
+import type { DatabaseOrTransaction } from '../db/postgres.js';
+import { normalizedAppEventOutbox } from '../db/schema/normalized-app-event-outbox.js';
 
-const ALIA_API_URL = (process.env.ALIA_API_URL ?? 'https://api.alia.onl').replace(/\/$/, '');
 function eventId(parts: readonly string[]): string {
   return `noted:${createHash('sha256').update(JSON.stringify(parts)).digest('hex')}`;
 }
 
-async function publish(event: NormalizedAppEvent): Promise<void> {
-  const client = oxyServiceClient();
-  if (!client) {
-    log.notes.warn({ eventId: event.eventId }, 'Noted event credentials are not configured');
-    return;
-  }
-  try {
-    const token = await client.getServiceToken();
-    const response = await fetch(`${ALIA_API_URL}/webhooks/oxy`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(normalizedAppEventSchema.parse(event)),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) {
-      throw new Error(`Alia rejected Noted event (${response.status})`);
-    }
-  } catch (error) {
-    log.notes.warn({ err: error, eventId: event.eventId }, 'Noted event publish failed');
-  }
+async function enqueue(db: DatabaseOrTransaction, event: NormalizedAppEvent): Promise<void> {
+  const parsed = normalizedAppEventSchema.parse(event);
+  await db
+    .insert(normalizedAppEventOutbox)
+    .values({ eventId: parsed.eventId, event: parsed })
+    .onConflictDoNothing({ target: normalizedAppEventOutbox.eventId });
 }
 
-export async function publishNoteChangedEvent(input: {
+export type NoteChange =
+  | 'created'
+  | 'updated'
+  | 'archived'
+  | 'trashed'
+  | 'restored'
+  | 'deleted';
+
+export function buildNoteChangedEvent(input: {
   accountId: string;
   noteId: string;
-  change: 'created' | 'updated' | 'archived' | 'trashed' | 'restored';
+  change: NoteChange;
   idempotencyKey: string;
   occurredAt: string;
-}): Promise<void> {
-  await publish({
+}): NormalizedAppEvent {
+  return normalizedAppEventSchema.parse({
     eventId: eventId([input.accountId, input.noteId, input.change, input.idempotencyKey]),
     appId: 'noted',
     accountId: input.accountId,
@@ -54,14 +47,21 @@ export async function publishNoteChangedEvent(input: {
   });
 }
 
-export async function publishReminderDueEvent(input: {
+export async function enqueueNoteChangedEvent(
+  db: DatabaseOrTransaction,
+  input: Parameters<typeof buildNoteChangedEvent>[0],
+): Promise<void> {
+  await enqueue(db, buildNoteChangedEvent(input));
+}
+
+export function buildReminderEvent(input: {
   accountId: string;
   noteId: string;
   reminderAt: Date;
-}): Promise<void> {
+}): NormalizedAppEvent {
   const reminderAt = input.reminderAt.toISOString();
-  await publish({
-    eventId: eventId([input.accountId, input.noteId, 'reminder_due', reminderAt]),
+  return normalizedAppEventSchema.parse({
+    eventId: eventId([input.accountId, input.noteId, 'reminder', reminderAt]),
     appId: 'noted',
     accountId: input.accountId,
     resource: {
@@ -70,8 +70,15 @@ export async function publishReminderDueEvent(input: {
       resourceType: 'note',
       resourceId: input.noteId,
     },
-    type: 'reminder_due',
-    occurredAt: new Date().toISOString(),
+    type: 'reminder',
+    occurredAt: reminderAt,
     data: { noteId: input.noteId, reminderAt },
   });
+}
+
+export async function enqueueReminderEvent(
+  db: DatabaseOrTransaction,
+  input: Parameters<typeof buildReminderEvent>[0],
+): Promise<void> {
+  await enqueue(db, buildReminderEvent(input));
 }
