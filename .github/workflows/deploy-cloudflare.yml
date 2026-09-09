@@ -73,16 +73,25 @@ jobs:
       # fallback and the custom domain are all declared in that file rather than
       # passed here, so a deploy cannot disagree with the config.
       #
-      # `--config` rather than the action's `workingDirectory`, deliberately.
-      # The action installs its own wrangler and picks the package manager by
-      # looking for a lockfile beside `workingDirectory`; `packages/frontend`
-      # has none — the lockfile is at the repository root — so it would fall
-      # back to npm, and npm cannot resolve this package at all
+      # `bunx wrangler` DIRECTLY, never `cloudflare/wrangler-action`. The action
+      # installs its own wrangler and picks the package manager by looking for a
+      # lockfile beside `workingDirectory` — there is none in
+      # `packages/frontend`, the lockfile is at the repository root — so it
+      # falls back to npm, which cannot resolve this package at all
       # (`"@noted/shared-types": "workspace:*"`, plus the root `overrides` npm
-      # validates and bun does not). Alia's canvas job failed five consecutive
-      # runs on exactly that shape. Run from the root, the action finds
-      # `bun.lock`, and every path inside wrangler.toml resolves relative to the
-      # config file, so `./dist` and `worker/index.js` still mean the app's own.
+      # validates and bun does not). Homiio took a production outage from
+      # exactly this on 2026-08-09 (run 31292337344: `Fail extracting tarball
+      # for "wrangler"`, published nothing, left a stale bundle against a
+      # changed API) and moved off the action in #291; Mercaria's AGENTS.md:196
+      # forbids it outright; Alia's canvas job failed five consecutive runs on
+      # the same shape; Clarity's frontend deploy hit the identical error. Do
+      # not "modernise" this back to the action.
+      #
+      # `wrangler@4` is PINNED: an unpinned `bunx wrangler` re-resolves the
+      # latest major on every deploy, changing the deploy path with no diff.
+      #
+      # wrangler takes its credentials from the environment, which is why they
+      # are `env:` rather than arguments.
       #
       # A Worker is created by this deploy if it does not exist, so there is no
       # bootstrap step. The custom domain is claimed from wrangler.toml — which
@@ -90,9 +99,7 @@ jobs:
       # BEFORE the first run of this: a Worker custom domain refuses a hostname
       # that already has externally managed records (code 100117).
       - name: Deploy the Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: '4.128.0'
-          command: deploy --config packages/frontend/wrangler.toml
+        run: cd packages/frontend && bunx wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
