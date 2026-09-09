@@ -15,3 +15,22 @@
 
 /_expo/static/*
   Cache-Control: public, max-age=31536000, immutable
+
+# EVERY response. Unlike its sibling apps this is an ADDITION, not a
+# restoration: Noted never sent either header. Cloudflare Pages adds both to
+# every response it serves automatically, but only to responses IT builds —
+# this app ran `public/_worker.js` in Pages Advanced Mode, which returns
+# `env.ASSETS.fetch()` directly and bypasses that injection. Measured on the
+# Pages deployment the day it was retired: `noted.oxy.so` sent neither, while
+# `oxy-auth.pages.dev`, a plain Pages project with no `_headers` rule for them,
+# sent both.
+#
+# So the move to a Worker took nothing away here, and every other Oxy app that
+# left Pages now declares these explicitly. Noted was the last one without them.
+#
+# `nosniff` is the one that matters: without it a browser may disregard a
+# declared Content-Type and sniff the bytes instead, which turns any response
+# carrying attacker-influenced content into a possible script.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
