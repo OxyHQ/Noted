@@ -1,6 +1,14 @@
-# Caching headers for Cloudflare Pages
-# Note: When _worker.js (Advanced Mode) is active, these headers are set by the
-# worker. This file serves as documentation and fallback if the worker is removed.
+# Caching headers for the Cloudflare Worker's static assets.
+#
+# THIS FILE IS WHAT SETS THEM. It used to say the opposite — that `_worker.js`
+# set these and this was only a fallback — which was the reverse of the truth
+# and survived the move off Pages by being read as documentation. wrangler
+# parses this file out of the assets directory and the asset router applies it
+# ("Parsed 2 valid header rules"), and it does so for every request that matches
+# a real file, which is exactly the set of requests `worker/index.js` never
+# sees: with `run_worker_first` unset, an asset that exists is served without
+# invoking the Worker at all. The immutable branch this file was said to be a
+# fallback for was therefore unreachable, and was deleted.
 
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
