@@ -1,13 +1,19 @@
 /**
- * Cloudflare Pages Worker -- SPA routing with proper MIME-type handling.
+ * Noted web Worker -- SPA routing with proper MIME-type handling.
  *
- * Cloudflare Pages' asset pipeline (env.ASSETS.fetch) returns index.html for
- * any path that doesn't match a static file, regardless of _redirects settings.
- * This causes browsers to reject stale hashed CSS/JS URLs because the response
- * has text/html MIME type instead of the expected type.
+ * Moved here from `public/_worker.js` when this app left Cloudflare Pages for a
+ * Worker, and it MUST stay a real Worker entrypoint (`main` in wrangler.toml):
+ * `_worker.js` is Pages Advanced Mode and nothing but Pages loads it. Left under
+ * `public/` it would be inert AND uploaded as a public asset.
  *
- * This worker intercepts asset responses and returns a proper 404 when the
- * platform returns HTML for a URL with a static-asset file extension.
+ * The behaviour it exists for is unchanged, and so is the reason. The asset
+ * pipeline (`env.ASSETS.fetch`) answers ANY miss with index.html --- on Pages
+ * regardless of `_redirects`, and here because wrangler.toml sets
+ * `not_found_handling = "single-page-application"`, which is what makes a deep
+ * link work now that `public/_redirects` is gone. A browser that asked for a
+ * stale hashed `.js` and was handed `text/html` rejects it, so this returns a
+ * real 404 for asset extensions instead, and marks content-addressed assets
+ * immutable.
  */
 
 const STATIC_EXTENSIONS = new Set([
