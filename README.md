@@ -61,7 +61,7 @@ Both halves ship from GitHub Actions:
 |---|---|
 | `ci.yml` | lint, tests, both builds, and a guard that refuses to let MongoDB back in |
 | `deploy-aws.yml` | builds the linux/arm64 backend image, pushes it to ECR, and rolls the ECS service on `oxy-cluster` |
-| `deploy-cloudflare.yml` | exports the Expo web build and deploys it to Cloudflare Pages |
+| `deploy-cloudflare.yml` | exports the Expo web build and deploys it as the Cloudflare Worker `noted`, serving `noted.oxy.so` |
 
 The frontend deploy is gated on backend CI, so the web app cannot ship ahead of the API it talks to.
 

@@ -1,0 +1,49 @@
+# The Noted web app is a Worker, not a Pages project.
+#
+# WHY: a Pages project ALWAYS serves `<project>.pages.dev` and Cloudflare offers
+# no way to switch it off — `wrangler pages project` has only `list`, `create`
+# and `delete`. Alia measured what that costs before migrating:
+#
+#   alia.onl            200  md5 045c76d292e7ec40
+#   alia-app.pages.dev  200  md5 045c76d292e7ec40   <- byte-identical
+#
+# The same deployment under two names, the second in NO CORS allowlist, so it
+# rendered the shell and failed every call it made. `noted.pages.dev` was the
+# same second copy of this app: `https://noted.oxy.so` is the only frontend
+# origin the API allows (`packages/backend/src/index.ts`, `src/socket.ts`) and
+# the only registered Oxy redirect origin (`lib/oxy-client-id.ts`), so a visitor
+# who landed on the Pages hostname got a complete-looking Noted that could
+# neither sign in nor sync. `workers_dev = false` leaves `noted.oxy.so` as the
+# only name that reaches this deployment.
+name = "noted"
+main = "worker/index.js"
+compatibility_date = "2026-09-09"
+
+workers_dev = false
+
+# `app.json` sets `web.output: "single"`, so `expo export --platform web` emits
+# ONE index.html plus hashed assets — a client-routed SPA with no per-route
+# HTML — and the fallback below is the only thing that makes a deep link work.
+# It also replaces `public/_redirects`, which is deleted in this change: that
+# file carried no rules at all, only a comment saying `_worker.js` handled SPA
+# routing, and `_redirects` is Pages vocabulary a Worker does not read.
+#
+# `worker/index.js` above is what stops that fallback answering a stale hashed
+# `.js` request with `text/html`.
+#
+# 88 files, 36 MB. The largest is `ort/ort-wasm-simd-threaded.asyncify.wasm` at
+# 23,567,050 bytes — under the 25 MiB (26,214,400 B) per-file limit, but with
+# only ~2.5 MB of headroom, so an onnxruntime upgrade is the thing that would
+# first hit it.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# The only way in. Cloudflare writes the DNS record for a custom domain itself,
+# which is why the existing proxied record for this hostname has to be deleted
+# before the first deploy — a Worker custom domain refuses a hostname that
+# already has externally managed records (code 100117).
+[[routes]]
+pattern = "noted.oxy.so"
+custom_domain = true
