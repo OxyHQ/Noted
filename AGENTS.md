@@ -1,93 +1,77 @@
-# Noted — Notes App by Oxy
+# Noted
 
-Noted is a notes-and-labels app by Oxy with real-time sync, reminders, push notifications, and web push support.
+> Universal standards live in `~/AGENTS.md`; Oxy-wide architecture lives in
+> `~/Oxy/AGENTS.md` and `~/Oxy/docs/`. Product documentation belongs in
+> `docs/`, history in git and current rollout status in issues. This file holds
+> only hard rules, commands and pointers. **Budget: under 8 KB.**
 
-Note: this repository was forked from Clarity, a different product. The READMEs have been rewritten; anything still saying Clarity — or naming DigitalOcean or MongoDB — is a leftover, not a second product.
+Noted is Oxy's local-first notes and meeting-capture app: Expo frontend,
+Express API and shared DTOs. This repository was forked from Clarity; a Clarity,
+DigitalOcean or MongoDB reference is a leftover unless a document explicitly
+marks it as migration history.
 
-## Monorepo Structure
+## Commands
 
-- `packages/frontend/` (`@noted/frontend`) — Expo app (React Native + Web)
-- `packages/backend/` (`@noted/backend`) — Express API
-- `packages/shared-types/` (`@noted/shared-types`) — Shared TypeScript types
+```bash
+bun install
+bun run dev
+bun run dev:frontend
+bun run dev:backend
+bun run lint
+bun run build
+bun run --filter @noted/backend test
+bun run validate:no-mongo
+bun run db:migrate --target-database=noted_dev
+```
 
-## Tech Stack
+Use Bun only. Package order is `shared-types` before frontend/backend.
 
-- **Frontend**: Expo SDK 56, NativeWind 5, Reanimated, Zustand, TanStack Query, expo-router
-- **Backend**: Express, TypeScript, PostgreSQL (drizzle over postgres.js, via `@oxy.so/db`), Socket.IO, Redis
-- **Auth**: `@oxy.so/core` (incl. `@oxy.so/core/server`), `@oxy.so/services`
+## Hard boundaries
 
-## PostgreSQL
+- The backend is PostgreSQL/Drizzle only. Never add MongoDB, Mongoose, a dual
+  store or a fallback store. `bun run validate:no-mongo` is a reintroduction
+  gate, not a migration checklist.
+- Every generated PostgreSQL migration needs an
+  `-- oxy:deploy-phase=pre|post` marker. Production uses `db:migrate`; do not
+  bypass its exact-target and phase checks with `drizzle-kit migrate`.
+- PostgreSQL has no TTL index. Register every expiring table in
+  `packages/backend/src/db/expiry.ts`; a deadline that only exists in the
+  schema never deletes anything.
+- The local SQLite database is the frontend's read source of truth. Screens use
+  `lib/db/live-query` only after `useLocalStore()` is ready; do not query the
+  remote API directly as a substitute.
+- Note/artifact DTOs live in `@noted/shared-types`. Only `final` artifacts sync,
+  writes are compare-and-swap on `transcriptRevision`, and omitted artifact
+  fields mean “unchanged” while empty arrays mean “clear”. Full contract:
+  `docs/index.mdx`.
+- Every backend note query is scoped by the server-verified `oxyUserId` and
+  socket rooms are derived server-side as `user:${userId}`. Noted has no public,
+  shared, collaborator or share-link surface. If that changes, revisit the
+  CrowdSource decision documented in `docs/index.mdx` before shipping.
 
-Database `noted` on the shared `oxy-postgres` instance, reached as
-`postgres.internal.oxy.so` with `?sslmode=require` (the parameter group sets
-`rds.force_ssl = 1`). Connection in `packages/backend/src/db/postgres.ts`, schema
-in `src/db/schema/`, migrations in `drizzle/`.
+## AI and platform ownership
 
-Two rules that are not obvious from the code:
+- Speech transcription and transcript enhancement currently run on the user's
+  device. Model weights may be downloaded to that device; audio and transcript
+  content must not be uploaded as a hidden fallback.
+- Any future hosted point inference flows `Noted -> Oxy -> Kaana`. Any agent,
+  chat, tool or memory capability flows `Noted -> Alia -> Oxy -> Kaana`.
+  Publishing a signed Noted event to Alia is an agent-runtime integration, not
+  permission to call an inference provider.
+- Kaana is the sole hosted inference data plane and its only canonical signed
+  origin is `https://kaana.ai`. Never add a Kaana hostname under `oxy.so`, a
+  direct provider adapter, provider routing or an AI provider environment key.
+  Provider keys live only encrypted in Kaana PostgreSQL/KMS.
+- Oxy `ApplicationCredential` values identify Noted as a service. They are not
+  provider keys and never replace a human account. If a product/app/agent
+  binding is introduced, use the exact opaque primary key; never discover by
+  display name, sorted list, first result or fallback.
 
-- **Every generated migration needs a `-- oxy:deploy-phase=pre|post` marker**;
-  `db:migrate` refuses to apply an unmarked one, before any DDL runs.
-- **Postgres has no TTL index.** Any table that would have carried one needs an
-  entry in `src/db/expiry.ts`, or it grows forever with no error and no failing
-  test. Two tables are registered there today.
+## Pointers
 
-Mongo was removed entirely in August 2026 — there is no `noted-production`
-database and no `MONGODB_URI` anywhere. Comments elsewhere that mention Mongo are
-deliberate records of why a Postgres decision was made, not leftovers.
-
-## Backend Routes
-
-- `packages/backend/src/routes/notes.ts` — Note CRUD
-- `packages/backend/src/routes/labels.ts` — Label management
-- `packages/backend/src/routes/notifications.ts` — Push notification delivery
-- `packages/backend/src/routes/auth.ts` — Oxy auth webhook
-- `packages/backend/src/routes/feedback.ts` — In-app feedback
-
-## Key Models
-
-- `packages/backend/src/models/note.ts` — Note (color, label associations, reminder)
-- `packages/backend/src/models/label.ts` — Label
-- `packages/backend/src/models/notification.ts` — Notification record
-- `packages/backend/src/models/web-push-subscription.ts` — Web Push subscription
-
-## A note has two halves, and both cross the wire
-
-The body is Markdown. Everything that makes a recorded note checkable — which
-sentence came from which second, who was speaking, which revision of the
-transcript a claim was checked against, which lines the user rewrote — is the
-**artifact**, and it is a separate document with its own tables
-(`note_artifacts`, `note_item_overrides`) on both the device and the server.
-
-Four rules that are not visible from the code:
-
-- **The domain lives in `@noted/shared-types`, not in the app.** The server
-  stores the artifact, so it has an opinion about its shape; two copies of that
-  opinion is the drift that makes a correct write parse to nothing on the far
-  side. `CAPTURE_PROFILES` and `DOCUMENT_INTENTS` are `as const` tuples and their
-  unions are DERIVED from them, so the server's validator and the client's type
-  cannot disagree.
-- **Only `final` artifacts sync.** A `live` one is rewritten every few seconds
-  while somebody is still talking; uploading it would be a request per slice.
-- **The write is a compare-and-swap in SQL, on both sides** — a `WHERE` on the
-  upsert (`transcript_revision >= existing`), never a read-then-write in
-  application code, which a slow request wins.
-- **Absent ≠ empty.** A payload without `artifacts`/`itemOverrides` says nothing
-  about them and changes nothing; an empty array says there are none and clears
-  them. The feed read omits them on purpose, so a note from the feed must never
-  be applied as though it had none.
-
-## Reminders
-
-`packages/backend/src/lib/reminders.ts` — `startReminderScheduler()` / `stopReminderScheduler()` manage the reminder cron; started in `src/index.ts`.
-
-## Shared Types
-
-`@noted/shared-types` exports `normalizeNoteColor` and domain DTOs. Build: `bun run build:shared-types`.
-
-## Content moderation: Noted is deliberately NOT integrated with CrowdSource
-
-Every other Oxy app reports to CrowdSource; Noted does not, and that is a decision rather than an oversight. **Noted has no public or shared surface at all** — every `Note` query is filtered by `oxyUserId` (list, get, patch, trash, restore, delete, and each `updateOne` inside the bulk reorder), socket rooms are joined only from the server-verified id (`user:${userId}`; clients cannot name a room), and no document carries a visibility, audience, collaborator or share-link field. So there is no stranger who could file a report, and no material a jury could be shown. Integrating anyway would mean an outbox, a dispatcher, a webhook receiver and a subject registry with **zero registered providers**: dead plumbing, plus a new deploy-time secret requirement and a `POST /reports` route with no caller, which every future reader has to understand before concluding it does nothing.
-
-Two things that look like hooks and are not. `feedback` is a support inbox (user→operator, with its own `pending|reviewed|resolved` triage), so routing it to a jury of strangers would expose a user's bug report and device metadata to people with no reason to see it. And `note.attachments` holding bare Oxy file ids is exactly the shape moderation evidence wants — but the bytes live in Oxy storage under Oxy's credential, and Noted holds nothing but the id; if Oxy ever moderates stored files, that is oxy-api's job.
-
-**The trigger to revisit:** the day Noted grows a genuinely shared surface — a published note, a public link, a collaborator on a note — the integration becomes one subject-provider file plus one line in a registry, consuming `@oxy.so/crowdsource-app`. Building the plumbing before that surface exists buys nothing and costs a subsystem.
+- `docs/index.mdx`: architecture, artifact invariants, AI routes and moderation
+  boundary.
+- `packages/backend/README.md`: API, environment and PostgreSQL rules.
+- `packages/frontend/README.md`: local-first UI, capture and on-device models.
+- `CONTRIBUTING.md`: setup and CI commands layered on the Oxy organization
+  guide.

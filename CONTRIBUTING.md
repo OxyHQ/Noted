@@ -64,6 +64,9 @@ bun run build:frontend
 
 ## Conventions
 
-Coding standards for this repository are in `AGENTS.md` at the repository root, including the route and model map and the reasoning behind Noted deliberately not integrating with CrowdSource. `AGENTS.md` is read directly by Claude Code, Codex, Cursor and Copilot, and it is the file to update when a convention changes.
+Architecture and product contracts, including the reason Noted deliberately
+does not integrate with CrowdSource, live in `docs/index.mdx`. `AGENTS.md` keeps
+only hard rules, commands and pointers for coding agents; do not turn it into a
+second architecture document.
 
 One thing worth knowing before your first pull request: **Noted has no shared or public surface.** Every note query is scoped to the owning `oxyUserId` and socket rooms are derived server side from the verified user id, never named by the client. If you add a feature that changes that, say so explicitly in the pull request, because a good deal of the design in `AGENTS.md` rests on it.

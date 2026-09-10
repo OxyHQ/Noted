@@ -1,29 +1,96 @@
 ---
-title: Noted
-description: Notes app by Oxy — notes, labels, reminders, and meeting capture.
+title: Noted architecture
+description: Local-first notes, PostgreSQL sync, on-device capture, and Oxy platform boundaries.
 ---
 
 # Noted
 
-Notes with labels, colours, checklists, reminders and attachments, on iOS,
-Android and the web. Notes live on the device first and synchronise when there
-is a connection, so the app works with none.
+Noted is Oxy's local-first notes and meeting-capture product for iOS, Android
+and the web.
 
-On a phone it also records: start a capture before a meeting, put the phone
-down, and the recording keeps running in the background. The transcript is
-turned into a structured Markdown note on the device itself.
+```text
+Expo client -> per-account SQLite -> Noted API -> PostgreSQL
+            -> on-device speech and language models
 
-## Where things are documented
+Noted events -> Alia agent runtime
+Future hosted point inference -> Oxy -> Kaana
+Future agent/chat/tools/memory -> Alia -> Oxy -> Kaana
+```
 
-This directory previously held another product's documentation entirely
-— Clarity's — which `docs.config.json` was publishing under Noted's name.
-It was removed rather than corrected, because a document describing a
-different product is worse than no document.
+The backend is PostgreSQL/Drizzle only. There is no MongoDB runtime, secondary
+store or database fallback. The client writes locally first and synchronises
+afterwards, so reading remains available offline and survives an interrupted
+edit.
 
-Until this is filled in, the accurate sources are in the repository:
+## AI ownership
 
-| | |
-|---|---|
-| Architecture, conventions, the rules that are not visible from the code | [`AGENTS.md`](https://github.com/OxyHQ/Noted/blob/main/AGENTS.md) |
-| Running it locally | [`CONTRIBUTING.md`](https://github.com/OxyHQ/Noted/blob/main/CONTRIBUTING.md) |
-| Backend environment and endpoints | [`packages/backend/README.md`](https://github.com/OxyHQ/Noted/blob/main/packages/backend/README.md) |
+Current recording intelligence is local to the user's device:
+
+- native speech-to-text uses whisper.cpp;
+- the browser uses an ONNX Whisper build;
+- transcript enhancement uses a downloaded language model on the device;
+- audio and transcript content do not leave the device for those operations.
+
+The backend's `ALIA_API_URL` integration publishes signed Noted lifecycle
+events to Alia. It does not send a prompt to a provider and is not Noted's
+inference route. If Noted later adds hosted one-shot inference, the product must
+call Oxy and Oxy must route it to Kaana. If it adds an agent, chat, tool or
+memory capability, the product must call Alia, which calls Oxy, which calls
+Kaana.
+
+Kaana is the sole hosted inference data plane. Its only canonical signed origin
+is `https://kaana.ai`, never a hostname under `oxy.so`. Provider keys live only
+encrypted in Kaana PostgreSQL/KMS and must never be placed in Noted source,
+PostgreSQL tables, GitHub secrets or environment variables. Noted's Oxy service
+credential is an application identity, not a provider key. Any future
+application, bot or agent binding must use its byte-exact opaque primary key;
+display-name, sorted-list and first-result fallbacks are forbidden.
+
+## Note and artifact contract
+
+A recorded note has two separately persisted parts:
+
+- the Markdown note body;
+- an artifact containing transcript provenance, speaker/timing references,
+  transcript revision and user overrides.
+
+The shared domain lives in `@noted/shared-types`, because both SQLite and the
+server store it. `CAPTURE_PROFILES` and `DOCUMENT_INTENTS` are the source tuples
+from which the unions and server validators derive.
+
+Four invariants are load-bearing:
+
+1. Only a `final` artifact synchronises; a changing `live` artifact remains on
+   the device.
+2. Artifact writes compare-and-swap on `transcriptRevision` in SQL. Never
+   replace that with read-then-write application logic.
+3. Missing `artifacts` or `itemOverrides` means “leave existing state alone”. An
+   explicit empty array means “clear it”.
+4. Feed reads deliberately omit artifacts, so a feed note must not be applied
+   as if it asserted there are none.
+
+## Identity and sharing boundary
+
+Every note query is filtered by the server-verified `oxyUserId`. Socket rooms
+are derived by the server as `user:${userId}`; a client cannot name one. No note
+has a visibility, audience, collaborator or public-share-link field.
+
+That is why Noted deliberately has no CrowdSource integration today: there is
+no public subject for another user to report. The feedback endpoint is a private
+support inbox and must not expose a report or device metadata to a community
+jury. If Noted gains a published note, public link or collaborator, this
+decision must be revisited before that surface ships.
+
+## PostgreSQL rules
+
+- Every generated migration has an `-- oxy:deploy-phase=pre|post` marker and is
+  applied through `db:migrate` with an exact target database.
+- PostgreSQL has no TTL index. Every expiring table is registered in
+  `packages/backend/src/db/expiry.ts` or it grows forever.
+
+## Read next
+
+- [Repository README](https://github.com/OxyHQ/Noted/blob/main/README.md)
+- [Contributing](https://github.com/OxyHQ/Noted/blob/main/CONTRIBUTING.md)
+- [Backend](https://github.com/OxyHQ/Noted/blob/main/packages/backend/README.md)
+- [Frontend](https://github.com/OxyHQ/Noted/blob/main/packages/frontend/README.md)

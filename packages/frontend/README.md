@@ -28,6 +28,11 @@ bun run android
 | `lib/enhance/` | reading a transcript with a language model and writing the note from it |
 | `lib/stores/` | zustand stores for state that outlives a screen |
 
+Speech and enhancement models run on the device and never fall back to a hosted
+provider. If a future frontend feature needs hosted point inference, it calls
+the Noted/Oxy boundary rather than Kaana or a provider directly. Provider keys
+must never use an `EXPO_PUBLIC_` variable.
+
 ## Things worth knowing before changing them
 
 - **The local database is the source of truth for reading.** Screens query SQLite through `lib/db/live-query`, never the API directly, and must not query before `useLocalStore()` reports ready — a query with no active account has no database file to open.

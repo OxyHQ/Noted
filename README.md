@@ -8,7 +8,7 @@ A notes app by [Oxy](https://oxy.so). Write a note, or put the phone on the tabl
 - **Local-first** — every note is written to a per-account SQLite database first and synchronised afterwards, so the app works with no network and survives a process that dies mid-edit.
 - **Recording** — started from any list of notes; it keeps running across screens and into the background, and the indicator follows it.
 - **Transcription on the device** — whisper.cpp on a phone, transcribing while the meeting runs; an ONNX build of the same model in the browser. Nothing leaves the device.
-- **A note, not a transcript** — a language model reads the recording and writes the note: a title, the points worth keeping, what was decided, what was left open.
+- **A note, not a transcript** — a downloaded language model on the device reads the transcript and writes the note: a title, the points worth keeping, what was decided, and what was left open.
 - **Reminders** — with push notifications on native and Web Push in the browser.
 - **Markdown export**, attachments, and an in-app feedback inbox.
 
@@ -53,6 +53,18 @@ Two rules that are not obvious from the code:
 - **Every generated migration needs a `-- oxy:deploy-phase=pre|post` marker.** `db:migrate` refuses to apply an unmarked one, before any DDL runs.
 - **Postgres has no TTL index.** A table that would have carried one needs an entry in `src/db/expiry.ts`, or it grows forever with no error and no failing test.
 
+## AI boundary
+
+Speech transcription and transcript enhancement run on the user's device; they
+do not fall back to a hosted provider. If Noted later adds hosted point
+inference, its route is `Noted -> Oxy -> Kaana`. Agent, chat, tool or memory
+features route `Noted -> Alia -> Oxy -> Kaana`.
+
+Kaana is Oxy's only hosted inference data plane and its only canonical signed
+origin is `https://kaana.ai`. AI provider credentials live only encrypted in
+Kaana PostgreSQL/KMS, never in Noted environment variables or source. An Oxy
+service application credential identifies Noted; it is not a provider key.
+
 ## Deployment
 
 Both halves ship from GitHub Actions:
@@ -67,4 +79,6 @@ The frontend deploy is gated on backend CI, so the web app cannot ship ahead of 
 
 ## Conventions
 
-`AGENTS.md` is the single source of truth for how to work in this repo — coding standards, the Postgres rules above, and which references are deliberate rather than left over. `CLAUDE.md` only imports it.
+Architecture and product contracts live in [`docs/index.mdx`](docs/index.mdx).
+`AGENTS.md` contains only the hard rules, commands and documentation pointers
+needed while changing the repository. `CLAUDE.md` only imports it.
