@@ -32,7 +32,20 @@ Every note query is filtered by `oxyUserId`, and socket rooms are joined from th
 
 ## Environment
 
-`.env.example` is the documented spelling of every variable, with what happens when one is missing. The ones without which the API does not start are `DATABASE_URL` and the Oxy credentials; the rest degrade rather than fail.
+`.env.example` documents the supported variables and what happens when one is
+missing.
+
+`DATABASE_URL` is the only required database setting. Oxy
+`ApplicationCredential` values enable catalogue/capability operations and
+signed Noted events; they are product-service identity, not AI provider keys.
+`ALIA_API_URL` is used only to deliver those events to the Alia agent runtime.
+Current transcription and note enhancement run on-device. Any future hosted
+point inference must call Oxy, which alone routes to Kaana; any future
+agent/chat/tools/memory capability must call Alia, which then calls Oxy.
+
+No OpenAI, Anthropic, Google, Groq or other provider key belongs in this
+environment. Provider keys live only encrypted in Kaana PostgreSQL/KMS, whose
+only canonical signed origin is `https://kaana.ai`.
 
 ## Database
 
