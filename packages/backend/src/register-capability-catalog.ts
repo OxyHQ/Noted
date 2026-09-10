@@ -1,4 +1,4 @@
-import { appCapabilityCatalogSchema } from '@oxyhq/contracts';
+import { appCapabilityCatalogSchema } from '@oxy.so/contracts';
 
 import { NOTED_CAPABILITY_CATALOG } from './capabilities/noted.catalog.js';
 import { requiredOxyServiceToken } from './capabilities/oxy-service-client.js';

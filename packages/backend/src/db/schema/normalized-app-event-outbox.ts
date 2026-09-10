@@ -1,7 +1,7 @@
-import type { NormalizedAppEvent } from '@oxyhq/contracts';
+import type { NormalizedAppEvent } from '@oxy.so/contracts';
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 
 /** Durable, at-least-once delivery state for Noted's normalized app events. */
 export const normalizedAppEventOutbox = pgTable(

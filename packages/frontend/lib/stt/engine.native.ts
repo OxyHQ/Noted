@@ -14,7 +14,7 @@
 import { initWhisper, type WhisperContext } from 'whisper.rn/index';
 import { Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { makeSegment, type TranscriptSegment } from '@/lib/capture/captures-repo';
 import { isModelPresent, modelFile, STT_MODELS, type SttModelId } from '@/lib/stt/models';

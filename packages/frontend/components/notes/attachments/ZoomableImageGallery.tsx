@@ -28,7 +28,7 @@ import {
   Gesture,
   GestureDetector,
 } from "react-native-gesture-handler";
-import { useTheme } from "@oxyhq/bloom/theme";
+import { useTheme } from "@oxy.so/bloom/theme";
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const AnimatedImage = Animated.createAnimatedComponent(Image);

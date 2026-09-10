@@ -11,7 +11,7 @@
  * lives in `artifact-store.ts`, where it can be tested without a browser.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import type { ChunkBackend } from '@/lib/audio/artifact-store';
 import { MemoryChunkBackend } from '@/lib/audio/memory-backend';

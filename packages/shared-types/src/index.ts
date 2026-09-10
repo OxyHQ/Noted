@@ -17,7 +17,7 @@
  * backend's `NOTE_COLORS` enum and this list MUST stay in sync; they are now
  * one and the same). `default` means "no tint / app surface"; the other 11 are
  * exactly the standard (non-premium) Bloom color presets
- * (`@oxyhq/bloom/theme` `APP_COLOR_PRESETS`), so a note's tint derives from the
+ * (`@oxy.so/bloom/theme` `APP_COLOR_PRESETS`), so a note's tint derives from the
  * canonical Bloom color system on the client.
  */
 export const NOTE_COLORS = [

@@ -20,7 +20,7 @@
  */
 
 import { useEffect } from "react";
-import { useOxy } from "@oxyhq/services";
+import { useOxy } from "@oxy.so/services";
 import { io as socketIO, type Socket } from "socket.io-client";
 import config from "@/lib/config";
 import { requestSync } from "@/lib/db/use-local-store";

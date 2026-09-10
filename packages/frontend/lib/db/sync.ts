@@ -10,7 +10,7 @@
  * uploaded without noticing.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import type { Label, Note } from '@noted/shared-types';
 
 import apiClient from '@/lib/api/client';

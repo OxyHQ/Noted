@@ -22,7 +22,7 @@ import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
 import { useRouter, usePathname, useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
-import { openAccountDialog, ProfileButton } from "@oxyhq/services";
+import { openAccountDialog, ProfileButton } from "@oxy.so/services";
 import { NotedWordmark } from "@/components/ui/noted-wordmark";
 import { NotedMark } from "@/components/ui/noted-mark";
 import { useLabels } from "@/lib/hooks/use-labels";

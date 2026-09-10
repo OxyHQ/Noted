@@ -21,7 +21,7 @@
  * somebody actually transcribes.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { createPlaybackUrl, releasePlaybackUrl } from '@/lib/audio/store';
 import { makeSegment, type TranscriptSegment } from '@/lib/capture/captures-repo';

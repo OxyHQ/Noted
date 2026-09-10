@@ -7,7 +7,7 @@
  */
 
 import { index, integer, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 
 export const FEEDBACK_TYPES = ['bug', 'feature', 'improvement', 'other'] as const;
 export const FEEDBACK_STATUSES = ['pending', 'reviewed', 'resolved'] as const;

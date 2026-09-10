@@ -17,7 +17,7 @@
  */
 
 import type { ChecklistItem } from '@noted/shared-types';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { execute } from '@/lib/db/client';
 import {

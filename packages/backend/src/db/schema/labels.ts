@@ -6,7 +6,7 @@
  */
 
 import { pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { NOTE_COLORS } from '@noted/shared-types';
 
 export const labels = pgTable(

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxyhq/contracts';
+import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxy.so/contracts';
 
 import type { DatabaseOrTransaction } from '../db/postgres.js';
 import { normalizedAppEventOutbox } from '../db/schema/normalized-app-event-outbox.js';

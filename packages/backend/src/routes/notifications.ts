@@ -2,8 +2,8 @@ import { Router } from 'express';
 import Expo from 'expo-server-sdk';
 import { z } from 'zod';
 import { and, count, desc, eq } from 'drizzle-orm';
-import { isLiveEntityId } from '@oxyhq/db';
-import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { isLiveEntityId } from '@oxy.so/db';
+import { requireOxyAuth, getRequiredOxyUserId } from '@oxy.so/core/server';
 import type { Request, Response } from 'express';
 
 import { authenticateToken } from '../middleware/auth.js';

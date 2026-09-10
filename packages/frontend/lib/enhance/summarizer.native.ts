@@ -14,7 +14,7 @@
  */
 
 import { initLlama, releaseAllLlama, type LlamaContext } from 'llama.rn';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import type {
   EnhanceRequest,

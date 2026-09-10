@@ -13,8 +13,8 @@ Note: this repository was forked from Clarity, a different product. The READMEs 
 ## Tech Stack
 
 - **Frontend**: Expo SDK 56, NativeWind 5, Reanimated, Zustand, TanStack Query, expo-router
-- **Backend**: Express, TypeScript, PostgreSQL (drizzle over postgres.js, via `@oxyhq/db`), Socket.IO, Redis
-- **Auth**: `@oxyhq/core` (incl. `@oxyhq/core/server`), `@oxyhq/services`
+- **Backend**: Express, TypeScript, PostgreSQL (drizzle over postgres.js, via `@oxy.so/db`), Socket.IO, Redis
+- **Auth**: `@oxy.so/core` (incl. `@oxy.so/core/server`), `@oxy.so/services`
 
 ## PostgreSQL
 
@@ -90,4 +90,4 @@ Every other Oxy app reports to CrowdSource; Noted does not, and that is a decisi
 
 Two things that look like hooks and are not. `feedback` is a support inbox (user→operator, with its own `pending|reviewed|resolved` triage), so routing it to a jury of strangers would expose a user's bug report and device metadata to people with no reason to see it. And `note.attachments` holding bare Oxy file ids is exactly the shape moderation evidence wants — but the bytes live in Oxy storage under Oxy's credential, and Noted holds nothing but the id; if Oxy ever moderates stored files, that is oxy-api's job.
 
-**The trigger to revisit:** the day Noted grows a genuinely shared surface — a published note, a public link, a collaborator on a note — the integration becomes one subject-provider file plus one line in a registry, consuming `@oxyhq/crowdsource-app`. Building the plumbing before that surface exists buys nothing and costs a subsystem.
+**The trigger to revisit:** the day Noted grows a genuinely shared surface — a published note, a public link, a collaborator on a note — the integration becomes one subject-provider file plus one line in a registry, consuming `@oxy.so/crowdsource-app`. Building the plumbing before that surface exists buys nothing and costs a subsystem.

@@ -36,7 +36,7 @@ Every note query is filtered by `oxyUserId`, and socket rooms are joined from th
 
 ## Database
 
-PostgreSQL through drizzle (over postgres.js, via `@oxyhq/db`). Schema in `src/db/schema/`, migrations in `drizzle/`, connection in `src/db/postgres.ts`.
+PostgreSQL through drizzle (over postgres.js, via `@oxy.so/db`). Schema in `src/db/schema/`, migrations in `drizzle/`, connection in `src/db/postgres.ts`.
 
 - **Every generated migration needs a `-- oxy:deploy-phase=pre|post` marker.** `db:migrate` refuses to apply an unmarked one, before any DDL runs.
 - **Postgres has no TTL index.** Anything that would have carried one needs an entry in `src/db/expiry.ts` — the sweep that replaces it — or the table grows forever with no error and no failing test.

@@ -7,8 +7,8 @@
  */
 
 import { useCallback } from 'react';
-import { toast } from '@oxyhq/bloom/toast';
-import { createLogger } from '@oxyhq/core/logger';
+import { toast } from '@oxy.so/bloom/toast';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { createNote } from '@/lib/db/notes-repo';
 import { newNoteId } from '@/lib/db/ids';

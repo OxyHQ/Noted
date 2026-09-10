@@ -1,7 +1,7 @@
 import type { LabelDTO, NoteDTO } from '@noted/shared-types';
 import { normalizeNoteColor } from '@noted/shared-types';
-import type { CatalogToolHandler, CatalogToolHandlers } from '@oxyhq/mcp';
-import { isLiveEntityId, isUniqueViolation } from '@oxyhq/db';
+import type { CatalogToolHandler, CatalogToolHandlers } from '@oxy.so/mcp';
+import { isLiveEntityId, isUniqueViolation } from '@oxy.so/db';
 import {
   and,
   arrayContains,

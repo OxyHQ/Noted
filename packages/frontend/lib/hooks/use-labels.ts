@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "@oxyhq/bloom/toast";
+import { toast } from "@oxy.so/bloom/toast";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { useLiveQuery } from "@/lib/db/live-query";

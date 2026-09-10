@@ -77,7 +77,7 @@ COPY packages/shared-types ./packages/shared-types
 COPY packages/backend ./packages/backend
 
 # Build @noted/shared-types (tsc), then bundle the backend with esbuild ->
-# packages/backend/dist/index.js (externalizes node_modules, inlines @oxyhq/* +
+# packages/backend/dist/index.js (externalizes node_modules, inlines @oxy.so/* +
 # @noted/*; see packages/backend/build.ts). `build:backend` chains both.
 RUN bun run build:backend
 

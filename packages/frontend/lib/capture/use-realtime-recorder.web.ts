@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { beginCapture } from '@/lib/capture/captures-repo';
 import type { CaptureCoordinator } from '@/lib/capture/coordinator';

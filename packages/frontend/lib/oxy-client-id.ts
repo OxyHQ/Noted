@@ -9,7 +9,7 @@
 
 /**
  * The ApplicationCredential publicKey for the official "Noted" Application
- * (redirect origin https://noted.oxy.so), required by `@oxyhq/services` for the
+ * (redirect origin https://noted.oxy.so), required by `@oxy.so/services` for the
  * device sign-in / SSO cold boot. An `oxy_dk_` public key is public and safe to
  * commit.
  */

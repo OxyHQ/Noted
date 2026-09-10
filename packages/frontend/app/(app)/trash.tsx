@@ -4,7 +4,7 @@ import { Trash2, RotateCcw, X } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { NotesHeader } from "@/components/notes/notes-header";
-import { alert } from "@oxyhq/bloom/surfaces";
+import { alert } from "@oxy.so/bloom/surfaces";
 import { getNoteColorTint } from "@/lib/note-colors";
 import { useNotes, useRestoreNote, useDeleteNote } from "@/lib/hooks/use-notes";
 import { useTranslation } from "@/hooks/useTranslation";

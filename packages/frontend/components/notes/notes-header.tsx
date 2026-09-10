@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
 import { Menu, LayoutGrid, Rows3 } from "lucide-react-native";
-import { Search } from "@oxyhq/bloom/search";
+import { Search } from "@oxy.so/bloom/search";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";

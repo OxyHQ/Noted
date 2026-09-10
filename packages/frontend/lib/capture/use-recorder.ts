@@ -29,7 +29,7 @@ import {
   type RecordingStatus,
 } from 'expo-audio';
 import { Directory, File, Paths } from 'expo-file-system';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';

@@ -19,7 +19,7 @@
  * delivered rather than a better one that never arrives.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import type {
   EnhanceAttempt,

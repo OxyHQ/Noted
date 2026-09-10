@@ -30,7 +30,7 @@ import type {
 } from 'whisper.rn/realtime-transcription/types';
 import { Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { makeSegment, upsertSegments, type TranscriptSegment } from '@/lib/capture/captures-repo';
 import type { RealtimeSession } from '@/lib/stt/realtime';

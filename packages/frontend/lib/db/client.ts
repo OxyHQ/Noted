@@ -24,7 +24,7 @@ import {
   type SQLiteBindValue,
   type SQLiteDatabase,
 } from 'expo-sqlite';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { LOCAL_TABLES, migrate } from '@/lib/db/migrations';
 import { readTables, writtenTables } from '@/lib/db/sql-tables';

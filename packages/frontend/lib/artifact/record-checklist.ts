@@ -7,7 +7,7 @@
  * a loop to get right.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import type { ChecklistItem } from '@noted/shared-types';
 
 import { overridesForChecklistChange } from '@/lib/artifact/checklist-sync';

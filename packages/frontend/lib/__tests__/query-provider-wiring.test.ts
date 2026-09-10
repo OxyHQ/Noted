@@ -4,7 +4,7 @@
  * A real crash, reported from a running app: `useNotificationSetup` calls
  * `useQueryClient()`, which THROWS when no provider is above it, and the app's
  * own `QueryProvider` was written and never mounted. It had been working only for
- * as long as it borrowed the client `@oxyhq/services` mounts for its own
+ * as long as it borrowed the client `@oxy.so/services` mounts for its own
  * internals — which is not a contract, and when it stopped holding, the symptom
  * was a white screen behind an error boundary rather than anything naming the
  * cause.

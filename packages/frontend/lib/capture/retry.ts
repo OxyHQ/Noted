@@ -13,7 +13,7 @@
  * what it was doing.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { setCaptureLifecycle, type Capture } from '@/lib/capture/captures-repo';
 import { enhanceNote, finalizeNote } from '@/lib/capture/restructure';

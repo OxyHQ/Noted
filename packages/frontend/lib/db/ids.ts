@@ -5,7 +5,7 @@
  * has to survive the upload unchanged — screens, links and the outbox are all
  * already using it. The server therefore accepts a client-supplied id, which
  * means it has to be the same kind of value the server would have generated:
- * a UUIDv7, which is what `@oxyhq/db`'s `generatedId()` produces for every
+ * a UUIDv7, which is what `@oxy.so/db`'s `generatedId()` produces for every
  * primary key in the Postgres schema.
  *
  * v7 rather than v4 because the first 48 bits are the timestamp, so ids sort by

@@ -8,7 +8,7 @@
  * drift apart in the first place.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import {
   bumpTranscriptRevision,

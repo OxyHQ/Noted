@@ -12,7 +12,7 @@
  * `generate` exercises the same code the real one runs.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import type {
   EnhanceLine,

@@ -12,7 +12,7 @@
  */
 
 import { Directory, DownloadTask, File, Paths } from 'expo-file-system';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { execute, executeTransaction } from '@/lib/db/client';
 import { hasDownloadableModels } from '@/lib/capture/support';

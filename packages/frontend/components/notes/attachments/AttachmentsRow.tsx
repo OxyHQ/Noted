@@ -7,7 +7,7 @@ import React, {
 import { View, Pressable, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Paperclip } from "lucide-react-native";
-import { useOxy } from "@oxyhq/services";
+import { useOxy } from "@oxy.so/services";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";

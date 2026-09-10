@@ -2,8 +2,8 @@
    Bloom's canonical design tokens, and the `@source` globs that scan the Oxy SDK
    packages for class names.
 
-   The design tokens are the load-bearing part. Every `@oxyhq/bloom` and
-   `@oxyhq/services` component styles itself with utilities that resolve against
+   The design tokens are the load-bearing part. Every `@oxy.so/bloom` and
+   `@oxy.so/services` component styles itself with utilities that resolve against
    Bloom's own theme namespaces — `rounded-radius-28`, `p-space-16`, `text-body`,
    `bg-fill`, `text-text-secondary`, `border-hairline`, `font-bloom-sans` — and
    Tailwind only emits a utility whose theme token exists. Hand-maintaining this
@@ -17,7 +17,7 @@
    re-declared below: they all come from Bloom's theme.css, and per-app
    duplication is exactly how a value drifts from the one the SDK renders
    against. */
-@import "@oxyhq/app-preset/base.css";
+@import "@oxy.so/app-preset/base.css";
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";

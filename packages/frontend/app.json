@@ -56,8 +56,8 @@
       "expo-asset",
       "expo-notifications",
       "llama.rn",
-      "@oxyhq/app-preset/plugin/withSharedUserId",
-      "@oxyhq/services/plugins/withSharedIdentityReader",
+      "@oxy.so/app-preset/plugin/withSharedUserId",
+      "@oxy.so/services/plugins/withSharedIdentityReader",
       "expo-sharing",
       "react-native-enriched-markdown"
     ],

@@ -3,7 +3,7 @@ import { View, ActivityIndicator, Linking, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
-import { useAuth, useOxy } from '@oxyhq/services';
+import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
 import config from '@/lib/config';
 import { Button } from '@/components/ui/button';

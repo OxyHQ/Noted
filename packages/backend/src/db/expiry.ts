@@ -20,7 +20,7 @@ import {
   sweepAllExpiredRows,
   type ExpirySweepResult,
   type ExpirySweepTarget,
-} from '@oxyhq/db/expiry';
+} from '@oxy.so/db/expiry';
 
 import { log } from '../lib/logger.js';
 import { getDb } from './postgres.js';

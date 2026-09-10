@@ -1,10 +1,10 @@
-import { APP_COLOR_PRESETS, type AppColorName } from "@oxyhq/bloom/theme";
-import { getPresetVars } from "@oxyhq/bloom/design-tokens";
+import { APP_COLOR_PRESETS, type AppColorName } from "@oxy.so/bloom/theme";
+import { getPresetVars } from "@oxy.so/bloom/design-tokens";
 import type { NoteColor } from "@noted/shared-types";
 
 /**
  * Per-note background + border colors, derived from the canonical Bloom color
- * system (`@oxyhq/bloom/theme`).
+ * system (`@oxy.so/bloom/theme`).
  *
  * The 11 non-`default` note colors ARE the standard (non-premium) Bloom preset
  * names, so instead of shipping a hand-tuned hex palette we resolve each preset

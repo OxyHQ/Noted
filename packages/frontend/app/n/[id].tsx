@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
-import { useOxy } from "@oxyhq/services";
+import { useOxy } from "@oxy.so/services";
 import {
   ArrowLeft,
   Pin,
@@ -35,8 +35,8 @@ import {
   Download,
 } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
-import { toast } from "@oxyhq/bloom/toast";
-import { createLogger } from "@oxyhq/core/logger";
+import { toast } from "@oxy.so/bloom/toast";
+import { createLogger } from "@oxy.so/core/logger";
 import { noteFilename, noteToMarkdown } from "@/lib/export/markdown";
 import { saveTextFile } from "@/lib/export/save";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
@@ -49,7 +49,7 @@ import { MarkdownBodyEditor } from "@/components/notes/markdown-body-editor";
 import { LabelChips } from "@/components/notes/label-chips";
 import { LabelAssignDialog } from "@/components/notes/label-assign-dialog";
 import { AttachmentsRow } from "@/components/notes/attachments/AttachmentsRow";
-import type { FileMetadata } from "@oxyhq/core";
+import type { FileMetadata } from "@oxy.so/core";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";

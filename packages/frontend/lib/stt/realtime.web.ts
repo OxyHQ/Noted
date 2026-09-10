@@ -43,7 +43,7 @@
  * the provisional one.
  */
 
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 import { audioRef } from '@/lib/audio/artifact-store';
 import { getAudioStore } from '@/lib/audio/store';

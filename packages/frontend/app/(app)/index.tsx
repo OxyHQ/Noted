@@ -2,7 +2,7 @@ import React from "react";
 import { View, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } from "react-native";
 import Head from "expo-router/head";
 import { useRouter } from "expo-router";
-import { useOxy } from "@oxyhq/services";
+import { useOxy } from "@oxy.so/services";
 import { Plus } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { StickyNoteIcon } from "@/components/ui/nav-icons";

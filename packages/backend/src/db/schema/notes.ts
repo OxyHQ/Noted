@@ -15,7 +15,7 @@
 
 import { sql, type SQL } from 'drizzle-orm';
 import { boolean, doublePrecision, index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, tsvector, updatedAt } from '@oxy.so/db';
 import { NOTE_COLORS, type ChecklistItem } from '@noted/shared-types';
 
 export const notes = pgTable(

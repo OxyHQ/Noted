@@ -47,7 +47,7 @@ import {
   runMigrations,
   type MigrationRun,
   type RequiredExtension,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 
 import { log } from '../lib/logger.js';
 import { MIGRATIONS_FOLDER } from './migrationsFolder.js';

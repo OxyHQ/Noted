@@ -8,7 +8,7 @@
  */
 
 import { index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId } from '@oxyhq/db';
+import { createdAt, generatedId } from '@oxy.so/db';
 
 export const capabilityExecutions = pgTable(
   'capability_executions',

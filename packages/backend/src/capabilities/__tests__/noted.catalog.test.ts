@@ -1,5 +1,5 @@
-import { appCapabilityCatalogSchema } from '@oxyhq/contracts';
-import { createCatalogMcpToolDefinitions, type CatalogToolHandlers } from '@oxyhq/mcp';
+import { appCapabilityCatalogSchema } from '@oxy.so/contracts';
+import { createCatalogMcpToolDefinitions, type CatalogToolHandlers } from '@oxy.so/mcp';
 import { describe, expect, it } from 'vitest';
 
 import { NOTED_CAPABILITY_CATALOG } from '../noted.catalog.js';

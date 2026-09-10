@@ -10,7 +10,7 @@
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('NotedDB');
 

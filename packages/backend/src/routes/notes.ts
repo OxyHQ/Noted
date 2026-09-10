@@ -3,8 +3,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { Request, Response } from 'express';
 import { and, arrayContains, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
-import { isLiveEntityId } from '@oxyhq/db';
-import { requireOxyAuth, getRequiredOxyUserId } from '@oxyhq/core/server';
+import { isLiveEntityId } from '@oxy.so/db';
+import { requireOxyAuth, getRequiredOxyUserId } from '@oxy.so/core/server';
 import { normalizeNoteColor } from '@noted/shared-types';
 
 import { authenticateToken } from '../middleware/auth.js';
