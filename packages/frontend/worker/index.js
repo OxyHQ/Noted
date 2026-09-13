@@ -1,3 +1,5 @@
+import { observeEdgeRequest } from '@oxy.so/telemetry/edge';
+
 /**
  * Noted web Worker -- SPA routing with proper MIME-type handling.
  *
@@ -14,15 +16,8 @@
  * stale hashed `.js` and was handed `text/html` rejects it, so this returns a
  * real 404 for asset extensions instead.
  *
- * THIS SCRIPT ONLY EVER SEES A MISS. With `run_worker_first` unset, the asset
- * router answers any request that matches a real file WITHOUT invoking the
- * Worker --- measured, not assumed: an instrumented build of this file set
- * `max-age=1234` and an `X-Worker-Ran` header in a `/_expo/static/` branch, and
- * a request for a bundle that exists came back with neither, while a request
- * for one that does not came back with both. The immutable `Cache-Control` on
- * content-addressed assets comes from `public/_headers`, applied by the asset
- * router; a branch in here could never have set it. That dead branch was
- * deleted when this moved off Pages.
+ * Every request now passes through telemetry before delegating to ASSETS.
+ * Cache headers remain owned by public/_headers in the asset pipeline.
  */
 
 const STATIC_EXTENSIONS = new Set([
@@ -60,7 +55,7 @@ function getExtension(pathname) {
   return lastDot === -1 ? "" : pathname.slice(lastDot).toLowerCase();
 }
 
-export default {
+const assetWorker = {
   async fetch(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -81,5 +76,11 @@ export default {
     // For non-asset paths (SPA navigation routes), the platform's index.html
     // fallback is correct behavior. Return the response as-is.
     return assetResponse;
+  },
+};
+
+export default {
+  fetch(request, env, ctx) {
+    return observeEdgeRequest({ service: 'noted', request, env, ctx, next: () => assetWorker.fetch(request, env, ctx) });
   },
 };

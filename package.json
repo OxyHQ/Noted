@@ -1,7 +1,7 @@
 {
   "name": "noted-monorepo",
   "version": "1.0.0",
-  "description": "Noted — notes app by Oxy",
+  "description": "Noted \u2014 notes app by Oxy",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -24,7 +24,8 @@
     "validate:no-mongo": "bun ./scripts/validate-no-mongo.mjs && bun ./scripts/test-validate-no-mongo.mjs",
     "android": "bun run --filter @noted/frontend android",
     "ios": "bun run --filter @noted/frontend ios",
-    "web": "bun run --filter @noted/frontend web"
+    "web": "bun run --filter @noted/frontend web",
+    "test:edge": "bun test scripts/edge-activity.test.ts"
   },
   "keywords": [
     "monorepo",
