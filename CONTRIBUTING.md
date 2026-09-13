@@ -6,7 +6,7 @@ Noted is a notes and labels app by Oxy, with real time sync, reminders, push not
 
 ## Where this repository came from
 
-Noted was started from the Clarity codebase, a different product. The READMEs and this file have been rewritten, but the fork is worth knowing about: if you find something that mentions Clarity, an AI search engine, DigitalOcean or MongoDB, it is a leftover rather than a second product or a second database — Noted is a notes app, runs on PostgreSQL, and deploys to AWS and Cloudflare. Fix it where you see it.
+Noted was started from the Clarity codebase, a different product. The READMEs and this file have been rewritten, but the fork is worth knowing about: if you find something that mentions Clarity, an AI search engine, retired hosting or MongoDB, it is a leftover rather than a second product or a second database — Noted is a notes app, runs on PostgreSQL, and deploys to AWS and Cloudflare. Fix it where you see it.
 
 ## Prerequisites
 
