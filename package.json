@@ -1,7 +1,7 @@
 {
   "name": "noted-monorepo",
   "version": "1.0.0",
-  "description": "Noted — notes app by Oxy",
+  "description": "Noted \u2014 notes app by Oxy",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -24,7 +24,8 @@
     "validate:no-mongo": "bun ./scripts/validate-no-mongo.mjs && bun ./scripts/test-validate-no-mongo.mjs",
     "android": "bun run --filter @noted/frontend android",
     "ios": "bun run --filter @noted/frontend ios",
-    "web": "bun run --filter @noted/frontend web"
+    "web": "bun run --filter @noted/frontend web",
+    "test:edge": "bun test scripts/edge-activity.test.ts"
   },
   "keywords": [
     "monorepo",
@@ -61,20 +62,24 @@
     "@react-native/metro-babel-transformer": "0.85.3",
     "@react-native/metro-config": "0.85.3",
     "@oxy.so/bloom": "1.0.0",
-    "@oxy.so/contracts": "1.0.1",
-    "@oxy.so/core": "1.0.0",
+    "@oxy.so/contracts": "^1.1.1",
+    "@oxy.so/core": "^1.1.2",
     "@oxy.so/services": "1.0.0",
     "lightningcss": "1.30.1",
     "lightningcss-linux-x64-gnu": "1.30.1",
-    "lightningcss-linux-x64-musl": "1.30.1"
+    "lightningcss-linux-x64-musl": "1.30.1",
+    "@oxy.so/telemetry": "^1.1.1"
   },
   "dependencies": {
     "@oxy.so/bloom": "1.0.0",
-    "@oxy.so/contracts": "1.0.1",
-    "@oxy.so/core": "1.0.0",
+    "@oxy.so/contracts": "^1.1.1",
+    "@oxy.so/core": "^1.1.2",
     "@oxy.so/services": "1.0.0"
   },
   "trustedDependencies": [
     "llama.rn"
-  ]
+  ],
+  "resolutions": {
+    "@oxy.so/telemetry": "^1.1.1"
+  }
 }

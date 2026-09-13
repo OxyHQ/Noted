@@ -1,3 +1,4 @@
+import { startEcosystemActivity, stopEcosystemActivity, ecosystemActivityMiddleware } from './ecosystemActivity';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -35,6 +36,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
+  app.use(ecosystemActivityMiddleware);
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const notedMcpHttpService = createNotedMcpHttpService();
 
@@ -62,6 +64,7 @@ server.on('connection', (socket) => {
   socket.setKeepAlive(true, 60000);
 });
 
+startEcosystemActivity(() => server.listening);
 initSocket(server);
 
 // The MCP transport owns its raw request body, exact-host validation, OAuth
@@ -256,6 +259,7 @@ connectPostgres()
         log.general.info('PostgreSQL pool closed');
 
         clearTimeout(forceTimeout);
+        await stopEcosystemActivity();
         log.general.info('Graceful shutdown complete');
         process.exit(0);
       } catch (error) {

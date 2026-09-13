@@ -7,7 +7,7 @@
 
 Noted is Oxy's local-first notes and meeting-capture app: Expo frontend,
 Express API and shared DTOs. This repository was forked from Clarity; a Clarity,
-DigitalOcean or MongoDB reference is a leftover unless a document explicitly
+retired hosting or MongoDB reference is a leftover unless a document explicitly
 marks it as migration history.
 
 ## Commands
