@@ -15,9 +15,17 @@ import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
 import { OXY_CLIENT_ID } from '@/lib/oxy-client-id';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
+import { SUPPORTED_LOCALES } from '@/lib/i18n';
+import { useI18nStore } from '@/lib/stores/i18n-store';
+import { handleLanguageError } from '@/lib/i18n/handleLanguageError';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
+
+// The bare locale codes `OxyProvider` matches an account's language against —
+// derived from the catalogue's entries rather than duplicated, so a locale
+// added there is automatically one Oxy may resolve to here.
+const SUPPORTED_LANGUAGE_CODES = SUPPORTED_LOCALES.map(({ code }) => code);
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -123,6 +131,12 @@ function RootLayout() {
           baseURL={OXY_API_URL}
           clientId={OXY_CLIENT_ID}
           authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
+          language={{
+            supportedLocales: SUPPORTED_LANGUAGE_CODES,
+            fallbackLocale: 'en',
+            onChange: (locale) => useI18nStore.getState().setLocale(locale),
+            onError: handleLanguageError,
+          }}
         >
           <AppContent />
         </OxyProvider>
