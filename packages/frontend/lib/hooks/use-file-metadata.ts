@@ -47,7 +47,7 @@ export function useFileMetadata(fileId: string) {
   const { oxyServices, isAuthenticated } = useOxy();
   return useQuery<OxyFileMeta>({
     queryKey: ["file-metadata", fileId],
-    queryFn: async () => parseFileMeta(await oxyServices.assetGet(fileId), fileId),
+    queryFn: async () => parseFileMeta(await oxyServices.assets.get(fileId), fileId),
     enabled: !!fileId && isAuthenticated,
     staleTime: 1000 * 60 * 60,
     gcTime: 1000 * 60 * 60 * 24,

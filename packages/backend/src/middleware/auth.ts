@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
-import { OxyServices } from '@oxy.so/core';
 import {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
   OXY_SERVICE_ENVIRONMENTS,
+  OxyServer,
   type OxyRequestUser,
   type OxyServiceAppContext,
   type OxyServiceEnvironment,
@@ -23,7 +23,7 @@ const SERVICE_ENVIRONMENT: OxyServiceEnvironment =
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
-export const oxyClient = new OxyServices({
+export const oxyClient = new OxyServer({
   baseURL: OXY_API_URL,
 });
 
@@ -59,7 +59,7 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
  * Service-only auth — rejects anything that isn't a service token.
  * Use for internal-only endpoints (e.g., /internal/trigger).
  */
-export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
+export const oxyServiceAuth = oxyClient.middleware.service({ debug: true });
 
 /**
  * Optional auth - attaches user if token present, doesn't block if absent
@@ -112,6 +112,7 @@ export function authenticateTokenOrApiKey(
       ownerAccountId: 'internal',
       scopes: ['internal'],
       environment: SERVICE_ENVIRONMENT,
+      tier: 'internal',
     };
     return next();
   }
