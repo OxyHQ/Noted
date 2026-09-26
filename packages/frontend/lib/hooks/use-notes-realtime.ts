@@ -29,7 +29,7 @@ export function useNotesRealtime() {
   const { oxyServices, isAuthenticated } = useOxy();
   // Re-establish the socket when the access token changes (sign-in/out, refresh)
   // so the handshake always carries a valid token.
-  const accessToken = oxyServices.getAccessToken();
+  const accessToken = oxyServices.session.accessToken;
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
@@ -42,7 +42,7 @@ export function useNotesRealtime() {
       reconnectionDelayMax: 10000,
       // Callback form so each (re)connect reads a FRESH token; the server
       // verifies it (io.use(authSocket())) and auto-joins the user's room.
-      auth: (cb) => cb({ token: oxyServices.getAccessToken() ?? "" }),
+      auth: (cb) => cb({ token: oxyServices.session.accessToken ?? "" }),
     });
 
     const onServerChange = () => requestSync();

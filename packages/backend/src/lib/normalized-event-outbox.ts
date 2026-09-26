@@ -53,10 +53,10 @@ export async function deliverNotedEvent(event: NormalizedAppEvent): Promise<void
   const parsed = normalizedAppEventSchema.parse(event);
   const client = oxyServiceClient();
   if (!client) throw new Error('Noted application credentials are not configured');
-  let response = await postEvent(parsed, await client.getServiceToken());
+  let response = await postEvent(parsed, await client.serviceToken());
   if (response.status === 401) {
     client.invalidateServiceToken();
-    response = await postEvent(parsed, await client.getServiceToken());
+    response = await postEvent(parsed, await client.serviceToken());
   }
   if (!response.ok) {
     throw new Error(`Alia rejected Noted event (${response.status})`);

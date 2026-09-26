@@ -85,7 +85,7 @@ function EditorAttachmentItem({
   const category = categorizeContentType(data?.contentType);
 
   const openFile = useCallback(() => {
-    const url = oxyServices.getFileDownloadUrl(fileId);
+    const url = oxyServices.assets.publicUrl(fileId);
     void Linking.openURL(url);
   }, [oxyServices, fileId]);
 
@@ -102,7 +102,7 @@ function EditorAttachmentItem({
   }
 
   if (category === "image") {
-    const src = oxyServices.getFileDownloadUrl(fileId, "thumb");
+    const src = oxyServices.assets.publicUrl(fileId, "thumb");
     return (
       <View className="flex-row items-start gap-2">
         <ImageGalleryItem fileId={fileId} src={src} gallery={gallery} />
@@ -112,7 +112,7 @@ function EditorAttachmentItem({
   }
 
   if (category === "video") {
-    const poster = oxyServices.getFileDownloadUrl(fileId, "thumb");
+    const poster = oxyServices.assets.publicUrl(fileId, "thumb");
     return (
       <View className="flex-row items-start gap-2">
         <AttachmentVideo src={fileId} poster={poster} onPress={openFile} />
@@ -190,7 +190,7 @@ function CardPreview({ attachments = [] }: { attachments?: string[] }) {
       {shown.map((id) => (
         <View key={id} className="h-14 w-14 overflow-hidden rounded-lg">
           <Image
-            source={{ uri: oxyServices.getFileDownloadUrl(id, "thumb") }}
+            source={{ uri: oxyServices.assets.publicUrl(id, "thumb") }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             transition={120}
