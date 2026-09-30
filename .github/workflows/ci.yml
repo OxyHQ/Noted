@@ -11,6 +11,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Which app a pull request touches, so a backend-only change does not pay for
+  # the Expo web export and a frontend-only change does not pay for the API
+  # build. `Lint & Test` is not filtered: it holds the repository-wide gates.
+  # Anything outside the two app directories (shared-types, bun.lock, any
+  # package.json, scripts, this workflow) counts as both. Pushes to main always
+  # run everything.
+  changes:
+    name: Changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.backend == 'true' || steps.filter.outputs.shared == 'true' || steps.filter.outputs.manifests == 'true' }}
+      frontend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.shared == 'true' || steps.filter.outputs.manifests == 'true' }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: every
+          filters: |
+            backend:
+              - 'packages/backend/**'
+            frontend:
+              - 'packages/frontend/**'
+            manifests:
+              - '**/package.json'
+            shared:
+              - '**'
+              - '!packages/backend/**'
+              - '!packages/frontend/**'
+              - '!docs/**'
+              - '!**/*.md'
+
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
@@ -67,7 +103,8 @@ jobs:
     name: Build API
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: lint-and-test
+    needs: [changes, lint-and-test]
+    if: needs.changes.outputs.backend == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -90,7 +127,8 @@ jobs:
     name: Build App
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: lint-and-test
+    needs: [changes, lint-and-test]
+    if: needs.changes.outputs.frontend == 'true'
 
     steps:
       - uses: actions/checkout@v7
