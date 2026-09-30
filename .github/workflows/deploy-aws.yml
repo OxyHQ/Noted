@@ -26,6 +26,13 @@ env:
   # to disabled when run outside this deploy path.
   NOTED_EVENT_OUTBOX_WORKER_ENABLED: ${{ vars.NOTED_EVENT_OUTBOX_WORKER_ENABLED || 'false' }}
 
+# Deploys run one at a time and are never cancelled: a rollout interrupted
+# half-way is worse than a late one. A newer pending run may replace an older
+# pending one, which is safe because main's newer head contains it.
+concurrency:
+  group: deploy-noted-aws
+  cancel-in-progress: false
+
 jobs:
   test:
     runs-on: ubuntu-24.04-arm
