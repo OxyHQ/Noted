@@ -1,0 +1,46 @@
+Lint & Test	Run API tests	﻿2026-10-02T20:16:04.0156686Z ##[group]Run bun run --filter @noted/backend test
+Lint & Test	Run API tests	2026-10-02T20:16:04.0157126Z [36;1mbun run --filter @noted/backend test[0m
+Lint & Test	Run API tests	2026-10-02T20:16:04.0224193Z shell: /usr/bin/bash -e {0}
+Lint & Test	Run API tests	2026-10-02T20:16:04.0224473Z ##[endgroup]
+Lint & Test	Run API tests	2026-10-02T20:16:04.2838228Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:04.2858419Z @noted/backend test: [1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/home/runner/work/Noted/Noted/packages/backend[39m
+Lint & Test	Run API tests	2026-10-02T20:16:04.2859484Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:04.8818361Z @noted/backend test:  [32m✓[39m src/middleware/__tests__/auth-middleware.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:05.0729525Z @noted/backend test:  [32m✓[39m src/lib/__tests__/net-utils.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:05.4772520Z @noted/backend test:  [32m✓[39m src/lib/__tests__/note-artifacts.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:05.7229993Z @noted/backend test:  [32m✓[39m src/__tests__/ecosystemActivity.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:06.1861543Z @noted/backend test:  [31m❯[39m src/capabilities/__tests__/noted-active-account.realdb.test.ts [2m([22m[2m3 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[32m 10[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:06.1863885Z @noted/backend test:      [2m[90m↓[39m[22m lists only B notes and labels through the product MCP wrappers
+Lint & Test	Run API tests	2026-10-02T20:16:06.1868560Z @noted/backend test:      [2m[90m↓[39m[22m reads B and refuses the origin account A private note
+Lint & Test	Run API tests	2026-10-02T20:16:06.1895352Z @noted/backend test:      [2m[90m↓[39m[22m checks central activity on the next invocation without altering product rows
+Lint & Test	Run API tests	2026-10-02T20:16:06.3328799Z @noted/backend test:  [32m✓[39m src/capabilities/__tests__/noted.catalog.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:06.7610365Z @noted/backend test:  [32m✓[39m src/capabilities/__tests__/capability-authority.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:06.8398432Z @noted/backend test: [20:16:06] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+Lint & Test	Run API tests	2026-10-02T20:16:06.9325831Z @noted/backend test:  [32m✓[39m src/capabilities/__tests__/noted.events.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.2298240Z @noted/backend test:  [32m✓[39m src/capabilities/__tests__/capability-idempotency.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9306134Z @noted/backend test:  [32m✓[39m src/capabilities/__tests__/noted-mcp-http.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9334251Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:07.9334986Z @noted/backend test: [31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9335859Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:07.9347737Z @noted/backend test: [41m[1m FAIL [22m[49m src/capabilities/__tests__/noted-active-account.realdb.test.ts[2m [ src/capabilities/__tests__/noted-active-account.realdb.test.ts ][22m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9349555Z @noted/backend test: [31m[1mError[22m: TEST_DATABASE_URL is required for the disposable PostgreSQL fixture[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9350843Z @noted/backend test: [36m [2m❯[22m src/capabilities/__tests__/noted-active-account.realdb.test.ts:[2m60:24[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9417056Z @noted/backend test:     [90m 58| [39m  vi[33m.[39m[34mstubGlobal[39m([32m'fetch'[39m[33m,[39m unexpectedFetch)[33m;[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9422791Z @noted/backend test:     [90m 59| [39m  [35mconst[39m adminUrl [33m=[39m process[33m.[39menv[33m.[39m[33mTEST_DATABASE_URL[39m[33m;[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9424599Z @noted/backend test:     [90m 60| [39m  if (!adminUrl) throw new Error('TEST_DATABASE_URL is required for th…
+Lint & Test	Run API tests	2026-10-02T20:16:07.9426060Z @noted/backend test:     [90m   | [39m                       [31m^[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9427936Z @noted/backend test:     [90m 61| [39m  databaseUrl [33m=[39m [35mawait[39m [34mcreateTestDatabase[39m({
+Lint & Test	Run API tests	2026-10-02T20:16:07.9429191Z @noted/backend test:     [90m 62| [39m    adminUrl[33m,[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9429924Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:07.9430819Z @noted/backend test: [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9431545Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:07.9432040Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:07.9433296Z @noted/backend test: [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m9 passed[39m[22m[90m (10)[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9436772Z @noted/backend test: [2m      Tests [22m [1m[32m64 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (67)[39m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9437963Z @noted/backend test: [2m   Start at [22m 20:16:04
+Lint & Test	Run API tests	2026-10-02T20:16:07.9439424Z @noted/backend test: [2m   Duration [22m 3.64s[2m (transform 1.20s, setup 0ms, import 7.48s, tests 123ms, environment 2ms)[22m
+Lint & Test	Run API tests	2026-10-02T20:16:07.9440484Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:07.9443778Z @noted/backend test:
+Lint & Test	Run API tests	2026-10-02T20:16:07.9446724Z @noted/backend test: ::error file=/home/runner/work/Noted/Noted/packages/backend/src/capabilities/__tests__/noted-active-account.realdb.test.ts,title=src/capabilities/__tests__/noted-active-account.realdb.test.ts,line=60,column=24::Error: TEST_DATABASE_URL is required for the disposable PostgreSQL fixture%0A ❯ src/capabilities/__tests__/noted-active-account.realdb.test.ts:60:24%0A%0A
+Lint & Test	Run API tests	2026-10-02T20:16:07.9792699Z @noted/backend test: Exited with code 1
+Lint & Test	Run API tests	2026-10-02T20:16:07.9814800Z ##[error]Process completed with exit code 1.

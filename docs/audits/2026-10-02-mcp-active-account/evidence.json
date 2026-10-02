@@ -70,7 +70,10 @@
     "financialEffects": false,
     "productionActions": false,
     "deployed": false,
-    "internalMcpI04Adopted": false
+    "internalMcpI04Adopted": false,
+    "fullBackendTests": 67,
+    "fullBackendSuites": 10,
+    "ciYamlValidation": 0
   },
   "logs": [
     {
@@ -114,6 +117,21 @@
       "exitCode": 0,
       "rawSha256": "006b7b3eee4dbb799c40dfb4526db1c1515acc29fe17af49cabbb35a70e973bf",
       "normalization": "Trailing horizontal whitespace and blank EOF lines removed; raw output retained in owned evidence directory"
+    },
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/ci-first-failed.log",
+      "sha256": "f962a19f65ad9025bfe4369df67d492850917ce9c5ed4e377f1b3486c9671131",
+      "rawSha256": "6f0e99b4b4be858130676b5692663ba182641d69d9e9d6ac1436f827f95d0681",
+      "exitCode": 1,
+      "reason": "Initial CI omitted PostgreSQL and TEST_DATABASE_URL; 64 existing tests pass, new fixture setup refuses, 3 cases skipped",
+      "url": "https://github.com/OxyHQ/Noted/actions/runs/37059404357/job/111012018141"
+    },
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/full-backend-tests.log",
+      "sha256": "b48e272dfbc05e9f1525cd898cbc54bab1bf0a46c1d2ffab6eba91324f35d161",
+      "rawSha256": "88c382299a98fd6795e1aa16e3bac8e370923a330205c3b2ab18adfa05e87f4e",
+      "exitCode": 0,
+      "results": "10 suites/67 tests; full package API test script, no filtering"
     }
   ],
   "sourceInputs": [
@@ -136,6 +154,10 @@
     {
       "path": "packages/backend/package.json",
       "sha256": "57f3896bf12face6f307d685aff3da1c524008ce3ee325f729e0b28ecb66e4e9"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "1d4c629be71c8428915c6e7f8484b0dc8f6cd452f0d0a8bc3b36c0d9a4f7832b"
     }
   ],
   "limits": [
@@ -146,5 +168,6 @@
   "fixtureCorrections": [
     "Node fetch ignored custom Host, causing421 fixture failure; final node:http request preserves canonical Host",
     "Service-token fields omitted before synthetic introspection union; no auth type cast"
-  ]
+  ],
+  "ciFollowup": "Job-scoped postgres17 service/healthcheck and API-test-only synthetic TEST_DATABASE_URL; no test skip; followup run pending"
 }

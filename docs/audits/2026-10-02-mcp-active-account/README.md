@@ -27,3 +27,7 @@ Final focused validation: **3 suites/7 tests**, backend build, TypeScript, and s
 ## Remaining acceptance
 
 This fix uses published APIs and changes no dependency manifest, lockfile, scope, credential, catalogue, migration or deployment. I04's new discriminated InvocationHandlers/internal MCP lane has not been adopted here. Coordinated actual releases, registration, full HTTP/internal-MCP/external-MCP parity, audit persistence, real consent and deployed account-switch verification remain separate gates. No issue is closed by this local candidate.
+
+Initial draft CI [37059404357](https://github.com/OxyHQ/Noted/actions/runs/37059404357) refused the new real-DB fixture because the workflow provided neither PostgreSQL nor TEST_DATABASE_URL (64 existing tests passed, 3 new cases skipped after setup failure). The followup provisions postgres17 with a healthcheck and supplies the synthetic URL only to API tests. The fixture remains mandatory; followup CI is pending. No deployment workflow changed.
+
+The followup also passed the entire local backend package script: 10 suites/67 tests with the owned PostgreSQL URL; YAML/service binding validation passes. Functional source is unchanged from the original candidate.
