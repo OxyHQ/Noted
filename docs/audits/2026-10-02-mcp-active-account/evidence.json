@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-02T20:12:11.953750+00:00",
+  "base": "806e9cae040a7d9446557e7ce9eda64069116056",
+  "repository": "OxyHQ/Noted",
+  "toolchain": {
+    "bun": "1.4.2",
+    "node": "24.21.0",
+    "postgres": "17",
+    "postgis": "not required"
+  },
+  "postgres": {
+    "pid": 3091735,
+    "executable": "/usr/lib/postgresql/17/bin/postgres",
+    "dataDirectory": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/i11-mcp-pg/data",
+    "host": "127.0.0.1",
+    "port": 5557,
+    "maxLocksPerTransaction": 256,
+    "scope": "owned disposable server; only oxydb_test_* databases created and dropped",
+    "inheritedPgVariableNames": []
+  },
+  "publishedMcp": {
+    "name": "@oxy.so/mcp",
+    "version": "1.0.0",
+    "dist": {
+      "shasum": "7aef1e3552fc9bdd3ed28fd32f21d10126018f5d",
+      "tarball": "https://registry.npmjs.org/@oxy.so/mcp/-/mcp-1.0.0.tgz",
+      "fileCount": 31,
+      "integrity": "sha512-FDKoxHdHLszzKzfrIsgNqRlxopyRySR04nnjtxHlImNsZydVXn6/Crs6R+Biv9W8DErjcdjtyVtwEnm0AIu+4Q==",
+      "signatures": [
+        {
+          "sig": "MEUCIDX133FpsJheUg3lBh1VsRM4Ii8/vSDpsL5ZbnmhJwEQAiEAxhhKk8uWpneC/54kOCKcoQbyxaDEaaSVrci0XS4yQ3c=",
+          "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+        }
+      ],
+      "unpackedSize": 471144
+    }
+  },
+  "installedMcp": {
+    "version": "1.0.0",
+    "realpath": "/home/nate/Oxy/Noted/.worktrees/1519-i11-effective-account/node_modules/@oxy.so/mcp",
+    "files": [
+      {
+        "path": "package.json",
+        "sha256": "2a9053ea04ee8e15986764ac4e09e13a3f88661efaa74261937a4bb1f656f418"
+      },
+      {
+        "path": "dist/esm/oauth.js",
+        "sha256": "0d63e77eb6f999162a0f8b4fa37dc30d439830eaa6b6f33d373fc878d075410a"
+      },
+      {
+        "path": "dist/esm/catalogAdapter.js",
+        "sha256": "bef1c81fba71c6c12543ab042343f18b3a10b6ae583db9c35556f5f1da42a55f"
+      },
+      {
+        "path": "dist/esm/httpTransport.js",
+        "sha256": "07f18d29f8fb0426c3cb07d9a0d8032b6112da84a209fc0f3332d03d73cf7bbb"
+      }
+    ]
+  },
+  "results": {
+    "focusedSuites": 3,
+    "focusedTests": 7,
+    "typescript": 0,
+    "scopedLintNoWarnings": 0,
+    "backendBuild": 0,
+    "unexpectedFetchCalls": 0,
+    "centralIntrospection": "synthetic fixture; public MCP token claims validation remains real",
+    "domainSql": "real PostgreSQL ownership and private account filtering",
+    "financialEffects": false,
+    "productionActions": false,
+    "deployed": false,
+    "internalMcpI04Adopted": false
+  },
+  "logs": [
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/baseline-red.log",
+      "sha256": "8ca17310e0a29bb0fb4ee449fda3ae814a70c899a3f1728c50d82775f1ebdc89",
+      "exitCode": 1,
+      "rawSha256": "8ca17310e0a29bb0fb4ee449fda3ae814a70c899a3f1728c50d82775f1ebdc89",
+      "normalization": "Trailing horizontal whitespace and blank EOF lines removed; raw output retained in owned evidence directory"
+    },
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/tests.log",
+      "sha256": "1a4ed15d43f0a4f46f55efbf9d50975dc5e7d8775ed65ad97cd984c2cf19948e",
+      "exitCode": 0,
+      "rawSha256": "a91e10ce55c3762af693dc819925366290233915761bbef5252e0949318dd07c",
+      "normalization": "Trailing horizontal whitespace and blank EOF lines removed; raw output retained in owned evidence directory"
+    },
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/typescript.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0,
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "normalization": "Trailing horizontal whitespace and blank EOF lines removed; raw output retained in owned evidence directory"
+    },
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0,
+      "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "normalization": "Trailing horizontal whitespace and blank EOF lines removed; raw output retained in owned evidence directory"
+    },
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/build.log",
+      "sha256": "8eb417dfd2414cdb5f0e87588fbde12af906177ade8bcf0eff2446e1017c7453",
+      "exitCode": 0,
+      "rawSha256": "6f08be4ff8c4280401803e740c0dd16e198a5e95b1104b6cdce19b5920876e73",
+      "normalization": "Trailing horizontal whitespace and blank EOF lines removed; raw output retained in owned evidence directory"
+    },
+    {
+      "path": "docs/audits/2026-10-02-mcp-active-account/shared-types.log",
+      "sha256": "006b7b3eee4dbb799c40dfb4526db1c1515acc29fe17af49cabbb35a70e973bf",
+      "exitCode": 0,
+      "rawSha256": "006b7b3eee4dbb799c40dfb4526db1c1515acc29fe17af49cabbb35a70e973bf",
+      "normalization": "Trailing horizontal whitespace and blank EOF lines removed; raw output retained in owned evidence directory"
+    }
+  ],
+  "sourceInputs": [
+    {
+      "path": "packages/backend/src/capabilities/noted-mcp-http.ts",
+      "sha256": "4f0fae9c9b0162bfb992335c8f8c7cdb6d71c52c7313fa96018c17d50290cff4"
+    },
+    {
+      "path": "packages/backend/src/capabilities/noted.handlers.ts",
+      "sha256": "d622f89805759e1acdda435c2c565cd74b12450390e4fcc15cdd7e5ed58c4369"
+    },
+    {
+      "path": "packages/backend/src/capabilities/__tests__/noted-active-account.realdb.test.ts",
+      "sha256": "726374f3724d845f978c02f4e14a8b01961323a0c354cc71defa6340a7a96ffa"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "59cb821e73e171a9e0b8ce83e9973e506dcf838e8219fb502ad35f80ae72d6f1"
+    },
+    {
+      "path": "packages/backend/package.json",
+      "sha256": "57f3896bf12face6f307d685aff3da1c524008ce3ee325f729e0b28ecb66e4e9"
+    }
+  ],
+  "limits": [
+    "No real central consent/registry/deployment or three-lane parity proof",
+    "No manifests, versions, lockfile or DDL changes",
+    "I04 opt-in InvocationHandlers/internal transport remain a separate adoption gate"
+  ],
+  "fixtureCorrections": [
+    "Node fetch ignored custom Host, causing421 fixture failure; final node:http request preserves canonical Host",
+    "Service-token fields omitted before synthetic introspection union; no auth type cast"
+  ]
+}
