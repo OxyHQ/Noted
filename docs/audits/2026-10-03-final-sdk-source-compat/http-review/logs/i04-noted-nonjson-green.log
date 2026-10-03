@@ -1,0 +1,11 @@
+$ vitest run --run lib/api/__tests__/noted-client.test.ts
+
+ RUN  v4.0.18 /home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend
+
+ ✓ lib/api/__tests__/noted-client.test.ts (7 tests) 90ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  19:09:15
+   Duration  281ms (transform 29ms, setup 0ms, import 118ms, tests 90ms, environment 0ms)
+
