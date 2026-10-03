@@ -1,0 +1,2 @@
+$ bun run --filter @noted/shared-types build
+@noted/shared-types build: Exited with code 0
