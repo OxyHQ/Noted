@@ -43,7 +43,7 @@
   "installationInputs": [
     {
       "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/package.json",
-      "sha256": "e5beafeac96124512ae0ab2b666e8c6b3c282b715ec914746b4183a594340e0e",
+      "sha256": "4ab80585efcc0ec84df08eefc37072b5b11b886fe582a9a18e1e03635d87a43d",
       "kind": "local candidate only; not final registry manifest"
     },
     {
@@ -53,12 +53,12 @@
     },
     {
       "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/packages/frontend/package.json",
-      "sha256": "1a538f9da3389bcffde80b34838213ea1f7518b821ae714d3c3ef7f30a353ec3",
+      "sha256": "a1e0146a5e5070efc559610dfa0c9bcb5eb5e51a6dca00e796f733dc26c53c76",
       "kind": "local candidate only; not final registry manifest"
     },
     {
       "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/bun.lock",
-      "sha256": "174e5225ebbd686dedefd97cb87905bcd0bcc7bc38a32dfb9458dadb1616e16b",
+      "sha256": "109fa87d13621581c02fc35976e49aaaeb3d7970d04d44a479ecf8419ad3902b",
       "kind": "local candidate only; not final registry manifest"
     },
     {
@@ -161,6 +161,21 @@
       "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-shared-build.log",
       "sha256": "006b7b3eee4dbb799c40dfb4526db1c1515acc29fe17af49cabbb35a70e973bf",
       "bytes": 91
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-native-peer-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-native-peer-build.log",
+      "sha256": "f7999a9d4599b73ca12ab7fc7fe7b40f8c904b286d1a76cf9a3311a7bdb4587c",
+      "bytes": 10673
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-native-peer-install.log",
+      "sha256": "e84af412d807d3ad70ce4dd7d174de0c86fab5be342382ddc70786fae69959b4",
+      "bytes": 470
     }
   ],
   "results": {
@@ -170,7 +185,8 @@
     "builds": "backend and Expo web exit 0",
     "lint": "changed backend route ESLint --max-warnings=0 exit 0; no frontend lint script",
     "sqlCleanup": "own PostgreSQL 5595 PID3968260 stopped, no test DB remains, port closed",
-    "installation": "5 candidate package archives and registry Bloom 6.2.1 compared byte-for-byte; see installed-bytes receipt"
+    "installation": "5 candidate package archives and registry Bloom 6.2.1 compared byte-for-byte; see installed-bytes receipt",
+    "nativePeer": "Candidate keyboard-controller aligned 1.20.7 -> 1.21.6 to satisfy Services >=1.21.0, expo.install.exclude added; final types and web export exit 0. No native runtime claim."
   },
   "limits": [
     "Not final Oxy registry adoption or production/native acceptance",

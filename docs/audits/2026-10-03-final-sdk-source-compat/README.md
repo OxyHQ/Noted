@@ -46,6 +46,11 @@ endpoints. This change does not revive them or add a public auth backend;
 current sign-in remains the registered OxyProvider/dialog. The protected domain
 client now refuses requests without a session before transport.
 
+The initial candidate inherited keyboard-controller 1.20.7 below the final
+Services peer >=1.21.0. The candidate now aligns upward to 1.21.6 and lists it in
+`expo.install.exclude`; types and web export passed again. Earlier test runs
+remain identified by their original installation. No native runtime was run.
+
 Actual package manifests and `bun.lock` remain local candidate modifications,
 with evidence copies under `candidate-install/`; they are not committed as
 final registry adoption. After publication: install exact registry Oxy targets,
