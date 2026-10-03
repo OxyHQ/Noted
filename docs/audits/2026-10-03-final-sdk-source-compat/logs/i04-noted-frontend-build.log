@@ -1,0 +1,185 @@
+$ bun run generate-sitemap && bun run copy-ort-runtime
+$ bun scripts/generate-sitemap.ts
+🗺️  Generating sitemap.xml for Noted...
+✅ Sitemap generated: /home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend/public/sitemap.xml
+
+📊 Total URLs in sitemap: 7
+🎉 Sitemap generated successfully!
+$ bun scripts/copy-ort-runtime.ts
+ort runtime: ort-wasm-simd-threaded.asyncify.mjs (47389 bytes)
+ort runtime: ort-wasm-simd-threaded.asyncify.wasm (23567050 bytes)
+$ bun x expo export --platform web
+Expo Autolinking module resolution enabled
+Starting Metro Bundler
+
+[metro-file-map] Cache write error
+: Error: ENOENT: no such file or directory, open '/home/nate/Oxy/.agent-evidence/i04-noted-metro-cache/metro-file-map-expo-8d2872b759c3709c29f9da78b50e581a-0cb65f06d9965e2b22138fea032c3e47'
+    at async open (node:internal/fs/promises:1345:25)
+    at async Object.writeFile (node:internal/fs/promises:1965:14)
+    at async /home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@expo/metro-file-map/build/cache/DiskCacheManager.js:78:17
+    at async DiskCacheManager.write (/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@expo/metro-file-map/build/cache/DiskCacheManager.js:101:13)
+    at async #takeSnapshotAndPersist (/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@expo/metro-file-map/build/index.js:526:9)
+    at async /home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@expo/metro-file-map/build/index.js:353:17
+    at async DependencyGraph.ready (/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/metro/src/node-haste/DependencyGraph.js:94:5)
+    at async Bundler.ready (/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/metro/src/Bundler.js:62:5)
+    at async IncrementalBundler.ready (/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/metro/src/IncrementalBundler.js:310:5)
+    at async Server.ready (/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/metro/src/Server.js:1446:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/nate/Oxy/.agent-evidence/i04-noted-metro-cache/metro-file-map-expo-8d2872b759c3709c29f9da78b50e581a-0cb65f06d9965e2b22138fea032c3e47'
+}
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:3969110) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+ WARN  Attempted to import the module "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@noble/hashes/crypto.js" which is not listed in the "exports" of "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@noble/hashes" under the requested subpath "./crypto.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+Web Bundled 16022ms packages/frontend/index.web.tsx (4789 modules)
+Could not parse Expo config: android.googleServicesFile: "./google-services.json"
+
+› Assets (34):
+../../node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.b06871f281fee6b241d60582ae9369b9.ttf (166KB)
+../../node_modules/@oxy.so/bloom/lib/module/fonts/assets/BlomusModernus-Bold.c8e4c906b137ccc90f9aa1fbccbe85b2.woff2 (78KB)
+../../node_modules/@oxy.so/bloom/lib/module/fonts/assets/BlomusModernus-Regular.6a898c26aeb50e6f31189d06dd2bf3e9.woff2 (78KB)
+../../node_modules/@oxy.so/bloom/lib/module/fonts/assets/InterVariable.260c81a4759baf163c025001c4f27872.woff2 (48KB)
+../../node_modules/@oxy.so/bloom/lib/module/fonts/assets/JetBrainsMono-Variable.b058178d7f309414f8f856b99fd80d9b.woff2 (40KB)
+../../node_modules/@oxy.so/services/lib/module/assets/fonts/icons/OxyServicesIonicons.48b1d8ee549a265d0c1aa67fed7fbca2.ttf (43KB)
+../../node_modules/@oxy.so/services/lib/module/assets/fonts/icons/OxyServicesMaterialCommunityIcons.88d575089a17d9d10e08c411fd7105ba.ttf (29KB)
+../../node_modules/@oxy.so/services/lib/module/assets/signIn/slide-1.b29a38b76e9e9e426cc152c3a1a56a73.jpg (102KB)
+../../node_modules/@oxy.so/services/lib/module/assets/signIn/slide-2.045f767e731a6b2801ce1ea8dbda92f5.jpg (88KB)
+../../node_modules/@oxy.so/services/lib/module/assets/signIn/slide-3.32a001447e68adf690be104bddcce0ef.jpg (59KB)
+../../node_modules/@oxy.so/services/lib/module/assets/signIn/slide-4.1de81f0781c3c99c5615d0ec8eb5dee6.jpg (47KB)
+../../node_modules/expo-router/assets/arrow_down.017bc6ba3fc25503e5eb5e53826d48a8.png (9.5KB)
+../../node_modules/expo-router/assets/error.d1ea1496f9057eb392d5bbf3732a61b7.png (469B)
+../../node_modules/expo-router/assets/file.19eeb73b9593a38f8e9f418337fc7d10.png (138B)
+../../node_modules/expo-router/assets/forward.d8b800c443b8972542883e0b9de2bdc6.png (188B)
+../../node_modules/expo-router/assets/pkg.ab19f4cbc543357183a20571f68380a3.png (364B)
+../../node_modules/expo-router/assets/react-navigation/drawer/toggle-drawer-icon.ae74bb20586a731af545e6b00fe14a09.png (116B)
+../../node_modules/expo-router/assets/react-navigation/elements/back-icon-mask.0a328cd9c1afd0afe8e3b1ec5165b1b4.png (653B)
+../../node_modules/expo-router/assets/react-navigation/elements/back-icon.35ba0eaec5a4f5ed12ca16fabeae451d.png (207B)
+../../node_modules/expo-router/assets/react-navigation/elements/clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55.png (4 variations | 425B)
+../../node_modules/expo-router/assets/react-navigation/elements/close-icon.808e1b1b9b53114ec2838071a7e6daa7.png (4 variations | 235B)
+../../node_modules/expo-router/assets/react-navigation/elements/search-icon.286d67d3f74808a60a78d3ebf1a5fb57.png (928B)
+../../node_modules/expo-router/assets/sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png (465B)
+../../node_modules/expo-router/assets/unmatched.20e71bdf79e3a97bf55fd9e164041578.png (4.8KB)
+../../node_modules/expo-sqlite/web/wa-sqlite/wa-sqlite.7ca566fbbc2ec2a172c5aefa63a20f4b.wasm (621KB)
+assets/fonts/Inter-Italic-VariableFont_opsz,wght.6dce17792107f0321537c2f1e9f12866.ttf (905KB)
+assets/fonts/Inter-VariableFont_opsz,wght.0a77e23a8fdbe6caefd53cb04c26fabc.ttf (875KB)
+assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf (93KB)
+
+› web bundles (78):
+_expo/static/css/global-9f067f8f19fbe1d0014b1db6c110ea36.css (72KB)
+_expo/static/js/web/__common-625b7a31734aad40c76d2f2f5db0099e.js (72KB)
+_expo/static/js/web/__expo-metro-runtime-1f8f5d3ca6b7f58204d51e14506d73fb.js (3.8KB)
+_expo/static/js/web/AccountMembersScreen-f4cfc3196840a70406a491cc302d7934.js (10KB)
+_expo/static/js/web/AccountSettingsScreen-37663425dd9ee0229c69eacd7033d575.js (6KB)
+_expo/static/js/web/AccountVerificationScreen-e2e2c25e3ccb24d24658efe2128ea75d.js (7.3KB)
+_expo/static/js/web/AppInfoScreen-537b8bbd4c864c951b4d642dec96d5f3.js (12KB)
+_expo/static/js/web/ar-304e19471b7e03923ad6199cf4ba2c61.js (178KB)
+_expo/static/js/web/ar-SA-bb9437dcd2d1b5f7b40855cfb5a07365.js (35KB)
+_expo/static/js/web/AvatarCropScreen-f778eb53c424c6437f8226e3e842980a.js (21KB)
+_expo/static/js/web/bn-e426ecbaef0a9e1de21d689a3c7d02da.js (173KB)
+_expo/static/js/web/ca-d51348def99a3dc518bba500e1259e6f.js (67KB)
+_expo/static/js/web/ca-ES-3a90bfe71ae969abd0ec9ce2fd1c85d5.js (13KB)
+_expo/static/js/web/ChangeAvatarScreen-ad7e1a7d996c83f57c263ed8ca04b936.js (4.4KB)
+_expo/static/js/web/ConnectedAppsScreen-9b59337d250737cc608bbce72dd8e6b8.js (3.1KB)
+_expo/static/js/web/CreateAccountScreen-adca8ed32b990caa546d01129d03eb0f.js (7.5KB)
+_expo/static/js/web/de-DE-19a3695850b8ea3f2b9a640a73ec795f.js (14KB)
+_expo/static/js/web/de-ffcd4ea83005b87ce29c74502efab3af.js (66KB)
+_expo/static/js/web/DeleteAccountScreen-5143bea27a6780e2d1878d47e55162b7.js (352B)
+_expo/static/js/web/DomainsScreen-0618796a99699f8f744e73ba62ba7ea8.js (4.4KB)
+_expo/static/js/web/EditProfileFieldScreen-7b40cc3f71f8195a2b33183d81fc09fb.js (31KB)
+_expo/static/js/web/EditProfileScreen-33c14c3b9762a74302a23ac3b4a2ccf8.js (3.5KB)
+_expo/static/js/web/empty-module-d3b254953ff0dcdbec5db7a0b7d12d2d.js (39B)
+_expo/static/js/web/es-ES-6b1d5136679c554ae4a7315c0e201d2d.js (67KB)
+_expo/static/js/web/es-f63d82fa779ff833a3b81b8ccaace8a3.js (67KB)
+_expo/static/js/web/FileManagementScreen-262f11a9c1dee0396099b9a950fdf8ac.js (65KB)
+_expo/static/js/web/FollowersListScreen-6c45dc626721edfdf068ff46e952038a.js (316B)
+_expo/static/js/web/FollowingListScreen-4f09ee30285fbedd088bd3ec2cb1ff39.js (316B)
+_expo/static/js/web/fr-d8679f824b91364360c3107b991ac5d9.js (70KB)
+_expo/static/js/web/fr-FR-2e97c446eca9e0e5c4d09a9845159e17.js (14KB)
+_expo/static/js/web/Haptics-4d1e9c1ec70ca88e7a20f8f8c8d73f04.js (3.6KB)
+_expo/static/js/web/HelpSupportScreen-61dfe8aa952c3949259860d8ee2a03c0.js (2.9KB)
+_expo/static/js/web/hi-a4d5615f5c3816278166aab9b57e3707.js (168KB)
+_expo/static/js/web/HistoryViewScreen-7e196d59273bb98640efe548a83299ee.js (4KB)
+_expo/static/js/web/id-681a30c210a1bcaae04e962b60508115.js (61KB)
+_expo/static/js/web/ImagePicker-ac728b7ed108803ab8231abb768d9882.js (8.6KB)
+_expo/static/js/web/index-bd37bd231871abfc0d3566c101d740e7.js (13KB)
+_expo/static/js/web/index-cfb3c913c33117db59b17b5f125b6117.js (7.6MB)
+_expo/static/js/web/index-d0cf1e24123098d4a4b1c6025a2b54aa.js (2.1KB)
+_expo/static/js/web/internal-289d81cfc07d9dc90ff19f4dcbb34cd0.js (2.4KB)
+_expo/static/js/web/it-35b7ca089eef8c02e5b6bf6cf6fd2e24.js (65KB)
+_expo/static/js/web/it-IT-8f043145485575e859875904b03beb25.js (13KB)
+_expo/static/js/web/ja-54a431b6453eae9a19b6197238879bbb.js (104KB)
+_expo/static/js/web/ja-JP-97712a916c066d492472cf9977eaede6.js (26KB)
+_expo/static/js/web/ko-KR-284a89e59f5f749f1b62d1a480ab69a5.js (21KB)
+_expo/static/js/web/LanguageSelectorScreen-9ba1db438230da6acf7e6905341b1763.js (3.6KB)
+_expo/static/js/web/LearnMoreUsernamesScreen-873fcdf111055873024475858b525664.js (4.7KB)
+_expo/static/js/web/LegalDocumentsScreen-e0b4609e71c216fe4549c82aab5cb44e.js (4.4KB)
+_expo/static/js/web/LinkCommonsScreen-6afa931b2e2ce242db9690a3b2b6e610.js (317B)
+_expo/static/js/web/ManageAccountScreen-e65ada1af277bc32b5cd02acba81f7b2.js (22KB)
+_expo/static/js/web/md4c-381d4ab23dd919dcca966f7709f3196a.js (256KB)
+_expo/static/js/web/NotificationsScreen-be395c181e3744d4a79109588fe05296.js (3.2KB)
+_expo/static/js/web/OxyAccountDialogScreen-6be138c41f965429ff34e1a2b076afad.js (43KB)
+_expo/static/js/web/PaymentGatewayScreen-8e432ac520a417f687305d8edf260e38.js (29KB)
+_expo/static/js/web/PreferencesScreen-6595a28ce3d4e04b6ca5f0ebf01a3656.js (3.4KB)
+_expo/static/js/web/PrivacySettingsScreen-b332a22e87d707ae86d011bb145edf77.js (12KB)
+_expo/static/js/web/ProfileScreen-cd3fc5533ad79c25b4e5c2c0c2f10a9e.js (8.3KB)
+_expo/static/js/web/pt-a5ebb2282b8f5acfb87d34cffa5fda91.js (67KB)
+_expo/static/js/web/pt-PT-7471917731332a09be3aa380635d2d04.js (14KB)
+_expo/static/js/web/ru-1dd7cc21321b89da4511dfb5669672bb.js (199KB)
+_expo/static/js/web/SearchSettingsScreen-46ead29a4e0ab67ce47c1361ff7a448c.js (2.5KB)
+_expo/static/js/web/SecureStore-06b3f0ae4b5ac586d122e0f8269214f0.js (2.4KB)
+_expo/static/js/web/SignInAuthenticatorScreen-6baf543978bad0473530e6deedab4eb8.js (319B)
+_expo/static/js/web/SignInPasswordScreen-69497a27a9f05704df8ce5446b0b0ed1.js (359B)
+_expo/static/js/web/tr-7707054632fbc80f7f5151a99b62535b.js (71KB)
+_expo/static/js/web/transformers-9945f6794f43bef4a90198134920ed0b.js (591KB)
+_expo/static/js/web/TrustAboutScreen-de68a71aad03350d45de31977077b333.js (4.9KB)
+_expo/static/js/web/TrustCenterScreen-d358d2641fd293beeb4b042d4257b777.js (4.4KB)
+_expo/static/js/web/TrustFAQScreen-432e293609fc87fbcca1c9b19c90b352.js (1.8KB)
+_expo/static/js/web/TrustLeaderboardScreen-940c08e1561c97ac5116a6a0f8819ee8.js (4.3KB)
+_expo/static/js/web/TrustRewardsScreen-7ae6e6f36b4af64ab2e6567ec7416267.js (9.4KB)
+_expo/static/js/web/TrustRulesScreen-a042196c882a51c827486a127e241e58.js (2.2KB)
+_expo/static/js/web/UserLinksScreen-e779ed3b49afe6217646663c6c6391d0.js (1.1KB)
+_expo/static/js/web/WebBrowser-66b7f51cd6eef2813808991bd1616c75.js (8.4KB)
+_expo/static/js/web/WelcomeNewUserScreen-055f6a512a64fab2e31657c39e6c9379.js (8.7KB)
+_expo/static/js/web/worker-d4b3198824b929700dbe12b997a1b466.js (133KB)
+_expo/static/js/web/zh-ce0439815160c2c6c95db4c13f6540aa.js (81KB)
+_expo/static/js/web/zh-CN-c1055e499ffa6674d597cb436320a9fb.js (18KB)
+
+› Files (3):
+favicon.ico (15KB)
+index.html (1.6KB)
+metadata.json (49B)
+
+Exported: dist

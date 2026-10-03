@@ -1,0 +1,23 @@
+$ vitest run
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/backend[39m
+
+ [32m✓[39m src/lib/__tests__/net-utils.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/__tests__/ecosystemActivity.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/middleware/__tests__/auth-middleware.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/capabilities/__tests__/capability-idempotency.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/__tests__/note-artifacts.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/capabilities/__tests__/capability-authority.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/capabilities/__tests__/noted.catalog.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+[15:08:58] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+ [32m✓[39m src/capabilities/__tests__/noted.events.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/capabilities/__tests__/noted-mcp-http.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+[15:08:58] [32mINFO[39m: [36mConnected to PostgreSQL[39m
+    [35mmaxPoolSize[39m: 10
+ [32m✓[39m src/capabilities/__tests__/noted-active-account.realdb.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 490[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m      Tests [22m [1m[32m67 passed[39m[22m[90m (67)[39m
+[2m   Start at [22m 18:08:56
+[2m   Duration [22m 1.75s[2m (transform 2.01s, setup 0ms, import 6.92s, tests 545ms, environment 1ms)[22m
+

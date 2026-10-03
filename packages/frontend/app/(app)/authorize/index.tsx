@@ -94,7 +94,7 @@ export default function AuthorizeScreen() {
     setStatus('authorizing');
 
     try {
-      const response = await apiClient.post(`/auth/authorize/${app}`, {
+      const response = await apiClient.post<{ code?: string }>(`/auth/authorize/${app}`, {
         code_challenge,
         code_challenge_method: code_challenge_method || 'S256',
       });
@@ -142,7 +142,7 @@ export default function AuthorizeScreen() {
 
     // Verify token is valid via bot route
     try {
-      const res = await apiClient.get(`/bots/internal/${channelType}/check-token/${token}`);
+      const res = await apiClient.get<{ valid?: boolean; error?: string }>(`/bots/internal/${channelType}/check-token/${token}`);
       if (!res.data?.valid) {
         setStatus('error');
         setMessage(res.data?.error || t('authorize.tokenExpired'));
@@ -166,7 +166,7 @@ export default function AuthorizeScreen() {
 
     // Link via bot platform route
     try {
-      const response = await apiClient.post(`/bots/platform/${channelType}/link`, {
+      const response = await apiClient.post<{ success: boolean }>(`/bots/platform/${channelType}/link`, {
         authToken: token,
       });
       if (response.data.success) {

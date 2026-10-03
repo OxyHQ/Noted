@@ -1,0 +1,42 @@
+[
+  {
+    "name": "@oxy.so/contracts",
+    "version": "4.9.0",
+    "source": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz",
+    "sha256": "6b1e6a8da92341871d2832834ad063df1a1e84a46dc367786599fdd26be6e635",
+    "published": false
+  },
+  {
+    "name": "@oxy.so/protocol",
+    "version": "1.2.2",
+    "source": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-protocol-1.2.2.tgz",
+    "sha256": "325b20125f1cf5159c36ca7a75f32c83a4560cf41c55526828b1718595acc843",
+    "published": false
+  },
+  {
+    "name": "@oxy.so/core",
+    "version": "4.2.0",
+    "source": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-core-4.2.0.tgz",
+    "sha256": "12547d59cb300ce1e56107aa51587f9d0819caa285a491416276f57d18cc4902",
+    "published": false
+  },
+  {
+    "name": "@oxy.so/services",
+    "version": "11.1.0",
+    "source": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-services-11.1.0.tgz",
+    "sha256": "94736eac20be3c99c6296c8a75a065104f1a43905f31423d365a04c4f6b683e1",
+    "published": false
+  },
+  {
+    "name": "@oxy.so/mcp",
+    "version": "1.1.0",
+    "source": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz",
+    "sha256": "2d60996b3b5b441c5f9b81d98102d0a5929ac44a7c9ab7904d25072b8a626e08",
+    "published": false
+  }
+]

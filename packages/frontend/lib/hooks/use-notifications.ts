@@ -28,7 +28,7 @@ export function useNotifications(limit = 30) {
   return useQuery<NotificationsResponse>({
     queryKey: ['notifications', limit],
     queryFn: async () => {
-      const res = await apiClient.get('/notifications', { params: { limit } });
+      const res = await apiClient.get<NotificationsResponse>('/notifications', { params: { limit } });
       return res.data;
     },
     staleTime: 1000 * 30, // 30 seconds
@@ -44,7 +44,7 @@ export function useUnreadCount() {
   return useQuery<{ count: number }>({
     queryKey: ['notifications', 'unread-count'],
     queryFn: async () => {
-      const res = await apiClient.get('/notifications/unread-count');
+      const res = await apiClient.get<{ count: number }>('/notifications/unread-count');
       return res.data;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes — socket invalidates on real events

@@ -1,0 +1,8 @@
+$ bun build.ts
+
+  dist/index.js                        944.1kb
+  dist/register-capability-catalog.js  601.7kb
+  dist/migrate.js                       18.4kb
+
+⚡ Done in 77ms
+✅ Build complete
