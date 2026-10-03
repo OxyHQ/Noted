@@ -26,7 +26,14 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
         signal: controller.signal,
       });
       const text = await response.text();
-      const data: unknown = text ? JSON.parse(text) : null;
+      let data: unknown = null;
+      if (text) {
+        try { data = JSON.parse(text); } catch {
+          // Keep known HTTP errors even when a proxy returns HTML/plain text.
+          // Never expose that untrusted body as a diagnostic message.
+          if (response.ok) throw new Error('Invalid JSON response');
+        }
+      }
       if (!response.ok) {
         const message = typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string'
           ? data.error : `Request failed with status ${response.status}`;

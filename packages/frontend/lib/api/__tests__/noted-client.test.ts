@@ -20,6 +20,11 @@ beforeAll(async () => {
       res.write('{"pending":');
       return;
     }
+    if (req.url === '/html-gone' || req.url === '/text-denied' || req.url === '/malformed-ok') {
+      res.writeHead(req.url === '/html-gone' ? 404 : req.url === '/text-denied' ? 403 : 200, { 'Content-Type': 'text/html' });
+      res.end('<html>upstream unavailable</html>');
+      return;
+    }
     if (req.url === '/gone') {
       res.writeHead(404);
       res.end(JSON.stringify({ error: 'Note already deleted' }));
@@ -47,9 +52,9 @@ afterAll(async () => {
 });
 
 // Synthetic session state drives the real SDK; the HTTP server is not an Oxy verifier.
-function jwt(id: string): string {
+function jwt(id: string, nonce = 'initial', exp = 2_000_000_000): string {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ userId: id, exp: 2_000_000_000 })}.fixture`;
+  return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ userId: id, sessionId: `session-${id}`, nonce, exp })}.fixture`;
 }
 
 function fixture(timeout?: number) {
@@ -90,12 +95,12 @@ describe('Noted domain requests through the linked SDK', () => {
     try {
       oxy.session.setAccessToken(jwt('A'));
       let refreshes = 0;
-      oxy.http.setAuthRefreshHandler(async () => { refreshes += 1; return jwt('B'); });
+      oxy.http.setAuthRefreshHandler(async () => { refreshes += 1; return jwt('A', 'renewed'); });
       const before = requests.length;
       expect(await client.post('/refresh', { id: 'note-B' })).toEqual({ data: envelope });
       expect(refreshes).toBe(1);
       expect(requests.slice(before).map(({ body }) => body)).toEqual(['{"id":"note-B"}', '{"id":"note-B"}']);
-      expect(requests.at(-1)?.bearer).toBe(`Bearer ${jwt('B')}`);
+      expect(requests.at(-1)?.bearer).toBe(`Bearer ${jwt('A', 'renewed')}`);
       await expect(client.delete('/gone')).rejects.toMatchObject({ response: { status: 404, data: { error: 'Note already deleted' } } });
       const deniedBefore = requests.length;
       await expect(client.get('/denied')).rejects.toMatchObject({ response: { status: 403 } });
@@ -112,4 +117,42 @@ describe('Noted domain requests through the linked SDK', () => {
       expect(requests).toHaveLength(before + 1);
     } finally { client.dispose(); }
   });
+});
+
+it.each([['/html-gone', 404], ['/text-denied', 403]] as const)('preserves known HTTP status for non-JSON %s', async (path, status) => {
+  const { oxy, client } = fixture();
+  try {
+    oxy.session.setAccessToken(jwt('A'));
+    await expect(client.get(path)).rejects.toMatchObject({ message: `Request failed with status ${status}`, response: { status, data: null } });
+  } finally { client.dispose(); }
+});
+it('still refuses a malformed successful JSON body', async () => {
+  const { oxy, client } = fixture();
+  try {
+    oxy.session.setAccessToken(jwt('A'));
+    await expect(client.get('/malformed-ok')).rejects.toThrow();
+  } finally { client.dispose(); }
+});
+
+it.each(['preflight', 'response-401'] as const)('enforces the Noted deadline while %s is pending', async (phase) => {
+  const { oxy, client } = fixture(30);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let entered!: () => void;
+  const ready = new Promise<void>((resolve) => { entered = resolve; });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    oxy.session.setAccessToken(phase === 'preflight' ? jwt('A', 'initial', Math.floor(Date.now() / 1000) + 10) : jwt('A'));
+    oxy.http.setAuthRefreshHandler(async () => { entered(); await gate; return jwt('A', 'renewed'); });
+    const before = requests.length;
+    const outcome = client.post('/refresh', { id: 'same-note' }).then(() => ({ unexpected: 'response' }), (error: unknown) => ({ error }));
+    await ready;
+    const bounded = await Promise.race([outcome, new Promise<{ pending: true }>((resolve) => { timer = setTimeout(() => resolve({ pending: true }), 150); })]);
+    expect(bounded).toMatchObject({ error: { code: 'CANCELLED' } });
+    expect(requests).toHaveLength(before + (phase === 'preflight' ? 0 : 1));
+    release();
+    await oxy.http.refreshAccessToken(phase);
+    await outcome;
+    expect(requests).toHaveLength(before + (phase === 'preflight' ? 0 : 1));
+  } finally { clearTimeout(timer); release(); client.dispose(); }
 });
