@@ -12,7 +12,7 @@ import { Platform } from 'react-native';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { setTokenGetter } from '@/lib/api/client';
+import { oxyServices } from '@/lib/oxy';
 import { OXY_CLIENT_ID } from '@/lib/oxy-client-id';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 import { SUPPORTED_LOCALES } from '@/lib/i18n';
@@ -35,13 +35,10 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 
 function AuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useOxy();
-
-  setTokenGetter(() => oxyServices.session.accessToken || null);
 
   // Resolve Oxy file IDs to thumbnail download URLs for any Bloom component
   // that reads useImageResolver() (e.g. Avatar with a raw file id `source`).
@@ -128,7 +125,7 @@ function RootLayout() {
         fonts={false}
       >
         <OxyProvider
-          baseURL={OXY_API_URL}
+          oxyServices={oxyServices}
           clientId={OXY_CLIENT_ID}
           authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
           language={{

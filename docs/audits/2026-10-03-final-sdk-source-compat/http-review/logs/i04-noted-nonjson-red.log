@@ -1,0 +1,74 @@
+$ vitest run --run lib/api/__tests__/noted-client.test.ts
+
+ RUN  v4.0.18 /home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend
+
+ ❯ lib/api/__tests__/noted-client.test.ts (7 tests | 2 failed) 94ms
+     ✓ preserves data, deleted and serverTime plus encoded query, following session changes 17ms
+     ✓ denies before transport with no session 0ms
+     ✓ delegates one 401 refresh to the SDK and preserves write/error bodies 9ms
+     ✓ bounds response-body reading with the same deadline and does not retry a write 53ms
+   × preserves known HTTP status for non-JSON /html-gone 6ms
+   × preserves known HTTP status for non-JSON /text-denied 2ms
+   ✓ still refuses a malformed successful JSON body 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  lib/api/__tests__/noted-client.test.ts > preserves known HTTP status for non-JSON /html-gone
+AssertionError: expected SyntaxError: Unexpected token '<', "<html… to match object { …(2) }
+
+- Expected
++ Received
+
+- {
+-   "message": "Request failed with status 404",
+-   "response": {
+-     "data": null,
+-     "status": 404,
+-   },
++ SyntaxError {
++   "message": "Unexpected token '<', \"<html>upst\"... is not valid JSON",
+  }
+
+ ❯ lib/api/__tests__/noted-client.test.ts:126:5
+    124|   try {
+    125|     oxy.session.setAccessToken(jwt('A'));
+    126|     await expect(client.get(path)).rejects.toMatchObject({ message: `R…
+       |     ^
+    127|   } finally { client.dispose(); }
+    128| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  lib/api/__tests__/noted-client.test.ts > preserves known HTTP status for non-JSON /text-denied
+AssertionError: expected SyntaxError: Unexpected token '<', "<html… to match object { …(2) }
+
+- Expected
++ Received
+
+- {
+-   "message": "Request failed with status 403",
+-   "response": {
+-     "data": null,
+-     "status": 403,
+-   },
++ SyntaxError {
++   "message": "Unexpected token '<', \"<html>upst\"... is not valid JSON",
+  }
+
+ ❯ lib/api/__tests__/noted-client.test.ts:126:5
+    124|   try {
+    125|     oxy.session.setAccessToken(jwt('A'));
+    126|     await expect(client.get(path)).rejects.toMatchObject({ message: `R…
+       |     ^
+    127|   } finally { client.dispose(); }
+    128| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 5 passed (7)
+   Start at  19:08:39
+   Duration  297ms (transform 29ms, setup 0ms, import 126ms, tests 94ms, environment 0ms)
+
+error: script "test" exited with code 1

@@ -1,0 +1,163 @@
+{
+  "source": "181dc19cc9c5b5186e0923c59e66c7782e82bf5d",
+  "sources": [
+    {
+      "path": "package.json",
+      "sha256": "b0a61aef83949562cbbdea12456844d211a2350ced2b1d866f03cd72ba5c0487"
+    },
+    {
+      "path": "packages/backend/package.json",
+      "sha256": "04df1907ba44253a6d57b43ab96e1da2b61f6e2c2e18e66639da1a9c7880e701"
+    },
+    {
+      "path": "packages/frontend/package.json",
+      "sha256": "74d25b02f6c8fc079f284f754622c4bf4e73b971694ecb30c91025c7d02c4b2e"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "ca3a7bdc88f0cba30660e7c867a0f648f2c90484a2665760344d809a6f71218a"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Noted-frozen.log",
+      "sha256": "8d968b6c48a1a08a884f126f18fe542ed92bb3e00a00ba0c2df33d73359664a0",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Noted-installed.json",
+      "sha256": "16d36dce5e0a43d3dff43195a410855836585d8dd12fd93807fcd9c90a720dff",
+      "bytes": 2731
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/Noted-resolve.log",
+      "sha256": "6cdbfbe6cc55aacfba4f3eb154de1eb0b361e65e3014091ce06b45f35c2e4585",
+      "bytes": 178
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/backend-auth.log",
+      "sha256": "1388e01c698653c6b8955677c4d1853b66ba5a55c09e2c97c880fe7f62fb3daf",
+      "bytes": 1164
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/backend-build.log",
+      "sha256": "2558b6ca6df39e1b8f0768f0e914671d146c16a16bbdd4114625bd03de6a9256",
+      "bytes": 528
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/bloom-final-importers.json",
+      "sha256": "1a744d938fc3775d98fd515a1f845d0207f66692f8ef8bdea6bc2054b609ec0d",
+      "bytes": 593
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/checks-final.json",
+      "sha256": "6d4d4b5a76636fcf9ea1fbb27ac86902c4a0de92957d69339585a343a87c7771",
+      "bytes": 845
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/contracts-registry.json",
+      "sha256": "fb1ded2797bdbd0ca31460f3cba087f078a86dc201365c923da9fcc23b07ed7b",
+      "bytes": 380
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/core-registry.json",
+      "sha256": "99b7f8a1cc87cf46ff54b3113a1911a938f39b4f086537e0a4138ee38dd035b7",
+      "bytes": 375
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/failed.json",
+      "sha256": "e45a08861b705a4bd04a1ac5bec7dfdc902621991070d99debf9062f9e6cfe3d",
+      "bytes": 89
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/frontend-export.log",
+      "sha256": "fab58235cb2a3d368c0c6a20f304b7bf44b71efdf5cffc794dac38d263c33d71",
+      "bytes": 13745
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/frontend-focal.log",
+      "sha256": "d31ddbd203574c9019591621821edc93d4561d9eb2c78e7c52c15dd6d799e787",
+      "bytes": 725
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/intent.json",
+      "sha256": "f43ad983d667e0fbb566de00dfcbd11d016cb6018354db87c58b074943c17012",
+      "bytes": 149
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/local-final-checks.json",
+      "sha256": "aebe0a36e3983169de3f8ccc7dc4e3beba8d09f4491b75fbffa7c37d90824779",
+      "bytes": 757
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/materialization-frozen.log",
+      "sha256": "496f7c97570d71dddf61511fad1948396b65b465a63c3b8c0697d0420934f598",
+      "bytes": 111
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/materialization-repair-intent.json",
+      "sha256": "2b45e5b8bdcfbe4ef047a0ee0cf1e397387c208bec86a0221fa8c9e882f19735",
+      "bytes": 2248
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/mcp-registry.json",
+      "sha256": "cc279f4f5b1ca68041f6f0d3583e4d9dc218bd7c0b77846207aa3b981086d7ac",
+      "bytes": 373
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/owned-pg.py",
+      "sha256": "c0f499f5dc145259477c44905a53d182447c879d5023518189ec0b5a3c04a629",
+      "bytes": 3204
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/pinned-frozen.log",
+      "sha256": "94d9f5e60c06d82469d6cd79398df6cd5149bc9f5a2fe745c6fa42d196bafaf4",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/pinned-installed.json",
+      "sha256": "9ae757a6063d1e1abcf92484a4cad1fe8a9fc0b39039596aba4ecaa2c45679d7",
+      "bytes": 2342
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/preflight.json",
+      "sha256": "1a392821a7ad0eb607f307837130c4d39a59a8f20c988d0778571cddf3b9965e",
+      "bytes": 250
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/protocol-registry.json",
+      "sha256": "cc0b427dca92d55ea5e1debe7e76580618a26f997b2c888b8484537b64b70bbd",
+      "bytes": 379
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/registry.json",
+      "sha256": "a39da224fafeec388f0ac27e08ea13cf666427a0177b67f7b077c65cadb59df0",
+      "bytes": 415373
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/services-registry.json",
+      "sha256": "444599f0eb56d104d64c288ed3a6544163e54430c0f275c2feec219d5f624611",
+      "bytes": 381
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-adoption/records/shared-build.log",
+      "sha256": "006b7b3eee4dbb799c40dfb4526db1c1515acc29fe17af49cabbb35a70e973bf",
+      "bytes": 91
+    }
+  ],
+  "validation": {
+    "frontendFiles": 2,
+    "frontendPassed": 14,
+    "backendFiles": 2,
+    "backendPassed": 14,
+    "sdkImporterMembers": 7214,
+    "bloomImporterMembers": 41880,
+    "buildExport": "passed"
+  },
+  "limits": [
+    "Published registry archives and all installed SDK importer members were compared byte for byte. Stale same-version candidate materializations were retained and repaired with a frozen install; their setup failures remain in the records.",
+    "Local web export proves compilation, not browser/native acceptance or deployed public-client configuration. Required PR/main CI and root image/promotion remain separate.",
+    "No production database, provider writes, grants, credentials or auth fixtures were changed. Owned PostgreSQL was stopped and its PID absence verified.",
+    "Backend focal mocks the OxyServer auth boundary; it tests application wiring and is not a cryptographic issuer/receiver acceptance claim. Frontend tests use loopback HTTP with the actual published linked client."
+  ]
+}

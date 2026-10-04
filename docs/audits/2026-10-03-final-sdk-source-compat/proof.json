@@ -1,0 +1,198 @@
+{
+  "sourceCommit": "38f8c3ff77eecf05cd94531de01fd8fe97dfc2ce",
+  "base": "0569162d338c278c55bf1c8b239efa78581dddb6",
+  "sdkCandidate": "f364fe58a41aab6913cf92ec01a9a9c1ea489120",
+  "sources": [
+    {
+      "path": "packages/backend/src/routes/auth.ts",
+      "sha256": "8dc037699878a1f23e4fb17726bf0cc773237b99f3957bb5b867ce4b321c8693"
+    },
+    {
+      "path": "packages/frontend/app/(app)/authorize/index.tsx",
+      "sha256": "3ecf4d07e8bafdfd3768afc67529f5a8ba92f5e34d13bce6fbbcb46979ea40ff"
+    },
+    {
+      "path": "packages/frontend/app/_layout.tsx",
+      "sha256": "52ecfe8c63c7f0180d462cd2cf4e7651e118b6921d02825cf55f099fe655dfe5"
+    },
+    {
+      "path": "packages/frontend/lib/api/__tests__/noted-client.test.ts",
+      "sha256": "e2376232e5137a3872ffd8c8f5963fd4b9871bc4388c7058e92c770fb5ca8a08"
+    },
+    {
+      "path": "packages/frontend/lib/api/client.ts",
+      "sha256": "3187a7119861fb225e0c472c267bddc16a79695eef7353fbb2ce52bc1e9f0502"
+    },
+    {
+      "path": "packages/frontend/lib/api/noted-client.ts",
+      "sha256": "9b978dd04417443d48f52e6252ca0e8480551fce929f376488b115b2bbf584d9"
+    },
+    {
+      "path": "packages/frontend/lib/hooks/use-notification-setup.ts",
+      "sha256": "6c285f8c5a504c18f1313246a18260ad745013d8a14591caab031aeeb59b9209"
+    },
+    {
+      "path": "packages/frontend/lib/hooks/use-notifications.ts",
+      "sha256": "6670965f7d18030fd6120fde6e3ddb987cf9fa1fb3d7c18031eaa5529b80df4c"
+    },
+    {
+      "path": "packages/frontend/lib/oxy.ts",
+      "sha256": "42ebc4923412a9d4349fa6d32191e3d596a3b149c7c8008770a4eb1789afb263"
+    }
+  ],
+  "installationInputs": [
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/package.json",
+      "sha256": "4ab80585efcc0ec84df08eefc37072b5b11b886fe582a9a18e1e03635d87a43d",
+      "kind": "local candidate only; not final registry manifest"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/packages/backend/package.json",
+      "sha256": "685d3dda7a5c80be5d8bf4e0cc2e198c7f109b27bc615be7e3092951b6d04093",
+      "kind": "local candidate only; not final registry manifest"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/packages/frontend/package.json",
+      "sha256": "a1e0146a5e5070efc559610dfa0c9bcb5eb5e51a6dca00e796f733dc26c53c76",
+      "kind": "local candidate only; not final registry manifest"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/bun.lock",
+      "sha256": "109fa87d13621581c02fc35976e49aaaeb3d7970d04d44a479ecf8419ad3902b",
+      "kind": "local candidate only; not final registry manifest"
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/candidate-install/pack-manifest.json",
+      "sha256": "0f0bc59e72e3319648f7f774fe80e00005564c7b080189e19517199a5ee00346"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-backend-build-final.log",
+      "sha256": "d5bef4c86495580837b842473331b8a8524cb310274d1d7f154f5c00ea9176d8",
+      "bytes": 194
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-backend-build.log",
+      "sha256": "83fa75abf10f5426ab8e7a67e6a486a25f42b5c3f185c0dacaf28afeb1b2d51e",
+      "bytes": 194
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-backend-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-backend-tests.log",
+      "sha256": "55dada56fc1004c90378e7d665ea3aac7e55c0d3e316aa19c0907b1bfc0cf28a",
+      "bytes": 1852
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-backend-types-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-backend-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-candidate-install.log",
+      "sha256": "1c308df8410f9d80ed245c2465ea15d284d809a4cecc9ef05fccb8dc7bf1a313",
+      "bytes": 530
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-frontend-build.log",
+      "sha256": "fdc10af186cfcbdc7819a1e1a2656e2db9c7f438d60dbbd85c7741b0bee8060d",
+      "bytes": 15020
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-frontend-tests-final.log",
+      "sha256": "b9ecf10b6dca71e2522d65ad5f70dae70a45a89937e8976d632e14f783e00b0f",
+      "bytes": 5510
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-frontend-tests.log",
+      "sha256": "e79aa22d7affa7c54c76620abf3bf0942ee3c07e9d66575e36457a33b05fab3a",
+      "bytes": 5455
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-frontend-types-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-frontend-types-linked.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-frontend-types-red.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-installed-bytes.json",
+      "sha256": "ec3ca4c91b682103ef058ff117ff78d15be06eae3c7da184442b11f79e5eabef",
+      "bytes": 2449
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-linked-http-tests-final.log",
+      "sha256": "485e4f0e2feb880d9abae15d98b70107b1acc2501fb9d6358c47d40495c49492",
+      "bytes": 376
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-linked-http-tests.log",
+      "sha256": "0f1f5da17cdcf7e56d6cf09f29cbd0c3c41b701ded1948f2d67009d59c11e05d",
+      "bytes": 379
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-pg-owner.json",
+      "sha256": "133d9867f8473904a351be7cf02a75968fe12fedeca45bea758b48a2ab26c376",
+      "bytes": 243
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-pg-teardown.json",
+      "sha256": "0176edf5a9c90b2135544c96c28712f680dafde042608f43641ee3be914dedaf",
+      "bytes": 396
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-shared-build.log",
+      "sha256": "006b7b3eee4dbb799c40dfb4526db1c1515acc29fe17af49cabbb35a70e973bf",
+      "bytes": 91
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-native-peer-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-native-peer-build.log",
+      "sha256": "f7999a9d4599b73ca12ab7fc7fe7b40f8c904b286d1a76cf9a3311a7bdb4587c",
+      "bytes": 10673
+    },
+    {
+      "path": "docs/audits/2026-10-03-final-sdk-source-compat/logs/i04-noted-native-peer-install.log",
+      "sha256": "e84af412d807d3ad70ce4dd7d174de0c86fab5be342382ddc70786fae69959b4",
+      "bytes": 470
+    }
+  ],
+  "results": {
+    "backend": "10 suites / 67 PASS; MCP HTTP/domain/PostgreSQL real, central introspection synthetic",
+    "frontend": "71 suites / 836 PASS including four real HTTP linked-client cases",
+    "types": "backend and frontend exit 0",
+    "builds": "backend and Expo web exit 0",
+    "lint": "changed backend route ESLint --max-warnings=0 exit 0; no frontend lint script",
+    "sqlCleanup": "own PostgreSQL 5595 PID3968260 stopped, no test DB remains, port closed",
+    "installation": "5 candidate package archives and registry Bloom 6.2.1 compared byte-for-byte; see installed-bytes receipt",
+    "nativePeer": "Candidate keyboard-controller aligned 1.20.7 -> 1.21.6 to satisfy Services >=1.21.0, expo.install.exclude added; final types and web export exit 0. No native runtime claim."
+  },
+  "limits": [
+    "Not final Oxy registry adoption or production/native acceptance",
+    "Legacy forgot/reset-password screens target endpoints absent from the mounted backend; no public auth lane added",
+    "Synthetic JWT state in linked-client tests is not real Oxy authority verification",
+    "Initial no-test-found run is an operator path error retained in evidence, not product RED",
+    "Frontend export retains existing Metro dependency warnings; no rendering claim"
+  ]
+}

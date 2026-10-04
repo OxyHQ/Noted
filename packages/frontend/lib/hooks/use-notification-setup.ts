@@ -117,7 +117,7 @@ export function useNotificationSetup() {
     (async () => {
       try {
         // Fetch VAPID public key from backend
-        const { data: vapidData } = await apiClient.get('/notifications/vapid-public-key');
+        const { data: vapidData } = await apiClient.get<{ publicKey?: string }>('/notifications/vapid-public-key');
         if (cancelled || !vapidData?.publicKey) return;
 
         // Register service worker

@@ -1,0 +1,18 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 316199, "dataDirectory": "/home/nate/Oxy/.agent-evidence/noted-registry-pg-r40x8dd8/data", "port": 5619, "liveAccess": false}
+$ vitest run src/middleware/__tests__/auth-middleware.test.ts src/capabilities/__tests__/capability-authority.test.ts
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/backend[39m
+
+ [32m✓[39m src/middleware/__tests__/auth-middleware.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/capabilities/__tests__/capability-authority.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 04:24:45
+[2m   Duration [22m 490ms[2m (transform 254ms, setup 0ms, import 602ms, tests 10ms, environment 0ms)[22m
+
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/noted-registry-pg-r40x8dd8"}

@@ -1,0 +1,11 @@
+$ bun run build:types && bun run --filter @noted/backend build
+$ bun run --filter @noted/shared-types build
+@noted/shared-types build: Exited with code 0
+@noted/backend build: 
+@noted/backend build:   dist/index.js                        840.9kb
+@noted/backend build:   dist/register-capability-catalog.js  605.7kb
+@noted/backend build:   dist/migrate.js                       18.4kb
+@noted/backend build: 
+@noted/backend build: ⚡ Done in 43ms
+@noted/backend build: ✅ Build complete
+@noted/backend build: Exited with code 0

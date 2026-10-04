@@ -35,7 +35,7 @@ export function createNotedMcpHttpService() {
     allowedOrigins: parseMcpAllowedOrigins(),
     authorize: async (_input, context) => ({
       allowed: true,
-      effectiveAccountId: context.principal.accountId,
+      effectiveAccountId: context.principal.activeAccountId,
     }),
     logger: {
       error(message, error) {

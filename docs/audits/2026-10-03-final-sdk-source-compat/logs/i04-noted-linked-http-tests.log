@@ -1,0 +1,11 @@
+$ vitest run lib/api/__tests__/noted-client.test.ts
+
+ RUN  v4.0.18 /home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend
+
+No test files found, exiting with code 1
+
+filter: lib/api/__tests__/noted-client.test.ts
+include: lib/**/__tests__/**/*.test.ts, lib/**/*.test.ts
+exclude:  **/node_modules/**, **/.git/**
+
+error: script "test" exited with code 1

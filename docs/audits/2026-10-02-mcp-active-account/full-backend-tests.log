@@ -1,0 +1,22 @@
+$ vitest run
+
+ RUN  v4.0.18 /home/nate/Oxy/Noted/.worktrees/1519-i11-effective-account/packages/backend
+
+ ✓ src/lib/__tests__/net-utils.test.ts (19 tests) 7ms
+ ✓ src/__tests__/ecosystemActivity.test.ts (6 tests) 5ms
+ ✓ src/middleware/__tests__/auth-middleware.test.ts (13 tests) 6ms
+ ✓ src/capabilities/__tests__/capability-idempotency.test.ts (3 tests) 8ms
+ ✓ src/lib/__tests__/note-artifacts.test.ts (13 tests) 7ms
+ ✓ src/capabilities/__tests__/noted.catalog.test.ts (3 tests) 7ms
+ ✓ src/capabilities/__tests__/capability-authority.test.ts (1 test) 4ms
+ ✓ src/capabilities/__tests__/noted-mcp-http.test.ts (1 test) 2ms
+[20:21:36] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+ ✓ src/capabilities/__tests__/noted.events.test.ts (5 tests) 8ms
+[20:21:36] [32mINFO[39m: [36mConnected to PostgreSQL[39m
+    [35mmaxPoolSize[39m: 10
+ ✓ src/capabilities/__tests__/noted-active-account.realdb.test.ts (3 tests) 286ms
+
+ Test Files  10 passed (10)
+      Tests  67 passed (67)
+   Start at  23:21:35
+   Duration  1.12s (transform 1.33s, setup 0ms, import 4.59s, tests 339ms, environment 1ms)

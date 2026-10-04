@@ -1,0 +1,90 @@
+$ vitest run
+
+ RUN  v4.0.18 /home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/packages/frontend
+
+ ✓ lib/capture/__tests__/capture-wiring.test.ts (29 tests) 6ms
+ ✓ lib/artifact/__tests__/artifact.test.ts (23 tests) 9ms
+ ✓ lib/__tests__/oxy-client-id.test.ts (5 tests) 57ms
+ ✓ lib/structure/__tests__/extract.test.ts (14 tests) 6ms
+ ✓ lib/artifact/dictation/__tests__/instructions.test.ts (18 tests) 7ms
+ ✓ lib/capture/__tests__/queue.test.ts (13 tests) 6ms
+ ✓ lib/artifact/__tests__/ownership.test.ts (16 tests) 5ms
+stderr | lib/enhance/__tests__/summarize.test.ts > asking the model > keeps the rest of the recording when one window comes back unusable
+2026-10-03T15:08:57.631Z WARN [NotedEnhance] One window produced no usable document { reason: 'no_json_object', blocksDropped: 0, oversizeDropped: 0 }
+
+stderr | lib/enhance/__tests__/summarize.test.ts > asking the model > reports nothing when every reply is unusable
+2026-10-03T15:08:57.634Z WARN [NotedEnhance] One window produced no usable document { reason: 'no_json_object', blocksDropped: 0, oversizeDropped: 0 }
+
+stderr | lib/enhance/__tests__/summarize.test.ts > authorised expansion > refuses an addition for a subject nobody authorised
+2026-10-03T15:08:57.637Z WARN [NotedEnhance] One window produced no usable document { reason: 'all_content_dropped', blocksDropped: 0, oversizeDropped: 0 }
+
+ ✓ lib/enhance/__tests__/summarize.test.ts (12 tests) 16ms
+ ✓ lib/capture/__tests__/transcript-view.test.ts (15 tests) 10ms
+ ✓ lib/audio/__tests__/artifact-store.test.ts (16 tests) 12ms
+ ✓ lib/capture/__tests__/status.test.ts (10 tests) 9ms
+ ✓ lib/capture/__tests__/enhancement-copy.test.ts (12 tests) 12ms
+ ✓ lib/artifact/__tests__/profile.test.ts (14 tests) 12ms
+ ✓ lib/enhance/__tests__/parse.test.ts (31 tests) 15ms
+ ✓ lib/artifact/__tests__/document.test.ts (16 tests) 7ms
+ ✓ lib/capture/__tests__/coordinator.test.ts (20 tests) 15ms
+ ✓ lib/i18n/__tests__/locales.test.ts (3 tests) 33ms
+ ✓ lib/enhance/__tests__/prompt.test.ts (19 tests) 12ms
+ ✓ lib/enhance/__tests__/schema-drift.test.ts (12 tests) 13ms
+ ✓ lib/capture/__tests__/support.test.ts (4 tests) 223ms
+ ✓ lib/enhance/__tests__/outcomes.test.ts (28 tests) 13ms
+ ✓ lib/artifact/__tests__/compose.test.ts (16 tests) 12ms
+ ✓ lib/artifact/dictation/__tests__/list.test.ts (19 tests) 10ms
+ ✓ lib/artifact/__tests__/reduce.test.ts (18 tests) 10ms
+ ✓ lib/artifact/__tests__/finalize.test.ts (19 tests) 13ms
+ ✓ lib/artifact/__tests__/render.test.ts (11 tests) 6ms
+ ✓ lib/db/__tests__/migration-versioning.test.ts (11 tests) 6ms
+ ✓ lib/notes/__tests__/note-writers-wiring.test.ts (11 tests) 7ms
+ ✓ lib/capture/__tests__/lifecycle.test.ts (14 tests) 5ms
+ ✓ lib/api/__tests__/noted-client.test.ts (4 tests) 118ms
+ ✓ lib/artifact/generate/__tests__/deterministic.test.ts (16 tests) 16ms
+ ✓ lib/db/__tests__/merge.test.ts (12 tests) 5ms
+ ✓ lib/structure/__tests__/segment.test.ts (6 tests) 7ms
+ ✓ lib/artifact/generate/__tests__/from-enhancement.test.ts (13 tests) 14ms
+ ✓ lib/notes/__tests__/generated-body.test.ts (15 tests) 6ms
+ ✓ lib/markdown/__tests__/reading-surface-wiring.test.ts (6 tests) 4ms
+ ✓ lib/notes/__tests__/draft-sync.test.ts (10 tests) 5ms
+ ✓ lib/artifact/generate/__tests__/dictation.test.ts (12 tests) 11ms
+ ✓ lib/db/__tests__/artifact-schema.test.ts (10 tests) 8ms
+ ✓ lib/__tests__/query-provider-wiring.test.ts (4 tests) 5ms
+ ✓ lib/structure/__tests__/similar.test.ts (8 tests) 6ms
+ ✓ lib/capture/__tests__/retention.test.ts (7 tests) 12ms
+ ✓ lib/markdown/__tests__/blocks.test.ts (13 tests) 5ms
+ ✓ lib/artifact/__tests__/talk-regression.test.ts (19 tests) 19ms
+ ✓ lib/artifact/__tests__/legacy-sections.test.ts (8 tests) 5ms
+ ✓ lib/capture/__tests__/recording.test.ts (10 tests) 7ms
+ ✓ lib/artifact/__tests__/legacy.test.ts (7 tests) 7ms
+ ✓ lib/artifact/__tests__/actions.test.ts (7 tests) 5ms
+ ✓ lib/structure/__tests__/clean.test.ts (9 tests) 6ms
+ ✓ lib/capture/__tests__/evidence.test.ts (9 tests) 7ms
+ ✓ lib/artifact/generate/__tests__/lecture.test.ts (5 tests) 4ms
+ ✓ lib/db/__tests__/schema-references.test.ts (3 tests) 4ms
+ ✓ lib/db/__tests__/client.test.ts (6 tests) 576ms
+ ✓ lib/artifact/__tests__/checklist-sync.test.ts (9 tests) 8ms
+ ✓ lib/eval/__tests__/corpus.test.ts (48 tests) 73ms
+ ✓ lib/notes/__tests__/discard-empty-wiring.test.ts (5 tests) 3ms
+ ✓ lib/db/__tests__/artifact-sync.test.ts (11 tests) 7ms
+ ✓ lib/export/__tests__/markdown.test.ts (10 tests) 7ms
+ ✓ lib/__tests__/language-provider-wiring.test.ts (5 tests) 4ms
+ ✓ lib/capture/__tests__/model-failure-wiring.test.ts (10 tests) 6ms
+ ✓ lib/artifact/__tests__/item-id.test.ts (6 tests) 4ms
+ ✓ lib/markdown/__tests__/caret.test.ts (15 tests) 6ms
+ ✓ lib/notes/__tests__/emptiness.test.ts (13 tests) 3ms
+ ✓ lib/artifact/__tests__/grounding.test.ts (6 tests) 4ms
+ ✓ lib/capture/__tests__/native-module-gradle.test.ts (3 tests) 3ms
+ ✓ lib/capture/__tests__/placeholder-title.test.ts (8 tests) 4ms
+ ✓ lib/db/__tests__/sync-serialisation.test.ts (3 tests) 3ms
+ ✓ lib/db/__tests__/ids.test.ts (4 tests) 4ms
+ ✓ lib/stt/__tests__/segment-id.test.ts (5 tests) 4ms
+ ✓ lib/i18n/__tests__/handleLanguageError.test.ts (1 test) 3ms
+ ✓ lib/capture/__tests__/surfaces.test.ts (6 tests) 2ms
+
+ Test Files  71 passed (71)
+      Tests  836 passed (836)
+   Start at  18:08:57
+   Duration  1.14s (transform 12.19s, setup 0ms, import 16.78s, tests 1.58s, environment 8ms)
+

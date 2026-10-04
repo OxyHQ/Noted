@@ -508,7 +508,7 @@ export const NOTED_MCP_HANDLERS: CatalogToolHandlers = Object.fromEntries(
       structuredContent: await executeNotedCatalogTool(
         toolName,
         input,
-        context.principal.accountId,
+        context.principal.activeAccountId,
       ),
     });
     return [toolName, handler];

@@ -56,6 +56,20 @@ jobs:
     name: Lint & Test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v7
@@ -97,6 +111,9 @@ jobs:
 
       - name: Run API tests
         run: bun run --filter @noted/backend test
+        env:
+          # The fixture creates/drops its own guarded oxydb_test_* database.
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
       # The app's suite was not run here, so every guard in it — including the
       # source checks that are the only thing standing between a refactor and
