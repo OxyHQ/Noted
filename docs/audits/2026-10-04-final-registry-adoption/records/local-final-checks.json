@@ -1,0 +1,48 @@
+[
+  {
+    "name": "shared-build",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "run",
+      "build:types"
+    ],
+    "exitCode": 0,
+    "seconds": 0.465
+  },
+  {
+    "name": "frontend-focal",
+    "cwd": "packages/frontend",
+    "argv": [
+      "bun",
+      "run",
+      "test",
+      "lib/api/__tests__/noted-client.test.ts",
+      "lib/__tests__/oxy-client-id.test.ts"
+    ],
+    "exitCode": 0,
+    "seconds": 0.615
+  },
+  {
+    "name": "backend-build",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "run",
+      "build:backend"
+    ],
+    "exitCode": 0,
+    "seconds": 0.516
+  },
+  {
+    "name": "frontend-export",
+    "cwd": ".",
+    "argv": [
+      "bun",
+      "run",
+      "build:frontend"
+    ],
+    "exitCode": 0,
+    "seconds": 17.629
+  }
+]

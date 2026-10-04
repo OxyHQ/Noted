@@ -1,0 +1,82 @@
+{
+  "repository": "OxyHQ/Noted",
+  "installed": true,
+  "installedMembers": [
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/contracts",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/services",
+      "version": "11.1.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/services",
+      "files": 2418,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/backend/package.json",
+      "name": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/contracts",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/backend/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/backend/package.json",
+      "name": "@oxy.so/mcp",
+      "version": "1.1.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/mcp",
+      "files": 41,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/frontend/package.json",
+      "name": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/contracts",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/frontend/package.json",
+      "name": "@oxy.so/core",
+      "version": "4.2.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/core",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "packages/frontend/package.json",
+      "name": "@oxy.so/services",
+      "version": "11.1.0",
+      "root": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003/node_modules/@oxy.so/services",
+      "files": 2418,
+      "allFilesEqual": true
+    }
+  ],
+  "lockSha256": "ca3a7bdc88f0cba30660e7c867a0f648f2c90484a2665760344d809a6f71218a",
+  "explicitMaterializationRepair": true,
+  "merged": false,
+  "deployed": false
+}

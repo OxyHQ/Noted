@@ -1,0 +1,42 @@
+{
+  "worktree": "/home/nate/Oxy/Noted/.worktrees/1519-final-sdk-adoption-20261003",
+  "output": "/home/nate/Oxy/.agent-evidence/i04-consumer-final-prs/registry-Noted-20261004",
+  "receipt": "local-final-checks.json",
+  "jobs": [
+    {
+      "name": "shared-build",
+      "argv": [
+        "bun",
+        "run",
+        "build:types"
+      ]
+    },
+    {
+      "name": "frontend-focal",
+      "cwd": "packages/frontend",
+      "argv": [
+        "bun",
+        "run",
+        "test",
+        "lib/api/__tests__/noted-client.test.ts",
+        "lib/__tests__/oxy-client-id.test.ts"
+      ]
+    },
+    {
+      "name": "backend-build",
+      "argv": [
+        "bun",
+        "run",
+        "build:backend"
+      ]
+    },
+    {
+      "name": "frontend-export",
+      "argv": [
+        "bun",
+        "run",
+        "build:frontend"
+      ]
+    }
+  ]
+}
