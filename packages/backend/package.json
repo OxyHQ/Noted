@@ -1,7 +1,7 @@
 {
   "name": "@noted/backend",
   "version": "1.0.0",
-  "description": "Noted API \u2014 notes app backend by Oxy",
+  "description": "Noted API — notes app backend by Oxy",
   "private": true,
   "type": "module",
   "engines": {
@@ -21,10 +21,10 @@
   },
   "dependencies": {
     "@noted/shared-types": "workspace:*",
-    "@oxy.so/contracts": "^4.4.0",
-    "@oxy.so/core": "^4.0.0",
+    "@oxy.so/contracts": "4.9.0",
+    "@oxy.so/core": "4.2.0",
     "@oxy.so/db": "1.0.0",
-    "@oxy.so/mcp": "1.0.0",
+    "@oxy.so/mcp": "1.1.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "bullmq": "^5.70.1",
     "cors": "^2.8.5",
