@@ -1250,5 +1250,16 @@
       "en": "Inglés",
       "note": "En el móvil el modelo detecta el idioma. En el navegador no puede, así que Automático usa el idioma del navegador."
     }
+  },
+  "sharedStorage": {
+    "title": "Almacenamiento Oxy compartido",
+    "description": "Los adjuntos usan el mismo almacenamiento de tu cuenta que las demás apps Oxy. Adjuntar un archivo existente no añade otra cuota. Las notas locales y la exportación siguen disponibles.",
+    "signIn": "Inicia sesión para ver el almacenamiento de tu cuenta.",
+    "loading": "Cargando almacenamiento…",
+    "error": "El uso de almacenamiento no está disponible. Vuelve a actualizar la cuenta actual.",
+    "usage": "%{used} GB usados de %{limit} GB",
+    "admission": "Oxy comprueba la cuota al registrar archivos. Esto no garantiza un límite físico del depósito.",
+    "unconfigured": "La integración de almacenamiento Oxy One no está configurada. El límite mostrado corresponde al almacenamiento existente de la cuenta.",
+    "refresh": "Actualizar almacenamiento"
   }
 }

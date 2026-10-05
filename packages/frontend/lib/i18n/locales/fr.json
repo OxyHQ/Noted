@@ -1254,5 +1254,16 @@
   "meta": {
     "code": "fr",
     "name": "Français"
+  },
+  "sharedStorage": {
+    "title": "Shared Oxy storage",
+    "description": "Attachments use the same account storage as your other Oxy apps. Attaching an existing file does not create another storage allowance. Local notes and export remain available.",
+    "signIn": "Sign in to view account storage.",
+    "loading": "Loading account storage…",
+    "error": "Storage usage is unavailable. Retry to refresh the current account.",
+    "usage": "%{used} GB used of %{limit} GB",
+    "admission": "Oxy applies account quota checks when admitting file metadata. This is not a guarantee of physical bucket limits.",
+    "unconfigured": "Oxy One storage integration is not configured. The displayed limit comes from existing account storage.",
+    "refresh": "Refresh storage"
   }
 }
