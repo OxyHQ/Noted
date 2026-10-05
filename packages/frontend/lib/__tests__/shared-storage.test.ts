@@ -53,3 +53,29 @@ describe('private attachment responses', () => {
     await expect(readScopedStorage(identity, () => identity, async () => { throw new Error('413 quota exceeded'); })).rejects.toThrow('413 quota exceeded');
   });
 });
+
+describe('quota headroom includes durable reservations', () => {
+  it('shows a full pending/cleanup hold even with no active files', () => {
+    const result = displayStorageUsage({ totalUsedBytes: 0, totalLimitBytes: 100_000_000_000, reservedBytes: '100000000000', quotaEnforcement: 'metadata_admission' });
+    expect(result).toMatchObject({ usedGB: '0', reservedGB: '100', heldGB: '100', availableGB: '0', hasHolds: true });
+  });
+  it('does not double-count active bytes in the total reservation', () => {
+    const result = displayStorageUsage({ totalUsedBytes: 20_000_000_000, totalLimitBytes: 100_000_000_000, reservedBytes: '30000000000', quotaEnforcement: 'metadata_admission' });
+    expect(result).toMatchObject({ reservedGB: '30', heldGB: '10', availableGB: '70' });
+    expect(displayStorageUsage({ totalUsedBytes: 20_000_000_000, totalLimitBytes: 100_000_000_000, reservedBytes: 30_000_000_000, quotaEnforcement: 'metadata_admission' }).availableGB).toBe('70');
+  });
+  it('clamps headroom after downgrade and supports bigint holds without losing byte precision', () => {
+    const result = displayStorageUsage({ totalUsedBytes: 0, totalLimitBytes: 100_000_000_000, reservedBytes: '90071992547409931234', quotaEnforcement: 'metadata_admission' });
+    expect(result.availableGB).toBe('0');
+    expect(result.reservedGB).toBe('90,071,992,547.41');
+  });
+  it('does not invent headroom without a configured reservation snapshot', () => {
+    for (const quotaEnforcement of [undefined, 'unconfigured', 'metadata_admission'] as const) {
+      expect(displayStorageUsage({ totalUsedBytes: 0, totalLimitBytes: 100_000_000_000, quotaEnforcement }).availableGB).toBeNull();
+    }
+  });
+  it('rejects malformed reserved totals and conservatively handles a smaller stale total', () => {
+    for (const reservedBytes of ['-1', '1.5', 'NaN', '01', '1e10', -1, NaN, 1.5, Number.MAX_SAFE_INTEGER + 1]) expect(() => displayStorageUsage({ totalUsedBytes: 0, totalLimitBytes: 1, reservedBytes, quotaEnforcement: 'metadata_admission' })).toThrow();
+    expect(displayStorageUsage({ totalUsedBytes: 20_000_000_000, totalLimitBytes: 100_000_000_000, reservedBytes: '10000000000', quotaEnforcement: 'metadata_admission' }).availableGB).toBe('80');
+  });
+});

@@ -43,3 +43,24 @@ where bytes are admitted and uploaded. This Noted draft cannot prove bucket CORS
 physical variant/multipart/orphan limits, or a native device upload. No live
 catalogue, quota adapter, subscription, charge, deployment or publication was
 created. UI layout requires a foreground browser/device review before release.
+
+## Reserved quota correction
+
+Oxy `reservedBytes` is the total quota-counted amount: active and trash original/
+variant metadata plus uncleaned durable byte reservations not represented by those
+files. It is not an amount to add again to active bytes. The panel distinguishes
+active-file metadata from total quota consumption and shows the difference as
+trash, pending uploads or cleanup holds. Admission headroom is clamped to zero
+when total reserved quota meets/exceeds the limit. It remains unknown when the
+configured API lacks a reservation snapshot; active bytes alone never establish
+available space. Decimal reservation strings are parsed with BigInt, including
+amounts exceeding JavaScript safe integers. A smaller reserved snapshot is
+conservatively floored at active bytes because the API totals are separate reads.
+
+Correction validation: `bun run --filter @noted/frontend test` passed all 854
+tests in 72 files (13 shared-storage regressions); frontend `tsc --noEmit`
+passed. For final draft SDK type validation, freshly built local Oxy Core and
+Contracts `dist` were copied into ignored installed packages only. No package
+manifest was modified; publication/adoption of the compatible SDK remains a
+release gate. Safe integer numeric reservation totals from older SDKs are also
+accepted; unsafe, negative or fractional numeric totals fail closed.

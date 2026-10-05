@@ -31,6 +31,10 @@ export function SharedStorageSection() {
     <Text className="text-sm text-muted-foreground">{t("sharedStorage.description")}</Text>
     {!isAuthenticated ? <Text>{t("sharedStorage.signIn")}</Text> : usage.isPending ? <Text>{t("sharedStorage.loading")}</Text> : usage.isError ? <Text>{t("sharedStorage.error")}</Text> : usage.data ? <>
       <Text>{t("sharedStorage.usage", { used: usage.data.usedGB, limit: usage.data.limitGB })}</Text>
+      {usage.data.configured && (usage.data.availableGB === null ? <Text className="text-sm text-muted-foreground">{t("sharedStorage.reservationsUnknown")}</Text> : <>
+        <Text>{t("sharedStorage.quotaUsage", { reserved: usage.data.reservedGB, available: usage.data.availableGB })}</Text>
+        {usage.data.hasHolds && <Text className="text-sm text-muted-foreground">{t("sharedStorage.holds", { held: usage.data.heldGB })}</Text>}
+      </>)}
       <Text className="text-sm text-muted-foreground">{t(usage.data.configured ? "sharedStorage.admission" : "sharedStorage.unconfigured")}</Text>
     </> : null}
     {isAuthenticated && <Button variant="outline" onPress={() => { void usage.refetch(); }}><Text>{t("sharedStorage.refresh")}</Text></Button>}
