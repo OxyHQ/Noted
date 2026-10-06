@@ -1,3 +1,5 @@
+import React from "react";
+import { attachmentMetadataKey, readScopedStorage } from "@/lib/shared-storage";
 import { useQuery } from "@tanstack/react-query";
 import { useOxy } from "@oxy.so/services";
 
@@ -41,16 +43,19 @@ function parseFileMeta(response: unknown, fileId: string): OxyFileMeta {
  * Fetch immutable Oxy file metadata (filename / contentType / size) for a stored
  * file ID. Used to render non-image attachment chips and to detect whether an
  * attachment is an image. Metadata never changes for a given ID, so it is cached
- * aggressively.
+ * within the current account/session only.
  */
 export function useFileMetadata(fileId: string) {
-  const { oxyServices, isAuthenticated } = useOxy();
+  const { oxyServices, isAuthenticated, user, activeSessionId } = useOxy();
+  const identity = { accountId: user?.id ?? null, sessionId: activeSessionId ?? null };
+  const current = React.useRef(identity);
+  current.current = identity;
   return useQuery<OxyFileMeta>({
-    queryKey: ["file-metadata", fileId],
-    queryFn: async () => parseFileMeta(await oxyServices.assets.get(fileId), fileId),
-    enabled: !!fileId && isAuthenticated,
+    queryKey: attachmentMetadataKey(identity, fileId),
+    queryFn: () => readScopedStorage(identity, () => current.current, async () => parseFileMeta(await oxyServices.assets.get(fileId), fileId)),
+    enabled: !!fileId && isAuthenticated && !!identity.accountId && !!identity.sessionId,
     staleTime: 1000 * 60 * 60,
-    gcTime: 1000 * 60 * 60 * 24,
+    gcTime: 0,
     retry: 1,
   });
 }

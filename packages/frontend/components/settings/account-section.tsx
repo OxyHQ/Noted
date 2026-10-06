@@ -1,3 +1,4 @@
+import { SharedStorageSection } from "./shared-storage-section";
 import { View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ export function AccountSection() {
           )}
         </View>
       </View>
+
+      <SharedStorageSection />
 
       {/* Manage Account */}
       <Button

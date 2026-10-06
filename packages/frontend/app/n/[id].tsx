@@ -1,3 +1,4 @@
+import { scopedAttachmentSelection } from "@/lib/shared-storage";
 import React from "react";
 import {
   View,
@@ -100,7 +101,9 @@ export default function NoteEditorScreen() {
   const { colors, colorScheme } = useColorScheme();
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
-  const { isAuthenticated, showBottomSheet } = useOxy();
+  const { isAuthenticated, showBottomSheet, user, activeSessionId } = useOxy();
+  const attachmentIdentity = React.useRef({ accountId: user?.id ?? null, sessionId: activeSessionId ?? null });
+  attachmentIdentity.current = { accountId: user?.id ?? null, sessionId: activeSessionId ?? null };
   const reduceMotion = useReducedMotion();
 
   const isNew = params.id === "new";
@@ -360,6 +363,7 @@ export default function NoteEditorScreen() {
   );
 
   const handleAttachFile = React.useCallback(() => {
+    const select = scopedAttachmentSelection(attachmentIdentity.current, () => attachmentIdentity.current, attachFileIds);
     showBottomSheet?.({
       screen: "FileManagement",
       props: {
@@ -368,10 +372,10 @@ export default function NoteEditorScreen() {
         afterSelect: "back",
         initialSelectedIds: draftRef.current.attachments ?? [],
         onSelect: (file: FileMetadata) => {
-          attachFileIds([file.id]);
+          select([file.id]);
         },
         onConfirmSelection: (files: FileMetadata[]) => {
-          attachFileIds(files.map((f) => f.id));
+          select(files.map((f) => f.id));
         },
       },
     });
