@@ -31,6 +31,7 @@ import {
 import type { CaptureProfile } from '@noted/shared-types';
 import { deleteCaptureAudio } from '@/lib/audio/store';
 import { segmentId } from '@/lib/stt/segment-id';
+import { claimCapture, recoverUnownedCapture, releaseCapture } from '@/lib/capture/ownership';
 
 export interface CaptureRow extends Row {
   id: string;
@@ -185,37 +186,44 @@ export async function beginCapture(input: {
   language?: string;
   profile?: CaptureProfile;
 }, expectedViewerId = getActiveViewerId()): Promise<void> {
-  const now = nowIso();
-  const lifecycle: CaptureLifecycle = {
-    capture: 'starting',
-    transcription: 'idle',
-    generation: 'idle',
-    enhancement: 'pending',
-  };
-  await executeTransaction([
-    {
-      sql: `INSERT INTO captures (
-              id, note_id, state, capture_status, transcription_status, generation_status,
-              enhancement_status, profile, transcript_revision, started_at, ended_at, duration_ms,
-              audio_path, audio_file_id, model_id, language, error_code, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, 0, ?, NULL, NULL, ?, NULL, ?, ?)`,
-      params: [
-        input.id,
-        input.noteId,
-        legacyStateFromLifecycle(lifecycle),
-        lifecycle.capture,
-        lifecycle.transcription,
-        lifecycle.generation,
-        lifecycle.enhancement,
-        input.profile ?? 'auto',
-        now,
-        input.audioPath,
-        input.language ?? null,
-        now,
-        now,
-      ],
-    },
-  ], expectedViewerId);
+  // Claim before the row appears: another tab may start recovery immediately.
+  await claimCapture(expectedViewerId, input.id);
+  try {
+    const now = nowIso();
+    const lifecycle: CaptureLifecycle = {
+      capture: 'starting',
+      transcription: 'idle',
+      generation: 'idle',
+      enhancement: 'pending',
+    };
+    await executeTransaction([
+      {
+        sql: `INSERT INTO captures (
+                id, note_id, state, capture_status, transcription_status, generation_status,
+                enhancement_status, profile, transcript_revision, started_at, ended_at, duration_ms,
+                audio_path, audio_file_id, model_id, language, error_code, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, 0, ?, NULL, NULL, ?, NULL, ?, ?)`,
+        params: [
+          input.id,
+          input.noteId,
+          legacyStateFromLifecycle(lifecycle),
+          lifecycle.capture,
+          lifecycle.transcription,
+          lifecycle.generation,
+          lifecycle.enhancement,
+          input.profile ?? 'auto',
+          now,
+          input.audioPath,
+          input.language ?? null,
+          now,
+          now,
+        ],
+      },
+    ], expectedViewerId);
+  } catch (error) {
+    releaseCapture(expectedViewerId, input.id);
+    throw error;
+  }
 }
 
 /**
@@ -277,27 +285,35 @@ export async function finishCapture(
   audioPath: string,
   expectedViewerId = getActiveViewerId(),
 ): Promise<void> {
-  const now = nowIso();
-  await executeTransaction([
-    {
-      sql: `UPDATE captures SET ended_at = ?, duration_ms = ?, audio_path = ?, updated_at = ?
-            WHERE id = ? AND capture_status IN ('starting', 'recording', 'stopping')`,
-      params: [now, durationMs, audioPath, now, id],
-    },
-  ], expectedViewerId);
-  await setCaptureLifecycle(id, { capture: 'stopped' }, expectedViewerId);
+  try {
+    const now = nowIso();
+    await executeTransaction([
+      {
+        sql: `UPDATE captures SET ended_at = ?, duration_ms = ?, audio_path = ?, updated_at = ?
+              WHERE id = ? AND capture_status IN ('starting', 'recording', 'stopping')`,
+        params: [now, durationMs, audioPath, now, id],
+      },
+    ], expectedViewerId);
+    await setCaptureLifecycle(id, { capture: 'stopped' }, expectedViewerId);
+  } finally {
+    releaseCapture(expectedViewerId, id);
+  }
 }
 
 /** Record that a capture ended badly, keeping why. */
 export async function failCapture(id: string, errorCode: string, expectedViewerId = getActiveViewerId()): Promise<void> {
-  const now = nowIso();
-  await executeTransaction([
-    {
-      sql: `UPDATE captures SET ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE id = ?`,
-      params: [now, now, id],
-    },
-  ], expectedViewerId);
-  await setCaptureLifecycle(id, { capture: 'failed', errorCode }, expectedViewerId);
+  try {
+    const now = nowIso();
+    await executeTransaction([
+      {
+        sql: `UPDATE captures SET ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE id = ?`,
+        params: [now, now, id],
+      },
+    ], expectedViewerId);
+    await setCaptureLifecycle(id, { capture: 'failed', errorCode }, expectedViewerId);
+  } finally {
+    releaseCapture(expectedViewerId, id);
+  }
 }
 
 /** Record that a capture's transcript is done. */
@@ -327,10 +343,10 @@ export async function bumpTranscriptRevision(id: string, expectedViewerId = getA
 /**
  * Mark every capture still claiming to hold the microphone as interrupted.
  *
- * Run once at startup. Nothing else can move those rows: the process that owned
- * the microphone is gone, so without this they stay `recording` forever and the
- * UI shows a recording that is not happening. The audio already on disk is
- * untouched, which is what makes deferred transcription possible.
+ * Run at startup, but only after acquiring the capture's owner lease. Another
+ * tab can still be recording; its lease must never be mistaken for an orphan.
+ * Browser-owned locks disappear when the owning document dies, even offline.
+ * The audio already on disk is untouched for deferred transcription.
  *
  * `starting` and `stopping` are swept too. A process killed during startup never
  * reached `recording`, and one killed mid-stop never reached `stopped`; both
@@ -340,6 +356,12 @@ export async function bumpTranscriptRevision(id: string, expectedViewerId = getA
  * @returns how many were recovered.
  */
 export async function recoverInterruptedCaptures(expectedViewerId = getActiveViewerId()): Promise<number> {
+  if (!expectedViewerId) return 0;
+  const candidates = await execute<{ id: string }>(
+    "SELECT id FROM captures WHERE capture_status IN ('starting', 'recording', 'stopping')",
+    [],
+    expectedViewerId,
+  );
   const now = nowIso();
   const interrupted = legacyStateFromLifecycle({
     capture: 'interrupted',
@@ -347,17 +369,21 @@ export async function recoverInterruptedCaptures(expectedViewerId = getActiveVie
     generation: 'idle',
     enhancement: 'pending',
   });
-  const affected = await executeTransaction([
-    {
-      sql: `UPDATE captures SET state = ?, capture_status = 'interrupted',
+  let recovered = 0;
+  for (const { id } of candidates) {
+    const affected = await recoverUnownedCapture(expectedViewerId, id, () => executeTransaction([
+      {
+        sql: `UPDATE captures SET state = ?, capture_status = 'interrupted',
               transcription_status = 'pending', generation_status = 'idle',
               enhancement_status = 'pending',
               ended_at = COALESCE(ended_at, ?), updated_at = ?
-            WHERE capture_status IN ('starting', 'recording', 'stopping')`,
-      params: [interrupted, now, now],
-    },
-  ], expectedViewerId);
-  return affected[0] ?? 0;
+            WHERE id = ? AND capture_status IN ('starting', 'recording', 'stopping')`,
+        params: [interrupted, now, now, id],
+      },
+    ], expectedViewerId));
+    recovered += affected?.[0] ?? 0;
+  }
+  return recovered;
 }
 
 /**

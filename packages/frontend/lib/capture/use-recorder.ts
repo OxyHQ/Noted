@@ -157,7 +157,11 @@ export function useRecorder(
         await beginCapture({ id: captureId, noteId, audioPath: '' }, expectedViewerId);
 
         await recorder.prepareToRecordAsync();
-        if (!active) return;
+        if (!active) {
+          await recorder.stop().catch(() => undefined);
+          await failCapture(captureId, 'capture_cancelled', expectedViewerId).catch(() => undefined);
+          return;
+        }
 
         // Started from the foreground, before the microphone opens: Android
         // refuses to start a microphone-typed foreground service from the
