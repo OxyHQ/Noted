@@ -1,11 +1,11 @@
 import * as React from 'react';
 import {
-  Modal,
   View,
   Pressable,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X } from 'lucide-react-native';
+import { Dialog as BloomDialog } from '@oxy.so/bloom/dialog';
+import { CloseButton } from '@oxy.so/bloom/button';
+import { useTranslation } from '@/hooks/useTranslation';
 import { cn } from '@/lib/utils';
 import { Text } from './text';
 
@@ -63,45 +63,26 @@ const DialogContent = React.forwardRef<
 >(({ className, overlayClassName, showCloseButton, closeButton, children, ...props }, ref) => {
   const { open, onOpenChange } = React.useContext(DialogContext);
   const shouldShowClose = showCloseButton ?? closeButton ?? true;
-  const insets = useSafeAreaInsets();
-
+  const { t } = useTranslation();
+  const findTitle = (nodes: React.ReactNode): string | undefined => {
+    for (const node of React.Children.toArray(nodes)) {
+      if (!React.isValidElement<{ children?: React.ReactNode }>(node)) continue;
+      if (node.type === DialogTitle && typeof node.props.children === 'string') return node.props.children;
+      const title = findTitle(node.props.children);
+      if (title) return title;
+    }
+    return undefined;
+  };
   return (
-    <Modal
-      visible={open}
-      transparent
-      animationType="fade"
-      onRequestClose={() => onOpenChange?.(false)}
-      statusBarTranslucent
-    >
-      <Pressable
-        className={cn(
-          'flex-1 items-center justify-center bg-black/50 px-4 sm:px-0',
-          overlayClassName
-        )}
-        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-        onPress={() => onOpenChange?.(false)}
-      >
-        <Pressable
-          ref={ref}
-          className={cn(
-            'w-full max-w-lg gap-4 rounded-lg border border-border bg-background p-6 shadow-lg',
-            className
-          )}
-          onPress={(e) => e.stopPropagation()}
-          {...props}
-        >
-          {shouldShowClose && (
-            <Pressable
-              className="absolute right-4 top-4 z-10 rounded-sm opacity-70 active:opacity-100"
-              onPress={() => onOpenChange?.(false)}
-            >
-              <X size={16} className="text-muted-foreground" />
-            </Pressable>
-          )}
-          {children}
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <BloomDialog open={open} onClose={() => onOpenChange?.(false)}
+      label={findTitle(children)} maxWidth={className?.includes('max-w-xs') ? 320 : 512}>
+      <View ref={ref} className={cn('gap-4', className)} {...props}>
+        {shouldShowClose && <View className="items-end">
+          <CloseButton accessibilityLabel={t('common.close')} onPress={() => onOpenChange?.(false)} />
+        </View>}
+        {children}
+      </View>
+    </BloomDialog>
   );
 });
 

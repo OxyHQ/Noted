@@ -2,8 +2,8 @@ import React from "react";
 import { View } from "react-native";
 import { useOxy } from "@oxy.so/services";
 import { useQuery } from "@tanstack/react-query";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
+import { Text } from "@oxy.so/bloom/typography";
+import { Button } from "@oxy.so/bloom/button";
 import { useTranslation } from "@/hooks/useTranslation";
 import { displayStorageUsage, readScopedStorage, type SharedStorageUsage } from "@/lib/shared-storage";
 
@@ -37,6 +37,6 @@ export function SharedStorageSection() {
       </>)}
       <Text className="text-sm text-muted-foreground">{t(usage.data.configured ? "sharedStorage.admission" : "sharedStorage.unconfigured")}</Text>
     </> : null}
-    {isAuthenticated && <Button variant="outline" onPress={() => { void usage.refetch(); }}><Text>{t("sharedStorage.refresh")}</Text></Button>}
+    {isAuthenticated && <Button appearance="outline" onPress={() => { void usage.refetch(); }}>{t("sharedStorage.refresh")}</Button>}
   </View>;
 }

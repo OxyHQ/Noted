@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
 
 import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
+import { NotedSettingsProvider } from '@/components/settings/settings-provider';
 import { LocalStoreProvider } from '@/components/local-store-provider';
 import { QueryProvider } from '@/lib/query-client';
 import { configureLottieWeb } from '@/lib/lottieWeb';
@@ -76,6 +77,7 @@ function AppContent() {
       <QueryProvider>
       <LocalStoreProvider>
       <KeyboardProvider>
+      <NotedSettingsProvider>
         <Stack
           screenOptions={{
             contentStyle: {
@@ -105,6 +107,7 @@ function AppContent() {
             }}
           />
         </Stack>
+      </NotedSettingsProvider>
       </KeyboardProvider>
       </LocalStoreProvider>
       </QueryProvider>
