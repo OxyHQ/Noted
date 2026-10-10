@@ -10,7 +10,6 @@ import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-nati
 
 import { toast } from "@oxy.so/bloom/toast";
 import { useTranslation } from "@/hooks/useTranslation";
-import { cn } from "@/lib/utils";
 
 type FeedbackType = 'bug' | 'feature' | 'improvement' | 'other';
 
@@ -130,27 +129,10 @@ export function FeedbackSection() {
                     pressed={isSelected}
                     key={option.type}
                     onPress={() => setSelectedType(option.type)}
-                    className={cn(
-                      "flex-row items-center gap-3 p-4 rounded-xl border",
-                      isSelected
-                        ? "border-foreground bg-foreground/5"
-                        : "border-border bg-muted/30"
-                    )}
+                    accessibilityLabel={t(option.labelKey)}
+                    renderLeadingIcon={({ size, color }) => <Icon size={size} color={color} />}
                   >
-                    <View className={cn(
-                      "p-2 rounded-full",
-                      isSelected ? "bg-foreground/10" : "bg-muted"
-                    )}>
-                      <Icon size={20} className={isSelected ? "text-foreground" : "text-muted-foreground"} />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="font-medium text-foreground">
-                        {t(option.labelKey)}
-                      </Text>
-                      <Text className="text-xs text-muted-foreground">
-                        {t(option.descriptionKey)}
-                      </Text>
-                    </View>
+                    {t(option.labelKey)}
                   </Button>
                 );
               })}
@@ -166,6 +148,9 @@ export function FeedbackSection() {
               {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable
                   key={star}
+                  accessibilityRole="button"
+                  accessibilityLabel={ratingLabels[star]}
+                  accessibilityState={{ selected: rating === star }}
                   onPress={() => setRating(rating === star ? null : star)}
                   className="p-1.5 active:opacity-70"
                 >

@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 
 export type SettingsPage = 'account' | 'general' | 'transcription' | 'feedback' | 'storage';
 interface SettingsContextValue {
@@ -11,21 +11,32 @@ const SettingsModal = lazy(() => import('./settings-modal'));
 
 /** Load the dialog only on demand; startup never depends on settings or translation hooks. */
 export function NotedSettingsProvider({ children }: PropsWithChildren) {
-  const [request, setRequest] = useState<{ page: SettingsPage; initialView: 'navigation' | 'page' } | null>(null);
+  const sequence = useRef(0);
+  const pendingAction = useRef<(() => void) | null>(null);
+  const [request, setRequest] = useState<{ id: number; page: SettingsPage; initialView: 'navigation' | 'page' } | null>(null);
   const open = useCallback((page?: SettingsPage) => {
-    setRequest({ page: page ?? 'general', initialView: page ? 'page' : 'navigation' });
+    pendingAction.current = null;
+    setRequest({ id: ++sequence.current, page: page ?? 'general', initialView: page ? 'page' : 'navigation' });
   }, []);
   const close = useCallback(() => setRequest(null), []);
   const afterClose = useCallback((action: () => void) => {
+    if (!request) { action(); return; }
+    pendingAction.current = action;
     setRequest(null);
-    // Oxy owns its account/language surfaces. Unmount Bloom's focus trap first.
-    requestAnimationFrame(action);
-  }, []);
+  }, [request]);
+  // Oxy owns account/language surfaces. Open them only after the settings
+  // dialog and its focus trap have actually unmounted.
+  useEffect(() => {
+    if (request || !pendingAction.current) return;
+    const action = pendingAction.current;
+    pendingAction.current = null;
+    action();
+  }, [request]);
   const value = useMemo(() => ({ open, close, afterClose }), [open, close, afterClose]);
   return <SettingsContext.Provider value={value}>
     {children}
     {request && <Suspense fallback={null}>
-      <SettingsModal page={request.page} initialView={request.initialView} onClose={close} />
+      <SettingsModal key={request.id} page={request.page} initialView={request.initialView} onClose={close} />
     </Suspense>}
   </SettingsContext.Provider>;
 }

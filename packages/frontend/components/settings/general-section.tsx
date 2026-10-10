@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectItemText } from '@oxy.so/bloom/select';
-import { APP_COLOR_NAMES, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
+import { COLOR_PRESET_REGISTRY, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
 import { getNativeLanguageName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -16,7 +16,10 @@ export function GeneralSection() {
   const { currentLanguage, currentLanguages, showBottomSheet } = useOxy();
   const { afterClose } = useNotedSettings();
   const modes = (['system', 'light', 'dark'] as const).map(value => ({ value, label: t(`settings.appearance.${value}`) }));
-  const colors = APP_COLOR_NAMES.map(value => ({ value, label: t(`settings.accentColor.${value}`) }));
+  // Bloom owns the preset catalogue and its display names; new presets must not
+  // become missing translation keys in this app. Respect reserved/premium gates.
+  const colors = COLOR_PRESET_REGISTRY.filter(preset => !preset.gate || preset.name === colorPreset)
+    .map(preset => ({ value: preset.name, label: preset.displayName }));
   const languages = currentLanguages.length ? currentLanguages : [currentLanguage];
   return <View className="gap-6">
     <SettingsSection label={t('settings.sections.general')}>
@@ -33,7 +36,7 @@ export function GeneralSection() {
           </Select>
         </SettingsRow>
         <SettingsRow label={t('settings.accentColor.title')}>
-          <Select value={colorPreset} onValueChange={value => { if (APP_COLOR_NAMES.includes(value as AppColorName)) setColorPreset(value as AppColorName); }}>
+          <Select value={colorPreset} onValueChange={value => { if (colors.some(color => color.value === value)) setColorPreset(value as AppColorName); }}>
             <SelectTrigger label={t('settings.accentColor.title')}><SelectValue /></SelectTrigger>
             <SelectContent items={colors} renderItem={item => <SelectItem value={item.value} label={item.label}><SelectItemText>{item.label}</SelectItemText></SelectItem>} />
           </Select>
