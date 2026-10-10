@@ -1,4 +1,6 @@
 import React from "react";
+import { EmptyState } from "@/components/empty-state";
+import { LocalStoreError } from "@/components/local-store-boundary";
 import { View, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Tag, Plus, Trash2, Check, X } from "lucide-react-native";
@@ -22,11 +24,12 @@ export default function LabelsScreen() {
   const { colors } = useColorScheme();
   const setActiveLabel = useNotesUIStore((s) => s.setActiveLabel);
 
-  const { data: labels, isLoading } = useLabels();
+  const { data: labels, isLoading, error } = useLabels();
   const createLabel = useCreateLabel();
   const updateLabel = useUpdateLabel();
   const deleteLabel = useDeleteLabel();
 
+  const inputRef = React.useRef<TextInput>(null);
   const [draft, setDraft] = React.useState("");
 
   // Bloom draws the confirmation, so the screen keeps no dialog state.
@@ -46,9 +49,8 @@ export default function LabelsScreen() {
 
   const handleCreate = React.useCallback(() => {
     const name = draft.trim();
-    if (!name) return;
-    createLabel.mutate({ name });
-    setDraft("");
+    if (!name || createLabel.isPending) return;
+    createLabel.mutate({ name }, { onSuccess: () => setDraft(current => current.trim() === name ? "" : current) });
   }, [draft, createLabel]);
 
   const handleOpenLabel = React.useCallback(
@@ -70,6 +72,8 @@ export default function LabelsScreen() {
         <View className="mb-3 flex-row items-center gap-2 rounded-xl border border-border px-3">
           <Plus size={18} color={colors.mutedForeground} />
           <TextInput
+            ref={inputRef}
+            editable={!createLabel.isPending}
             value={draft}
             onChangeText={setDraft}
             onSubmitEditing={handleCreate}
@@ -79,23 +83,20 @@ export default function LabelsScreen() {
             returnKeyType="done"
           />
           {draft.trim().length > 0 && (
-            <Pressable onPress={handleCreate} hitSlop={6} accessibilityLabel={t("common.create")}>
+            <Pressable disabled={createLabel.isPending} onPress={handleCreate} hitSlop={6} accessibilityLabel={t("common.create")}>
               <Check size={18} color={colors.primary} />
             </Pressable>
           )}
         </View>
 
-        {isLoading ? (
+        {error ? <LocalStoreError /> : isLoading ? (
           <View className="items-center justify-center py-16">
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : allLabels.length === 0 ? (
-          <View className="items-center justify-center py-16">
-            <Tag size={40} color={colors.mutedForeground} strokeWidth={1.5} />
-            <Text className="mt-3 text-sm text-muted-foreground">
-              {t("notes.noLabels")}
-            </Text>
-          </View>
+          <EmptyState sticker="labels" title={t("notes.noLabels")}
+            subtitle={t("emptyStates.labelsSubtitle")}
+            action={{ label: t("common.create"), onPress: () => inputRef.current?.focus() }} />
         ) : (
           <View className="gap-1">
             {allLabels.map((label) => (

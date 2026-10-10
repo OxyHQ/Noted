@@ -8,11 +8,12 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUIStore } from "@/lib/stores/ui-store";
 import i18n from "@/lib/i18n";
-import { QueryProvider } from "@/lib/query-client";
+import { usePathname } from "expo-router";
+import { LocalStoreBoundary } from "@/components/local-store-boundary";
+import { NotesHeader } from "@/components/notes/notes-header";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
-import { useLocalStore } from "@/lib/db/use-local-store";
-import { CaptureEngineHost } from "@/components/capture/capture-engine-host";
 import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 
 // Top-level list routes that render their own header (and own top inset).
@@ -35,37 +36,25 @@ const SIDEBAR_WIDTH_COLLAPSED = 48;
  * scene is also the content area, so `self-center` lands on the content without
  * anything having to know the sidebar's width.
  */
-const renderScene = ({ children }: { children: React.ReactNode }) => (
-  <View style={{ flex: 1 }}>
-    {children}
-    <FloatingBottomStack />
-  </View>
-);
+function Scene({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { t } = useTranslation();
+  const publicRoute = (pathname.startsWith('/settings') && pathname !== '/settings/transcription') || pathname.startsWith('/authorize') ||
+    pathname === '/forgot-password' || pathname === '/reset-password';
+  if (publicRoute) return <View style={{ flex: 1 }}>{children}</View>;
+  return <LocalStoreBoundary fallbackHeader={<NotesHeader title={t('notes.title')} />}><View style={{ flex: 1 }}>{children}<FloatingBottomStack /></View></LocalStoreBoundary>;
+}
+const renderScene = ({ children }: { children: React.ReactNode }) => <Scene>{children}</Scene>;
 
 // Routes shown as items in the drawer sidebar list. The Sidebar component
 // renders its own nav, so we hide the auto-generated drawer items entirely.
 const VISIBLE_ROUTES = new Set<string>();
 
 
-/**
- * The app's own react-query client, mounted where its own hooks can see it.
- *
- * `useNotificationSetup` calls `useQueryClient()`, which THROWS rather than
- * returning null when no provider is above it — and this app had none. It worked
- * only for as long as it borrowed the client `OxyProvider` mounts for its own
- * internals, which is not a contract: a dependency reorganising its provider tree
- * takes the app's notifications down with it, and the failure is a white screen
- * behind an error boundary rather than anything that names the cause.
- *
- * `lib/query-client.tsx` was written for this and never mounted. It is mounted
- * here rather than at the root because the hooks that need it live in THIS
- * component, and a provider cannot serve the component that renders it.
- */
+/** The root owns the account database and query client, including editor links. */
 export default function AppLayout() {
   return (
-    <QueryProvider>
-      <AppLayoutContent />
-    </QueryProvider>
+    <AppLayoutContent />
   );
 }
 
@@ -78,10 +67,6 @@ function AppLayoutContent() {
 
   // Push notification registration + tap handling.
   useNotificationSetup();
-  // Open this account's local database and keep it synchronised. Must be
-  // mounted before anything queries notes — a query with no active account has
-  // no database file to open.
-  useLocalStore();
   // Server-side changes arrive here and are pulled in through the same
   // reconciliation path as any other sync.
   useNotesRealtime();
@@ -162,11 +147,6 @@ function AppLayoutContent() {
                   options={{ title: i18n.t("nav.settings") }}
                 />
               </Drawer>
-              {/* Holds the microphone and draws nothing. One mount, here rather
-                  than beside the indicator, because two engines would be two
-                  microphones — and because it reads the local database, which
-                  only exists once this layout has opened an account's store. */}
-              <CaptureEngineHost />
             </View>
           </View>
         </View>

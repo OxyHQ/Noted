@@ -28,7 +28,9 @@
     "done": "Done",
     "authorize": "Authorize",
     "tryAgain": "Try Again",
-    "undo": "Deshacer"
+    "undo": "Deshacer",
+    "retry": "Reintentar",
+    "clear": "Borrar"
   },
   "login": {
     "title": "Sign in or sign up",
@@ -1151,7 +1153,25 @@
     "deleteLabel": "Eliminar etiqueta",
     "deleteLabelConfirm": "Esta etiqueta se quitará de todas las notas. Las notas no se eliminan.",
     "exportMarkdown": "Exportar como Markdown",
-    "exportFailed": "No se pudo exportar la nota."
+    "exportFailed": "No se pudo exportar la nota.",
+    "saveStatus": {
+      "saved": "Guardado en este dispositivo",
+      "unsaved": "Cambios sin guardar",
+      "saving": "Guardando…",
+      "error": "No se pudo guardar. Tus cambios siguen aquí."
+    },
+    "notFoundTitle": "No se encontró la nota",
+    "notFoundSubtitle": "Esta nota puede haberse eliminado o pertenecer a otra cuenta.",
+    "loadFailed": "No se pudo abrir esta nota",
+    "loadFailedSubtitle": "Reintenta leer la nota guardada en este dispositivo.",
+    "discardDraftTitle": "¿Descartar este borrador?",
+    "discardDraftSubtitle": "Se perderán los cambios sin guardar.",
+    "discardDraft": "Descartar borrador",
+    "keepEditing": "Seguir editando",
+    "quickSaveFailed": "No se pudo guardar. Tu borrador sigue aquí.",
+    "removeItem": "Eliminar elemento",
+    "loadAttachmentFailed": "No se pudo cargar este archivo adjunto",
+    "openAttachmentFailed": "No se pudo abrir este archivo adjunto"
   },
   "capture": {
     "start": "Tomar apuntes",
@@ -1264,5 +1284,22 @@
     "quotaUsage": "%{reserved} GB contados en la cuota; %{available} GB disponibles para admisión",
     "holds": "%{held} GB también retenidos por la papelera, cargas pendientes o limpieza. El espacio sigue reservado hasta que Oxy lo libere.",
     "reservationsUnknown": "La cuota reservada no está disponible. No se puede calcular el espacio disponible para cargas."
+  },
+  "emptyStates": {
+    "storeErrorTitle": "No se pudieron abrir tus notas",
+    "storeErrorSubtitle": "Noted necesita almacenamiento local para abrir tus notas. Reinténtalo o comprueba el almacenamiento en los ajustes del navegador o del dispositivo.",
+    "retry": "Reintentar",
+    "signIn": "Iniciar sesión con Oxy",
+    "loadingTitle": "Preparando tus notas",
+    "loadingSubtitle": "Abriendo tu espacio privado en este dispositivo.",
+    "backToNotes": "Volver a las notas",
+    "clearFilters": "Quitar filtros",
+    "labelsSubtitle": "Crea una etiqueta para agrupar las notas relacionadas.",
+    "notificationsTitle": "Estás al día",
+    "notificationsSubtitle": "Añade recordatorios a tus notas para recibir notificaciones aquí.",
+    "notificationsError": "No se pudieron cargar las notificaciones",
+    "notificationsErrorSubtitle": "Comprueba tu conexión y vuelve a intentarlo.",
+    "notFoundTitle": "No se encontró esta página",
+    "notFoundSubtitle": "Puede que el enlace esté desactualizado. Tus notas siguen en la pantalla de inicio."
   }
 }

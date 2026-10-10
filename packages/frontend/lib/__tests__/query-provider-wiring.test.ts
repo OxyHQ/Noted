@@ -22,6 +22,7 @@ const HERE = import.meta.dirname;
 const read = (path: string): string => readFileSync(join(HERE, '..', '..', path), 'utf8');
 
 const APP_LAYOUT = read('app/(app)/_layout.tsx');
+const ROOT_LAYOUT = read('app/_layout.tsx');
 const QUERY_CLIENT = read('lib/query-client.tsx');
 
 /** Every module that reaches for a client and would throw without one. */
@@ -52,17 +53,19 @@ describe('the files this checks', () => {
 describe('the provider', () => {
   it('is mounted, not merely defined', () => {
     // The whole bug in one assertion.
-    expect(APP_LAYOUT).toContain('<QueryProvider>');
-    expect(APP_LAYOUT).toContain("from \"@/lib/query-client\"");
+    expect(ROOT_LAYOUT).toContain('<QueryProvider>');
+    expect(ROOT_LAYOUT).toContain("from '@/lib/query-client'");
   });
 
   it('is above the hooks that need it, not beside them', () => {
-    // A provider cannot serve the component that renders it, so the hooks had to
-    // move into a child. If they move back, this goes red.
-    const providerAt = APP_LAYOUT.indexOf('<QueryProvider>');
-    const hookAt = APP_LAYOUT.indexOf('useNotificationSetup()');
+    // Both drawer routes and direct editor links need the same app client.
+    const providerAt = ROOT_LAYOUT.indexOf('<QueryProvider>');
+    const navigatorAt = ROOT_LAYOUT.indexOf('<Stack\n');
+    const providerEnd = ROOT_LAYOUT.indexOf('</QueryProvider>');
     expect(providerAt).toBeGreaterThanOrEqual(0);
-    expect(hookAt).toBeGreaterThan(providerAt);
-    expect(APP_LAYOUT).toContain('function AppLayoutContent');
+    expect(navigatorAt).toBeGreaterThan(providerAt);
+    expect(providerEnd).toBeGreaterThan(navigatorAt);
+    expect(ROOT_LAYOUT).toContain('name="n/[id]"');
+    expect(APP_LAYOUT).not.toContain('<QueryProvider>');
   });
 });

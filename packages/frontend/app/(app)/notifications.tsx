@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/empty-state";
 import { View, ScrollView, Pressable, Platform } from "react-native";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
@@ -55,7 +56,7 @@ export default function NotificationsScreen() {
   const [pushLoading, setPushLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
-  const { data, isLoading } = useNotifications();
+  const { data, isLoading, isError, refetch } = useNotifications();
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
   const dismiss = useDismissNotification();
@@ -179,18 +180,16 @@ export default function NotificationsScreen() {
       )}
 
       {/* Notification Feed */}
-      {isLoading ? (
+      {isError ? <EmptyState sticker="loadError" title={t('emptyStates.notificationsError')}
+        subtitle={t('emptyStates.notificationsErrorSubtitle')}
+        action={{ label: t('emptyStates.retry'), onPress: () => { void refetch(); } }} /> : isLoading ? (
         <View className="items-center justify-center py-12">
-          <Text className="text-sm text-muted-foreground">Loading...</Text>
+          <Text className="text-sm text-muted-foreground">{t('common.loading')}</Text>
         </View>
       ) : notifications.length === 0 ? (
-        <View className="items-center justify-center py-16 px-6">
-          <Bell size={32} className="text-muted-foreground mb-3" />
-          <Text className="text-base font-medium text-foreground mb-1">No notifications yet</Text>
-          <Text className="text-sm text-muted-foreground text-center">
-            Set reminders on your notes to get notified here.
-          </Text>
-        </View>
+        <EmptyState sticker="notifications" title={t('emptyStates.notificationsTitle')}
+          subtitle={t('emptyStates.notificationsSubtitle')}
+          action={{ label: t('notes.remindersTitle'), onPress: () => router.push('/reminders') }} />
       ) : (
         <View className="py-2">
           {notifications.map((notification) => {

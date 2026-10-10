@@ -1,6 +1,9 @@
 import React from "react";
+import { useRouter } from "expo-router";
+import { EmptyState } from "@/components/empty-state";
+import { LocalStoreError } from "@/components/local-store-boundary";
 import { View, ScrollView, Pressable, ActivityIndicator } from "react-native";
-import { Trash2, RotateCcw, X } from "lucide-react-native";
+import { RotateCcw, X } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { NotesHeader } from "@/components/notes/notes-header";
@@ -12,10 +15,11 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import type { Note } from "@noted/shared-types";
 
 export default function TrashScreen() {
+  const router = useRouter();
   const { t } = useTranslation();
   const { colors, colorScheme } = useColorScheme();
 
-  const { data: notes, isLoading } = useNotes({ view: "trashed" });
+  const { data: notes, isLoading, error } = useNotes({ view: "trashed" });
   const restoreNote = useRestoreNote();
   const deleteNote = useDeleteNote();
 
@@ -58,20 +62,14 @@ export default function TrashScreen() {
       <NotesHeader title={t("notes.trashTitle")} />
 
       <ScrollView className="flex-1" contentContainerClassName="px-3 pb-24 pt-3">
-        {isLoading ? (
+        {error ? <LocalStoreError /> : isLoading ? (
           <View className="items-center justify-center py-16">
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : allNotes.length === 0 ? (
-          <View className="items-center justify-center py-20">
-            <Trash2 size={48} color={colors.mutedForeground} strokeWidth={1.5} />
-            <Text className="mt-4 text-base font-semibold text-foreground">
-              {t("notes.trashEmptyTitle")}
-            </Text>
-            <Text className="mt-1 text-center text-sm text-muted-foreground">
-              {t("notes.trashEmptySubtitle")}
-            </Text>
-          </View>
+          <EmptyState sticker="trash" title={t("notes.trashEmptyTitle")}
+            subtitle={t("notes.trashEmptySubtitle")}
+            action={{ label: t("emptyStates.backToNotes"), onPress: () => router.push("/(app)") }} />
         ) : (
           <>
             <View className="mb-2 flex-row items-center justify-between px-1">
