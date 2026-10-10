@@ -184,7 +184,6 @@ export function QuickCapture({
         <Card
           testID="quick-capture"
           appearance="outline"
-          radius="radius-12"
           elevation="s"
           style={{
             flexDirection: "row",
@@ -230,7 +229,6 @@ export function QuickCapture({
       <Card
         testID="quick-capture"
         appearance="outline"
-        radius="radius-12"
         elevation="m"
         style={{
           gap: 8,

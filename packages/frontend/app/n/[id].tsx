@@ -841,7 +841,6 @@ function NoteEditor() {
           className="h-[85%] w-full max-w-[720px]"
         >
           <Card
-            radius="radius-16"
             clipContent
             elevation="m"
             style={{ backgroundColor, flex: 1 }}

@@ -169,7 +169,6 @@ export const NoteCard = React.memo(function NoteCard({
     >
       <Card
         appearance="outline"
-        radius="radius-12"
         clipContent
         border={selected ? "medium" : "thin"}
         elevation={hovered ? "m" : "none"}
