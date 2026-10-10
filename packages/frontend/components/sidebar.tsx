@@ -1,4 +1,5 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { LabelIcon } from "@/components/notes/label-color";
 import { usePathname, useRouter, type Href } from "expo-router";
 import type { SidebarProps } from "@oxy.so/bloom/sidebar";
 import { ProfileButton, openAccountDialog } from "@oxy.so/services";
@@ -56,6 +57,17 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
     openAccountDialog();
   }, [closeDrawer]);
 
+  const labelItems = useMemo(() => (labels ?? []).map(label => ({
+    key: `label:${label.id}`,
+    label: label.name,
+    icon: ({ width, height, fill }: { width?: number; height?: number; fill?: string }) => <LabelIcon color={label.color} selected={pathname === "/" && activeLabel === label.id} width={width} height={height} fill={fill} />,
+    onPress: () => {
+      setActiveLabel(label.id);
+      setSearchQuery("");
+      navigate("/(app)");
+    },
+  })), [labels, navigate, setActiveLabel, setSearchQuery, pathname, activeLabel]);
+
   return {
     surface: "plain",
     size: "md",
@@ -77,16 +89,7 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
       { key: "/archive", label: t("notes.archiveTitle"), icon: RiArchiveLine, href: "/archive", onPress: () => navigate("/(app)/archive") },
       { key: "/trash", label: t("notes.trashTitle"), icon: RiDeleteBinLine, href: "/trash", onPress: () => navigate("/(app)/trash") },
       { key: "/labels", label: t("notes.editLabels"), icon: RiPriceTag3Line, href: "/labels", onPress: () => navigate("/(app)/labels") },
-      ...(labels ?? []).map((label) => ({
-        key: `label:${label.id}`,
-        label: label.name,
-        icon: RiPriceTag3Line,
-        onPress: () => {
-          setActiveLabel(label.id);
-          setSearchQuery("");
-          navigate("/(app)");
-        },
-      })),
+      ...labelItems,
     ],
     secondaryItems: [
       { key: "/notifications", label: t("notifications.title"), icon: RiNotification3Line, href: "/notifications", onPress: () => navigate("/(app)/notifications") },

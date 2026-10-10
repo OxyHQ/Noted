@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "ラベルの色",
+    "labelSaveFailed": "ラベルを保存できませんでした。もう一度お試しください。",
+    "labelColors": {
+      "default": "色なし",
+      "teal": "青緑",
+      "blue": "青",
+      "green": "緑",
+      "yellow": "黄",
+      "red": "赤",
+      "purple": "紫",
+      "pink": "ピンク",
+      "sky": "空色",
+      "orange": "オレンジ",
+      "mint": "ミント",
+      "pumpkin": "パンプキン",
+      "brown": "茶"
+    }
   },
   "capture": {
     "start": "開始",

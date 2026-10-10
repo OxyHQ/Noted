@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "标签颜色",
+    "labelSaveFailed": "无法保存标签。请重试。",
+    "labelColors": {
+      "default": "无颜色",
+      "teal": "青色",
+      "blue": "蓝色",
+      "green": "绿色",
+      "yellow": "黄色",
+      "red": "红色",
+      "purple": "紫色",
+      "pink": "粉色",
+      "sky": "天蓝色",
+      "orange": "橙色",
+      "mint": "薄荷色",
+      "pumpkin": "南瓜色",
+      "brown": "棕色"
+    }
   },
   "capture": {
     "start": "开始",

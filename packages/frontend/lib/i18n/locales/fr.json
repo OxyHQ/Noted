@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "Couleur de l’étiquette",
+    "labelSaveFailed": "Impossible d’enregistrer l’étiquette. Réessayez.",
+    "labelColors": {
+      "default": "Sans couleur",
+      "teal": "Bleu sarcelle",
+      "blue": "Bleu",
+      "green": "Vert",
+      "yellow": "Jaune",
+      "red": "Rouge",
+      "purple": "Violet",
+      "pink": "Rose",
+      "sky": "Bleu ciel",
+      "orange": "Orange",
+      "mint": "Menthe",
+      "pumpkin": "Citrouille",
+      "brown": "Marron"
+    }
   },
   "capture": {
     "start": "Démarrer",

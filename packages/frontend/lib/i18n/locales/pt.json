@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "Cor da etiqueta",
+    "labelSaveFailed": "Não foi possível guardar a etiqueta. Tente novamente.",
+    "labelColors": {
+      "default": "Sem cor",
+      "teal": "Verde-azulado",
+      "blue": "Azul",
+      "green": "Verde",
+      "yellow": "Amarelo",
+      "red": "Vermelho",
+      "purple": "Roxo",
+      "pink": "Rosa",
+      "sky": "Azul-celeste",
+      "orange": "Laranja",
+      "mint": "Menta",
+      "pumpkin": "Abóbora",
+      "brown": "Castanho"
+    }
   },
   "capture": {
     "start": "Iniciar",

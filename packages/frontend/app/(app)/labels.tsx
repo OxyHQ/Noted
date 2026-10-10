@@ -1,3 +1,5 @@
+import { LabelChip, LabelColorPicker } from "@/components/notes/label-color";
+import { Text } from "@oxy.so/bloom/typography";
 import { Screen } from "@oxy.so/bloom/screen";
 import { NotesContent } from "@/components/notes/notes-content";
 import React from "react";
@@ -24,7 +26,7 @@ import {
 import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
-import type { Label } from "@noted/shared-types";
+import type { Label, NoteColor } from "@noted/shared-types";
 
 export default function LabelsScreen() {
   const router = useRouter();
@@ -34,11 +36,12 @@ export default function LabelsScreen() {
 
   const { data: labels, isLoading, error } = useLabels();
   const createLabel = useCreateLabel();
-  const updateLabel = useUpdateLabel();
   const deleteLabel = useDeleteLabel();
 
   const inputRef = React.useRef<TextInput>(null);
   const [draft, setDraft] = React.useState("");
+  const [draftColor, setDraftColor] = React.useState<NoteColor | null>(null);
+  const [showColors, setShowColors] = React.useState(false);
 
   // Bloom draws the confirmation, so the screen keeps no dialog state.
   const askDeleteLabel = React.useCallback(
@@ -58,8 +61,10 @@ export default function LabelsScreen() {
   const handleCreate = React.useCallback(() => {
     const name = draft.trim();
     if (!name || createLabel.isPending) return;
-    createLabel.mutate({ name }, { onSuccess: () => setDraft(current => current.trim() === name ? "" : current) });
-  }, [draft, createLabel]);
+    createLabel.mutate({ name, color: draftColor }, { onSuccess: () => {
+      setDraft(""); setDraftColor(null); setShowColors(false);
+    } });
+  }, [draft, draftColor, createLabel]);
 
   const handleOpenLabel = React.useCallback(
     (label: Label) => {
@@ -75,21 +80,33 @@ export default function LabelsScreen() {
     <Screen documentScroll header={<NotesHeader title={t("notes.labelsTitle")} />}>
 
       <NotesContent ready={!isLoading}>
+        <View className="gap-3">
         <View className="flex-row items-center gap-2">
           <TextField style={{ flex: 1 }} disabled={createLabel.isPending}>
             <TextFieldIcon icon={RiAddLine} />
             <TextFieldInput
               inputRef={inputRef}
               value={draft}
-              onChangeText={setDraft}
+              onChangeText={value => { setDraft(value); createLabel.reset(); }}
               onSubmitEditing={handleCreate}
               label={t("notes.createLabelPlaceholder")}
               placeholder={t("notes.createLabelPlaceholder")}
               returnKeyType="done"
             />
           </TextField>
+          <Button appearance="subtle" tone="neutral" pressed={showColors}
+            disabled={createLabel.isPending} onPress={() => setShowColors(current => !current)}
+            accessibilityLabel={t("notes.labelColor")} icon={RiPriceTag3Line} iconOnly />
           <Button iconOnly icon={RiCheckLine} disabled={!draft.trim() || createLabel.isPending}
             loading={createLabel.isPending} onPress={handleCreate} accessibilityLabel={t("common.create")} />
+        </View>
+        {showColors && <LabelColorPicker value={draftColor} disabled={createLabel.isPending}
+          onChange={color => { setDraftColor(color); createLabel.reset(); }} />}
+        {Boolean(draft.trim() && draftColor) && <LabelChip label={{ name: draft.trim(), color: draftColor }} />}
+        {createLabel.isError && <View className="flex-row items-center gap-2" accessibilityRole="alert">
+          <Text style={{ flex: 1 }}>{t("notes.labelSaveFailed")}</Text>
+          <Button appearance="plain" onPress={handleCreate}>{t("common.retry")}</Button>
+        </View>}
         </View>
 
         {error ? <LocalStoreError /> : isLoading ? (
@@ -107,7 +124,6 @@ export default function LabelsScreen() {
                 key={label.id}
                 label={label}
                 onOpen={() => handleOpenLabel(label)}
-                onRename={(name) => updateLabel.mutate({ id: label.id, patch: { name } })}
                 onDelete={() => askDeleteLabel(label)}
               />
             ))}
@@ -118,54 +134,64 @@ export default function LabelsScreen() {
   );
 }
 
-function LabelRow({
-  label,
-  onOpen,
-  onRename,
-  onDelete,
-}: {
+function LabelRow({ label, onOpen, onDelete }: {
   label: Label;
   onOpen: () => void;
-  onRename: (name: string) => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
+  const updateLabel = useUpdateLabel();
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState(label.name);
+  const [color, setColor] = React.useState<NoteColor | null>(label.color);
+  const base = React.useRef(label);
 
+  const startEditing = () => {
+    base.current = label;
+    setValue(label.name); setColor(label.color); updateLabel.reset(); setEditing(true);
+  };
   const commit = () => {
     const name = value.trim();
-    if (name && name !== label.name) onRename(name);
-    else setValue(label.name);
-    setEditing(false);
+    if (!name || updateLabel.isPending) return;
+    // Send only fields edited from the starting snapshot. A color-only edit
+    // must not overwrite another device's rename while this form was open.
+    const patch: { name?: string; color?: NoteColor | null } = {};
+    if (name !== base.current.name) patch.name = name;
+    const selected = color === 'default' ? null : color;
+    const original = base.current.color === 'default' ? null : base.current.color;
+    if (selected !== original) patch.color = selected;
+    if (!Object.keys(patch).length) { setEditing(false); return; }
+    updateLabel.mutate({ id: label.id, patch }, { onSuccess: () => setEditing(false) });
   };
 
-  if (editing) {
-    return (
-      <View className="flex-row items-center gap-2 py-1">
-        <TextField style={{ flex: 1 }}>
-          <TextFieldIcon icon={RiPriceTag3Line} />
-          <TextFieldInput value={value} onChangeText={setValue} onSubmitEditing={commit}
-            autoFocus label={t("notes.labelsTitle")} returnKeyType="done" />
-        </TextField>
-        <ButtonGroup>
-          <Button iconOnly icon={RiCheckLine} onPress={commit} accessibilityLabel={t("common.save")} />
-          <Button iconOnly icon={RiCloseLine} onPress={() => { setValue(label.name); setEditing(false); }}
-            accessibilityLabel={t("common.cancel")} />
-        </ButtonGroup>
-      </View>
-    );
-  }
-
-  return (
-    <View className="flex-row items-center gap-2 py-1">
-      <Button appearance="plain" tone="neutral" icon={RiPriceTag3Line} onPress={onOpen}
-        style={{ flex: 1, justifyContent: "flex-start" }}>{label.name}</Button>
+  if (editing) return <View className="gap-3 py-3" testID={`label-editor-${label.id}`}>
+    <View className="flex-row items-center gap-2">
+      <TextField style={{ flex: 1 }} disabled={updateLabel.isPending}>
+        <TextFieldIcon icon={RiPriceTag3Line} />
+        <TextFieldInput value={value} onChangeText={name => { setValue(name); updateLabel.reset(); }} onSubmitEditing={commit}
+          autoFocus label={t("common.name")} returnKeyType="done" />
+      </TextField>
       <ButtonGroup>
-        <Button onPress={() => setEditing(true)}>{t("common.edit")}</Button>
-        <Button iconOnly icon={RiDeleteBinLine} tone="danger" onPress={onDelete}
-          accessibilityLabel={t("common.delete")} />
+        <Button iconOnly icon={RiCheckLine} onPress={commit} disabled={!value.trim() || updateLabel.isPending}
+          loading={updateLabel.isPending} accessibilityLabel={t("common.save")} />
+        <Button iconOnly icon={RiCloseLine} disabled={updateLabel.isPending} onPress={() => setEditing(false)}
+          accessibilityLabel={t("common.cancel")} />
       </ButtonGroup>
     </View>
-  );
+    <LabelColorPicker value={color} disabled={updateLabel.isPending}
+      onChange={next => { setColor(next); updateLabel.reset(); }} />
+    {updateLabel.isError && <View className="flex-row items-center gap-2" accessibilityRole="alert">
+      <Text style={{ flex: 1 }}>{t("notes.labelSaveFailed")}</Text>
+      <Button appearance="plain" onPress={commit}>{t("common.retry")}</Button>
+    </View>}
+  </View>;
+
+  return <View className="flex-row items-center gap-2 py-1" testID={`label-row-${label.id}`}>
+    <View style={{ flex: 1, alignItems: 'flex-start' }}><LabelChip label={label} onPress={onOpen} /></View>
+    <ButtonGroup>
+      <Button onPress={startEditing} accessibilityLabel={`${t("common.edit")} ${label.name}`}>{t("common.edit")}</Button>
+      <Button iconOnly icon={RiDeleteBinLine} tone="danger" onPress={onDelete}
+        accessibilityLabel={`${t("common.delete")} ${label.name}`} />
+    </ButtonGroup>
+  </View>;
 }

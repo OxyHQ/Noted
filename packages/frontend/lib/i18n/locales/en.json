@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "Label color",
+    "labelSaveFailed": "Could not save the label. Try again.",
+    "labelColors": {
+      "default": "No color",
+      "teal": "Teal",
+      "blue": "Blue",
+      "green": "Green",
+      "yellow": "Yellow",
+      "red": "Red",
+      "purple": "Purple",
+      "pink": "Pink",
+      "sky": "Sky",
+      "orange": "Orange",
+      "mint": "Mint",
+      "pumpkin": "Pumpkin",
+      "brown": "Brown"
+    }
   },
   "capture": {
     "start": "Take notes",

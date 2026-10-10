@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "Rangi ya lebo",
+    "labelSaveFailed": "Lebo haikuweza kuhifadhiwa. Jaribu tena.",
+    "labelColors": {
+      "default": "Bila rangi",
+      "teal": "Kijani samawati",
+      "blue": "Bluu",
+      "green": "Kijani",
+      "yellow": "Njano",
+      "red": "Nyekundu",
+      "purple": "Zambarau",
+      "pink": "Waridi",
+      "sky": "Samawati",
+      "orange": "Chungwa",
+      "mint": "Mnanaa",
+      "pumpkin": "Malenge",
+      "brown": "Kahawia"
+    }
   },
   "capture": {
     "start": "Anza",

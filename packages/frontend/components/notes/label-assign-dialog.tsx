@@ -1,4 +1,5 @@
 import React from "react";
+import { LabelChip } from "./label-color";
 import { GlyphButton } from "@oxy.so/bloom/button";
 import { Checkbox } from "@oxy.so/bloom/checkbox";
 import { TextFieldInput } from "@oxy.so/bloom/text-field";
@@ -95,6 +96,7 @@ export function LabelAssignDialog({
                   key={label.id}
                   checked={isAssigned}
                   label={label.name}
+                  labelContent={<LabelChip label={label} />}
                   onCheckedChange={() => onToggle(label.id)}
                   style={{ paddingVertical: 10 }}
                 />

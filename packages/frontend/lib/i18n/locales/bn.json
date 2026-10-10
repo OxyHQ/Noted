@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "লেবেলের রং",
+    "labelSaveFailed": "লেবেল সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+    "labelColors": {
+      "default": "কোনো রং নয়",
+      "teal": "নীলচে সবুজ",
+      "blue": "নীল",
+      "green": "সবুজ",
+      "yellow": "হলুদ",
+      "red": "লাল",
+      "purple": "বেগুনি",
+      "pink": "গোলাপি",
+      "sky": "আকাশি",
+      "orange": "কমলা",
+      "mint": "পুদিনা",
+      "pumpkin": "কুমড়া",
+      "brown": "বাদামি"
+    }
   },
   "capture": {
     "start": "শুরু",
