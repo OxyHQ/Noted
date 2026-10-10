@@ -512,7 +512,9 @@ function NoteEditor() {
   }) => (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={active === undefined ? undefined : { selected: active }}
       className="h-10 w-10 items-center justify-center rounded-full active:bg-foreground/10"
       style={active ? { backgroundColor: colors.foreground + "1a" } : undefined}
     >
@@ -739,6 +741,7 @@ function ReminderChip({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       className="rounded-full border border-border px-3 py-1.5 active:bg-muted"
     >
       <Text

@@ -42,7 +42,15 @@ function Scene({ children }: { children: React.ReactNode }) {
   const publicRoute = (pathname.startsWith('/settings') && pathname !== '/settings/transcription') || pathname.startsWith('/authorize') ||
     pathname === '/forgot-password' || pathname === '/reset-password';
   if (publicRoute) return <View style={{ flex: 1 }}>{children}</View>;
-  return <LocalStoreBoundary fallbackHeader={<NotesHeader title={t('notes.title')} />}><View style={{ flex: 1 }}>{children}<FloatingBottomStack /></View></LocalStoreBoundary>;
+  return (
+    <LocalStoreBoundary fallbackHeader={<NotesHeader title={t('notes.title')} />}>
+      <View style={{ flex: 1 }}>
+        {children}
+        {/* The editor renders its own controls above the transparent modal. */}
+        {!pathname.startsWith('/n/') && <FloatingBottomStack />}
+      </View>
+    </LocalStoreBoundary>
+  );
 }
 const renderScene = ({ children }: { children: React.ReactNode }) => <Scene>{children}</Scene>;
 
