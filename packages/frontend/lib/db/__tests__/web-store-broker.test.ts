@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { defined } from '@/lib/__tests__/defined';
 import {
   createDatabaseBroker,
   DATABASE_LEADER_LOCK,
@@ -112,9 +113,10 @@ it('does not retain completed SELECT snapshots when the transport delivers a dup
   const owner = makeBroker('owner', browser, dispatch);
   owner.broker.setSession('alice', 1);
   expect(await owner.broker.call('alice', 1, read)).toEqual([{ title: 'Before' }]);
-  const request = browser.calls.find(
-    ({ message }) => (message as { kind: string }).kind === 'request',
-  )!.message;
+  const request = defined(
+    browser.calls.find(({ message }) => (message as { kind: string }).kind === 'request'),
+    'a broker request',
+  ).message;
   browser.channel('duplicate-delivery').postMessage(request);
   await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2));
   const responses = browser.calls.filter(
@@ -139,9 +141,10 @@ it.each([
   const owner = makeBroker('owner', browser, dispatch);
   owner.broker.setSession('alice', 1);
   await owner.broker.call('alice', 1, operation);
-  const request = browser.calls.find(
-    ({ message }) => (message as { kind: string }).kind === 'request',
-  )!.message;
+  const request = defined(
+    browser.calls.find(({ message }) => (message as { kind: string }).kind === 'request'),
+    'a broker request',
+  ).message;
   browser.channel('duplicate-delivery').postMessage(request);
   await vi.waitFor(() =>
     expect(
@@ -341,14 +344,17 @@ it('discovers the current lock owner after clock rollback and ignores late old a
   old.broker.setSession('alice', 1);
   next.broker.setSession('alice', 1);
   expect(await next.broker.call('alice', 1, read)).toEqual([{ title: 'old' }]);
-  const oldAnnouncement = browser.calls.find(
-    ({ message }) =>
-      typeof message === 'object' &&
-      message !== null &&
-      'kind' in message &&
-      message.kind === 'leader' &&
-      !('client' in message),
-  )!.message;
+  const oldAnnouncement = defined(
+    browser.calls.find(
+      ({ message }) =>
+        typeof message === 'object' &&
+        message !== null &&
+        'kind' in message &&
+        message.kind === 'leader' &&
+        !('client' in message),
+    ),
+    'the old leader announcement',
+  ).message;
   vi.setSystemTime(100);
   old.broker.disconnect();
   browser.destroyDocument('old');

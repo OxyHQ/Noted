@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { OxyServices } from '@oxy.so/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { defined } from '@/lib/__tests__/defined';
 import { createNotedClient } from '../noted-client';
 
 let server: Server;
@@ -22,7 +23,12 @@ beforeAll(async () => {
   server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += String(chunk);
-    requests.push({ path: req.url!, bearer: req.headers.authorization, method: req.method, body });
+    requests.push({
+      path: defined(req.url, 'the request URL'),
+      bearer: req.headers.authorization,
+      method: req.method,
+      body,
+    });
     res.setHeader('Content-Type', 'application/json');
     if (req.url === '/slow-body') {
       res.writeHead(200);
@@ -85,9 +91,11 @@ describe('Noted domain requests through the linked SDK', () => {
         await client.get('/notes/sync', { params: { since: '2026-10-03T12:00:00+03:00' } }),
       ).toEqual({ data: envelope });
       expect(requests.at(-1)?.bearer).toBe(`Bearer ${jwt('A')}`);
-      expect(new URL(requests.at(-1)!.path, baseURL).searchParams.get('since')).toBe(
-        '2026-10-03T12:00:00+03:00',
-      );
+      expect(
+        new URL(defined(requests.at(-1), 'a recorded request').path, baseURL).searchParams.get(
+          'since',
+        ),
+      ).toBe('2026-10-03T12:00:00+03:00');
       oxy.session.setAccessToken(jwt('B'));
       expect(await client.get('/notes/sync')).toEqual({ data: envelope });
       expect(requests.at(-1)?.bearer).toBe(`Bearer ${jwt('B')}`);
