@@ -23,10 +23,11 @@ interface NotificationsResponse {
 }
 
 export function useNotifications(limit = 30) {
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, user } = useOxy();
+  const viewerId = isAuthenticated ? user?.id : undefined;
 
   return useQuery<NotificationsResponse>({
-    queryKey: ['notifications', limit],
+    queryKey: ['notifications', viewerId, 'list', limit],
     queryFn: async () => {
       const res = await apiClient.get<NotificationsResponse>('/notifications', { params: { limit } });
       return res.data;
@@ -34,15 +35,16 @@ export function useNotifications(limit = 30) {
     staleTime: 1000 * 30, // 30 seconds
     refetchInterval: 1000 * 60, // Refresh every minute
     retry: 2,
-    enabled: isAuthenticated,
+    enabled: Boolean(viewerId),
   });
 }
 
 export function useUnreadCount() {
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, user } = useOxy();
+  const viewerId = isAuthenticated ? user?.id : undefined;
 
   return useQuery<{ count: number }>({
-    queryKey: ['notifications', 'unread-count'],
+    queryKey: ['notifications', viewerId, 'unread-count'],
     queryFn: async () => {
       const res = await apiClient.get<{ count: number }>('/notifications/unread-count');
       return res.data;
@@ -50,7 +52,7 @@ export function useUnreadCount() {
     staleTime: 1000 * 60 * 5, // 5 minutes — socket invalidates on real events
     refetchInterval: false, // rely on socket-driven invalidation
     retry: 1,
-    enabled: isAuthenticated,
+    enabled: Boolean(viewerId),
   });
 }
 

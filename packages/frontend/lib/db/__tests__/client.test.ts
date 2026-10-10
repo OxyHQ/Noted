@@ -3,16 +3,16 @@
  *
  * This suite mocks `expo-sqlite`, which the vitest config otherwise rules out —
  * "a green suite built on mocks of those would only be testing the mocks". The
- * exception is deliberate and narrow: what is under test here is the ORDERING
- * this module imposes on opens, closes and account switches, not SQLite. The one
- * behaviour the fake encodes is the constraint that broke in production — on web
+ * exception is deliberate and narrow: this tests connection ordering and data
+ * preservation after initialization failures, not SQLite. The fake enforces the
+ * constraint that broke in production — on web
  * the database lives in OPFS, which grants a single sync access handle per file,
  * so a second open while the first is live fails with `NoModificationAllowedError`
  * rather than queueing. A fake that permits concurrent opens could not tell a
  * correct implementation from the one that shipped.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   /** How long the fake takes to release a file handle. */
@@ -22,6 +22,9 @@ const state = vi.hoisted(() => ({
   collisions: 0,
   concurrent: 0,
   maxConcurrent: 0,
+  migrationError: null as Error | null,
+  openError: null as Error | null,
+  files: new Map<string, { owner?: string; rows: { id: string; body: string }[] }>(),
 }));
 
 interface FakeRow {
@@ -30,18 +33,22 @@ interface FakeRow {
 
 vi.mock('expo-sqlite', () => {
   function createDatabase(name: string) {
-    const metadata = new Map<string, string>();
+    const file = state.files.get(name) ?? { rows: [] };
+    state.files.set(name, file);
     return {
-      execAsync: () => Promise.resolve(),
+      execAsync: (sql: string) => {
+        if (/DELETE FROM notes/i.test(sql)) file.rows = [];
+        return Promise.resolve();
+      },
       runAsync: (_sql: string, params: readonly (string | number | null)[]) => {
-        metadata.set(String(params[0]), String(params[1]));
+        if (params[0] === 'viewer_id') file.owner = String(params[1]);
         return Promise.resolve({ changes: 1, lastInsertRowId: 0 });
       },
       getFirstAsync: (_sql: string, params: readonly (string | number | null)[]) => {
-        const value = metadata.get(String(params[0]));
+        const value = params[0] === 'viewer_id' ? file.owner : undefined;
         return Promise.resolve<FakeRow | null>(value === undefined ? null : { value });
       },
-      getAllAsync: () => Promise.resolve([]),
+      getAllAsync: () => Promise.resolve(file.rows),
       closeAsync: async () => {
         // Closing flushes and releases the OPFS handle, so it is not
         // instantaneous. The delay is what gives a racing open a window to
@@ -61,6 +68,7 @@ vi.mock('expo-sqlite', () => {
       // here a racing second caller could never interleave, and the test would
       // pass against an unserialised implementation.
       await Promise.resolve();
+      if (state.openError) throw state.openError;
       if (state.open.has(name)) {
         state.collisions += 1;
         throw new Error(
@@ -79,7 +87,7 @@ vi.mock('expo-sqlite', () => {
 
 vi.mock('@/lib/db/migrations', () => ({
   LOCAL_TABLES: ['notes'],
-  migrate: () => Promise.resolve(),
+  migrate: () => state.migrationError ? Promise.reject(state.migrationError) : Promise.resolve(),
 }));
 
 /** A fresh module instance, since the store keeps its connection in module state. */
@@ -101,9 +109,70 @@ beforeEach(() => {
   state.collisions = 0;
   state.concurrent = 0;
   state.maxConcurrent = 0;
+  state.files.clear();
+  state.migrationError = null;
+  state.openError = null;
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe('local store connection lifecycle', () => {
+  it('preserves every account file when an old rebuild marker survives a reload', async () => {
+    const local = new Map([['noted.local-store.rebuild', '1']]);
+    const removeEntry = vi.fn(async () => state.files.clear());
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => local.get(key) ?? null,
+      setItem: (key: string, value: string) => local.set(key, value),
+      removeItem: (key: string) => local.delete(key),
+    });
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => ({ removeEntry }) } });
+    const unsynced = [{ id: 'private-note', body: 'Not on the server yet' }];
+    state.files.set('noted-user-1.db', { owner: 'user-1', rows: unsynced });
+    state.files.set('noted-user-2.db', { owner: 'user-2', rows: unsynced });
+    let client = await loadClient();
+    state.openError = new Error('Cannot create file');
+    await client.setActiveViewer('user-1');
+    await expect(client.execute('SELECT * FROM notes')).rejects.toThrow('Cannot create file');
+
+    // Reloading after the failure must not discard this origin's OPFS pool.
+    state.openError = null;
+    client = await loadClient();
+    await client.setActiveViewer('user-1');
+    await expect(client.execute('SELECT * FROM notes')).resolves.toEqual(unsynced);
+    await client.setActiveViewer('user-2');
+    await expect(client.execute('SELECT * FROM notes')).resolves.toEqual(unsynced);
+    expect(removeEntry).not.toHaveBeenCalled();
+    expect(local.has('noted.local-store.rebuild')).toBe(false);
+  });
+
+  it('releases the handle after migration failure so retry reopens the intact file', async () => {
+    const client = await loadClient();
+    const unsynced = [{ id: 'draft', body: 'Offline edit' }];
+    state.files.set('noted-user-1.db', { owner: 'user-1', rows: unsynced });
+    state.migrationError = new Error('Migration interrupted');
+    await client.setActiveViewer('user-1');
+    await expect(client.execute('SELECT * FROM notes')).rejects.toThrow('Migration interrupted');
+    expect(state.open.size).toBe(0);
+    expect(client.isDbAvailable()).toBe(false);
+
+    state.migrationError = null;
+    await client.clearActiveViewer();
+    await client.setActiveViewer('user-1');
+    await expect(client.execute('SELECT * FROM notes')).resolves.toEqual(unsynced);
+    expect(client.isDbAvailable()).toBe(true);
+    expect(state.collisions).toBe(0);
+  });
+
+  it('refuses a mismatched owner without deleting or exposing their unsynced notes', async () => {
+    const client = await loadClient();
+    const unsynced = [{ id: 'private', body: 'Another account transcript' }];
+    state.files.set('noted-user-1.db', { owner: 'user-2', rows: unsynced });
+    await client.setActiveViewer('user-1');
+    await expect(client.execute('SELECT * FROM notes')).rejects.toThrow('belongs to another account');
+    expect(state.files.get('noted-user-1.db')).toEqual({ owner: 'user-2', rows: unsynced });
+    expect(state.open.size).toBe(0);
+  });
+
   it('detects a second open of the same file', async () => {
     // The floor under every assertion below: if this fake cannot see a
     // collision, `collisions === 0` proves nothing anywhere else in the file.
