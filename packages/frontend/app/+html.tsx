@@ -22,17 +22,12 @@ export default function Root({ children }: PropsWithChildren) {
         {/* Security and Performance */}
         <meta httpEquiv="Content-Security-Policy" content="upgrade-insecure-requests" />
         <meta name="referrer" content="origin-when-cross-origin" />
-        <meta httpEquiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
 
         {/* Primary Meta Tags */}
         <meta name="title" content="Noted" />
         <meta
           name="description"
-          content="Noted is an AI-powered search engine by Oxy. Get comprehensive answers with cited sources."
-        />
-        <meta
-          name="keywords"
-          content="AI chat, AI assistant, chatbot, artificial intelligence, productivity, AI conversation, machine learning, chat AI"
+          content="Capture notes, lists and meetings with Noted by Oxy. Keep your notes on your device and transcribe recordings locally."
         />
 
         {/* Open Graph / Facebook Meta Tags for social sharing */}
@@ -41,9 +36,9 @@ export default function Root({ children }: PropsWithChildren) {
         <meta property="og:title" content="Noted" />
         <meta
           property="og:description"
-          content="Noted is an AI-powered search engine by Oxy. Get comprehensive answers with cited sources."
+          content="Capture notes, lists and meetings with Noted by Oxy. Keep your notes on your device and transcribe recordings locally."
         />
-        <meta property="og:image" content="/og-image.png" />
+        <meta property="og:image" content="https://noted.oxy.so/icon-512.png" />
 
         {/* Twitter Card Meta Tags */}
         <meta property="twitter:card" content="summary_large_image" />
@@ -51,13 +46,13 @@ export default function Root({ children }: PropsWithChildren) {
         <meta property="twitter:title" content="Noted" />
         <meta
           property="twitter:description"
-          content="Noted is an AI-powered search engine by Oxy. Get comprehensive answers with cited sources."
+          content="Capture notes, lists and meetings with Noted by Oxy. Keep your notes on your device and transcribe recordings locally."
         />
-        <meta property="twitter:image" content="/og-image.png" />
+        <meta property="twitter:image" content="https://noted.oxy.so/icon-512.png" />
 
         {/* Theme color for mobile browsers */}
-        <meta name="theme-color" content="#ca52e9" />
-        <meta name="msapplication-TileColor" content="#ca52e9" />
+        <meta name="theme-color" content="#fbbc04" />
+        <meta name="msapplication-TileColor" content="#fbbc04" />
 
         {/* PWA Manifest */}
         <link rel="manifest" href="/manifest.json" />
@@ -93,14 +88,9 @@ export default function Root({ children }: PropsWithChildren) {
               name: 'Noted',
               url: 'https://noted.oxy.so',
               description:
-                'Noted is an AI-powered search engine by Oxy. Get comprehensive answers with cited sources.',
+                'Capture notes, lists and meetings with Noted by Oxy. Keep your notes on your device and transcribe recordings locally.',
               applicationCategory: 'BusinessApplication',
               operatingSystem: 'Web, iOS, Android',
-              offers: {
-                '@type': 'Offer',
-                price: '0',
-                priceCurrency: 'USD',
-              },
             }),
           }}
         />
