@@ -14,7 +14,7 @@
 import { Directory, DownloadTask, File, Paths } from 'expo-file-system';
 import { createLogger } from '@oxy.so/core/logger';
 
-import { execute, executeTransaction } from '@/lib/db/client';
+import { execute, executeTransaction, getActiveViewerId } from '@/lib/db/client';
 import { hasDownloadableModels } from '@/lib/capture/support';
 
 const logger = createLogger('NotedModels');
@@ -99,7 +99,7 @@ export async function statesOf(
   return states;
 }
 
-async function recordState(weights: Weights, state: WeightsState): Promise<void> {
+async function recordState(weights: Weights, state: WeightsState, expectedViewerId: string | null): Promise<void> {
   const now = new Date().toISOString();
   await executeTransaction([
     {
@@ -116,7 +116,7 @@ async function recordState(weights: Weights, state: WeightsState): Promise<void>
         state === 'ready' ? now : null,
       ],
     },
-  ]);
+  ], expectedViewerId);
 }
 
 /**
@@ -135,6 +135,7 @@ export async function download(
   if (!hasWeightsStorage()) {
     throw new Error('this platform cannot run a model, so there is nothing to download');
   }
+  const expectedViewerId = getActiveViewerId();
   if (isPresent(weights)) return;
 
   weightsDirectory(weights).create({ intermediates: true, idempotent: true });
@@ -142,7 +143,7 @@ export async function download(
   // A partial file from an earlier attempt would otherwise be appended to.
   if (destination.exists) destination.delete();
 
-  await recordState(weights, 'downloading');
+  await recordState(weights, 'downloading', expectedViewerId);
   // `DownloadTask` rather than `File.downloadFileAsync`: only the task reports
   // progress, and hundreds of megabytes over a phone connection with no
   // feedback reads as a frozen screen.
@@ -167,10 +168,12 @@ export async function download(
       );
     }
 
-    await recordState(weights, 'ready');
+    // The public weights remain reusable on this device; only their account-local
+    // bookkeeping is rejected if the account changed while they downloaded.
+    await recordState(weights, 'ready', expectedViewerId);
     logger.info('Model ready', { model: weights.id, bytes: weights.bytes });
   } catch (error) {
-    await recordState(weights, 'failed').catch(() => undefined);
+    await recordState(weights, 'failed', expectedViewerId).catch(() => undefined);
     logger.error('Model download failed', { model: weights.id, error: String(error) });
     throw error;
   } finally {
@@ -181,7 +184,8 @@ export async function download(
 /** Remove the weights from disk. */
 export async function remove(weights: Weights): Promise<void> {
   if (!hasWeightsStorage()) return;
+  const expectedViewerId = getActiveViewerId();
   const file = weightsFile(weights);
   if (file.exists) file.delete();
-  await recordState(weights, 'absent');
+  await recordState(weights, 'absent', expectedViewerId);
 }

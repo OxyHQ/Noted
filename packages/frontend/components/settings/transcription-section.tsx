@@ -9,6 +9,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { hasDownloadableModels } from "@/lib/capture/support";
 import { DEFAULT_STT_MODEL, type SttModelId } from "@/lib/stt/models";
+import { selectSttModel } from "@/lib/stt/select-model";
 import { useSttModels, type ModelEntry } from "@/lib/stt/use-models";
 import { useLlmModel } from "@/lib/enhance/use-llm-model";
 import {
@@ -273,15 +274,10 @@ export function TranscriptionSection() {
               entry={entry}
               isSelected={entry.model.id === selected}
               onSelect={() => {
-                if (entry.state === "ready") {
-                  void writeSetting(SETTING_KEYS.sttModel, entry.model.id);
-                  return;
-                }
-                // Selecting a model it does not have yet is a request for it.
-                void download(entry.model.id).then(
-                  () => writeSetting(SETTING_KEYS.sttModel, entry.model.id),
-                  () => undefined,
-                );
+                // Both the download and selection belong to the initiating account.
+                void selectSttModel(entry.model.id, () => entry.state === "ready"
+                  ? Promise.resolve()
+                  : download(entry.model.id)).catch(() => undefined);
               }}
               onRemove={() => void remove(entry.model.id)}
             />
