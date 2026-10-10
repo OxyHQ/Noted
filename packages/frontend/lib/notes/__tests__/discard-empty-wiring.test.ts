@@ -31,8 +31,10 @@ describe('the editor', () => {
   it('uses the removal guard from the same navigation context as Expo Router', () => {
     // SDK 56 owns its navigation context. The upstream hook typechecks but
     // throws "Could not find a navigation object" when opening a real editor.
-    expect(EDITOR).toContain('import { usePreventRemove } from "expo-router/react-navigation"');
-    expect(EDITOR).not.toContain('from "@react-navigation/native"');
+    // Quote-agnostic: the formatter owns quote style, and a needle spelled with
+    // one quote kind makes the negative check pass vacuously on the other.
+    expect(EDITOR).toMatch(/import \{ usePreventRemove \} from ['"]expo-router\/react-navigation['"]/);
+    expect(EDITOR).not.toMatch(/from ['"]@react-navigation\/native['"]/);
   });
 
   it('asks one question about emptiness, in both places', () => {

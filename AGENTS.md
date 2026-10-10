@@ -17,7 +17,7 @@ bun install
 bun run dev
 bun run dev:frontend
 bun run dev:backend
-bun run lint
+bun run lint            # Biome (lint + format check); bun run lint:fix to apply
 bun run build
 bun run --filter @noted/backend test
 bun run validate:no-mongo

@@ -106,8 +106,10 @@ jobs:
       - name: Build shared types
         run: bun run build:types
 
-      - name: Lint API
-        run: bun run --filter @noted/backend lint
+      # Biome formats and lints the whole repository (backend, app, shared
+      # types, scripts) from the root biome.json. `biome ci` never writes.
+      - name: Lint & format check (Biome)
+        run: bunx biome ci .
 
       - name: Run API tests
         run: bun run --filter @noted/backend test
