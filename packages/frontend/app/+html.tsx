@@ -1,4 +1,3 @@
-import { ScrollViewStyleReset } from 'expo-router/html';
 import { type PropsWithChildren } from 'react';
 
 /**
@@ -70,9 +69,6 @@ export default function Root({ children }: PropsWithChildren) {
 
         {/* Apple Mobile Web App */}
         <meta name="apple-mobile-web-app-title" content="Noted" />
-
-        {/* Disable body scrolling for native-like feel on web */}
-        <ScrollViewStyleReset />
 
         {/* Preconnect to important domains for performance */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

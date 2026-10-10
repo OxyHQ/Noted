@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { Stack, usePathname } from "expo-router";
-import { View } from "react-native";
+import { Slot, Stack, usePathname } from "expo-router";
+import { Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppShell } from "@oxy.so/bloom/app-shell";
 import { AppErrorBoundary } from "@/components/error-boundary";
@@ -22,11 +22,7 @@ function Scene({ children }: { children: React.ReactNode }) {
   if (publicRoute) return <View style={{ flex: 1 }}>{children}</View>;
   return (
     <LocalStoreBoundary fallbackHeader={<NotesHeader title={t("notes.title")} />}>
-      <View style={{ flex: 1 }}>
-        {children}
-        {/* The root editor modal owns its own recording controls. */}
-        {!pathname.startsWith("/n/") && <FloatingBottomStack />}
-      </View>
+      {children}
     </LocalStoreBoundary>
   );
 }
@@ -47,7 +43,7 @@ export default function AppLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AppShell
           variant="feed"
-          scroll="fixed"
+          scroll={Platform.OS === "web" ? "document" : "fixed"}
           safeArea
           panel
           sidebar={sidebar}
@@ -59,12 +55,14 @@ export default function AppLayout() {
           navigationGap={8}
           gutter={8}
           header={null}
+          bottomBar={<FloatingBottomStack />}
+          bottomBarVisibility="always"
           testID="noted-app-shell"
         >
-          <Stack
+          {Platform.OS === "web" ? <Scene><Slot /></Scene> : <Stack
             screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
             screenLayout={renderScene}
-          />
+          />}
         </AppShell>
       </GestureHandlerRootView>
     </AppErrorBoundary>
