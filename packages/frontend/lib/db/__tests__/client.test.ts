@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   /** How long the fake takes to release a file handle. */
   closeMs: 20,
+  writes: [] as Array<{ name: string; sql: string }>,
   open: new Set<string>(),
   opens: 0,
   collisions: 0,
@@ -41,6 +42,7 @@ vi.mock('expo-sqlite', () => {
         return Promise.resolve();
       },
       runAsync: (_sql: string, params: readonly (string | number | null)[]) => {
+        state.writes.push({ name, sql: _sql });
         if (params[0] === 'viewer_id') file.owner = String(params[1]);
         return Promise.resolve({ changes: 1, lastInsertRowId: 0 });
       },
@@ -105,6 +107,7 @@ const HANG_THRESHOLD_MS = 100;
 
 beforeEach(() => {
   state.open.clear();
+  state.writes = [];
   state.opens = 0;
   state.collisions = 0;
   state.concurrent = 0;
@@ -265,5 +268,35 @@ describe('local store connection lifecycle', () => {
     await client.setActiveViewer('user-2');
     await expect(pending).resolves.toEqual([]);
     expect(state.collisions).toBe(0);
+  });
+});
+
+
+describe('account-bound local writes', () => {
+  it('rejects a queued write when an account switch wins the lifecycle queue', async () => {
+    const client = await loadClient();
+    await client.setActiveViewer('user-1');
+    const switching = client.setActiveViewer('user-2');
+    const write = client.executeTransaction([{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }], 'user-1');
+    await expect(write).rejects.toThrow('active account changed');
+    await switching;
+    expect(state.writes.filter(({ sql }) => sql.startsWith('INSERT INTO notes'))).toEqual([]);
+  });
+
+  it('does not hold a signed-out write until another person signs in', async () => {
+    const client = await loadClient();
+    await expect(client.executeTransaction([{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }], null)).rejects.toThrow('active account changed');
+    await expect(client.execute('UPDATE notes SET title = ?', ['private note'], null)).rejects.toThrow('active account changed');
+    await client.setActiveViewer('user-2');
+    expect(state.writes.filter(({ sql }) => sql.includes('notes'))).toEqual([]);
+  });
+
+  it('writes successfully to the account that owns the draft', async () => {
+    const client = await loadClient();
+    await client.setActiveViewer('user-1');
+    await expect(client.executeTransaction([{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }], 'user-1')).resolves.toEqual([1]);
+    expect(state.writes.filter(({ sql }) => sql.startsWith('INSERT INTO notes'))).toEqual([
+      { name: 'noted-user-1.db', sql: 'INSERT INTO notes VALUES (?)' },
+    ]);
   });
 });

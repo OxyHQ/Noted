@@ -3,6 +3,7 @@ import React from "react";
 import { LocalStoreBoundary } from "@/components/local-store-boundary";
 import { EmptyState } from "@/components/empty-state";
 import { NoteSaveQueue } from "@/lib/notes/save-queue";
+import { getActiveViewerId } from "@/lib/db/client";
 import {
   View,
   ScrollView,
@@ -98,7 +99,19 @@ function presetDate(preset: ReminderPreset): Date {
 const logger = createLogger("NotedNotes");
 
 export default function NoteEditorScreen() {
-  return <LocalStoreBoundary><NoteEditor /></LocalStoreBoundary>;
+  const router = useRouter();
+  const { t } = useTranslation();
+  const { colors } = useColorScheme();
+  return (
+    <LocalStoreBoundary fallbackHeader={
+      <Pressable accessibilityRole="button" accessibilityLabel={t("common.back")} onPress={() => router.canGoBack() ? router.back() : router.replace("/")} className="flex-row items-center gap-2 px-4 py-4">
+        <ArrowLeft size={20} color={colors.foreground} />
+        <Text>{t("notes.title")}</Text>
+      </Pressable>
+    }>
+      <NoteEditor />
+    </LocalStoreBoundary>
+  );
 }
 
 function NoteEditor() {
@@ -110,6 +123,7 @@ function NoteEditor() {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const { isAuthenticated, showBottomSheet, user, activeSessionId } = useOxy();
+  const editorOwner = React.useRef(user?.id);
   const attachmentIdentity = React.useRef({ accountId: user?.id ?? null, sessionId: activeSessionId ?? null });
   attachmentIdentity.current = { accountId: user?.id ?? null, sessionId: activeSessionId ?? null };
   const reduceMotion = useReducedMotion();
@@ -191,7 +205,9 @@ function NoteEditor() {
    * converted it away.
    */
   const writeDraft = async (next: LocalNote, bodyTakenOver: boolean) => {
-    if (!isAuthenticated) throw new Error("Authentication required");
+    if (!isAuthenticated || !editorOwner.current || user?.id !== editorOwner.current || getActiveViewerId() !== editorOwner.current) {
+      throw new Error("The active account changed before this write could be saved");
+    }
     const userBody = userBodyOf(next.body, next.generatedBody);
     const input = {
       title: next.title,
@@ -207,9 +223,9 @@ function NoteEditor() {
     };
     const id = noteIdRef.current;
     if (id) {
-      await updateNote.mutateAsync({ id, patch: input });
+      await updateNote.mutateAsync({ id, patch: input, expectedViewerId: editorOwner.current });
     } else if (!isEmptyNote({ ...next, userBody })) {
-      const created = await createNote.mutateAsync(input);
+      const created = await createNote.mutateAsync({ ...input, expectedViewerId: editorOwner.current });
       noteIdRef.current = created.id;
       setBase(created);
       router.setParams({ id: created.id });
@@ -220,6 +236,7 @@ function NoteEditor() {
   const [saveQueue] = React.useState(() => new NoteSaveQueue<LocalNote>(
     (next, takeOverBody) => writeDraftRef.current(next, takeOverBody),
   ));
+  React.useEffect(() => () => saveQueue.cancelPending(), [saveQueue]);
   const persist = React.useCallback(async (next: LocalNote, bodyTakenOver = false) => {
     const version = ++saveVersion.current;
     setSaveState("saving");

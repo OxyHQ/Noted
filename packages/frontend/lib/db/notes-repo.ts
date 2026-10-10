@@ -14,7 +14,7 @@ import {
   type NoteListParams,
 } from '@noted/shared-types';
 
-import { execute, executeTransaction, type Row, type Statement } from '@/lib/db/client';
+import { execute, executeTransaction, getActiveViewerId, type Row, type Statement } from '@/lib/db/client';
 import { deleteNoteRecordings } from '@/lib/capture/captures-repo';
 import { nextNoteBody } from '@/lib/notes/generated-body';
 
@@ -183,8 +183,8 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
 
 export const NOTE_DETAIL_SQL = `SELECT ${NOTE_COLUMNS} FROM notes WHERE notes.id = ? AND notes.deleted_at IS NULL`;
 
-export async function getNote(id: string): Promise<LocalNote | null> {
-  return firstRowToNote(await execute<NoteRow>(NOTE_DETAIL_SQL, [id]));
+export async function getNote(id: string, expectedViewerId?: string | null): Promise<LocalNote | null> {
+  return firstRowToNote(await execute<NoteRow>(NOTE_DETAIL_SQL, [id], expectedViewerId));
 }
 
 /* ── Writes ────────────────────────────────────────────────────── */
@@ -313,7 +313,7 @@ function upsertStatements(note: LocalNote, now: string): Statement[] {
 }
 
 /** Insert a note that only exists locally so far. */
-export async function createNote(id: string, input: NoteInput): Promise<LocalNote> {
+export async function createNote(id: string, input: NoteInput, viewerId = getActiveViewerId()): Promise<LocalNote> {
   const now = nowIso();
   // Through the same assembler as every later edit, starting from a note with
   // neither half written yet, so there is exactly one place a body is composed.
@@ -339,7 +339,7 @@ export async function createNote(id: string, input: NoteInput): Promise<LocalNot
     createdAt: now,
     updatedAt: now,
   };
-  await executeTransaction(upsertStatements(note, now));
+  await executeTransaction(upsertStatements(note, now), viewerId);
   return note;
 }
 
@@ -357,8 +357,8 @@ export async function createNote(id: string, input: NoteInput): Promise<LocalNot
  * halves land in the same statement, so no live query can ever observe a body
  * paired with the wrong `generated_body`.
  */
-export async function updateNote(id: string, patch: NoteInput): Promise<LocalNote | null> {
-  const current = await getNote(id);
+export async function updateNote(id: string, patch: NoteInput, viewerId = getActiveViewerId()): Promise<LocalNote | null> {
+  const current = await getNote(id, viewerId);
   if (!current) return null;
 
   const now = nowIso();
@@ -374,7 +374,7 @@ export async function updateNote(id: string, patch: NoteInput): Promise<LocalNot
     reminderAt: patch.reminderAt === undefined ? current.reminderAt : patch.reminderAt,
     updatedAt: now,
   };
-  await executeTransaction(upsertStatements(next, now));
+  await executeTransaction(upsertStatements(next, now), viewerId);
   return next;
 }
 

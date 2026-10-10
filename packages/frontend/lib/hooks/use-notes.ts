@@ -92,7 +92,10 @@ export function useNote(id: string | undefined) {
 /** Create a note. Used both for `n/new` first-edit and quick-capture. */
 export function useCreateNote() {
   return useMutation({
-    mutationFn: (input: NoteInput): Promise<LocalNote> => createNoteLocally(newNoteId(), input),
+    // A local write must never be replayed after switching accounts.
+    retry: false,
+    mutationFn: ({ expectedViewerId, ...input }: NoteInput & { expectedViewerId?: string }): Promise<LocalNote> =>
+      createNoteLocally(newNoteId(), input, expectedViewerId),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to create note");
     },
@@ -102,8 +105,10 @@ export function useCreateNote() {
 /** Patch a note (body/title/color/pin/labels/checklist/etc). */
 export function useUpdateNote() {
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: NoteInput }) =>
-      updateNoteLocally(id, patch),
+    // A local write must never be replayed after switching accounts.
+    retry: false,
+    mutationFn: ({ id, patch, expectedViewerId }: { id: string; patch: NoteInput; expectedViewerId?: string }) =>
+      updateNoteLocally(id, patch, expectedViewerId),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to save note");
     },
@@ -113,6 +118,8 @@ export function useUpdateNote() {
 /** Send a note to the trash. */
 export function useTrashNote() {
   return useMutation({
+    // A local write must never be replayed after switching accounts.
+    retry: false,
     mutationFn: (id: string) => trashNoteLocally(id),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to delete note");
@@ -123,6 +130,8 @@ export function useTrashNote() {
 /** Restore a note from the trash. */
 export function useRestoreNote() {
   return useMutation({
+    // A local write must never be replayed after switching accounts.
+    retry: false,
     mutationFn: (id: string) => restoreNoteLocally(id),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to restore note");
@@ -133,6 +142,8 @@ export function useRestoreNote() {
 /** Permanently delete a note (delete forever). */
 export function useDeleteNote() {
   return useMutation({
+    // A local write must never be replayed after switching accounts.
+    retry: false,
     mutationFn: (id: string) => deleteNoteLocally(id),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to delete note");
@@ -143,6 +154,8 @@ export function useDeleteNote() {
 /** Persist a new ordering of note ids (drag-reorder). */
 export function useReorderNotes() {
   return useMutation({
+    // A local write must never be replayed after switching accounts.
+    retry: false,
     mutationFn: (ids: string[]) => reorderNotesLocally(ids),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to reorder notes");

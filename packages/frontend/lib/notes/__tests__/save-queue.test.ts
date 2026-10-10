@@ -64,3 +64,24 @@ describe('editor local save lifecycle', () => {
     expect(count).toBe(2);
   });
 });
+
+
+describe('leaving an editor account', () => {
+  it('cancels work waiting behind a save when the editor unmounts', async () => {
+    const pending = deferred();
+    const writes: string[] = [];
+    const queue = new NoteSaveQueue<string>(async (body) => {
+      writes.push(body);
+      await pending.promise;
+    });
+    const first = queue.save('first account');
+    const second = queue.save('queued private edit');
+    await Promise.resolve();
+    queue.cancelPending();
+    const rejected = expect(second).rejects.toThrow('editor was closed');
+    pending.resolve();
+    await first;
+    await rejected;
+    expect(writes).toEqual(['first account']);
+  });
+});

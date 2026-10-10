@@ -338,6 +338,19 @@ async function getDb(): Promise<SQLiteDatabase> {
   }
 }
 
+/** An explicit owner binds both reads and writes across asynchronous account changes. */
+async function getDbForViewer(expectedViewerId?: string | null): Promise<SQLiteDatabase> {
+  if (expectedViewerId === undefined) return getDb();
+  return serializeLifecycle(async () => {
+    if (!expectedViewerId || activeViewerId !== expectedViewerId) {
+      throw new Error('The active account changed before this write could be saved');
+    }
+    const db = await connectIfActive();
+    if (!db) throw new Error('The local account is no longer available');
+    return db;
+  });
+}
+
 /** Close the handle and drop the cached connection (account switch, tests). */
 export function closeDb(): Promise<void> {
   return serializeLifecycle(closeConnection);
@@ -435,15 +448,16 @@ async function refresh(subscription: Subscription): Promise<void> {
 export async function execute<T extends Row = Row>(
   sql: string,
   params?: readonly unknown[],
+  expectedViewerId?: string | null,
 ): Promise<T[]> {
-  const db = await getDb();
+  const db = await getDbForViewer(expectedViewerId);
   const rows = await enqueue(() => db.getAllAsync<T>(sql, mapParams(params)));
   markWrittenTables(sql);
   return rows;
 }
 
-async function runTransaction(statements: readonly Statement[]): Promise<number[]> {
-  const db = await getDb();
+async function runTransaction(statements: readonly Statement[], expectedViewerId?: string | null): Promise<number[]> {
+  const db = await getDbForViewer(expectedViewerId);
   // IMMEDIATE takes the write lock up front, so a busy database fails here
   // rather than half-way through the statements.
   await db.execAsync('BEGIN IMMEDIATE');
@@ -478,8 +492,8 @@ async function runTransaction(statements: readonly Statement[]): Promise<number[
 }
 
 /** Run statements atomically, returning the rows affected by each. */
-export function executeTransaction(statements: readonly Statement[]): Promise<number[]> {
-  return enqueue(() => runTransaction(statements));
+export function executeTransaction(statements: readonly Statement[], expectedViewerId?: string | null): Promise<number[]> {
+  return enqueue(() => runTransaction(statements, expectedViewerId));
 }
 
 /**
