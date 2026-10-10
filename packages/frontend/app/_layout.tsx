@@ -6,6 +6,7 @@ import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
+import { OverlayInertBoundary } from '@oxy.so/bloom/overlay';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
@@ -91,7 +92,9 @@ function AppContent() {
       <LocalStoreProvider>
       <KeyboardProvider>
       <NotedSettingsProvider>
-        {Platform.OS === 'web' ? <Navigator initialRouteName="(app)"><WebRoutes /></Navigator> : <Stack
+        {Platform.OS === 'web' ? <OverlayInertBoundary>
+          <Navigator initialRouteName="(app)"><WebRoutes /></Navigator>
+        </OverlayInertBoundary> : <Stack
           screenOptions={{
             contentStyle: {
               backgroundColor: colors.background,
