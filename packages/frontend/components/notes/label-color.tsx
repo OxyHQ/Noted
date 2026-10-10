@@ -9,8 +9,10 @@ import { useTranslation } from '@/hooks/useTranslation';
 /** A label's uncolored state is null in storage; legacy default reads the same. */
 export function LabelChip({ label, onPress }: { label: Pick<Label, 'name' | 'color'>; onPress?: () => void }) {
   const preset = label.color && label.color !== 'default' ? label.color : undefined;
+  // Notes can have another hue underneath. An opaque Bloom pair stays legible
+  // there; a translucent subtle fill can reduce contrast on colored notes.
   return <BloomColorScope colorPreset={preset} asChild>
-    <Chip size="sm" appearance="subtle" tone={preset ? 'accent' : 'neutral'} leadingIcon={RiPriceTag3Line} onPress={onPress}>
+    <Chip size="sm" appearance={preset ? "solid" : "subtle"} tone={preset ? 'accent' : 'neutral'} leadingIcon={RiPriceTag3Line} onPress={onPress}>
       {label.name}
     </Chip>
   </BloomColorScope>;
