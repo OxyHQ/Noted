@@ -1,7 +1,7 @@
-import { View } from "react-native";
+import { View } from 'react-native';
 
-import { WAVEFORM_BARS } from "@/lib/capture/recording";
-import { useColorScheme } from "@/lib/useColorScheme";
+import { WAVEFORM_BARS } from '@/lib/capture/recording';
+import { useColorScheme } from '@/lib/useColorScheme';
 
 /** Shortest bar drawn, as a fraction of the track, so silence still reads as "listening". */
 const MIN_BAR_SCALE = 0.12;

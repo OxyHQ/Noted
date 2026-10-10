@@ -19,7 +19,12 @@ it('refreshes live reads on resume even if the document stays hidden', async () 
   vi.stubGlobal('document', document);
   vi.stubGlobal('window', new EventTarget());
   vi.stubGlobal('crypto', { randomUUID: () => 'resuming-tab' });
-  vi.stubGlobal('BroadcastChannel', class extends EventTarget { postMessage() {} });
+  vi.stubGlobal(
+    'BroadcastChannel',
+    class extends EventTarget {
+      postMessage() {}
+    },
+  );
   vi.stubGlobal('navigator', {
     locks: { request: (_name: string, callback: (lock: object) => Promise<void>) => callback({}) },
   });

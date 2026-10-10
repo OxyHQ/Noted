@@ -51,14 +51,10 @@ const logger = createLogger('NotedCapture');
 /** How often the recorder's state (duration, meter) is sampled. */
 const STATE_POLL_MS = 50;
 
-
-
 /** Where a capture's audio lives. One directory per capture, so deleting it is one call. */
 export function captureDirectory(captureId: string): Directory {
   return new Directory(Paths.document, 'captures', captureId);
 }
-
-
 
 /**
  * Record into `captureId` while `enabled`.
@@ -159,7 +155,9 @@ export function useRecorder(
         await recorder.prepareToRecordAsync();
         if (!active) {
           await recorder.stop().catch(() => undefined);
-          await failCapture(captureId, 'capture_cancelled', expectedViewerId).catch(() => undefined);
+          await failCapture(captureId, 'capture_cancelled', expectedViewerId).catch(
+            () => undefined,
+          );
           return;
         }
 

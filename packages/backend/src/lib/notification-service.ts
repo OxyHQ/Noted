@@ -81,10 +81,7 @@ async function resolveChannels(
           .select({ id: webPushSubscriptions.id })
           .from(webPushSubscriptions)
           .where(
-            and(
-              eq(webPushSubscriptions.oxyUserId, userId),
-              eq(webPushSubscriptions.active, true),
-            ),
+            and(eq(webPushSubscriptions.oxyUserId, userId), eq(webPushSubscriptions.active, true)),
           )
           .limit(1)
           .catch(() => [])
@@ -178,7 +175,11 @@ async function deliverPush(userId: string, notification: NotificationRow): Promi
           continue;
         }
 
-        const errorDetail = ticket as { status: 'error'; message: string; details?: { error: string } };
+        const errorDetail = ticket as {
+          status: 'error';
+          message: string;
+          details?: { error: string };
+        };
         const message = chunk[i];
         const token = Array.isArray(message.to) ? message.to[0] : message.to;
         log.general.warn(
@@ -271,9 +272,7 @@ async function deliverWebPush(userId: string, notification: NotificationRow): Pr
   const subscriptions = await db
     .select()
     .from(webPushSubscriptions)
-    .where(
-      and(eq(webPushSubscriptions.oxyUserId, userId), eq(webPushSubscriptions.active, true)),
-    );
+    .where(and(eq(webPushSubscriptions.oxyUserId, userId), eq(webPushSubscriptions.active, true)));
 
   if (subscriptions.length === 0) return false;
 
@@ -317,9 +316,7 @@ async function deliverWebPush(userId: string, notification: NotificationRow): Pr
 // ── Main send function ─────────────────────────────────────────────
 
 /** Create and deliver a notification to a user across their channels. */
-export async function sendNotification(
-  options: SendNotificationOptions,
-): Promise<NotificationRow> {
+export async function sendNotification(options: SendNotificationOptions): Promise<NotificationRow> {
   const { userId, sourceEventId, type, title, body, priority = 'normal', data } = options;
 
   const channels = await resolveChannels(userId, options.channels);
@@ -347,10 +344,9 @@ export async function sendNotification(
     const [existing] = await db
       .select()
       .from(notifications)
-      .where(and(
-        eq(notifications.sourceEventId, sourceEventId),
-        eq(notifications.oxyUserId, userId),
-      ));
+      .where(
+        and(eq(notifications.sourceEventId, sourceEventId), eq(notifications.oxyUserId, userId)),
+      );
     if (!existing) throw new Error('Notification idempotency conflict');
     return existing;
   }
@@ -396,10 +392,7 @@ export async function getUnreadCount(userId: string): Promise<number> {
     .select({ value: sql<number>`count(*)::int` })
     .from(notifications)
     .where(
-      and(
-        eq(notifications.oxyUserId, userId),
-        inArray(notifications.status, [...UNREAD_STATUSES]),
-      ),
+      and(eq(notifications.oxyUserId, userId), inArray(notifications.status, [...UNREAD_STATUSES])),
     );
   return row?.value ?? 0;
 }
@@ -418,10 +411,7 @@ export async function markAllAsRead(userId: string): Promise<number> {
     .update(notifications)
     .set({ status: 'read', readAt: new Date(), updatedAt: new Date() })
     .where(
-      and(
-        eq(notifications.oxyUserId, userId),
-        inArray(notifications.status, [...UNREAD_STATUSES]),
-      ),
+      and(eq(notifications.oxyUserId, userId), inArray(notifications.status, [...UNREAD_STATUSES])),
     )
     .returning({ id: notifications.id });
   return updated.length;

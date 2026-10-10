@@ -1,7 +1,7 @@
-import React from "react";
-import { attachmentMetadataKey, readScopedStorage } from "@/lib/shared-storage";
-import { useQuery } from "@tanstack/react-query";
-import { useOxy } from "@oxy.so/services";
+import React from 'react';
+import { attachmentMetadataKey, readScopedStorage } from '@/lib/shared-storage';
+import { useQuery } from '@tanstack/react-query';
+import { useOxy } from '@oxy.so/services';
 
 /**
  * The subset of Oxy asset metadata the attachment UI needs. `assetGet` is typed
@@ -20,21 +20,15 @@ export interface OxyFileMeta {
 function parseFileMeta(response: unknown, fileId: string): OxyFileMeta {
   // The asset endpoint returns `{ file: {...} }`; tolerate a flat object too.
   const root =
-    response && typeof response === "object"
-      ? (response as Record<string, unknown>)
-      : {};
+    response && typeof response === 'object' ? (response as Record<string, unknown>) : {};
   const fileNode = root.file;
   const source =
-    fileNode && typeof fileNode === "object"
-      ? (fileNode as Record<string, unknown>)
-      : root;
+    fileNode && typeof fileNode === 'object' ? (fileNode as Record<string, unknown>) : root;
 
-  const id = typeof source.id === "string" ? source.id : fileId;
-  const filename =
-    typeof source.filename === "string" ? source.filename : undefined;
-  const contentType =
-    typeof source.contentType === "string" ? source.contentType : undefined;
-  const length = typeof source.length === "number" ? source.length : undefined;
+  const id = typeof source.id === 'string' ? source.id : fileId;
+  const filename = typeof source.filename === 'string' ? source.filename : undefined;
+  const contentType = typeof source.contentType === 'string' ? source.contentType : undefined;
+  const length = typeof source.length === 'number' ? source.length : undefined;
 
   return { id, filename, contentType, length };
 }
@@ -52,7 +46,12 @@ export function useFileMetadata(fileId: string) {
   current.current = identity;
   return useQuery<OxyFileMeta>({
     queryKey: attachmentMetadataKey(identity, fileId),
-    queryFn: () => readScopedStorage(identity, () => current.current, async () => parseFileMeta(await oxyServices.assets.get(fileId), fileId)),
+    queryFn: () =>
+      readScopedStorage(
+        identity,
+        () => current.current,
+        async () => parseFileMeta(await oxyServices.assets.get(fileId), fileId),
+      ),
     enabled: !!fileId && isAuthenticated && !!identity.accountId && !!identity.sessionId,
     staleTime: 1000 * 60 * 60,
     gcTime: 0,

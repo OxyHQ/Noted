@@ -1,11 +1,11 @@
-import React from "react";
+import React from 'react';
 import {
   EnrichedMarkdownTextInput,
   type EnrichedMarkdownTextInputInstance,
-} from "react-native-enriched-markdown";
+} from 'react-native-enriched-markdown';
 
-import { useColorScheme } from "@/lib/useColorScheme";
-import type { MarkdownBodyEditorProps } from "@/components/notes/markdown-body-editor";
+import { useColorScheme } from '@/lib/useColorScheme';
+import type { MarkdownBodyEditorProps } from '@/components/notes/markdown-body-editor';
 
 /**
  * The note body, edited as formatted text rather than as syntax.

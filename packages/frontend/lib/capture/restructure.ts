@@ -157,12 +157,16 @@ async function commit(
 
   // Both halves of the body, in one write. The store composes them — this pass
   // never assembles a body itself, so it cannot assemble one from a stale half.
-  await updateNote(context.note.id, {
-    title: composed.title,
-    checklist: composed.checklist,
-    userBody: context.userBody,
-    generatedBody: composed.generatedBody,
-  }, context.viewerId);
+  await updateNote(
+    context.note.id,
+    {
+      title: composed.title,
+      checklist: composed.checklist,
+      userBody: context.userBody,
+      generatedBody: composed.generatedBody,
+    },
+    context.viewerId,
+  );
   return true;
 }
 
@@ -239,7 +243,6 @@ export async function finalizeNote(
     now,
   });
   await commit(context, committed(settled, { transcriptRevision, now }), startedAt);
-
 }
 
 /**
@@ -334,7 +337,8 @@ async function enhanceWithModel(
     expansions: settled.pendingExpansions ?? [],
   });
   if (!attempt.ok) {
-    if (attempt.kind === 'unavailable') return { kind: 'unavailable', capability: attempt.capability };
+    if (attempt.kind === 'unavailable')
+      return { kind: 'unavailable', capability: attempt.capability };
     // The model ran and its answer was unusable. That is retryable and it is
     // NOT a statement about the device — which is exactly the confusion the old
     // boolean created.

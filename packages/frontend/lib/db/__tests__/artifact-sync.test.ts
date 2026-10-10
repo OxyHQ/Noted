@@ -31,8 +31,7 @@ vi.mock('@/lib/db/client', () => ({
 
 const { artifactUpsertStatement, rowToArtifact } = await import('@/lib/db/artifacts-repo');
 
-const read = (path: string): string =>
-  readFileSync(join(import.meta.dirname, '..', path), 'utf8');
+const read = (path: string): string => readFileSync(join(import.meta.dirname, '..', path), 'utf8');
 
 const SYNC = read('sync.ts');
 const REPO = read('artifacts-repo.ts');
@@ -65,7 +64,9 @@ describe('what a pull may overwrite', () => {
     // The guard is the `WHERE` clause on that statement. A sync path with its
     // own upsert would be a second rule, and the one that let a stale device win.
     expect(SYNC).toContain('artifactUpsertStatement');
-    expect(REPO).toContain('WHERE excluded.transcript_revision >= note_artifacts.transcript_revision');
+    expect(REPO).toContain(
+      'WHERE excluded.transcript_revision >= note_artifacts.transcript_revision',
+    );
   });
 
   it('is not vacuous — the guard is what that statement is for', () => {

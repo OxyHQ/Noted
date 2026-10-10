@@ -3,26 +3,20 @@ import { createCatalogMcpHttpService } from '@oxy.so/mcp';
 import { log } from '../lib/logger.js';
 import { NOTED_CAPABILITY_CATALOG } from './noted.catalog.js';
 import { NOTED_MCP_HANDLERS } from './noted.handlers.js';
-import {
-  invalidateOxyServiceToken,
-  requiredOxyServiceToken,
-} from './oxy-service-client.js';
+import { invalidateOxyServiceToken, requiredOxyServiceToken } from './oxy-service-client.js';
 
-const DEFAULT_ALLOWED_ORIGINS = [
-  'https://chatgpt.com',
-  'https://claude.ai',
-] as const;
+const DEFAULT_ALLOWED_ORIGINS = ['https://chatgpt.com', 'https://claude.ai'] as const;
 
-export function parseMcpAllowedOrigins(
-  configured = process.env.MCP_ALLOWED_ORIGINS,
-): string[] {
-  return [...new Set([
-    ...DEFAULT_ALLOWED_ORIGINS,
-    ...(configured ?? '')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-  ])];
+export function parseMcpAllowedOrigins(configured = process.env.MCP_ALLOWED_ORIGINS): string[] {
+  return [
+    ...new Set([
+      ...DEFAULT_ALLOWED_ORIGINS,
+      ...(configured ?? '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ]),
+  ];
 }
 
 export function createNotedMcpHttpService() {

@@ -22,7 +22,7 @@ async function main(): Promise<void> {
     throw new Error(`Noted capability catalog registration failed (${response.status})`);
   }
 
-  const body = await response.json() as { registration?: { digest?: string } };
+  const body = (await response.json()) as { registration?: { digest?: string } };
   const digest = body.registration?.digest;
   if (typeof digest !== 'string' || digest.length === 0) {
     throw new Error('Noted capability catalog registration returned no digest');

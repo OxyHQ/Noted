@@ -1,15 +1,15 @@
-import { View, Platform, Pressable } from "react-native";
-import { Text } from "@oxy.so/bloom/typography";
-import { Button } from "@oxy.so/bloom/button";
-import { TextFieldInput } from "@oxy.so/bloom/text-field";
-import { useState } from "react";
-import { useOxy } from "@oxy.so/services";
-import { useNotedSettings } from "./settings-provider";
-import { generateAPIUrl } from "@/lib/generate-api-url";
-import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from "lucide-react-native";
+import { View, Platform, Pressable } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useState } from 'react';
+import { useOxy } from '@oxy.so/services';
+import { useNotedSettings } from './settings-provider';
+import { generateAPIUrl } from '@/lib/generate-api-url';
+import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from 'lucide-react-native';
 
-import { toast } from "@oxy.so/bloom/toast";
-import { useTranslation } from "@/hooks/useTranslation";
+import { toast } from '@oxy.so/bloom/toast';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type FeedbackType = 'bug' | 'feature' | 'improvement' | 'other';
 
@@ -21,10 +21,30 @@ interface FeedbackTypeOption {
 }
 
 const feedbackTypes: FeedbackTypeOption[] = [
-  { type: 'bug', labelKey: 'feedback.bugReport', descriptionKey: 'feedback.bugDescription', icon: Bug },
-  { type: 'feature', labelKey: 'feedback.featureRequest', descriptionKey: 'feedback.featureDescription', icon: Lightbulb },
-  { type: 'improvement', labelKey: 'feedback.improvement', descriptionKey: 'feedback.improvementDescription', icon: Sparkles },
-  { type: 'other', labelKey: 'feedback.other', descriptionKey: 'feedback.otherDescription', icon: MessageSquare },
+  {
+    type: 'bug',
+    labelKey: 'feedback.bugReport',
+    descriptionKey: 'feedback.bugDescription',
+    icon: Bug,
+  },
+  {
+    type: 'feature',
+    labelKey: 'feedback.featureRequest',
+    descriptionKey: 'feedback.featureDescription',
+    icon: Lightbulb,
+  },
+  {
+    type: 'improvement',
+    labelKey: 'feedback.improvement',
+    descriptionKey: 'feedback.improvementDescription',
+    icon: Sparkles,
+  },
+  {
+    type: 'other',
+    labelKey: 'feedback.other',
+    descriptionKey: 'feedback.otherDescription',
+    icon: MessageSquare,
+  },
 ];
 
 export function FeedbackSection() {
@@ -32,7 +52,7 @@ export function FeedbackSection() {
   const { close } = useNotedSettings();
   const { oxyServices } = useOxy();
   const [selectedType, setSelectedType] = useState<FeedbackType | null>(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [rating, setRating] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,14 +91,14 @@ export function FeedbackSection() {
           metadata: {
             platform: Platform.OS,
             appVersion: '1.0.0',
-          }
+          },
         }),
       });
 
       if (response.ok) {
         toast.success(t('feedback.thankYou'));
         setSelectedType(null);
-        setMessage("");
+        setMessage('');
         setRating(null);
         close();
       } else {
@@ -86,7 +106,7 @@ export function FeedbackSection() {
         toast.error(error.error || t('feedback.submitFailed'));
       }
     } catch (error) {
-      console.error("Error submitting feedback:", error);
+      console.error('Error submitting feedback:', error);
       toast.error(t('feedback.submitFailed'));
     } finally {
       setSubmitting(false);
@@ -110,8 +130,6 @@ export function FeedbackSection() {
 
   return (
     <View className="flex-1 bg-background">
-
-
       <View>
         <View className="max-w-2xl mx-auto w-full gap-6">
           {/* Feedback Type Selection */}
@@ -156,16 +174,16 @@ export function FeedbackSection() {
                 >
                   <Star
                     size={24}
-                    className={rating && star <= rating ? "text-yellow-500" : "text-muted-foreground"}
-                    fill={rating && star <= rating ? "#eab308" : "transparent"}
+                    className={
+                      rating && star <= rating ? 'text-yellow-500' : 'text-muted-foreground'
+                    }
+                    fill={rating && star <= rating ? '#eab308' : 'transparent'}
                   />
                 </Pressable>
               ))}
             </View>
             {rating && (
-              <Text className="text-xs text-muted-foreground">
-                {ratingLabels[rating]}
-              </Text>
+              <Text className="text-xs text-muted-foreground">{ratingLabels[rating]}</Text>
             )}
           </View>
 
@@ -177,7 +195,9 @@ export function FeedbackSection() {
             <TextFieldInput
               label={t('feedback.yourFeedback')}
               multiline
-              placeholder={selectedType ? placeholderMap[selectedType] : t('feedback.otherPlaceholder')}
+              placeholder={
+                selectedType ? placeholderMap[selectedType] : t('feedback.otherPlaceholder')
+              }
               value={message}
               onChangeText={setMessage}
               className="min-h-[150px]"

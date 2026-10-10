@@ -43,7 +43,10 @@ export function normalizeForComparison(text: string): string {
  * Not "did it keep every word": a summary that kept every word would score
  * perfectly and be useless.
  */
-export function retention(artifact: GeneratedNoteArtifact, mustKeep: readonly string[]): {
+export function retention(
+  artifact: GeneratedNoteArtifact,
+  mustKeep: readonly string[],
+): {
   kept: string[];
   lost: string[];
   ratio: number;
@@ -125,7 +128,8 @@ export function precision(
   const correct = produced.filter(matches);
   const spurious = produced.filter((text) => !matches(text));
   const missed = expected.filter(
-    (want) => !produced.some((text) => normalizeForComparison(text).includes(normalizeForComparison(want))),
+    (want) =>
+      !produced.some((text) => normalizeForComparison(text).includes(normalizeForComparison(want))),
   );
   return {
     correct,

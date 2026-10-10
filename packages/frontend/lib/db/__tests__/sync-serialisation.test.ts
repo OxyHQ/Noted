@@ -32,7 +32,13 @@ vi.mock('@/lib/db/client', () => ({
 
 const get = vi.fn();
 vi.mock('@/lib/api/client', () => ({
-  default: { isAccountActive: () => true, get: (...args: unknown[]) => get(...args), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  default: {
+    isAccountActive: () => true,
+    get: (...args: unknown[]) => get(...args),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/db/labels-repo', () => ({ saveLabels: vi.fn(() => Promise.resolve()) }));

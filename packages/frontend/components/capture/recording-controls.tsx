@@ -72,8 +72,7 @@ export function RecordingControls({ noteId }: { noteId: string }) {
               <Text
                 className="text-xs"
                 style={{
-                  color:
-                    capture.profile === profile ? colors.primaryForeground : colors.foreground,
+                  color: capture.profile === profile ? colors.primaryForeground : colors.foreground,
                 }}
               >
                 {t(`capture.profile.${profile}`)}
@@ -94,7 +93,9 @@ export function RecordingControls({ noteId }: { noteId: string }) {
             .map((part) => (
               <View key={part.kind} className="flex-row items-center gap-2">
                 <View className="flex-1">
-                  <Text className="text-xs text-foreground">{t(`capture.retention.${part.kind}`)}</Text>
+                  <Text className="text-xs text-foreground">
+                    {t(`capture.retention.${part.kind}`)}
+                  </Text>
                   {/* Said before it happens, not after. */}
                   <Text className="text-xs text-muted-foreground">
                     {t(part.costKey)} {t(part.keepsKey)}

@@ -166,7 +166,8 @@ describe('the parser says why, not just no', () => {
 
 describe('a paragraph is not a long bullet', () => {
   /** Longer than the old shared 400, which is what silently deleted it. */
-  const LONG = `El ministerio consultó a neurocientíficos y a científicos cognitivos. ${'La conclusión fue que la tecnología no es el problema, sino la capacidad humana de aprender. '.repeat(6)}`.trim();
+  const LONG =
+    `El ministerio consultó a neurocientíficos y a científicos cognitivos. ${'La conclusión fue que la tecnología no es el problema, sino la capacidad humana de aprender. '.repeat(6)}`.trim();
 
   const withParagraph = (text: string) =>
     JSON.stringify({
@@ -174,7 +175,9 @@ describe('a paragraph is not a long bullet', () => {
       [FIELDS.sections]: [
         {
           [FIELDS.heading]: 'Consultas',
-          [FIELDS.blocks]: [{ [FIELDS.type]: 'paragraph', [FIELDS.text]: text, [FIELDS.sources]: [1] }],
+          [FIELDS.blocks]: [
+            { [FIELDS.type]: 'paragraph', [FIELDS.text]: text, [FIELDS.sources]: [1] },
+          ],
         },
       ],
     });
@@ -261,10 +264,7 @@ describe('the reply budget tracks how much there is to summarise', () => {
    * correct answer somewhere inside the document and the parser can only report
    * that it stopped.
    */
-  const source = readFileSync(
-    join(import.meta.dirname, '..', 'summarizer.web.ts'),
-    'utf8',
-  );
+  const source = readFileSync(join(import.meta.dirname, '..', 'summarizer.web.ts'), 'utf8');
 
   it('is derived from the window, not fixed', () => {
     expect(source).toContain('function replyBudget(transcriptChars: number)');

@@ -1,9 +1,9 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { NoteView } from "@noted/shared-types";
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { NoteView } from '@noted/shared-types';
 
-export type ViewMode = "grid" | "list";
+export type ViewMode = 'grid' | 'list';
 
 interface NotesUIState {
   /** Card layout for the home/archive/trash lists. Persisted. */
@@ -34,22 +34,20 @@ interface NotesUIState {
 export const useNotesUIStore = create<NotesUIState>()(
   persist(
     (set, get) => ({
-      viewMode: "grid",
-      activeView: "active",
+      viewMode: 'grid',
+      activeView: 'active',
       activeLabel: null,
-      searchQuery: "",
+      searchQuery: '',
       selectionMode: false,
       selectedIds: new Set<string>(),
 
       setViewMode: (viewMode) => set({ viewMode }),
-      toggleViewMode: () =>
-        set((s) => ({ viewMode: s.viewMode === "grid" ? "list" : "grid" })),
+      toggleViewMode: () => set((s) => ({ viewMode: s.viewMode === 'grid' ? 'list' : 'grid' })),
       setActiveView: (activeView) => set({ activeView }),
       setActiveLabel: (activeLabel) => set({ activeLabel }),
       setSearchQuery: (searchQuery) => set({ searchQuery }),
 
-      enterSelection: (id) =>
-        set({ selectionMode: true, selectedIds: new Set<string>([id]) }),
+      enterSelection: (id) => set({ selectionMode: true, selectedIds: new Set<string>([id]) }),
 
       toggleSelected: (id) =>
         set((s) => {
@@ -65,16 +63,15 @@ export const useNotesUIStore = create<NotesUIState>()(
           };
         }),
 
-      clearSelection: () =>
-        set({ selectionMode: false, selectedIds: new Set<string>() }),
+      clearSelection: () => set({ selectionMode: false, selectedIds: new Set<string>() }),
 
       isSelected: (id) => get().selectedIds.has(id),
     }),
     {
-      name: "notes-ui-storage",
+      name: 'notes-ui-storage',
       storage: createJSONStorage(() => AsyncStorage),
       // Only the layout preference is durable; selection + filters are ephemeral.
       partialize: (state) => ({ viewMode: state.viewMode }),
-    }
-  )
+    },
+  ),
 );

@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 /**
  * Small app-wide ephemeral UI state that doesn't belong to a feature store.
@@ -20,6 +20,5 @@ export const useStore = create<StoreState>((set) => ({
   setScrollY: (value: number) => set({ scrollY: value }),
 
   composerFocusRequest: 0,
-  requestComposerFocus: () =>
-    set((s) => ({ composerFocusRequest: s.composerFocusRequest + 1 })),
+  requestComposerFocus: () => set((s) => ({ composerFocusRequest: s.composerFocusRequest + 1 })),
 }));

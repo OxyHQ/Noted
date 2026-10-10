@@ -19,7 +19,13 @@ import { describe, expect, it } from 'vitest';
 
 import { parseEnhancement } from '@/lib/enhance/parse';
 import { buildPrompt } from '@/lib/enhance/prompt';
-import { BLOCK_TYPES, describeSchema, DOCUMENT_SCHEMA, FIELDS, SCHEMA_PROFILES } from '@/lib/enhance/schema';
+import {
+  BLOCK_TYPES,
+  describeSchema,
+  DOCUMENT_SCHEMA,
+  FIELDS,
+  SCHEMA_PROFILES,
+} from '@/lib/enhance/schema';
 import { CAPTURE_PROFILES } from '@noted/shared-types';
 import type { EnhanceLine } from '@/lib/enhance/contract';
 
@@ -35,7 +41,6 @@ function parseOrNull(reply: string, options: Parameters<typeof parseEnhancement>
   const result = parseEnhancement(reply, options);
   return result.ok ? result.value : null;
 }
-
 
 const HERE = import.meta.dirname;
 const read = (path: string): string => readFileSync(join(HERE, '..', '..', path), 'utf8');
@@ -241,7 +246,7 @@ describe('the example never teaches a citation the window cannot contain', () =>
     }
   });
 
-  it('states the range the model may cite, in the model\'s own units', () => {
+  it("states the range the model may cite, in the model's own units", () => {
     // Saying "use only numbers shown below" was already there and was not
     // enough: it does not say how many there are.
     expect(describeSchema(2)).toContain('numbered 1 to 2');

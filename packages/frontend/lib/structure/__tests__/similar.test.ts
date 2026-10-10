@@ -16,7 +16,10 @@ describe('isNearDuplicate', () => {
 
   it('sees the same remark transcribed two slightly different ways', () => {
     expect(
-      isNearDuplicate('Is it just a fancy or search engine?', 'Is it just a fancier search engine?'),
+      isNearDuplicate(
+        'Is it just a fancy or search engine?',
+        'Is it just a fancier search engine?',
+      ),
     ).toBe(true);
   });
 
@@ -24,7 +27,10 @@ describe('isNearDuplicate', () => {
     // Without this the de-duplication is not a filter, it is a shredder — and a
     // suite made only of near-duplicates cannot tell the two apart.
     expect(
-      isNearDuplicate('Is it reading the entire internet?', 'Is it copying answers from a database?'),
+      isNearDuplicate(
+        'Is it reading the entire internet?',
+        'Is it copying answers from a database?',
+      ),
     ).toBe(false);
     expect(
       isNearDuplicate('Hay que enviar el contrato el viernes.', 'Hay que avisar al cliente.'),

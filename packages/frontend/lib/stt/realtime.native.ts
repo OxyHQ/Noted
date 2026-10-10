@@ -59,8 +59,6 @@ const SLICE_SECONDS = 12;
 /** Threads left to whisper, keeping cores free for the audio thread. */
 const THREADS = 4;
 
-
-
 /**
  * The microphone stream, with a loudness reading taken on the way past.
  *
@@ -211,12 +209,11 @@ function toSegments(
 export async function startRealtimeTranscription(
   options: RealtimeOptions,
 ): Promise<RealtimeSession> {
-  const expectedViewerId = options.expectedViewerId === undefined ? getActiveViewerId() : options.expectedViewerId;
+  const expectedViewerId =
+    options.expectedViewerId === undefined ? getActiveViewerId() : options.expectedViewerId;
   const whisperContext = await getContext(options.model);
   const onLevel = options.onLevel;
-  const audioStream = onLevel
-    ? new MeteredAudioStream(onLevel)
-    : new AudioPcmStreamAdapter();
+  const audioStream = onLevel ? new MeteredAudioStream(onLevel) : new AudioPcmStreamAdapter();
 
   const transcriber = new RealtimeTranscriber(
     { whisperContext, audioStream },

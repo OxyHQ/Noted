@@ -1,6 +1,6 @@
-import { APP_COLOR_PRESETS, type AppColorName } from "@oxy.so/bloom/theme";
-import { getPresetVars } from "@oxy.so/bloom/design-tokens";
-import type { NoteColor } from "@noted/shared-types";
+import { APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
+import { getPresetVars } from '@oxy.so/bloom/design-tokens';
+import type { NoteColor } from '@noted/shared-types';
 
 /**
  * Per-note background + border colors, derived from the canonical Bloom color
@@ -31,7 +31,7 @@ export interface NoteColorTint {
   border: string;
 }
 
-type Scheme = "light" | "dark";
+type Scheme = 'light' | 'dark';
 
 /**
  * Resolve a note color to the Bloom preset name that backs it, or `null` for
@@ -41,7 +41,7 @@ type Scheme = "light" | "dark";
  * and tolerant of unexpected stored values.
  */
 function presetNameFor(color: NoteColor): AppColorName | null {
-  if (color === "default") return null;
+  if (color === 'default') return null;
   const name = color as AppColorName;
   return APP_COLOR_PRESETS[name] ? name : null;
 }
@@ -65,8 +65,8 @@ export function getNoteColorTint(color: NoteColor, scheme: Scheme): NoteColorTin
   if (cached) return cached;
   const tokens = getPresetVars(name, scheme);
   const tint: NoteColorTint = {
-    background: tokens["--surface"],
-    border: tokens["--border"],
+    background: tokens['--surface'],
+    border: tokens['--border'],
   };
   tintCache.set(key, tint);
   return tint;

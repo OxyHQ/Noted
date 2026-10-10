@@ -19,11 +19,7 @@ import { type GeneratedBlock } from '@noted/shared-types';
 import { DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
 import { artifact, item, paragraph, prose, source } from '@/lib/artifact/__tests__/fixtures';
 
-function list(
-  id: string,
-  kind: 'bullet-list' | 'numbered-list',
-  texts: string[],
-): GeneratedBlock {
+function list(id: string, kind: 'bullet-list' | 'numbered-list', texts: string[]): GeneratedBlock {
   return {
     id,
     kind,
@@ -174,7 +170,9 @@ describe('open questions', () => {
     );
     expect(withOpen).toContain(`## ${DEFAULT_ARTIFACT_LABELS.questions}`);
 
-    const without = renderArtifact(artifact({ sections: [prose('s', [paragraph('p1', 'Algo.')])] }));
+    const without = renderArtifact(
+      artifact({ sections: [prose('s', [paragraph('p1', 'Algo.')])] }),
+    );
     expect(without).not.toContain(DEFAULT_ARTIFACT_LABELS.questions);
   });
 });

@@ -43,13 +43,33 @@ export function resolveProfile(sources: ProfileSources): CaptureProfile {
  * a keyword search cannot tell them apart.
  */
 const SPOKEN_PROFILES: readonly { pattern: RegExp; profile: CaptureProfile }[] = [
-  { pattern: /\b(?:esto es|es)\s+(?:una?\s+)?(?:clase|lección|charla magistral)\b|\bthis is a (?:class|lecture)\b/i, profile: 'lecture' },
-  { pattern: /\b(?:esto es|es)\s+(?:una?\s+)?(?:reunión|junta|daily|one[- ]on[- ]one|1:1)\b|\bthis is a meeting\b/i, profile: 'meeting' },
-  { pattern: /\b(?:esto es|es)\s+(?:una?\s+)?entrevista\b|\bthis is an interview\b/i, profile: 'interview' },
-  { pattern: /\b(?:esto es|es)\s+(?:una?\s+)?(?:conferencia|ponencia|charla|keynote)\b|\bthis is a (?:talk|conference|keynote)\b/i, profile: 'event' },
-  { pattern: /\b(?:esto es|es)\s+(?:una?\s+)?(?:lluvia de ideas|brainstorm(?:ing)?)\b|\bthis is a brainstorm\b/i, profile: 'brainstorm' },
   {
-    pattern: /\b(?:gráb(?:a|alo|ame)|anota|apunta)\w*\s+(?:esto\s+)?como\s+(?:una?\s+)?(clase|reunión|entrevista|conferencia|charla|lluvia de ideas|dictado)\b/i,
+    pattern:
+      /\b(?:esto es|es)\s+(?:una?\s+)?(?:clase|lección|charla magistral)\b|\bthis is a (?:class|lecture)\b/i,
+    profile: 'lecture',
+  },
+  {
+    pattern:
+      /\b(?:esto es|es)\s+(?:una?\s+)?(?:reunión|junta|daily|one[- ]on[- ]one|1:1)\b|\bthis is a meeting\b/i,
+    profile: 'meeting',
+  },
+  {
+    pattern: /\b(?:esto es|es)\s+(?:una?\s+)?entrevista\b|\bthis is an interview\b/i,
+    profile: 'interview',
+  },
+  {
+    pattern:
+      /\b(?:esto es|es)\s+(?:una?\s+)?(?:conferencia|ponencia|charla|keynote)\b|\bthis is a (?:talk|conference|keynote)\b/i,
+    profile: 'event',
+  },
+  {
+    pattern:
+      /\b(?:esto es|es)\s+(?:una?\s+)?(?:lluvia de ideas|brainstorm(?:ing)?)\b|\bthis is a brainstorm\b/i,
+    profile: 'brainstorm',
+  },
+  {
+    pattern:
+      /\b(?:gráb(?:a|alo|ame)|anota|apunta)\w*\s+(?:esto\s+)?como\s+(?:una?\s+)?(clase|reunión|entrevista|conferencia|charla|lluvia de ideas|dictado)\b/i,
     profile: 'auto',
   },
 ];
@@ -91,9 +111,12 @@ const INTERVIEW_QUESTION_RATIO = 0.25;
 /** Below this many sentences, a ratio says nothing at all. */
 const MIN_SENTENCES_TO_CLASSIFY = 8;
 
-const EVENT_MARKERS = /\b(?:el ponente|la ponente|esta charla|esta sesión|el keynote|the speaker|this talk|this session)\b/i;
-const LECTURE_MARKERS = /\b(?:hoy vamos a ver|en la clase de hoy|el tema de hoy|para el examen|apuntad|today we(?:'| a)re going to (?:look at|cover))\b/i;
-const BRAINSTORM_MARKERS = /\b(?:lluvia de ideas|se me ocurre|y si probamos|podríamos probar|what if we|brainstorm)\b/i;
+const EVENT_MARKERS =
+  /\b(?:el ponente|la ponente|esta charla|esta sesión|el keynote|the speaker|this talk|this session)\b/i;
+const LECTURE_MARKERS =
+  /\b(?:hoy vamos a ver|en la clase de hoy|el tema de hoy|para el examen|apuntad|today we(?:'| a)re going to (?:look at|cover))\b/i;
+const BRAINSTORM_MARKERS =
+  /\b(?:lluvia de ideas|se me ocurre|y si probamos|podríamos probar|what if we|brainstorm)\b/i;
 /**
  * A meeting names itself.
  *
@@ -158,8 +181,7 @@ function isMonologue(
   );
   if (speakers.size > 1) return false;
 
-  const meanChars =
-    blocks.reduce((total, block) => total + block.text.length, 0) / blocks.length;
+  const meanChars = blocks.reduce((total, block) => total + block.text.length, 0) / blocks.length;
   if (meanChars < MONOLOGUE_BLOCK_CHARS) return false;
 
   let rhetorical = 0;

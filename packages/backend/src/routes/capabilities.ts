@@ -8,18 +8,13 @@ import {
 } from '@oxy.so/core/server';
 import { jsonObjectSchemaToZod } from '@oxy.so/mcp';
 
-import {
-  IdempotencyConflictError,
-} from '../capabilities/capability-idempotency.js';
+import { IdempotencyConflictError } from '../capabilities/capability-idempotency.js';
 import {
   auditNotedCapabilityTicket,
   introspectNotedCapabilityTicket,
   verifyNotedCapabilityTicket,
 } from '../capabilities/capability-authority.js';
-import {
-  executeNotedCatalogTool,
-  NotedCapabilityError,
-} from '../capabilities/noted.handlers.js';
+import { executeNotedCatalogTool, NotedCapabilityError } from '../capabilities/noted.handlers.js';
 import { NOTED_CAPABILITY_CATALOG } from '../capabilities/noted.catalog.js';
 import { log } from '../lib/logger.js';
 
@@ -44,11 +39,21 @@ function resourceMatches(
 function registerRoute(tool: CatalogTool, handler: RequestHandler): void {
   const path = `/${tool.name}`;
   switch (tool.invocation.method) {
-    case 'GET': router.get(path, handler); break;
-    case 'POST': router.post(path, handler); break;
-    case 'PATCH': router.patch(path, handler); break;
-    case 'PUT': router.put(path, handler); break;
-    case 'DELETE': router.delete(path, handler); break;
+    case 'GET':
+      router.get(path, handler);
+      break;
+    case 'POST':
+      router.post(path, handler);
+      break;
+    case 'PATCH':
+      router.patch(path, handler);
+      break;
+    case 'PUT':
+      router.put(path, handler);
+      break;
+    case 'DELETE':
+      router.delete(path, handler);
+      break;
   }
 }
 
@@ -71,9 +76,10 @@ for (const tool of NOTED_CAPABILITY_CATALOG.tools.filter(({ exposure }) =>
     } catch (error) {
       const code = error instanceof CapabilityTicketError ? error.code : 'jwks_unavailable';
       response.status(code === 'jwks_unavailable' ? 503 : 401).json({
-        error: code === 'jwks_unavailable'
-          ? 'capability_authority_unavailable'
-          : 'invalid_capability_ticket',
+        error:
+          code === 'jwks_unavailable'
+            ? 'capability_authority_unavailable'
+            : 'invalid_capability_ticket',
         code,
       });
       return;
@@ -89,11 +95,7 @@ for (const tool of NOTED_CAPABILITY_CATALOG.tools.filter(({ exposure }) =>
     const capabilityMatches = tool.requiredCapabilities.every((required) =>
       claims.capabilities.includes(required),
     );
-    if (
-      claims.tool !== tool.name
-      || !capabilityMatches
-      || !resourceMatches(claims, tool, input)
-    ) {
+    if (claims.tool !== tool.name || !capabilityMatches || !resourceMatches(claims, tool, input)) {
       void auditNotedCapabilityTicket({
         ticket,
         result: { status: 'denied', code: 'capability_scope_mismatch' },
@@ -117,7 +119,7 @@ for (const tool of NOTED_CAPABILITY_CATALOG.tools.filter(({ exposure }) =>
     }
 
     try {
-      if (!await introspectNotedCapabilityTicket(ticket, claims)) {
+      if (!(await introspectNotedCapabilityTicket(ticket, claims))) {
         response.status(403).json({ error: 'capability_revoked_or_denied' });
         return;
       }
@@ -127,9 +129,8 @@ for (const tool of NOTED_CAPABILITY_CATALOG.tools.filter(({ exposure }) =>
       return;
     }
 
-    const rawIdempotencyKey = typeof input.idempotencyKey === 'string'
-      ? input.idempotencyKey
-      : undefined;
+    const rawIdempotencyKey =
+      typeof input.idempotencyKey === 'string' ? input.idempotencyKey : undefined;
     const idempotencyKeyHash = rawIdempotencyKey
       ? createHash('sha256').update(rawIdempotencyKey).digest('hex')
       : undefined;
@@ -151,26 +152,34 @@ for (const tool of NOTED_CAPABILITY_CATALOG.tools.filter(({ exposure }) =>
       });
       response.json(output);
     } catch (error) {
-      const status = error instanceof NotedCapabilityError
-        ? error.status
-        : error instanceof IdempotencyConflictError
-          ? 409
-          : 500;
-      const code = error instanceof NotedCapabilityError
-        ? error.code
-        : error instanceof IdempotencyConflictError
-          ? 'idempotency_conflict'
-          : 'capability_execution_failed';
+      const status =
+        error instanceof NotedCapabilityError
+          ? error.status
+          : error instanceof IdempotencyConflictError
+            ? 409
+            : 500;
+      const code =
+        error instanceof NotedCapabilityError
+          ? error.code
+          : error instanceof IdempotencyConflictError
+            ? 'idempotency_conflict'
+            : 'capability_execution_failed';
       await auditNotedCapabilityTicket({
         ticket,
         result: { status: 'failed', code },
         rollbackSupported: tool.rollback === 'supported',
         idempotencyKeyHash,
       }).catch((auditError: unknown) => {
-        log.auth.error({ err: auditError, ticketId: claims.jti }, 'Capability failure audit failed');
+        log.auth.error(
+          { err: auditError, ticketId: claims.jti },
+          'Capability failure audit failed',
+        );
       });
       if (status === 500) {
-        log.notes.error({ err: error, ticketId: claims.jti, tool: tool.name }, 'Capability execution failed');
+        log.notes.error(
+          { err: error, ticketId: claims.jti, tool: tool.name },
+          'Capability execution failed',
+        );
       }
       response.status(status).json({ error: code });
     }

@@ -114,7 +114,8 @@ function levelToDb(level: number): number {
 export async function startRealtimeTranscription(
   options: RealtimeOptions,
 ): Promise<RealtimeSession> {
-  const expectedViewerId = options.expectedViewerId === undefined ? getActiveViewerId() : options.expectedViewerId;
+  const expectedViewerId =
+    options.expectedViewerId === undefined ? getActiveViewerId() : options.expectedViewerId;
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
   });
@@ -244,7 +245,12 @@ export async function startRealtimeTranscription(
         sliceIndex,
       );
       if (stopped) return;
-      options.onPartial?.(segments.map((segment) => segment.text).join(' ').trim());
+      options.onPartial?.(
+        segments
+          .map((segment) => segment.text)
+          .join(' ')
+          .trim(),
+      );
     });
   }
 

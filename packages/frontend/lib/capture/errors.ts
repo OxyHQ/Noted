@@ -63,6 +63,9 @@ export class NoteProcessingError extends Error {
   }
 }
 
-export function errorCodeOf(error: unknown, fallback: NoteProcessingErrorCode): NoteProcessingErrorCode {
+export function errorCodeOf(
+  error: unknown,
+  fallback: NoteProcessingErrorCode,
+): NoteProcessingErrorCode {
   return error instanceof NoteProcessingError ? error.code : fallback;
 }

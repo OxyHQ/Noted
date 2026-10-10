@@ -14,7 +14,13 @@ import {
   type NoteListParams,
 } from '@noted/shared-types';
 
-import { execute, executeTransaction, getActiveViewerId, type Row, type Statement } from '@/lib/db/client';
+import {
+  execute,
+  executeTransaction,
+  getActiveViewerId,
+  type Row,
+  type Statement,
+} from '@/lib/db/client';
 import { deleteNoteRecordings } from '@/lib/capture/captures-repo';
 import { nextNoteBody } from '@/lib/notes/generated-body';
 
@@ -77,7 +83,11 @@ function isString(value: unknown): value is string {
 function isChecklistItem(value: unknown): value is ChecklistItem {
   if (typeof value !== 'object' || value === null) return false;
   const item = value as Record<string, unknown>;
-  return typeof item.id === 'string' && typeof item.text === 'string' && typeof item.checked === 'boolean';
+  return (
+    typeof item.id === 'string' &&
+    typeof item.text === 'string' &&
+    typeof item.checked === 'boolean'
+  );
 }
 
 export function rowToNote(row: NoteRow): LocalNote {
@@ -183,7 +193,10 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
 
 export const NOTE_DETAIL_SQL = `SELECT ${NOTE_COLUMNS} FROM notes WHERE notes.id = ? AND notes.deleted_at IS NULL`;
 
-export async function getNote(id: string, expectedViewerId?: string | null): Promise<LocalNote | null> {
+export async function getNote(
+  id: string,
+  expectedViewerId?: string | null,
+): Promise<LocalNote | null> {
   return firstRowToNote(await execute<NoteRow>(NOTE_DETAIL_SQL, [id], expectedViewerId));
 }
 
@@ -298,7 +311,11 @@ function creationStatements(note: LocalNote, now: string): Statement[] {
 }
 
 /** Insert a note that only exists locally so far. */
-export async function createNote(id: string, input: NoteInput, viewerId = getActiveViewerId()): Promise<LocalNote> {
+export async function createNote(
+  id: string,
+  input: NoteInput,
+  viewerId = getActiveViewerId(),
+): Promise<LocalNote> {
   const now = nowIso();
   // Through the same assembler as every later edit, starting from a note with
   // neither half written yet, so there is exactly one place a body is composed.
@@ -329,9 +346,16 @@ export async function createNote(id: string, input: NoteInput, viewerId = getAct
   } catch (error) {
     // A manual retry may follow a committed insert whose response was lost.
     // Confirm that same ID without overwriting edits made since its creation.
-    if (!(error instanceof Error) || error.message !== 'transaction statement 0 affected 0 rows; expected 1') throw error;
+    if (
+      !(error instanceof Error) ||
+      error.message !== 'transaction statement 0 affected 0 rows; expected 1'
+    )
+      throw error;
     const existing = await getNote(id, viewerId);
-    if (!existing) throw new Error('This note was deleted before creation could be confirmed. Your draft has been preserved.');
+    if (!existing)
+      throw new Error(
+        'This note was deleted before creation could be confirmed. Your draft has been preserved.',
+      );
     return existing;
   }
   return note;
@@ -345,7 +369,11 @@ export async function createNote(id: string, input: NoteInput, viewerId = getAct
  * against a snapshot and compared in SQL before writing; a changed snapshot
  * rolls back the entire transaction, including labels and the outbox.
  */
-export async function updateNote(id: string, patch: NoteInput, viewerId = getActiveViewerId()): Promise<LocalNote | null> {
+export async function updateNote(
+  id: string,
+  patch: NoteInput,
+  viewerId = getActiveViewerId(),
+): Promise<LocalNote | null> {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const current = await getNote(id, viewerId);
     if (!current) return null;
@@ -360,12 +388,18 @@ export async function updateNote(id: string, patch: NoteInput, viewerId = getAct
     };
     set('kind', patch.kind);
     set('title', patch.title);
-    set('checklist_json', patch.checklist === undefined ? undefined : JSON.stringify(patch.checklist));
+    set(
+      'checklist_json',
+      patch.checklist === undefined ? undefined : JSON.stringify(patch.checklist),
+    );
     set('color', patch.color);
     set('pinned', patch.pinned === undefined ? undefined : Number(patch.pinned));
     set('archived', patch.archived === undefined ? undefined : Number(patch.archived));
     set('trashed', patch.trashed === undefined ? undefined : Number(patch.trashed));
-    set('attachments_json', patch.attachments === undefined ? undefined : JSON.stringify(patch.attachments));
+    set(
+      'attachments_json',
+      patch.attachments === undefined ? undefined : JSON.stringify(patch.attachments),
+    );
     set('reminder_at', patch.reminderAt);
     set('sort_order', patch.order);
 
@@ -379,25 +413,34 @@ export async function updateNote(id: string, patch: NoteInput, viewerId = getAct
     if (changesBody) params.push(current.body, current.generatedBody);
 
     try {
-      await executeTransaction([
-        {
-          sql: `UPDATE notes SET ${assignments.join(', ')}
+      await executeTransaction(
+        [
+          {
+            sql: `UPDATE notes SET ${assignments.join(', ')}
                 WHERE id = ? AND deleted_at IS NULL${changesBody ? ' AND body = ? AND generated_body = ?' : ''}`,
-          params,
-          expectedRowsAffected: 1,
-        },
-        ...(patch.labels === undefined ? [] : labelStatements(id, patch.labels)),
-        enqueueOutbox(id, 'upsert', now),
-      ], viewerId);
+            params,
+            expectedRowsAffected: 1,
+          },
+          ...(patch.labels === undefined ? [] : labelStatements(id, patch.labels)),
+          enqueueOutbox(id, 'upsert', now),
+        ],
+        viewerId,
+      );
     } catch (error) {
       // This exact error proves statement 0 changed nothing and the transaction
       // rolled back. Transport loss may hide a committed write: never replay it.
-      if (!(error instanceof Error) || error.message !== 'transaction statement 0 affected 0 rows; expected 1') throw error;
+      if (
+        !(error instanceof Error) ||
+        error.message !== 'transaction statement 0 affected 0 rows; expected 1'
+      )
+        throw error;
       continue;
     }
     return getNote(id, viewerId);
   }
-  throw new Error('This note changed while saving. Your draft has been preserved; try saving again.');
+  throw new Error(
+    'This note changed while saving. Your draft has been preserved; try saving again.',
+  );
 }
 
 /** Move a note to the trash (recoverable). */

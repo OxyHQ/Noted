@@ -240,7 +240,9 @@ describe('the recording controls', () => {
   it('stores the profile before rewriting, so the row and the note agree', () => {
     // A pass handed the profile as an argument would leave the row saying one
     // thing and the note showing another the moment anything else regenerated.
-    expect(read('capture/retry.ts')).toContain("setCaptureLifecycle(capture.id, { profile }, expectedViewerId)");
+    expect(read('capture/retry.ts')).toContain(
+      'setCaptureLifecycle(capture.id, { profile }, expectedViewerId)',
+    );
   });
 
   it('clears the path when it deletes the audio', () => {

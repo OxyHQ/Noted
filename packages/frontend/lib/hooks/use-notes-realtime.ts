@@ -19,11 +19,11 @@
  * silently overwrite whatever the user typed while offline.
  */
 
-import { useEffect } from "react";
-import { useOxy } from "@oxy.so/services";
-import { io as socketIO, type Socket } from "socket.io-client";
-import config from "@/lib/config";
-import { requestSync } from "@/lib/db/use-local-store";
+import { useEffect } from 'react';
+import { useOxy } from '@oxy.so/services';
+import { io as socketIO, type Socket } from 'socket.io-client';
+import config from '@/lib/config';
+import { requestSync } from '@/lib/db/use-local-store';
 
 export function useNotesRealtime() {
   const { oxyServices, isAuthenticated } = useOxy();
@@ -35,36 +35,36 @@ export function useNotesRealtime() {
     if (!isAuthenticated || !accessToken) return;
 
     const socket: Socket = socketIO(config.apiUrl, {
-      transports: ["websocket"],
+      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
       // Callback form so each (re)connect reads a FRESH token; the server
       // verifies it (io.use(authSocket())) and auto-joins the user's room.
-      auth: (cb) => cb({ token: oxyServices.session.accessToken ?? "" }),
+      auth: (cb) => cb({ token: oxyServices.session.accessToken ?? '' }),
     });
 
     const onServerChange = () => requestSync();
 
     // A reconnect means this client was out of touch for a while, so whatever
     // happened during the gap arrives through the same pull.
-    socket.on("connect", onServerChange);
-    socket.on("note:created", onServerChange);
-    socket.on("note:updated", onServerChange);
-    socket.on("note:deleted", onServerChange);
-    socket.on("label:created", onServerChange);
-    socket.on("label:updated", onServerChange);
-    socket.on("label:deleted", onServerChange);
+    socket.on('connect', onServerChange);
+    socket.on('note:created', onServerChange);
+    socket.on('note:updated', onServerChange);
+    socket.on('note:deleted', onServerChange);
+    socket.on('label:created', onServerChange);
+    socket.on('label:updated', onServerChange);
+    socket.on('label:deleted', onServerChange);
 
     return () => {
-      socket.off("connect", onServerChange);
-      socket.off("note:created", onServerChange);
-      socket.off("note:updated", onServerChange);
-      socket.off("note:deleted", onServerChange);
-      socket.off("label:created", onServerChange);
-      socket.off("label:updated", onServerChange);
-      socket.off("label:deleted", onServerChange);
+      socket.off('connect', onServerChange);
+      socket.off('note:created', onServerChange);
+      socket.off('note:updated', onServerChange);
+      socket.off('note:deleted', onServerChange);
+      socket.off('label:created', onServerChange);
+      socket.off('label:updated', onServerChange);
+      socket.off('label:deleted', onServerChange);
       socket.disconnect();
     };
   }, [isAuthenticated, accessToken, oxyServices]);

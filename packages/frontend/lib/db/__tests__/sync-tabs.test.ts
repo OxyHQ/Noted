@@ -9,10 +9,12 @@ vi.mock('@/lib/db/client', () => ({
   getActiveViewerId: () => state.viewer,
   isDbAvailable: () => true,
 }));
-vi.mock('@/lib/api/client', () => ({ default: {
-  isAccountActive: (viewer: string) => viewer === state.viewer,
-  get: state.get,
-} }));
+vi.mock('@/lib/api/client', () => ({
+  default: {
+    isAccountActive: (viewer: string) => viewer === state.viewer,
+    get: state.get,
+  },
+}));
 vi.mock('@/lib/db/artifacts-repo', () => ({}));
 vi.mock('@/lib/db/labels-repo', () => ({ saveLabels: vi.fn() }));
 
@@ -20,7 +22,9 @@ beforeEach(() => {
   vi.stubGlobal('navigator', { locks: createLockManager() });
   state.viewer = 'alice';
   state.execute.mockReset().mockResolvedValue([]);
-  state.get.mockReset().mockResolvedValue({ data: { data: [], deleted: [], serverTime: '2026-10-10T10:00:00Z' } });
+  state.get
+    .mockReset()
+    .mockResolvedValue({ data: { data: [], deleted: [], serverTime: '2026-10-10T10:00:00Z' } });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -39,7 +43,7 @@ describe('cross-tab synchronization', () => {
     await vi.waitFor(() => expect(state.get).toHaveBeenCalledOnce());
     const reads = state.execute.mock.calls.length;
     const secondCycle = second.syncNotes(() => 'conflict');
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(state.execute).toHaveBeenCalledTimes(reads);
     response.resolve({ data: { data: [], deleted: [], serverTime: '2026-10-10T10:00:00Z' } });
     await Promise.all([firstCycle, secondCycle]);

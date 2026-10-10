@@ -1,12 +1,12 @@
-import { View } from "react-native";
-import { Card } from "@oxy.so/bloom/card";
-import { Button } from "@oxy.so/bloom/button";
-import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
-import { useUndoStore } from "@/lib/stores/undo-store";
+import { View } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
+import { Button } from '@oxy.so/bloom/button';
+import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import { Text } from '@/components/ui/text';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
+import { useUndoStore } from '@/lib/stores/undo-store';
 
 /**
  * Keep-style undo snackbar: a dark pill carrying a message and an "Undo"
@@ -31,19 +31,12 @@ export function UndoSnackbar() {
       entering={reduceMotion ? undefined : SlideInDown.duration(200)}
       exiting={reduceMotion ? undefined : SlideOutDown.duration(150)}
     >
-      <Card
-        elevation="m"
-        style={{ backgroundColor: colors.foreground }}
-      >
+      <Card elevation="m" style={{ backgroundColor: colors.foreground }}>
         <View
           accessibilityRole="alert"
           className="max-w-[420px] flex-row items-center justify-between px-4 py-3"
         >
-          <Text
-            className="flex-1 text-sm"
-            numberOfLines={1}
-            style={{ color: colors.background }}
-          >
+          <Text className="flex-1 text-sm" numberOfLines={1} style={{ color: colors.background }}>
             {message}
           </Text>
           <Button
@@ -55,7 +48,7 @@ export function UndoSnackbar() {
               foreground: colors.background,
             }}
           >
-            {t("common.undo")}
+            {t('common.undo')}
           </Button>
         </View>
       </Card>

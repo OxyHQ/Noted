@@ -233,8 +233,7 @@ export type LocalModelCapability =
     }
   | {
       kind: 'unavailable';
-      reason:
-        /** Not HTTPS or localhost: `navigator.gpu` is withheld from the page. */
+      reason: /** Not HTTPS or localhost: `navigator.gpu` is withheld from the page. */
         | 'insecure_context'
         | 'navigator_gpu_missing'
         | 'adapter_unavailable'

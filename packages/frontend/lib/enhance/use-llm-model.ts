@@ -10,12 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createLogger } from '@oxy.so/core/logger';
 
-import {
-  deleteLlmModel,
-  downloadLlmModel,
-  LLM_MODEL,
-  llmModelState,
-} from '@/lib/enhance/models';
+import { deleteLlmModel, downloadLlmModel, LLM_MODEL, llmModelState } from '@/lib/enhance/models';
 import type { WeightsState } from '@/lib/models/weights';
 
 const logger = createLogger('NotedEnhance');

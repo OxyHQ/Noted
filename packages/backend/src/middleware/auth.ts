@@ -67,11 +67,7 @@ export const oxyServiceAuth = oxyClient.middleware.service({ debug: true });
  */
 const oxyOptionalAuth = createOptionalOxyAuth(oxyClient, { auth: { debug: true } });
 
-export function optionalAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
+export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
   // Uses @oxy.so/core/server optional auth — attaches user if valid, continues if not.
   oxyOptionalAuth(req, res, next);
 }
@@ -79,20 +75,14 @@ export function optionalAuth(
 /**
  * Accepts Oxy JWT tokens and the internal service secret.
  */
-export function authenticateTokenOrApiKey(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
+export function authenticateTokenOrApiKey(req: Request, res: Response, next: NextFunction): void {
   // Already authenticated (e.g., by channel bot pre-middleware)
   if (req.user) {
     return next();
   }
 
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : null;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
   if (!token) {
     res.status(401).json({ error: 'Authentication required' });
@@ -101,8 +91,11 @@ export function authenticateTokenOrApiKey(
 
   // Internal service auth (server-to-server calls using the shared service secret)
   const serviceSecret = process.env.SERVICE_SECRET;
-  if (serviceSecret && token.length === serviceSecret.length &&
-      crypto.timingSafeEqual(Buffer.from(token), Buffer.from(serviceSecret))) {
+  if (
+    serviceSecret &&
+    token.length === serviceSecret.length &&
+    crypto.timingSafeEqual(Buffer.from(token), Buffer.from(serviceSecret))
+  ) {
     req.userId = 'system';
     req.user = { id: 'system' };
     req.serviceApp = {
@@ -137,7 +130,7 @@ export function requireScope(scope: string) {
 
     res.status(403).json({
       error: 'Insufficient permissions',
-      required_scope: scope
+      required_scope: scope,
     });
   };
 }
@@ -155,7 +148,7 @@ export function requireScope(scope: string) {
 export async function authenticateTelegramBot(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   const startTime = Date.now();
 
@@ -205,7 +198,16 @@ export async function authenticateTelegramBot(
 
     // Log successful auth for audit trail
     const duration = Date.now() - startTime;
-    log.auth.info({ telegramId, oxyUserId: oxyUserId || 'unknown', ip: getClientIp(req), endpoint: req.path, durationMs: duration }, 'Telegram bot authenticated');
+    log.auth.info(
+      {
+        telegramId,
+        oxyUserId: oxyUserId || 'unknown',
+        ip: getClientIp(req),
+        endpoint: req.path,
+        durationMs: duration,
+      },
+      'Telegram bot authenticated',
+    );
 
     // Set user context if provided - the bot is acting on behalf of this user
     if (oxyUserId) {

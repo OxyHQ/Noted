@@ -22,7 +22,18 @@
 import type { PendingExpansion } from '@noted/shared-types';
 import type { ResolvedBlock, ResolvedEnhancement, ResolvedItem } from '@/lib/enhance/contract';
 import { itemId } from '@/lib/artifact/item-id';
-import type { ArtifactStage, CaptureProfile, DocumentIntent, GeneratedBlock, GeneratedChecklist, GeneratedChecklistItem, GeneratedItem, GeneratedNoteArtifact, GeneratedSection, SourceRange } from '@noted/shared-types';
+import type {
+  ArtifactStage,
+  CaptureProfile,
+  DocumentIntent,
+  GeneratedBlock,
+  GeneratedChecklist,
+  GeneratedChecklistItem,
+  GeneratedItem,
+  GeneratedNoteArtifact,
+  GeneratedSection,
+  SourceRange,
+} from '@noted/shared-types';
 import { checklistKindFor } from '@/lib/artifact/dictation/list';
 
 export interface FromEnhancementInput {

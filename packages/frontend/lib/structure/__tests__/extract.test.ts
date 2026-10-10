@@ -93,7 +93,8 @@ describe('extractHighlights', () => {
   });
 
   it('returns nothing for a block with no commitments or questions', () => {
-    expect(extractHighlights('Estuvimos comentando el tiempo que hizo el fin de semana.', 0))
-      .toEqual([]);
+    expect(
+      extractHighlights('Estuvimos comentando el tiempo que hizo el fin de semana.', 0),
+    ).toEqual([]);
   });
 });

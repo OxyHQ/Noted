@@ -14,7 +14,12 @@ const FALLBACK = '8 Aug 2026, 10:00';
 
 const EXPANSION: PendingExpansion = {
   subject: 'una pizza de pollo',
-  instructionSource: { captureId: CAPTURE_ID, startMs: 9_000, endMs: 12_000, segmentIds: ['c1#0.3'] },
+  instructionSource: {
+    captureId: CAPTURE_ID,
+    startMs: 9_000,
+    endMs: 12_000,
+    segmentIds: ['c1#0.3'],
+  },
 };
 
 function item(text: string, over: Partial<ResolvedItem> = {}): ResolvedItem {
@@ -30,8 +35,12 @@ function enhancement(over: Partial<ResolvedEnhancement> = {}): ResolvedEnhanceme
     title: 'Revisión del presupuesto',
     people: [],
     sections: [{ blocks: [para('Al final vamos a usar el proveedor barato')] }],
-    actions: [item('Enviar el contrato antes del viernes', { segmentIds: ['c1#0.1'], atMs: 6_000 })],
-    openQuestions: [item('¿Quién habla con el proveedor?', { segmentIds: ['c1#0.2'], atMs: 12_000 })],
+    actions: [
+      item('Enviar el contrato antes del viernes', { segmentIds: ['c1#0.1'], atMs: 6_000 }),
+    ],
+    openQuestions: [
+      item('¿Quién habla con el proveedor?', { segmentIds: ['c1#0.2'], atMs: 12_000 }),
+    ],
     listAdditions: [],
     ...over,
   };
@@ -70,7 +79,9 @@ describe('the model writes the same shape', () => {
   });
 
   it('records who was speaking when the model says, and invents nobody', () => {
-    const named = build({ people: [{ role: 'Ministro de educación', segmentIds: ['c1#0.0'], atMs: 0 }] });
+    const named = build({
+      people: [{ role: 'Ministro de educación', segmentIds: ['c1#0.0'], atMs: 0 }],
+    });
     expect(named.people?.[0]).toMatchObject({ role: 'Ministro de educación' });
     expect(named.people?.[0].name).toBeUndefined();
     expect(build().people).toEqual([]);

@@ -33,7 +33,10 @@ describe('cross-tab recording ownership', () => {
     const second = await tab();
     const insert = deferred<number[]>();
     db.transaction.mockImplementationOnce(() => insert.promise);
-    const started = first.repo.beginCapture({ id: 'capture', noteId: 'note', audioPath: '' }, 'alice');
+    const started = first.repo.beginCapture(
+      { id: 'capture', noteId: 'note', audioPath: '' },
+      'alice',
+    );
     await vi.waitFor(() => expect(db.transaction).toHaveBeenCalledOnce());
 
     expect(await second.repo.recoverInterruptedCaptures('alice')).toBe(0);
@@ -54,8 +57,9 @@ describe('cross-tab recording ownership', () => {
     const first = await tab();
     const second = await tab();
     db.transaction.mockRejectedValueOnce(new Error('write interrupted'));
-    await expect(first.repo.beginCapture({ id: 'capture', noteId: 'note', audioPath: '' }, 'alice'))
-      .rejects.toThrow('write interrupted');
+    await expect(
+      first.repo.beginCapture({ id: 'capture', noteId: 'note', audioPath: '' }, 'alice'),
+    ).rejects.toThrow('write interrupted');
     expect(await second.repo.recoverInterruptedCaptures('alice')).toBe(1);
   });
 
@@ -64,7 +68,9 @@ describe('cross-tab recording ownership', () => {
     const second = await tab();
     await first.repo.beginCapture({ id: 'capture', noteId: 'note', audioPath: '' }, 'alice');
     db.transaction.mockRejectedValueOnce(new Error('account changed'));
-    await expect(first.repo.finishCapture('capture', 10, 'audio', 'alice')).rejects.toThrow('account changed');
+    await expect(first.repo.finishCapture('capture', 10, 'audio', 'alice')).rejects.toThrow(
+      'account changed',
+    );
     expect(await second.repo.recoverInterruptedCaptures('alice')).toBe(1);
   });
 
@@ -76,8 +82,12 @@ describe('cross-tab recording ownership', () => {
     const recover = vi.fn().mockResolvedValue(1);
     expect(await second.ownership.recoverUnownedCapture('alice/a', 'capture', recover)).toBeNull();
     expect(await second.ownership.recoverUnownedCapture('alice_a', 'capture', recover)).toBe(1);
-    expect(accountLockName('capture', 'alice/a', 'capture')).not.toBe(accountLockName('capture', 'alice_a', 'capture'));
-    await expect(second.ownership.claimCapture('alice/a', 'capture')).rejects.toThrow('another tab');
+    expect(accountLockName('capture', 'alice/a', 'capture')).not.toBe(
+      accountLockName('capture', 'alice_a', 'capture'),
+    );
+    await expect(second.ownership.claimCapture('alice/a', 'capture')).rejects.toThrow(
+      'another tab',
+    );
     first.ownership.releaseCapture('alice/a', 'capture');
   });
 });

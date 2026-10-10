@@ -1,8 +1,5 @@
 import * as React from 'react';
-import {
-  View,
-  Pressable,
-} from 'react-native';
+import { View, Pressable } from 'react-native';
 import { Dialog as BloomDialog } from '@oxy.so/bloom/dialog';
 import { CloseButton } from '@oxy.so/bloom/button';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -57,34 +54,43 @@ interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof View>
   closeButton?: boolean;
 }
 
-const DialogContent = React.forwardRef<
-  React.ElementRef<typeof View>,
-  DialogContentProps
->(({ className, overlayClassName, showCloseButton, closeButton, children, ...props }, ref) => {
-  const { open, onOpenChange } = React.useContext(DialogContext);
-  const shouldShowClose = showCloseButton ?? closeButton ?? true;
-  const { t } = useTranslation();
-  const findTitle = (nodes: React.ReactNode): string | undefined => {
-    for (const node of React.Children.toArray(nodes)) {
-      if (!React.isValidElement<{ children?: React.ReactNode }>(node)) continue;
-      if (node.type === DialogTitle && typeof node.props.children === 'string') return node.props.children;
-      const title = findTitle(node.props.children);
-      if (title) return title;
-    }
-    return undefined;
-  };
-  return (
-    <BloomDialog open={open} onClose={() => onOpenChange?.(false)}
-      label={findTitle(children)} maxWidth={className?.includes('max-w-xs') ? 320 : 512}>
-      <View ref={ref} className={cn('gap-4', className)} {...props}>
-        {shouldShowClose && <View className="items-end">
-          <CloseButton accessibilityLabel={t('common.close')} onPress={() => onOpenChange?.(false)} />
-        </View>}
-        {children}
-      </View>
-    </BloomDialog>
-  );
-});
+const DialogContent = React.forwardRef<React.ElementRef<typeof View>, DialogContentProps>(
+  ({ className, overlayClassName, showCloseButton, closeButton, children, ...props }, ref) => {
+    const { open, onOpenChange } = React.useContext(DialogContext);
+    const shouldShowClose = showCloseButton ?? closeButton ?? true;
+    const { t } = useTranslation();
+    const findTitle = (nodes: React.ReactNode): string | undefined => {
+      for (const node of React.Children.toArray(nodes)) {
+        if (!React.isValidElement<{ children?: React.ReactNode }>(node)) continue;
+        if (node.type === DialogTitle && typeof node.props.children === 'string')
+          return node.props.children;
+        const title = findTitle(node.props.children);
+        if (title) return title;
+      }
+      return undefined;
+    };
+    return (
+      <BloomDialog
+        open={open}
+        onClose={() => onOpenChange?.(false)}
+        label={findTitle(children)}
+        maxWidth={className?.includes('max-w-xs') ? 320 : 512}
+      >
+        <View ref={ref} className={cn('gap-4', className)} {...props}>
+          {shouldShowClose && (
+            <View className="items-end">
+              <CloseButton
+                accessibilityLabel={t('common.close')}
+                onPress={() => onOpenChange?.(false)}
+              />
+            </View>
+          )}
+          {children}
+        </View>
+      </BloomDialog>
+    );
+  },
+);
 
 DialogContent.displayName = 'DialogContent';
 
@@ -122,13 +128,7 @@ const DialogDescription = React.forwardRef<
   React.ElementRef<typeof Text>,
   React.ComponentPropsWithoutRef<typeof Text>
 >(({ className, ...props }, ref) => {
-  return (
-    <Text
-      ref={ref}
-      className={cn('text-sm text-muted-foreground', className)}
-      {...props}
-    />
-  );
+  return <Text ref={ref} className={cn('text-sm text-muted-foreground', className)} {...props} />;
 });
 
 DialogDescription.displayName = 'DialogDescription';

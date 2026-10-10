@@ -14,7 +14,8 @@ export class NoteSaveQueue<T> {
   save(draft: T, takeOverBody = false): Promise<void> {
     const generation = this.generation;
     const result = this.tail.then(async () => {
-      if (generation !== this.generation) throw new Error("The editor was closed before this write could start");
+      if (generation !== this.generation)
+        throw new Error('The editor was closed before this write could start');
       this.takeoverPending ||= takeOverBody;
       await this.write(draft, this.takeoverPending);
       this.takeoverPending = false;

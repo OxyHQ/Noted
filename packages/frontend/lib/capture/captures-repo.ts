@@ -179,13 +179,16 @@ function nowIso(): string {
  * is the only evidence the recording ever existed, and the audio file it names is
  * what recovery transcribes.
  */
-export async function beginCapture(input: {
-  id: string;
-  noteId: string;
-  audioPath: string;
-  language?: string;
-  profile?: CaptureProfile;
-}, expectedViewerId = getActiveViewerId()): Promise<void> {
+export async function beginCapture(
+  input: {
+    id: string;
+    noteId: string;
+    audioPath: string;
+    language?: string;
+    profile?: CaptureProfile;
+  },
+  expectedViewerId = getActiveViewerId(),
+): Promise<void> {
   // Claim before the row appears: another tab may start recovery immediately.
   await claimCapture(expectedViewerId, input.id);
   try {
@@ -196,30 +199,33 @@ export async function beginCapture(input: {
       generation: 'idle',
       enhancement: 'pending',
     };
-    await executeTransaction([
-      {
-        sql: `INSERT INTO captures (
+    await executeTransaction(
+      [
+        {
+          sql: `INSERT INTO captures (
                 id, note_id, state, capture_status, transcription_status, generation_status,
                 enhancement_status, profile, transcript_revision, started_at, ended_at, duration_ms,
                 audio_path, audio_file_id, model_id, language, error_code, created_at, updated_at
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, 0, ?, NULL, NULL, ?, NULL, ?, ?)`,
-        params: [
-          input.id,
-          input.noteId,
-          legacyStateFromLifecycle(lifecycle),
-          lifecycle.capture,
-          lifecycle.transcription,
-          lifecycle.generation,
-          lifecycle.enhancement,
-          input.profile ?? 'auto',
-          now,
-          input.audioPath,
-          input.language ?? null,
-          now,
-          now,
-        ],
-      },
-    ], expectedViewerId);
+          params: [
+            input.id,
+            input.noteId,
+            legacyStateFromLifecycle(lifecycle),
+            lifecycle.capture,
+            lifecycle.transcription,
+            lifecycle.generation,
+            lifecycle.enhancement,
+            input.profile ?? 'auto',
+            now,
+            input.audioPath,
+            input.language ?? null,
+            now,
+            now,
+          ],
+        },
+      ],
+      expectedViewerId,
+    );
   } catch (error) {
     releaseCapture(expectedViewerId, input.id);
     throw error;
@@ -248,26 +254,31 @@ export async function setCaptureLifecycle(
 
   const lifecycle: CaptureLifecycle = { ...current.lifecycle, ...patch };
   const now = nowIso();
-  await executeTransaction([
-    {
-      sql: `UPDATE captures SET state = ?, capture_status = ?, transcription_status = ?,
+  await executeTransaction(
+    [
+      {
+        sql: `UPDATE captures SET state = ?, capture_status = ?, transcription_status = ?,
               generation_status = ?, enhancement_status = ?, profile = ?, error_code = ?,
               enhancement_reason = ?, updated_at = ?
             WHERE id = ?`,
-      params: [
-        legacyStateFromLifecycle(lifecycle),
-        lifecycle.capture,
-        lifecycle.transcription,
-        lifecycle.generation,
-        lifecycle.enhancement,
-        patch.profile ?? current.profile,
-        patch.errorCode === undefined ? current.errorCode : patch.errorCode,
-        patch.enhancementReason === undefined ? current.enhancementReason : patch.enhancementReason,
-        now,
-        id,
-      ],
-    },
-  ], expectedViewerId);
+        params: [
+          legacyStateFromLifecycle(lifecycle),
+          lifecycle.capture,
+          lifecycle.transcription,
+          lifecycle.generation,
+          lifecycle.enhancement,
+          patch.profile ?? current.profile,
+          patch.errorCode === undefined ? current.errorCode : patch.errorCode,
+          patch.enhancementReason === undefined
+            ? current.enhancementReason
+            : patch.enhancementReason,
+          now,
+          id,
+        ],
+      },
+    ],
+    expectedViewerId,
+  );
   return lifecycle;
 }
 
@@ -287,13 +298,16 @@ export async function finishCapture(
 ): Promise<void> {
   try {
     const now = nowIso();
-    await executeTransaction([
-      {
-        sql: `UPDATE captures SET ended_at = ?, duration_ms = ?, audio_path = ?, updated_at = ?
+    await executeTransaction(
+      [
+        {
+          sql: `UPDATE captures SET ended_at = ?, duration_ms = ?, audio_path = ?, updated_at = ?
               WHERE id = ? AND capture_status IN ('starting', 'recording', 'stopping')`,
-        params: [now, durationMs, audioPath, now, id],
-      },
-    ], expectedViewerId);
+          params: [now, durationMs, audioPath, now, id],
+        },
+      ],
+      expectedViewerId,
+    );
     await setCaptureLifecycle(id, { capture: 'stopped' }, expectedViewerId);
   } finally {
     releaseCapture(expectedViewerId, id);
@@ -301,15 +315,22 @@ export async function finishCapture(
 }
 
 /** Record that a capture ended badly, keeping why. */
-export async function failCapture(id: string, errorCode: string, expectedViewerId = getActiveViewerId()): Promise<void> {
+export async function failCapture(
+  id: string,
+  errorCode: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<void> {
   try {
     const now = nowIso();
-    await executeTransaction([
-      {
-        sql: `UPDATE captures SET ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE id = ?`,
-        params: [now, now, id],
-      },
-    ], expectedViewerId);
+    await executeTransaction(
+      [
+        {
+          sql: `UPDATE captures SET ended_at = COALESCE(ended_at, ?), updated_at = ? WHERE id = ?`,
+          params: [now, now, id],
+        },
+      ],
+      expectedViewerId,
+    );
     await setCaptureLifecycle(id, { capture: 'failed', errorCode }, expectedViewerId);
   } finally {
     releaseCapture(expectedViewerId, id);
@@ -317,7 +338,10 @@ export async function failCapture(id: string, errorCode: string, expectedViewerI
 }
 
 /** Record that a capture's transcript is done. */
-export async function completeCapture(id: string, expectedViewerId = getActiveViewerId()): Promise<void> {
+export async function completeCapture(
+  id: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<void> {
   await setCaptureLifecycle(id, { transcription: 'complete', errorCode: null }, expectedViewerId);
 }
 
@@ -330,7 +354,10 @@ export async function completeCapture(id: string, expectedViewerId = getActiveVi
  *
  * @returns the new revision, or null when the capture no longer exists.
  */
-export async function bumpTranscriptRevision(id: string, expectedViewerId = getActiveViewerId()): Promise<number | null> {
+export async function bumpTranscriptRevision(
+  id: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<number | null> {
   const rows = await execute<{ transcript_revision: number }>(
     `UPDATE captures SET transcript_revision = transcript_revision + 1, updated_at = ?
      WHERE id = ? RETURNING transcript_revision`,
@@ -355,7 +382,9 @@ export async function bumpTranscriptRevision(id: string, expectedViewerId = getA
  *
  * @returns how many were recovered.
  */
-export async function recoverInterruptedCaptures(expectedViewerId = getActiveViewerId()): Promise<number> {
+export async function recoverInterruptedCaptures(
+  expectedViewerId = getActiveViewerId(),
+): Promise<number> {
   if (!expectedViewerId) return 0;
   const candidates = await execute<{ id: string }>(
     "SELECT id FROM captures WHERE capture_status IN ('starting', 'recording', 'stopping')",
@@ -371,16 +400,21 @@ export async function recoverInterruptedCaptures(expectedViewerId = getActiveVie
   });
   let recovered = 0;
   for (const { id } of candidates) {
-    const affected = await recoverUnownedCapture(expectedViewerId, id, () => executeTransaction([
-      {
-        sql: `UPDATE captures SET state = ?, capture_status = 'interrupted',
+    const affected = await recoverUnownedCapture(expectedViewerId, id, () =>
+      executeTransaction(
+        [
+          {
+            sql: `UPDATE captures SET state = ?, capture_status = 'interrupted',
               transcription_status = 'pending', generation_status = 'idle',
               enhancement_status = 'pending',
               ended_at = COALESCE(ended_at, ?), updated_at = ?
             WHERE id = ? AND capture_status IN ('starting', 'recording', 'stopping')`,
-        params: [interrupted, now, now, id],
-      },
-    ], expectedViewerId));
+            params: [interrupted, now, now, id],
+          },
+        ],
+        expectedViewerId,
+      ),
+    );
     recovered += affected?.[0] ?? 0;
   }
   return recovered;
@@ -397,23 +431,31 @@ export async function recoverInterruptedCaptures(expectedViewerId = getActiveVie
  *
  * @returns how many captures were removed.
  */
-export async function deleteNoteRecordings(noteId: string, expectedViewerId = getActiveViewerId()): Promise<number> {
-  const captures = rowsToCaptures(await execute<CaptureRow>(CAPTURE_BY_NOTE_SQL, [noteId], expectedViewerId));
+export async function deleteNoteRecordings(
+  noteId: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<number> {
+  const captures = rowsToCaptures(
+    await execute<CaptureRow>(CAPTURE_BY_NOTE_SQL, [noteId], expectedViewerId),
+  );
 
   for (const capture of captures) {
     await deleteCaptureAudio(capture.audioPath, capture.id).catch(() => undefined);
   }
 
-  const affected = await executeTransaction([
-    {
-      sql: `DELETE FROM transcript_segments WHERE capture_id IN
+  const affected = await executeTransaction(
+    [
+      {
+        sql: `DELETE FROM transcript_segments WHERE capture_id IN
               (SELECT id FROM captures WHERE note_id = ?)`,
-      params: [noteId],
-    },
-    { sql: 'DELETE FROM note_artifacts WHERE note_id = ?', params: [noteId] },
-    { sql: 'DELETE FROM note_item_overrides WHERE note_id = ?', params: [noteId] },
-    { sql: 'DELETE FROM captures WHERE note_id = ?', params: [noteId] },
-  ], expectedViewerId);
+        params: [noteId],
+      },
+      { sql: 'DELETE FROM note_artifacts WHERE note_id = ?', params: [noteId] },
+      { sql: 'DELETE FROM note_item_overrides WHERE note_id = ?', params: [noteId] },
+      { sql: 'DELETE FROM captures WHERE note_id = ?', params: [noteId] },
+    ],
+    expectedViewerId,
+  );
   return affected[affected.length - 1] ?? 0;
 }
 
@@ -425,14 +467,20 @@ export async function deleteNoteRecordings(noteId: string, expectedViewerId = ge
  * nothing is left pointing at bytes that are gone: a row naming a deleted file is
  * how a "play" button appears and then fails.
  */
-export async function deleteRecordingAudio(capture: Capture, expectedViewerId = getActiveViewerId()): Promise<void> {
+export async function deleteRecordingAudio(
+  capture: Capture,
+  expectedViewerId = getActiveViewerId(),
+): Promise<void> {
   await deleteCaptureAudio(capture.audioPath, capture.id);
-  await executeTransaction([
-    {
-      sql: `UPDATE captures SET audio_path = '', updated_at = ? WHERE id = ?`,
-      params: [nowIso(), capture.id],
-    },
-  ], expectedViewerId);
+  await executeTransaction(
+    [
+      {
+        sql: `UPDATE captures SET audio_path = '', updated_at = ? WHERE id = ?`,
+        params: [nowIso(), capture.id],
+      },
+    ],
+    expectedViewerId,
+  );
 }
 
 /**
@@ -444,10 +492,14 @@ export async function deleteRecordingAudio(capture: Capture, expectedViewerId = 
  * purpose: it counts what the recogniser has produced, and pretending none of it
  * ever existed would let a stale processing task believe it is current again.
  */
-export async function deleteRecordingTranscript(capture: Capture, expectedViewerId = getActiveViewerId()): Promise<void> {
-  await executeTransaction([
-    { sql: 'DELETE FROM transcript_segments WHERE capture_id = ?', params: [capture.id] },
-  ], expectedViewerId);
+export async function deleteRecordingTranscript(
+  capture: Capture,
+  expectedViewerId = getActiveViewerId(),
+): Promise<void> {
+  await executeTransaction(
+    [{ sql: 'DELETE FROM transcript_segments WHERE capture_id = ?', params: [capture.id] }],
+    expectedViewerId,
+  );
 }
 
 /* ── Reads ─────────────────────────────────────────────────────── */
@@ -474,14 +526,23 @@ WHERE capture_status = 'interrupted'
 ORDER BY started_at ASC
 `;
 
-export async function getCapture(id: string, expectedViewerId = getActiveViewerId()): Promise<Capture | null> {
+export async function getCapture(
+  id: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<Capture | null> {
   return firstRowToCapture(
-    await execute<CaptureRow>(`SELECT ${CAPTURE_COLUMNS} FROM captures WHERE id = ?`, [id], expectedViewerId),
+    await execute<CaptureRow>(
+      `SELECT ${CAPTURE_COLUMNS} FROM captures WHERE id = ?`,
+      [id],
+      expectedViewerId,
+    ),
   );
 }
 
 /** Captures still awaiting a transcript or a note — what recovery lists. */
-export async function getPendingCaptures(expectedViewerId = getActiveViewerId()): Promise<Capture[]> {
+export async function getPendingCaptures(
+  expectedViewerId = getActiveViewerId(),
+): Promise<Capture[]> {
   return rowsToCaptures(await execute<CaptureRow>(PENDING_CAPTURES_SQL, [], expectedViewerId));
 }
 
@@ -595,7 +656,10 @@ FROM transcript_segments WHERE capture_id = ? ORDER BY start_ms ASC, segment_ind
  * is a `WHERE` on the conflict branch, so it is the database that refuses rather
  * than a caller comparing before it writes.
  */
-export function upsertSegments(segments: readonly TranscriptSegment[], expectedViewerId = getActiveViewerId()): Promise<number[]> {
+export function upsertSegments(
+  segments: readonly TranscriptSegment[],
+  expectedViewerId = getActiveViewerId(),
+): Promise<number[]> {
   const now = nowIso();
   return executeTransaction(
     segments.map((segment) => ({

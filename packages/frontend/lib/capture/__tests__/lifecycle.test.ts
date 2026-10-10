@@ -75,17 +75,17 @@ describe('transcription and generation are not the microphone', () => {
 describe('what the UI asks', () => {
   it('is settled only when nothing is still working', () => {
     expect(isSettled(lifecycle())).toBe(true);
-    expect(isSettled(lifecycle({ capture: 'recording', transcription: 'live', generation: 'live' }))).toBe(
-      false,
-    );
+    expect(
+      isSettled(lifecycle({ capture: 'recording', transcription: 'live', generation: 'live' })),
+    ).toBe(false);
     expect(isSettled(lifecycle({ generation: 'finalizing' }))).toBe(false);
     expect(isSettled(lifecycle({ transcription: 'running' }))).toBe(false);
   });
 
   it('is settled for a failure, which is an outcome and not a wait', () => {
-    expect(isSettled(lifecycle({ capture: 'failed', transcription: 'failed', generation: 'idle' }))).toBe(
-      true,
-    );
+    expect(
+      isSettled(lifecycle({ capture: 'failed', transcription: 'failed', generation: 'idle' })),
+    ).toBe(true);
   });
 
   it('says the recording is safe when the audio made it to disk', () => {

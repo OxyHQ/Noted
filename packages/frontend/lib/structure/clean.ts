@@ -41,10 +41,7 @@ const FILLERS = [
 
 // Word-bounded so a filler never eats part of a real word: `este` must not
 // match inside `esteban`, and `um` must not match inside `umbral`.
-const FILLER_PATTERN = new RegExp(
-  `(^|[\\s,])(?:${FILLERS.join('|')})(?=[\\s,.!?]|$)`,
-  'gi',
-);
+const FILLER_PATTERN = new RegExp(`(^|[\\s,])(?:${FILLERS.join('|')})(?=[\\s,.!?]|$)`, 'gi');
 
 /** `word word` → `word`, when someone stalls by repeating themselves. */
 const IMMEDIATE_REPEAT_PATTERN = /\b(\p{L}+)(\s+\1\b)+/giu;

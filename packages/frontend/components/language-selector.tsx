@@ -22,7 +22,9 @@ export function LanguageSelector() {
   // set), else the single resolved device/fallback locale — the same
   // fallback `LanguageSelectorScreen` itself uses.
   const selectedLanguages = currentLanguages.length > 0 ? currentLanguages : [currentLanguage];
-  const languageDescription = selectedLanguages.map((code) => getNativeLanguageName(code)).join(', ');
+  const languageDescription = selectedLanguages
+    .map((code) => getNativeLanguageName(code))
+    .join(', ');
 
   return (
     <View className="gap-2">

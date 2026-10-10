@@ -44,12 +44,7 @@ export type NoteGenerationStatus = 'idle' | 'live' | 'finalizing' | 'complete' |
  * document sitting on the user's screen. `unsupported` is not a failure: a device
  * with no model that can run is a device whose baseline note is the final answer.
  */
-export type EnhancementStatus =
-  | 'unsupported'
-  | 'pending'
-  | 'running'
-  | 'complete'
-  | 'failed';
+export type EnhancementStatus = 'unsupported' | 'pending' | 'running' | 'complete' | 'failed';
 
 export interface CaptureLifecycle {
   capture: CaptureStatus;

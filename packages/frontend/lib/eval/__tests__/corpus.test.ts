@@ -70,56 +70,44 @@ describe('the corpus itself', () => {
 });
 
 describe('nothing enters a note unsupported', () => {
-  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))(
-    '%s',
-    (_id, scenario) => {
-      // The strictest line in this file, and the one worth keeping strict: an
-      // item claiming to come from the recording with no source range is a claim
-      // the reader cannot check and neither can anything else.
-      const artifact = build(scenario);
-      expect(unsupportedClaims(artifact), scenario.what).toEqual([]);
-      expect(unauthorisedDerivations(artifact), scenario.what).toEqual([]);
-    },
-  );
+  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))('%s', (_id, scenario) => {
+    // The strictest line in this file, and the one worth keeping strict: an
+    // item claiming to come from the recording with no source range is a claim
+    // the reader cannot check and neither can anything else.
+    const artifact = build(scenario);
+    expect(unsupportedClaims(artifact), scenario.what).toEqual([]);
+    expect(unauthorisedDerivations(artifact), scenario.what).toEqual([]);
+  });
 });
 
 describe('no task the recording did not assign', () => {
-  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))(
-    '%s',
-    (_id, scenario) => {
-      const found = actionTexts(build(scenario));
-      const score = precision(found, scenario.actions);
-      expect(score.spurious, `${scenario.what} — invented: ${score.spurious.join(' | ')}`).toEqual(
-        [],
-      );
-    },
-  );
+  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))('%s', (_id, scenario) => {
+    const found = actionTexts(build(scenario));
+    const score = precision(found, scenario.actions);
+    expect(score.spurious, `${scenario.what} — invented: ${score.spurious.join(' | ')}`).toEqual(
+      [],
+    );
+  });
 });
 
 describe('no question the recording already answered', () => {
-  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))(
-    '%s',
-    (_id, scenario) => {
-      const open = visibleItems(build(scenario).openQuestions).map((item) => item.text);
-      const score = precision(open, scenario.openQuestions);
-      expect(score.spurious, `${scenario.what} — still open: ${score.spurious.join(' | ')}`).toEqual(
-        [],
-      );
-    },
-  );
+  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))('%s', (_id, scenario) => {
+    const open = visibleItems(build(scenario).openQuestions).map((item) => item.text);
+    const score = precision(open, scenario.openQuestions);
+    expect(score.spurious, `${scenario.what} — still open: ${score.spurious.join(' | ')}`).toEqual(
+      [],
+    );
+  });
 });
 
 describe('what mattered survived', () => {
-  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))(
-    '%s',
-    (_id, scenario) => {
-      // Loose on purpose. An extractive pass selects sentences; it cannot be
-      // asked to keep every fact and still be a summary. What it must not do is
-      // lose all of them, which is what a broken selector looks like.
-      const score = retention(build(scenario), scenario.mustKeep);
-      expect(score.ratio, `${scenario.what} — lost: ${score.lost.join(' | ')}`).toBeGreaterThan(0);
-    },
-  );
+  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))('%s', (_id, scenario) => {
+    // Loose on purpose. An extractive pass selects sentences; it cannot be
+    // asked to keep every fact and still be a summary. What it must not do is
+    // lose all of them, which is what a broken selector looks like.
+    const score = retention(build(scenario), scenario.mustKeep);
+    expect(score.ratio, `${scenario.what} — lost: ${score.lost.join(' | ')}`).toBeGreaterThan(0);
+  });
 
   it('keeps most of it across the corpus', () => {
     const ratios = CORPUS.map((scenario) => retention(build(scenario), scenario.mustKeep).ratio);
@@ -129,15 +117,12 @@ describe('what mattered survived', () => {
 });
 
 describe('the same thing is not said twice', () => {
-  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))(
-    '%s',
-    (_id, scenario) => {
-      // Two windows both covering the moment somebody stated a decision is the
-      // ordinary way this happens, and a reader reads it as two decisions.
-      const repeated = duplicates(build(scenario));
-      expect(repeated, `${scenario.what} — repeated: ${repeated.join(' | ')}`).toEqual([]);
-    },
-  );
+  it.each(CORPUS.map((scenario) => [scenario.id, scenario] as const))('%s', (_id, scenario) => {
+    // Two windows both covering the moment somebody stated a decision is the
+    // ordinary way this happens, and a reader reads it as two decisions.
+    const repeated = duplicates(build(scenario));
+    expect(repeated, `${scenario.what} — repeated: ${repeated.join(' | ')}`).toEqual([]);
+  });
 });
 
 describe('a note does not start over every few seconds', () => {
@@ -152,7 +137,11 @@ describe('a note does not start over every few seconds', () => {
     // produces — and read as a defect in the app rather than in the harness.
     const live = build(scenario, 1);
     const settled = finalizeArtifact({
-      previous: reduceLiveArtifact(live, build(scenario, scenario.slices.length, 'live'), new Map()),
+      previous: reduceLiveArtifact(
+        live,
+        build(scenario, scenario.slices.length, 'live'),
+        new Map(),
+      ),
       next: build(scenario),
       overrides: new Map(),
       now: '2026-08-09T09:10:00.000Z',

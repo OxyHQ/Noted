@@ -47,17 +47,10 @@ export const notifications = pgTable(
     body: text().notNull(),
     /** Payload the client acts on (e.g. `{ noteId }` for a reminder). */
     data: jsonb().$type<Record<string, string>>().notNull().default({}),
-    channels: text({ enum: NOTIFICATION_CHANNELS })
-      .array()
-      .notNull()
-      .default(sql`'{}'`),
+    channels: text({ enum: NOTIFICATION_CHANNELS }).array().notNull().default(sql`'{}'`),
     deliveryStatus: jsonb().$type<DeliveryStatus>().notNull().default({}),
-    status: text({ enum: NOTIFICATION_STATUSES })
-      .notNull()
-      .default('pending'),
-    priority: text({ enum: NOTIFICATION_PRIORITIES })
-      .notNull()
-      .default('normal'),
+    status: text({ enum: NOTIFICATION_STATUSES }).notNull().default('pending'),
+    priority: text({ enum: NOTIFICATION_PRIORITIES }).notNull().default('normal'),
     readAt: timestamptz(),
     /**
      * When the user dismissed this notification — and the deadline the expiry

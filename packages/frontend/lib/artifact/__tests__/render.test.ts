@@ -30,7 +30,10 @@ describe('headings', () => {
 
   it('lets a profile choose its own', () => {
     expect(
-      headingFor(section('s', [], { kind: 'notes', heading: 'Lo que se dijo' }), DEFAULT_ARTIFACT_LABELS),
+      headingFor(
+        section('s', [], { kind: 'notes', heading: 'Lo que se dijo' }),
+        DEFAULT_ARTIFACT_LABELS,
+      ),
     ).toBe('Lo que se dijo');
   });
 });
@@ -38,7 +41,14 @@ describe('headings', () => {
 describe('renderArtifact', () => {
   it('writes the notes as the note, with no heading over them', () => {
     const rendered = renderArtifact(
-      artifact({ sections: [section('s', [item('a', 'PostgreSQL será la única base'), item('b', 'La migración terminó')])] }),
+      artifact({
+        sections: [
+          section('s', [
+            item('a', 'PostgreSQL será la única base'),
+            item('b', 'La migración terminó'),
+          ]),
+        ],
+      }),
     );
     expect(rendered).toBe('- PostgreSQL será la única base\n- La migración terminó');
   });
@@ -118,10 +128,10 @@ describe('renderArtifact', () => {
   });
 
   it('takes its headings from the caller, so the note can be in the user language', () => {
-    const rendered = renderArtifact(
-      artifact({ openQuestions: [item('q', '¿Quién firma?')] }),
-      { ...DEFAULT_ARTIFACT_LABELS, questions: 'Preguntas abiertas' },
-    );
+    const rendered = renderArtifact(artifact({ openQuestions: [item('q', '¿Quién firma?')] }), {
+      ...DEFAULT_ARTIFACT_LABELS,
+      questions: 'Preguntas abiertas',
+    });
     expect(rendered).toBe('## Preguntas abiertas\n\n- ¿Quién firma?');
   });
 });

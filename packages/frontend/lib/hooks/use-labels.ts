@@ -1,12 +1,12 @@
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "@oxy.so/bloom/toast";
-import apiClient from "@/lib/api/client";
-import { API_ROUTES } from "@/lib/api/routes";
-import { useLiveQuery } from "@/lib/db/live-query";
-import { LABEL_LIST_SQL, rowsToLabels, saveLabel, type LabelRow } from "@/lib/db/labels-repo";
-import { getActiveViewerId } from "@/lib/db/client";
-import { requestSync } from "@/lib/db/use-local-store";
-import type { Label, NoteColor } from "@noted/shared-types";
+import { useMutation } from '@tanstack/react-query';
+import { toast } from '@oxy.so/bloom/toast';
+import apiClient from '@/lib/api/client';
+import { API_ROUTES } from '@/lib/api/routes';
+import { useLiveQuery } from '@/lib/db/live-query';
+import { LABEL_LIST_SQL, rowsToLabels, saveLabel, type LabelRow } from '@/lib/db/labels-repo';
+import { getActiveViewerId } from '@/lib/db/client';
+import { requestSync } from '@/lib/db/use-local-store';
+import type { Label, NoteColor } from '@noted/shared-types';
 
 const EMPTY_LABELS: Label[] = [];
 
@@ -36,24 +36,26 @@ export function useLabels() {
  */
 export function useCreateLabel() {
   return useMutation({
-    networkMode: "always",
+    networkMode: 'always',
     retry: false,
     mutationFn: async (input: { name: string; color?: NoteColor | null }): Promise<Label> => {
       const viewerId = requireViewer();
-      const res = await apiClient.post<Label>(API_ROUTES.labels.create, input, { expectedViewerId: viewerId });
+      const res = await apiClient.post<Label>(API_ROUTES.labels.create, input, {
+        expectedViewerId: viewerId,
+      });
       await saveLabel(res.data, viewerId);
       return res.data;
     },
     onSuccess: () => requestSync(),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to create label");
+      toast.error(error.message || 'Failed to create label');
     },
   });
 }
 
 export function useUpdateLabel() {
   return useMutation({
-    networkMode: "always",
+    networkMode: 'always',
     retry: false,
     mutationFn: async ({
       id,
@@ -63,20 +65,22 @@ export function useUpdateLabel() {
       patch: { name?: string; color?: NoteColor | null };
     }): Promise<Label> => {
       const viewerId = requireViewer();
-      const res = await apiClient.patch<Label>(API_ROUTES.labels.update(id), patch, { expectedViewerId: viewerId });
+      const res = await apiClient.patch<Label>(API_ROUTES.labels.update(id), patch, {
+        expectedViewerId: viewerId,
+      });
       await saveLabel(res.data, viewerId);
       return res.data;
     },
     onSuccess: () => requestSync(),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update label");
+      toast.error(error.message || 'Failed to update label');
     },
   });
 }
 
 export function useDeleteLabel() {
   return useMutation({
-    networkMode: "always",
+    networkMode: 'always',
     retry: false,
     mutationFn: async (id: string): Promise<string> => {
       await apiClient.delete(API_ROUTES.labels.delete(id), { expectedViewerId: requireViewer() });
@@ -86,13 +90,13 @@ export function useDeleteLabel() {
     // the notes have to be pulled again too — which the full sync does.
     onSuccess: () => requestSync(),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete label");
+      toast.error(error.message || 'Failed to delete label');
     },
   });
 }
 
 function requireViewer(): string {
   const viewerId = getActiveViewerId();
-  if (!viewerId) throw new Error("No active account");
+  if (!viewerId) throw new Error('No active account');
   return viewerId;
 }

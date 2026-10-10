@@ -59,13 +59,17 @@ describe('reconcileItems', () => {
   });
 
   it('keeps the sources of both readings', () => {
-    const previous = [item('a', 'hay un momento en el que parece pensar', { sources: [source(0, 1_000, 's1')] })];
+    const previous = [
+      item('a', 'hay un momento en el que parece pensar', { sources: [source(0, 1_000, 's1')] }),
+    ];
     const next = [
       item('b', 'Cuando le mandas un mensaje hay un momento en el que parece pensar', {
         sources: [source(2_000, 4_000, 's2')],
       }),
     ];
-    expect(reconcileItems(previous, next, { overrides: NONE, missing: 'drop' })[0].sources).toHaveLength(2);
+    expect(
+      reconcileItems(previous, next, { overrides: NONE, missing: 'drop' })[0].sources,
+    ).toHaveLength(2);
   });
 
   it('appends genuinely new items at the end, where a reader expects them', () => {
@@ -89,11 +93,10 @@ describe('reconcileItems', () => {
     // Its id survives, so anything the user did to it still points at something,
     // and the note can say the difference between "answered" and "never
     // mentioned again".
-    const reconciled = reconcileItems(
-      [item('q', '¿Eliminamos MongoDB?')],
-      [],
-      { overrides: NONE, missing: 'resolve' },
-    );
+    const reconciled = reconcileItems([item('q', '¿Eliminamos MongoDB?')], [], {
+      overrides: NONE,
+      missing: 'resolve',
+    });
     expect(reconciled[0].status).toBe('resolved');
     expect(visibleItems(reconciled)).toEqual([]);
   });

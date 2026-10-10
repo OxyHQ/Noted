@@ -1,30 +1,19 @@
-import { Button, GlyphButton } from "@oxy.so/bloom/button";
-import { Card } from "@oxy.so/bloom/card";
-import { TextFieldInput } from "@oxy.so/bloom/text-field";
-import React from "react";
-import { View, TextInput } from "react-native";
-import Animated, { LinearTransition, FadeIn } from "react-native-reanimated";
-import {
-  CheckSquare,
-  X,
-  Palette,
-  Paperclip,
-  Archive,
-} from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { NoteColorPicker } from "@/components/notes/note-color-picker";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { getNoteColorTint } from "@/lib/note-colors";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
-import { useTranslation } from "@/hooks/useTranslation";
-import { DEFAULT_NEW_NOTE_COLOR, type NoteColor } from "@noted/shared-types";
-import { newNoteId } from "@/lib/db/ids";
+import { Button, GlyphButton } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import React from 'react';
+import { View, TextInput } from 'react-native';
+import Animated, { LinearTransition, FadeIn } from 'react-native-reanimated';
+import { CheckSquare, X, Palette, Paperclip, Archive } from 'lucide-react-native';
+import { Text } from '@/components/ui/text';
+import { NoteColorPicker } from '@/components/notes/note-color-picker';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getNoteColorTint } from '@/lib/note-colors';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
+import { useTranslation } from '@/hooks/useTranslation';
+import { DEFAULT_NEW_NOTE_COLOR, type NoteColor } from '@noted/shared-types';
+import { newNoteId } from '@/lib/db/ids';
 
 interface QuickCaptureInput {
   title: string;
@@ -40,7 +29,7 @@ export interface QuickCaptureCreation extends QuickCaptureInput {
 interface QuickCaptureProps {
   /** Create a plain note from the composed title/body/color. */
   onCreate: (input: QuickCaptureCreation) => Promise<{ id: string }>;
-  onOpenNote: (id: string, mode: "checklist" | "attachment") => void;
+  onOpenNote: (id: string, mode: 'checklist' | 'attachment') => void;
   /** Open the full editor in checklist mode for a new note. */
   onCreateChecklist: () => void;
   /** Open the full editor for a new note with an attachment. */
@@ -97,8 +86,8 @@ export function QuickCapture({
   const { colors, colorScheme } = useColorScheme();
   const reduceMotion = useReducedMotion();
   const [expanded, setExpanded] = React.useState(false);
-  const [title, setTitle] = React.useState("");
-  const [body, setBody] = React.useState("");
+  const [title, setTitle] = React.useState('');
+  const [body, setBody] = React.useState('');
   const [color, setColor] = React.useState<NoteColor>(DEFAULT_NEW_NOTE_COLOR);
   const [colorOpen, setColorOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -112,8 +101,8 @@ export function QuickCapture({
 
   const reset = React.useCallback(() => {
     creation.current = null;
-    setTitle("");
-    setBody("");
+    setTitle('');
+    setBody('');
     setColor(DEFAULT_NEW_NOTE_COLOR);
     setColorOpen(false);
     setExpanded(false);
@@ -122,14 +111,14 @@ export function QuickCapture({
   }, []);
 
   const commit = React.useCallback(
-    async (archived = false, mode?: "checklist" | "attachment") => {
+    async (archived = false, mode?: 'checklist' | 'attachment') => {
       if (savingRef.current) return;
       const trimmedTitle = title.trim();
       const trimmedBody = body.trim();
       if (!trimmedTitle && !trimmedBody) {
         reset();
-        if (mode === "checklist") onCreateChecklist();
-        if (mode === "attachment") onCreateAttachment();
+        if (mode === 'checklist') onCreateChecklist();
+        if (mode === 'attachment') onCreateAttachment();
         return;
       }
       savingRef.current = true;
@@ -153,16 +142,7 @@ export function QuickCapture({
         setSaving(false);
       }
     },
-    [
-      title,
-      body,
-      color,
-      onCreate,
-      onOpenNote,
-      onCreateChecklist,
-      onCreateAttachment,
-      reset,
-    ],
+    [title, body, color, onCreate, onOpenNote, onCreateChecklist, onCreateAttachment, reset],
   );
 
   const expand = React.useCallback(() => {
@@ -176,18 +156,14 @@ export function QuickCapture({
 
   if (!expanded) {
     return (
-      <Animated.View
-        layout={layout}
-        entering={fadeIn}
-        className="w-full max-w-[600px] self-center"
-      >
+      <Animated.View layout={layout} entering={fadeIn} className="w-full max-w-[600px] self-center">
         <Card
           testID="quick-capture"
           appearance="outline"
           elevation="s"
           style={{
-            flexDirection: "row",
-            alignItems: "center",
+            flexDirection: 'row',
+            alignItems: 'center',
             paddingHorizontal: 16,
           }}
         >
@@ -195,13 +171,13 @@ export function QuickCapture({
             appearance="plain"
             tone="neutral"
             onPress={expand}
-            style={{ flex: 1, justifyContent: "flex-start" }}
+            style={{ flex: 1, justifyContent: 'flex-start' }}
           >
-            {t("notes.takeANote")}
+            {t('notes.takeANote')}
           </Button>
           <GlyphButton
             onPress={onCreateChecklist}
-            accessibilityLabel={t("notes.newChecklist")}
+            accessibilityLabel={t('notes.newChecklist')}
             size={40}
             glyphSize={20}
           >
@@ -209,7 +185,7 @@ export function QuickCapture({
           </GlyphButton>
           <GlyphButton
             onPress={onCreateAttachment}
-            accessibilityLabel={t("notes.attachFile")}
+            accessibilityLabel={t('notes.attachFile')}
             size={40}
             glyphSize={20}
           >
@@ -221,11 +197,7 @@ export function QuickCapture({
   }
 
   return (
-    <Animated.View
-      layout={layout}
-      entering={fadeIn}
-      className="w-full max-w-[600px] self-center"
-    >
+    <Animated.View layout={layout} entering={fadeIn} className="w-full max-w-[600px] self-center">
       <Card
         testID="quick-capture"
         appearance="outline"
@@ -239,51 +211,48 @@ export function QuickCapture({
         }}
       >
         <TextFieldInput
-          label={t("notes.titlePlaceholder")}
+          label={t('notes.titlePlaceholder')}
           editable={!saving}
-          accessibilityLabel={t("notes.titlePlaceholder")}
+          accessibilityLabel={t('notes.titlePlaceholder')}
           value={title}
           onChangeText={setTitle}
-          placeholder={t("notes.titlePlaceholder")}
+          placeholder={t('notes.titlePlaceholder')}
           placeholderTextColor={colors.mutedForeground}
           className="py-2 text-base font-medium text-foreground"
           returnKeyType="next"
           onSubmitEditing={() => bodyRef.current?.focus()}
         />
         <TextFieldInput
-          label={t("notes.takeANote")}
+          label={t('notes.takeANote')}
           editable={!saving}
-          accessibilityLabel={t("notes.takeANote")}
+          accessibilityLabel={t('notes.takeANote')}
           inputRef={bodyRef}
           value={body}
           onChangeText={setBody}
-          placeholder={t("notes.takeANote")}
+          placeholder={t('notes.takeANote')}
           placeholderTextColor={colors.mutedForeground}
           className="min-h-[44px] py-1 text-base text-foreground"
           multiline
         />
         {saveFailed && (
-          <Text
-            accessibilityRole="alert"
-            className="py-2 text-sm text-destructive"
-          >
-            {t("notes.quickSaveFailed")}
+          <Text accessibilityRole="alert" className="py-2 text-sm text-destructive">
+            {t('notes.quickSaveFailed')}
           </Text>
         )}
         <View className="mt-1 flex-row items-center justify-between">
           <View className="flex-row items-center gap-0.5">
             <ToolButton
               icon={CheckSquare}
-              label={t("notes.newChecklist")}
+              label={t('notes.newChecklist')}
               color={colors.mutedForeground}
               disabled={saving}
               onPress={() => {
-                void commit(false, "checklist");
+                void commit(false, 'checklist');
               }}
             />
             <ToolButton
               icon={Palette}
-              label={t("notes.color")}
+              label={t('notes.color')}
               color={colors.mutedForeground}
               disabled={saving}
               onPress={() => setColorOpen(true)}
@@ -292,16 +261,16 @@ export function QuickCapture({
             />
             <ToolButton
               icon={Paperclip}
-              label={t("notes.attachFile")}
+              label={t('notes.attachFile')}
               color={colors.mutedForeground}
               disabled={saving}
               onPress={() => {
-                void commit(false, "attachment");
+                void commit(false, 'attachment');
               }}
             />
             <ToolButton
               icon={Archive}
-              label={t("notes.archive")}
+              label={t('notes.archive')}
               color={colors.mutedForeground}
               disabled={saving}
               onPress={() => {
@@ -318,18 +287,16 @@ export function QuickCapture({
               void commit();
             }}
           >
-            {t(saving ? "notes.saveStatus.saving" : "common.close")}
+            {t(saving ? 'notes.saveStatus.saving' : 'common.close')}
           </Button>
         </View>
         <GlyphButton
           disabled={saving}
-          onPress={() =>
-            title.trim() || body.trim() ? setDiscardOpen(true) : reset()
-          }
-          accessibilityLabel={t("common.cancel")}
+          onPress={() => (title.trim() || body.trim() ? setDiscardOpen(true) : reset())}
+          accessibilityLabel={t('common.cancel')}
           size={28}
           glyphSize={14}
-          style={{ position: "absolute", right: 8, top: 8 }}
+          style={{ position: 'absolute', right: 8, top: 8 }}
         >
           {(foreground) => <X size={14} color={foreground} />}
         </GlyphButton>
@@ -337,21 +304,15 @@ export function QuickCapture({
         <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t("notes.discardDraftTitle")}</DialogTitle>
+              <DialogTitle>{t('notes.discardDraftTitle')}</DialogTitle>
             </DialogHeader>
-            <Text className="text-sm text-muted-foreground">
-              {t("notes.discardDraftSubtitle")}
-            </Text>
+            <Text className="text-sm text-muted-foreground">{t('notes.discardDraftSubtitle')}</Text>
             <View className="flex-row justify-end gap-4">
-              <Button
-                appearance="plain"
-                tone="neutral"
-                onPress={() => setDiscardOpen(false)}
-              >
-                {t("notes.keepEditing")}
+              <Button appearance="plain" tone="neutral" onPress={() => setDiscardOpen(false)}>
+                {t('notes.keepEditing')}
               </Button>
               <Button tone="danger" onPress={reset}>
-                {t("notes.discardDraft")}
+                {t('notes.discardDraft')}
               </Button>
             </View>
           </DialogContent>
@@ -359,7 +320,7 @@ export function QuickCapture({
         <Dialog open={colorOpen} onOpenChange={setColorOpen}>
           <DialogContent className="max-w-xs">
             <DialogHeader>
-              <DialogTitle>{t("notes.pickColor")}</DialogTitle>
+              <DialogTitle>{t('notes.pickColor')}</DialogTitle>
             </DialogHeader>
             <NoteColorPicker
               selected={color}

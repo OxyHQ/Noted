@@ -8,11 +8,7 @@ await esbuild.build({
   // probe asserts a migration nothing in that image can apply.
   // `register-capability-catalog.ts` publishes the exact catalog compiled into
   // this image after migrations and before the rollout.
-  entryPoints: [
-    'src/index.ts',
-    'src/db/migrate.ts',
-    'src/register-capability-catalog.ts',
-  ],
+  entryPoints: ['src/index.ts', 'src/db/migrate.ts', 'src/register-capability-catalog.ts'],
   bundle: true,
   platform: 'node',
   target: 'node24',
@@ -23,21 +19,23 @@ await esbuild.build({
   // imports) and @noted/* workspace packages (e.g. @noted/shared-types — a
   // private workspace dep that is NOT published, so it must be inlined into the
   // bundle; the runtime image never carries its dist).
-  plugins: [{
-    name: 'externalize-except-workspace',
-    setup(build) {
-      // Bundle (inline) our own workspace packages and @oxy.so/* (whose ESM has
-      // missing .js extensions). Returning undefined lets esbuild resolve +
-      // bundle the import instead of externalizing it.
-      build.onResolve({ filter: /^@oxyhq\// }, () => undefined);
-      build.onResolve({ filter: /^@noted\// }, () => undefined);
-      // Externalize every other bare import (real node_modules).
-      build.onResolve({ filter: /^[^./]/ }, args => {
-        if (args.path.startsWith('@oxy.so/') || args.path.startsWith('@noted/')) return undefined;
-        return { path: args.path, external: true };
-      });
+  plugins: [
+    {
+      name: 'externalize-except-workspace',
+      setup(build) {
+        // Bundle (inline) our own workspace packages and @oxy.so/* (whose ESM has
+        // missing .js extensions). Returning undefined lets esbuild resolve +
+        // bundle the import instead of externalizing it.
+        build.onResolve({ filter: /^@oxyhq\// }, () => undefined);
+        build.onResolve({ filter: /^@noted\// }, () => undefined);
+        // Externalize every other bare import (real node_modules).
+        build.onResolve({ filter: /^[^./]/ }, (args) => {
+          if (args.path.startsWith('@oxy.so/') || args.path.startsWith('@noted/')) return undefined;
+          return { path: args.path, external: true };
+        });
+      },
     },
-  }],
+  ],
   sourcemap: false,
   minify: false,
   logLevel: 'info',

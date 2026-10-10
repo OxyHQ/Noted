@@ -1,14 +1,11 @@
-import React from "react";
-import { TextInput, View } from "react-native";
-import { useTheme } from "@oxy.so/bloom/theme";
-import {
-  EnrichedMarkdownText,
-  type MarkdownStyle,
-} from "react-native-enriched-markdown";
+import React from 'react';
+import { TextInput, View } from 'react-native';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { EnrichedMarkdownText, type MarkdownStyle } from 'react-native-enriched-markdown';
 
-import { useColorScheme } from "@/lib/useColorScheme";
-import { markdownOffsetForRenderedPrefix } from "@/lib/markdown/caret";
-import type { MarkdownBodyEditorProps } from "@/components/notes/markdown-body-editor";
+import { useColorScheme } from '@/lib/useColorScheme';
+import { markdownOffsetForRenderedPrefix } from '@/lib/markdown/caret';
+import type { MarkdownBodyEditorProps } from '@/components/notes/markdown-body-editor';
 
 /** An empty note still needs somewhere inviting to start writing. */
 const MIN_BODY_HEIGHT = 160;
@@ -87,7 +84,7 @@ export function MarkdownBodyEditor({
         color: colors.foreground,
         headerTextColor: colors.foreground,
         headerBackgroundColor: colors.muted,
-        rowEvenBackgroundColor: "transparent",
+        rowEvenBackgroundColor: 'transparent',
         rowOddBackgroundColor: colors.muted,
         borderColor: colors.border,
       },
@@ -121,7 +118,7 @@ export function MarkdownBodyEditor({
 
   // React 19 ids carry punctuation that react-native-web rewrites on its way to
   // the DOM, so the string here would stop matching the attribute there.
-  const rawId = React.useId().replace(/[^a-zA-Z0-9]/g, "");
+  const rawId = React.useId().replace(/[^a-zA-Z0-9]/g, '');
   const readerId = `note-body-reader-${rawId}`;
   const fieldId = `note-body-field-${rawId}`;
 
@@ -139,28 +136,21 @@ export function MarkdownBodyEditor({
       // somebody editing it. Opening the field would throw their selection away.
       if (window.getSelection()?.isCollapsed === false) return;
       // A link in a note is for following.
-      if ((event.target as HTMLElement | null)?.closest("a")) return;
+      if ((event.target as HTMLElement | null)?.closest('a')) return;
 
       const prefix = renderedPrefixAt(reader as HTMLElement, event);
-      caretRef.current =
-        prefix === null ? null : markdownOffsetForRenderedPrefix(value, prefix);
+      caretRef.current = prefix === null ? null : markdownOffsetForRenderedPrefix(value, prefix);
       setEditing(true);
     }
 
-    reader.addEventListener("click", onClick);
-    return () => reader.removeEventListener("click", onClick);
+    reader.addEventListener('click', onClick);
+    return () => reader.removeEventListener('click', onClick);
   }, [showField, readerId, value]);
 
   React.useEffect(() => {
     if (!showField) return;
     const field = document.getElementById(fieldId);
-    if (
-      !(
-        field instanceof HTMLTextAreaElement ||
-        field instanceof HTMLInputElement
-      )
-    )
-      return;
+    if (!(field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)) return;
 
     field.focus();
     const caret = caretRef.current;
@@ -203,9 +193,7 @@ export function MarkdownBodyEditor({
       multiline
       textAlignVertical="top"
       scrollEnabled={false}
-      onContentSizeChange={(event) =>
-        setHeight(event.nativeEvent.contentSize.height)
-      }
+      onContentSizeChange={(event) => setHeight(event.nativeEvent.contentSize.height)}
       // The page scrolls, not the field: a box that scrolls inside a half-empty
       // note is the thing this replaced. The one value that cannot be a class,
       // because it is measured.
@@ -215,10 +203,7 @@ export function MarkdownBodyEditor({
 }
 
 /** The visible text from the start of the note to where the user clicked. */
-function renderedPrefixAt(
-  container: HTMLElement,
-  event: MouseEvent,
-): string | null {
+function renderedPrefixAt(container: HTMLElement, event: MouseEvent): string | null {
   const point = caretPoint(event);
   if (!point) return null;
 
@@ -236,20 +221,13 @@ function renderedPrefixAt(
  * and recent Chrome, `caretRangeFromPoint` is the older one and is in Safari.
  */
 function caretPoint(event: MouseEvent): { node: Node; offset: number } | null {
-  if (typeof document.caretPositionFromPoint === "function") {
-    const position = document.caretPositionFromPoint(
-      event.clientX,
-      event.clientY,
-    );
-    return position
-      ? { node: position.offsetNode, offset: position.offset }
-      : null;
+  if (typeof document.caretPositionFromPoint === 'function') {
+    const position = document.caretPositionFromPoint(event.clientX, event.clientY);
+    return position ? { node: position.offsetNode, offset: position.offset } : null;
   }
-  if (typeof document.caretRangeFromPoint === "function") {
+  if (typeof document.caretRangeFromPoint === 'function') {
     const range = document.caretRangeFromPoint(event.clientX, event.clientY);
-    return range
-      ? { node: range.startContainer, offset: range.startOffset }
-      : null;
+    return range ? { node: range.startContainer, offset: range.startOffset } : null;
   }
   return null;
 }

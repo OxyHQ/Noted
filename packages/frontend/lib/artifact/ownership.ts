@@ -16,7 +16,13 @@
  * - *What does the reader see?* The user's version, if they gave one.
  */
 
-import type { GeneratedBlock, GeneratedChecklistItem, GeneratedItem, GeneratedNoteArtifact, UserItemOverride } from '@noted/shared-types';
+import type {
+  GeneratedBlock,
+  GeneratedChecklistItem,
+  GeneratedItem,
+  GeneratedNoteArtifact,
+  UserItemOverride,
+} from '@noted/shared-types';
 import { allItems, blockUnits, filterItems, mapItems } from '@/lib/artifact/artifact';
 
 /**
@@ -39,7 +45,9 @@ export function isTouched(override: UserItemOverride): boolean {
 
 export type OverrideMap = ReadonlyMap<string, UserItemOverride>;
 
-export function overridesById(overrides: readonly UserItemOverride[]): Map<string, UserItemOverride> {
+export function overridesById(
+  overrides: readonly UserItemOverride[],
+): Map<string, UserItemOverride> {
   return new Map(overrides.map((override) => [override.itemId, override]));
 }
 

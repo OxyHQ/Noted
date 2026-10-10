@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Pressable,
@@ -7,29 +7,19 @@ import {
   StyleSheet,
   Platform,
   type ViewStyle,
-} from "react-native";
-import { Image } from "expo-image";
-import {
-  File as FileIcon,
-  FileText,
-  FileType,
-  Music,
-  Play,
-  X,
-} from "lucide-react-native";
-import { useTheme } from "@oxy.so/bloom/theme";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/hooks/useTranslation";
-import {
-  type AttachmentCategory,
-  humanizeSize,
-} from "@/lib/attachments";
+} from 'react-native';
+import { Image } from 'expo-image';
+import { File as FileIcon, FileText, FileType, Music, Play, X } from 'lucide-react-native';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Text } from '@/components/ui/text';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { type AttachmentCategory, humanizeSize } from '@/lib/attachments';
 import {
   getCachedAspectRatio,
   setCachedAspectRatio,
   type MeasuredRect,
-} from "@/components/notes/attachments/ZoomableImageGallery";
+} from '@/components/notes/attachments/ZoomableImageGallery';
 
 /** Media grid tile geometry (mirrors Mention's MEDIA_CARD_* compose constants). */
 const MEDIA_CARD_HEIGHT = 200;
@@ -38,13 +28,13 @@ const MEDIA_CARD_RADIUS = 15;
 const MIN_WIDTH = 100;
 const DEFAULT_ASPECT_RATIO = 4 / 3;
 
-const FULL_DIMENSION = "100%" as const;
+const FULL_DIMENSION = '100%' as const;
 
 // Web-only grab cursor. RN 0.85's `CursorValue` only models `'auto' | 'pointer'`,
 // so the web-only `'grab'` value is not assignable to `ViewStyle` directly and
 // needs the `unknown` widening. Native ignores the prop.
 const webGrabCursorStyle: ViewStyle | null =
-  Platform.OS === "web" ? ({ cursor: "grab" } as unknown as ViewStyle) : null;
+  Platform.OS === 'web' ? ({ cursor: 'grab' } as unknown as ViewStyle) : null;
 
 /**
  * Registers (or clears, on unmount) the measurable host node of an image
@@ -55,10 +45,7 @@ const webGrabCursorStyle: ViewStyle | null =
 export type RegisterThumbHost = (node: View | null) => void;
 
 /** lucide icon for each non-image attachment category. */
-const CATEGORY_ICON: Record<
-  Exclude<AttachmentCategory, "image">,
-  typeof FileIcon
-> = {
+const CATEGORY_ICON: Record<Exclude<AttachmentCategory, 'image'>, typeof FileIcon> = {
   // Video is rendered as a tile, not a chip, but kept here for completeness.
   video: Play,
   audio: Music,
@@ -82,7 +69,7 @@ function AttachmentImage({ src, onPress, registerHost }: AttachmentImageProps) {
   const theme = useTheme();
   const wrapperRef = useRef<View | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(() =>
-    getCachedAspectRatio(src)
+    getCachedAspectRatio(src),
   );
 
   // Callback ref: keep the local ref (for open-press measurement) AND mirror the
@@ -93,7 +80,7 @@ function AttachmentImage({ src, onPress, registerHost }: AttachmentImageProps) {
       wrapperRef.current = node;
       registerHost?.(node);
     },
-    [registerHost]
+    [registerHost],
   );
 
   useEffect(() => {
@@ -117,7 +104,7 @@ function AttachmentImage({ src, onPress, registerHost }: AttachmentImageProps) {
         if (cancelled) return;
         setAspectRatio(DEFAULT_ASPECT_RATIO);
         setCachedAspectRatio(src, DEFAULT_ASPECT_RATIO);
-      }
+      },
     );
     return () => {
       cancelled = true;
@@ -154,12 +141,7 @@ function AttachmentImage({ src, onPress, registerHost }: AttachmentImageProps) {
 
   const image = (
     <View style={containerStyles}>
-      <Image
-        source={{ uri: src }}
-        style={styles.fullSize}
-        contentFit="cover"
-        transition={150}
-      />
+      <Image source={{ uri: src }} style={styles.fullSize} contentFit="cover" transition={150} />
     </View>
   );
 
@@ -225,7 +207,7 @@ function AttachmentVideo({ src, poster, onPress }: AttachmentVideoProps) {
 }
 
 interface AttachmentFileChipProps {
-  category: Exclude<AttachmentCategory, "image" | "video">;
+  category: Exclude<AttachmentCategory, 'image' | 'video'>;
   filename?: string;
   length?: number;
   /** Opens the file in the system viewer (URL resolved by the parent). */
@@ -236,37 +218,27 @@ interface AttachmentFileChipProps {
  * A non-media attachment (pdf/doc/audio/file): type icon, filename, size; tap to
  * open via the system viewer.
  */
-function AttachmentFileChip({
-  category,
-  filename,
-  length,
-  onOpen,
-}: AttachmentFileChipProps) {
+function AttachmentFileChip({ category, filename, length, onOpen }: AttachmentFileChipProps) {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
   const Icon = CATEGORY_ICON[category];
-  const size = typeof length === "number" ? humanizeSize(length) : "";
+  const size = typeof length === 'number' ? humanizeSize(length) : '';
 
   return (
     <Pressable
       onPress={onOpen}
       accessibilityRole="button"
-      accessibilityLabel={t("notes.openAttachment")}
+      accessibilityLabel={t('notes.openAttachment')}
       className="flex-1 flex-row items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 web:transition active:bg-foreground/5 web:hover:bg-foreground/5"
     >
       <View className="h-9 w-9 items-center justify-center rounded-lg bg-foreground/5">
         <Icon size={18} color={colors.foreground} />
       </View>
       <View className="flex-1">
-        <Text
-          className="text-sm font-medium text-foreground"
-          numberOfLines={1}
-        >
-          {filename ?? t("notes.openAttachment")}
+        <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
+          {filename ?? t('notes.openAttachment')}
         </Text>
-        {size ? (
-          <Text className="text-xs text-muted-foreground">{size}</Text>
-        ) : null}
+        {size ? <Text className="text-xs text-muted-foreground">{size}</Text> : null}
       </View>
     </Pressable>
   );
@@ -278,7 +250,7 @@ function RemoveButton({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
-      accessibilityLabel={t("common.delete")}
+      accessibilityLabel={t('common.delete')}
       className="h-8 w-8 items-center justify-center rounded-full bg-black/50"
     >
       <X size={16} color="#fff" />
@@ -286,39 +258,33 @@ function RemoveButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-export {
-  AttachmentImage,
-  AttachmentVideo,
-  AttachmentFileChip,
-  RemoveButton,
-  MEDIA_CARD_HEIGHT,
-};
+export { AttachmentImage, AttachmentVideo, AttachmentFileChip, RemoveButton, MEDIA_CARD_HEIGHT };
 
 const styles = StyleSheet.create({
   itemContainer: {
     borderWidth: 1,
     borderRadius: MEDIA_CARD_RADIUS,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   fullSize: {
     width: FULL_DIMENSION,
     height: FULL_DIMENSION,
   },
   videoFallback: {
-    backgroundColor: "rgba(0,0,0,0.25)",
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
   playBadge: {
-    pointerEvents: "none",
-    position: "absolute",
-    top: "50%",
-    left: "50%",
+    pointerEvents: 'none',
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
     marginTop: -22,
     marginLeft: -22,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -1,2 +1,4 @@
 import { SettingsRoute } from '@/components/settings/settings-route';
-export default function SettingsScreen() { return <SettingsRoute page="general" />; }
+export default function SettingsScreen() {
+  return <SettingsRoute page="general" />;
+}

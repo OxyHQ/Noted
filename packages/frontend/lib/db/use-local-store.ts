@@ -49,14 +49,17 @@ export function useLocalStore(): LocalStoreState {
     // Reopening that worker cannot recover it; reloading preserves its files.
     if (reloadWebStore()) return;
     setOpenedViewer(null);
-    setAttempt(n => n + 1);
+    setAttempt((n) => n + 1);
   }, []);
   // Hide outgoing rows during render, before the account-switch effect runs.
   const isReady = Boolean(viewerId && openedViewer === viewerId);
   const error = failure && failure.viewerId === viewerId ? failure.message : null;
 
   useEffect(() => {
-    if (sharedSyncTimer !== null) { clearTimeout(sharedSyncTimer); sharedSyncTimer = null; }
+    if (sharedSyncTimer !== null) {
+      clearTimeout(sharedSyncTimer);
+      sharedSyncTimer = null;
+    }
     useNotesUIStore.getState().clearSelection();
     useNotesUIStore.getState().setActiveLabel(null);
     useNotesUIStore.getState().setSearchQuery('');
@@ -67,7 +70,7 @@ export function useLocalStore(): LocalStoreState {
       setOpenedViewer(null);
       // Queue the clear even when an outgoing open has not yet set its ID.
       // The client preserves an unsettled viewer gate on a cold start.
-      void clearActiveViewer().catch(error => {
+      void clearActiveViewer().catch((error) => {
         logger.error('Could not close the local store', { error: String(error) });
       });
       return;
@@ -120,7 +123,10 @@ export function useLocalStore(): LocalStoreState {
     });
 
     return () => {
-      if (sharedSyncTimer !== null) { clearTimeout(sharedSyncTimer); sharedSyncTimer = null; }
+      if (sharedSyncTimer !== null) {
+        clearTimeout(sharedSyncTimer);
+        sharedSyncTimer = null;
+      }
       appStateSubscription.remove();
       netInfoUnsubscribe();
     };

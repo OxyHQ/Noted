@@ -50,12 +50,14 @@ const APP_CONFIGS: Record<string, AppConfig> = {
 };
 
 function getAppConfig(app: string): AppConfig {
-  return APP_CONFIGS[app] || {
-    name: app,
-    displayName: app.charAt(0).toUpperCase() + app.slice(1),
-    permissionKeys: ['linkAccount', 'sendVia'],
-    isChannel: true,
-  };
+  return (
+    APP_CONFIGS[app] || {
+      name: app,
+      displayName: app.charAt(0).toUpperCase() + app.slice(1),
+      permissionKeys: ['linkAccount', 'sendVia'],
+      isChannel: true,
+    }
+  );
 }
 
 export default function AuthorizeScreen() {
@@ -142,7 +144,9 @@ export default function AuthorizeScreen() {
 
     // Verify token is valid via bot route
     try {
-      const res = await apiClient.get<{ valid?: boolean; error?: string }>(`/bots/internal/${channelType}/check-token/${token}`);
+      const res = await apiClient.get<{ valid?: boolean; error?: string }>(
+        `/bots/internal/${channelType}/check-token/${token}`,
+      );
       if (!res.data?.valid) {
         setStatus('error');
         setMessage(res.data?.error || t('authorize.tokenExpired'));
@@ -166,9 +170,12 @@ export default function AuthorizeScreen() {
 
     // Link via bot platform route
     try {
-      const response = await apiClient.post<{ success: boolean }>(`/bots/platform/${channelType}/link`, {
-        authToken: token,
-      });
+      const response = await apiClient.post<{ success: boolean }>(
+        `/bots/platform/${channelType}/link`,
+        {
+          authToken: token,
+        },
+      );
       if (response.data.success) {
         setStatus('success');
         setMessage(t('authorize.linkSuccess', { app: appConfig.displayName }));
@@ -208,7 +215,16 @@ export default function AuthorizeScreen() {
       }
       setStatus('authorize');
     }
-  }, [isAuthenticated, authLoading, app, channel, params, router, handleChannelAuth, appConfig.isChannel]);
+  }, [
+    isAuthenticated,
+    authLoading,
+    app,
+    channel,
+    params,
+    router,
+    handleChannelAuth,
+    appConfig.isChannel,
+  ]);
 
   // Real-time socket subscription for Telegram token linking
   useEffect(() => {
@@ -264,7 +280,10 @@ export default function AuthorizeScreen() {
     <>
       <Head>
         <title>{t('authorize.authorizeApp', { app: appConfig.displayName })}</title>
-        <meta name="description" content={t('authorize.appWantsAccess', { app: appConfig.displayName })} />
+        <meta
+          name="description"
+          content={t('authorize.appWantsAccess', { app: appConfig.displayName })}
+        />
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <AuthContainer>
@@ -273,7 +292,9 @@ export default function AuthorizeScreen() {
         {status === 'authorize' && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-center">{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
+              <CardTitle className="text-center">
+                {t('authorize.authorizeApp', { app: appConfig.displayName })}
+              </CardTitle>
               <CardDescription className="text-center">
                 {t('authorize.appWantsAccess', { app: appConfig.displayName })}
               </CardDescription>
@@ -334,9 +355,7 @@ export default function AuthorizeScreen() {
                   <Text className="text-xl font-semibold text-foreground">
                     {t('authorize.authRequired')}
                   </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {message}
-                  </Text>
+                  <Text className="text-muted-foreground text-center">{message}</Text>
                   <Text className="text-sm text-muted-foreground text-center">
                     {t('authorize.redirectingToLogin')}
                   </Text>
@@ -355,9 +374,7 @@ export default function AuthorizeScreen() {
                   <Text className="text-xl font-semibold text-foreground">
                     {appConfig.isChannel ? t('authorize.linked') : t('authorize.authorized')}
                   </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {message}
-                  </Text>
+                  <Text className="text-muted-foreground text-center">{message}</Text>
                 </View>
                 {redirectUrl ? (
                   <>
@@ -402,14 +419,13 @@ export default function AuthorizeScreen() {
                   <Text className="text-xl font-semibold text-foreground">
                     {appConfig.isChannel ? 'Link Failed' : 'Authorization Failed'}
                   </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {message}
-                  </Text>
+                  <Text className="text-muted-foreground text-center">{message}</Text>
                 </View>
                 {message.includes('expired') ? (
                   <Button
                     onPress={() => {
-                      const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'clarity_oxybot';
+                      const botUsername =
+                        process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'clarity_oxybot';
                       const botUrl = `https://t.me/${botUsername}?start=link`;
                       if (Platform.OS === 'web') {
                         window.open(botUrl, '_blank');

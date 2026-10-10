@@ -69,7 +69,11 @@ export function TranscriptPanel({ noteId }: { noteId: string }) {
           </View>
 
           {shown.length === 0 ? (
-            <EmptyState sticker="search" title={t('capture.transcript.noMatches')} action={{ label: t('common.clear'), onPress: () => setQuery('') }} />
+            <EmptyState
+              sticker="search"
+              title={t('capture.transcript.noMatches')}
+              action={{ label: t('common.clear'), onPress: () => setQuery('') }}
+            />
           ) : (
             shown.map(({ line, matches }) => (
               <View key={line.id} className="flex-row gap-3 py-1">
@@ -110,7 +114,10 @@ function highlight(text: string, matches: readonly { start: number; end: number 
   for (const [index, match] of matches.entries()) {
     if (match.start > at) parts.push(text.slice(at, match.start));
     parts.push(
-      <Text key={`${String(index)}:${String(match.start)}`} className="bg-primary/20 text-foreground">
+      <Text
+        key={`${String(index)}:${String(match.start)}`}
+        className="bg-primary/20 text-foreground"
+      >
         {text.slice(match.start, match.end)}
       </Text>,
     );

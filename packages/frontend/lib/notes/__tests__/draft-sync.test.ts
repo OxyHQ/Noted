@@ -195,9 +195,7 @@ describe('reconcileDraft', () => {
       }),
     );
 
-    expect(afterSecond.body).toBe(
-      composeNoteBody(`${TYPED} y el plazo, y quién firma`, third),
-    );
+    expect(afterSecond.body).toBe(composeNoteBody(`${TYPED} y el plazo, y quién firma`, third));
     expect(afterSecond.body.split('## Open questions').length - 1).toBe(1);
   });
 });

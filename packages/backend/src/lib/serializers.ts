@@ -52,9 +52,7 @@ export function serializeNote(note: NoteRow, generated?: GeneratedHalf): NoteDTO
     attachments: note.attachments,
     reminderAt: note.reminderAt ? note.reminderAt.toISOString() : null,
     order: note.sortOrder,
-    ...(generated
-      ? { artifacts: generated.artifacts, itemOverrides: generated.overrides }
-      : {}),
+    ...(generated ? { artifacts: generated.artifacts, itemOverrides: generated.overrides } : {}),
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
   };

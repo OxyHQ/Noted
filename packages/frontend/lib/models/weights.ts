@@ -99,24 +99,31 @@ export async function statesOf(
   return states;
 }
 
-async function recordState(weights: Weights, state: WeightsState, expectedViewerId: string | null): Promise<void> {
+async function recordState(
+  weights: Weights,
+  state: WeightsState,
+  expectedViewerId: string | null,
+): Promise<void> {
   const now = new Date().toISOString();
-  await executeTransaction([
-    {
-      sql: `INSERT INTO model_files (id, kind, path, bytes, sha256, state, downloaded_at)
+  await executeTransaction(
+    [
+      {
+        sql: `INSERT INTO model_files (id, kind, path, bytes, sha256, state, downloaded_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET state = excluded.state, downloaded_at = excluded.downloaded_at`,
-      params: [
-        weights.id,
-        weights.kind,
-        `${weights.directory}/${weights.filename}`,
-        weights.bytes,
-        weights.sha256,
-        state,
-        state === 'ready' ? now : null,
-      ],
-    },
-  ], expectedViewerId);
+        params: [
+          weights.id,
+          weights.kind,
+          `${weights.directory}/${weights.filename}`,
+          weights.bytes,
+          weights.sha256,
+          state,
+          state === 'ready' ? now : null,
+        ],
+      },
+    ],
+    expectedViewerId,
+  );
 }
 
 /**

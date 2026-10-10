@@ -7,10 +7,9 @@ import { CAPTURE_PROFILES } from '@noted/shared-types';
 
 describe('what a recording is keeping', () => {
   it('offers the audio first, because that is the one people delete for space', () => {
-    expect(retentionParts({ audioPath: 'audio:c1', segmentCount: 12 }).map((part) => part.kind)).toEqual([
-      'audio',
-      'transcript',
-    ]);
+    expect(
+      retentionParts({ audioPath: 'audio:c1', segmentCount: 12 }).map((part) => part.kind),
+    ).toEqual(['audio', 'transcript']);
   });
 
   it('knows when there is nothing to delete', () => {

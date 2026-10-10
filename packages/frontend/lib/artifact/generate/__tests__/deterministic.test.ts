@@ -12,10 +12,7 @@ import { describe, expect, it } from 'vitest';
 import type { TranscriptSegment } from '@/lib/capture/captures-repo';
 import { allItems } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
-import {
-  buildDeterministicArtifact,
-  deriveTitle,
-} from '@/lib/artifact/generate/deterministic';
+import { buildDeterministicArtifact, deriveTitle } from '@/lib/artifact/generate/deterministic';
 import { renderArtifact } from '@/lib/artifact/render';
 import type { GeneratedNoteArtifact } from '@noted/shared-types';
 
@@ -60,9 +57,9 @@ const MEETING = [
 
 describe('deriveTitle', () => {
   it('takes the recording’s opening sentence', () => {
-    expect(deriveTitle([{ text: 'Revisión del presupuesto de agosto. Empezamos.' }], 'fallback')).toBe(
-      'Revisión del presupuesto de agosto',
-    );
+    expect(
+      deriveTitle([{ text: 'Revisión del presupuesto de agosto. Empezamos.' }], 'fallback'),
+    ).toBe('Revisión del presupuesto de agosto');
   });
 
   it('clips a long opening at a word boundary', () => {

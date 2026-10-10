@@ -29,6 +29,6 @@ export async function recoverUnownedCapture<T>(
   if (leases.has(key)) return null;
   const locks = browserLocks();
   return locks
-    ? locks.request(key, { ifAvailable: true }, lock => lock ? recover() : null)
+    ? locks.request(key, { ifAvailable: true }, (lock) => (lock ? recover() : null))
     : recover();
 }

@@ -18,7 +18,12 @@
  * reason: the id is a hash of the text, so a reworded point cannot match itself.
  */
 
-import type { GeneratedBlock, GeneratedItem, GeneratedNoteArtifact, SourceRange } from '@noted/shared-types';
+import type {
+  GeneratedBlock,
+  GeneratedItem,
+  GeneratedNoteArtifact,
+  SourceRange,
+} from '@noted/shared-types';
 import { blockUnits, transitionItem } from '@/lib/artifact/artifact';
 import { isProtected, type OverrideMap } from '@/lib/artifact/ownership';
 import { isNearDuplicate } from '@/lib/structure/similar';
@@ -56,7 +61,10 @@ export function mergeSources(
 }
 
 /** The item in `candidates` that says the same thing as `item`, if any. */
-function matchOf<T extends GeneratedItem>(item: GeneratedItem, candidates: readonly T[]): T | undefined {
+function matchOf<T extends GeneratedItem>(
+  item: GeneratedItem,
+  candidates: readonly T[],
+): T | undefined {
   return (
     candidates.find((candidate) => candidate.id === item.id) ??
     candidates.find((candidate) => isNearDuplicate(candidate.text, item.text))

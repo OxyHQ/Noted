@@ -47,9 +47,18 @@ describe.each([useNotifications, useUnreadCount])('notification account isolatio
     expect(observer.options.enabled).toBe(false);
     // Existing mutation/socket invalidations still reach every account key.
     await client.invalidateQueries({ queryKey: ['notifications'] });
-    expect(client.getQueryCache().getAll().filter((query) => query.state.data !== undefined))
-      .toHaveLength(2);
-    expect(client.getQueryCache().getAll().every((query) => query.state.isInvalidated)).toBe(true);
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .filter((query) => query.state.data !== undefined),
+    ).toHaveLength(2);
+    expect(
+      client
+        .getQueryCache()
+        .getAll()
+        .every((query) => query.state.isInvalidated),
+    ).toBe(true);
     observer.destroy();
     client.clear();
   });

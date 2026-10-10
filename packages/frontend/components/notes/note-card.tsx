@@ -1,8 +1,8 @@
-import { Button, GlyphButton } from "@oxy.so/bloom/button";
-import { Card } from "@oxy.so/bloom/card";
-import React from "react";
-import { View, Pressable, Platform } from "react-native";
-import Animated, { ZoomIn, ZoomOut } from "react-native-reanimated";
+import { Button, GlyphButton } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
+import React from 'react';
+import { View, Pressable, Platform } from 'react-native';
+import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
 import {
   Check,
   Pin,
@@ -13,20 +13,20 @@ import {
   Paperclip,
   Archive,
   Trash2,
-} from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { LabelChips } from "@/components/notes/label-chips";
-import { AttachmentsRow } from "@/components/notes/attachments/AttachmentsRow";
-import { getNoteColorTint } from "@/lib/note-colors";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
-import { cn } from "@/lib/utils";
-import { toPreviewText } from "@/lib/markdown/blocks";
-import type { Label, Note } from "@noted/shared-types";
+} from 'lucide-react-native';
+import { Text } from '@/components/ui/text';
+import { LabelChips } from '@/components/notes/label-chips';
+import { AttachmentsRow } from '@/components/notes/attachments/AttachmentsRow';
+import { getNoteColorTint } from '@/lib/note-colors';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
+import { cn } from '@/lib/utils';
+import { toPreviewText } from '@/lib/markdown/blocks';
+import type { Label, Note } from '@noted/shared-types';
 
 const CHECKLIST_PREVIEW = 6;
 
-const isWeb = Platform.OS === "web";
+const isWeb = Platform.OS === 'web';
 
 interface NoteCardProps {
   note: Note;
@@ -53,7 +53,7 @@ interface NoteCardProps {
 
 function formatReminder(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 /** Small circular icon button used in the card's web hover affordances. */
@@ -126,11 +126,9 @@ export const NoteCard = React.memo(function NoteCard({
 
   // Top-right corner control: pin (web hover) / pin indicator (pinned) / nothing.
   const showPinControl =
-    !selectionMode &&
-    (note.pinned || (showHoverAffordances && Boolean(onTogglePin)));
+    !selectionMode && (note.pinned || (showHoverAffordances && Boolean(onTogglePin)));
   // Top-left select control appears on hover or whenever selection mode is on.
-  const showSelectControl =
-    selectionMode || (showHoverAffordances && Boolean(onToggleSelect));
+  const showSelectControl = selectionMode || (showHoverAffordances && Boolean(onToggleSelect));
 
   const hasActionRow =
     Boolean(onReminder) ||
@@ -162,7 +160,7 @@ export const NoteCard = React.memo(function NoteCard({
       onPointerEnter={(e) => {
         // A tap on a touchscreen also produces a pointer enter; hover
         // affordances are for a real pointing device, as `useHover` had it.
-        if (e.nativeEvent.pointerType !== "touch") setHovered(true);
+        if (e.nativeEvent.pointerType !== 'touch') setHovered(true);
       }}
       onPointerLeave={() => setHovered(false)}
       delayLongPress={250}
@@ -170,15 +168,11 @@ export const NoteCard = React.memo(function NoteCard({
       <Card
         appearance="outline"
         clipContent
-        border={selected ? "medium" : "thin"}
-        elevation={hovered ? "m" : "none"}
+        border={selected ? 'medium' : 'thin'}
+        elevation={hovered ? 'm' : 'none'}
         style={{
           backgroundColor: tint ? tint.background : colors.card,
-          borderColor: selected
-            ? colors.primary
-            : tint
-              ? tint.border
-              : colors.border,
+          borderColor: selected ? colors.primary : tint ? tint.border : colors.border,
         }}
       >
         {/* Top-left multi-select control */}
@@ -189,7 +183,7 @@ export const NoteCard = React.memo(function NoteCard({
             className="absolute left-2 top-2 z-10"
           >
             <Button
-              appearance={selected ? "solid" : "outline"}
+              appearance={selected ? 'solid' : 'outline'}
               tone="accent"
               iconOnly
               size="xs"
@@ -201,11 +195,7 @@ export const NoteCard = React.memo(function NoteCard({
                 selected ? (
                   <Check
                     size={14}
-                    color={
-                      selected
-                        ? colors.primaryForeground
-                        : colors.mutedForeground
-                    }
+                    color={selected ? colors.primaryForeground : colors.mutedForeground}
                   />
                 ) : undefined
               }
@@ -221,11 +211,11 @@ export const NoteCard = React.memo(function NoteCard({
               onTogglePin?.(note);
             }}
             disabled={!onTogglePin}
-            accessibilityLabel={note.pinned ? "Unpin note" : "Pin note"}
+            accessibilityLabel={note.pinned ? 'Unpin note' : 'Pin note'}
             pressed={note.pinned}
             size={28}
             glyphSize={15}
-            style={{ position: "absolute", right: 8, top: 8, zIndex: 10 }}
+            style={{ position: 'absolute', right: 8, top: 8, zIndex: 10 }}
           >
             {(foreground) => <Pin size={20} color={foreground} />}
           </GlyphButton>
@@ -233,29 +223,20 @@ export const NoteCard = React.memo(function NoteCard({
 
         {hasAttachments && (
           <View className="px-4 pt-4">
-            <AttachmentsRow
-              attachments={note.attachments ?? []}
-              variant="card"
-            />
+            <AttachmentsRow attachments={note.attachments ?? []} variant="card" />
           </View>
         )}
 
         <View className="p-4">
           {note.title ? (
-            <Text
-              className="text-sm font-medium text-foreground"
-              numberOfLines={2}
-            >
+            <Text className="text-sm font-medium text-foreground" numberOfLines={2}>
               {note.title}
             </Text>
           ) : null}
 
           {!hasChecklist && note.body ? (
             <Text
-              className={cn(
-                "text-sm text-foreground/80",
-                note.title ? "mt-1.5" : "",
-              )}
+              className={cn('text-sm text-foreground/80', note.title ? 'mt-1.5' : '')}
               numberOfLines={8}
             >
               {/* Flattened, because a card is a glance: `## Summary` in a preview
@@ -266,7 +247,7 @@ export const NoteCard = React.memo(function NoteCard({
           ) : null}
 
           {hasChecklist ? (
-            <View className={cn("gap-1.5", note.title ? "mt-2.5" : "")}>
+            <View className={cn('gap-1.5', note.title ? 'mt-2.5' : '')}>
               {shownChecklist.map((item) => {
                 const Box = item.checked ? CheckSquare : Square;
                 return (
@@ -274,10 +255,8 @@ export const NoteCard = React.memo(function NoteCard({
                     <Box size={14} className="text-muted-foreground" />
                     <Text
                       className={cn(
-                        "flex-1 text-sm",
-                        item.checked
-                          ? "text-muted-foreground line-through"
-                          : "text-foreground/80",
+                        'flex-1 text-sm',
+                        item.checked ? 'text-muted-foreground line-through' : 'text-foreground/80',
                       )}
                       numberOfLines={1}
                     >
@@ -287,18 +266,12 @@ export const NoteCard = React.memo(function NoteCard({
                 );
               })}
               {remainingChecklist > 0 && (
-                <Text className="text-xs text-muted-foreground">
-                  + {remainingChecklist} more
-                </Text>
+                <Text className="text-xs text-muted-foreground">+ {remainingChecklist} more</Text>
               )}
             </View>
           ) : null}
 
-          {isEmpty && (
-            <Text className="text-sm italic text-muted-foreground">
-              Empty note
-            </Text>
-          )}
+          {isEmpty && <Text className="text-sm italic text-muted-foreground">Empty note</Text>}
 
           <LabelChips labelIds={note.labels} allLabels={allLabels} max={3} />
 
@@ -319,7 +292,7 @@ export const NoteCard = React.memo(function NoteCard({
           <View
             style={{
               opacity: hovered ? 1 : 0,
-              pointerEvents: hovered ? "auto" : "none",
+              pointerEvents: hovered ? 'auto' : 'none',
             }}
             className="flex-row items-center gap-0.5 px-2 pb-1.5 web:transition web:duration-150"
           >

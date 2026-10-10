@@ -61,7 +61,7 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
       const url = oxyServices.assets.publicUrl(fileId, 'thumb');
       return url && url.startsWith('http') ? url : undefined;
     },
-    [oxyServices]
+    [oxyServices],
   );
 
   return (
@@ -76,11 +76,16 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 function WebRoutes() {
   const { state, descriptors, NavigationContent } = Navigator.useContext();
   const current = state.routes[state.index];
-  const routes = state.routes.filter((route) => route.key === current.key ||
-    (current.name === 'n/[id]' && route.name === '(app)'));
-  return <NavigationContent>
-    {routes.map((route) => <Fragment key={route.key}>{descriptors[route.key].render()}</Fragment>)}
-  </NavigationContent>;
+  const routes = state.routes.filter(
+    (route) => route.key === current.key || (current.name === 'n/[id]' && route.name === '(app)'),
+  );
+  return (
+    <NavigationContent>
+      {routes.map((route) => (
+        <Fragment key={route.key}>{descriptors[route.key].render()}</Fragment>
+      ))}
+    </NavigationContent>
+  );
 }
 
 function AppContent() {
@@ -89,36 +94,42 @@ function AppContent() {
   return (
     <AuthSetup>
       <QueryProvider>
-      <LocalStoreProvider>
-      <KeyboardProvider>
-      <NotedSettingsProvider>
-        {Platform.OS === 'web' ? <OverlayInertBoundary>
-          <Navigator initialRouteName="(app)"><WebRoutes /></Navigator>
-        </OverlayInertBoundary> : <Stack
-          screenOptions={{
-            contentStyle: {
-              backgroundColor: colors.background,
-            },
-          }}
-        >
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          {/* Editor presented as a transparent modal ABOVE the (app) shell so
+        <LocalStoreProvider>
+          <KeyboardProvider>
+            <NotedSettingsProvider>
+              {Platform.OS === 'web' ? (
+                <OverlayInertBoundary>
+                  <Navigator initialRouteName="(app)">
+                    <WebRoutes />
+                  </Navigator>
+                </OverlayInertBoundary>
+              ) : (
+                <Stack
+                  screenOptions={{
+                    contentStyle: {
+                      backgroundColor: colors.background,
+                    },
+                  }}
+                >
+                  <Stack.Screen name="(app)" options={{ headerShown: false }} />
+                  {/* Editor presented as a transparent modal ABOVE the (app) shell so
               the masonry grid + sidebar stay mounted and visible behind it —
               Keep-style overlay, not a page change. */}
-          <Stack.Screen
-            name="n/[id]"
-            options={{
-              presentation: "transparentModal",
-              animation: "fade",
-              headerShown: false,
-              // Keep the native shell visible beneath the editor scene.
-              contentStyle: { backgroundColor: "transparent" },
-            }}
-          />
-        </Stack>}
-      </NotedSettingsProvider>
-      </KeyboardProvider>
-      </LocalStoreProvider>
+                  <Stack.Screen
+                    name="n/[id]"
+                    options={{
+                      presentation: 'transparentModal',
+                      animation: 'fade',
+                      headerShown: false,
+                      // Keep the native shell visible beneath the editor scene.
+                      contentStyle: { backgroundColor: 'transparent' },
+                    }}
+                  />
+                </Stack>
+              )}
+            </NotedSettingsProvider>
+          </KeyboardProvider>
+        </LocalStoreProvider>
       </QueryProvider>
     </AuthSetup>
   );

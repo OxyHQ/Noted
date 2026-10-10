@@ -29,7 +29,9 @@ export function useNotifications(limit = 30) {
   return useQuery<NotificationsResponse>({
     queryKey: ['notifications', viewerId, 'list', limit],
     queryFn: async () => {
-      const res = await apiClient.get<NotificationsResponse>('/notifications', { params: { limit } });
+      const res = await apiClient.get<NotificationsResponse>('/notifications', {
+        params: { limit },
+      });
       return res.data;
     },
     staleTime: 1000 * 30, // 30 seconds

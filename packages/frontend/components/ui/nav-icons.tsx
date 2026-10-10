@@ -1,4 +1,4 @@
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path } from 'react-native-svg';
 
 export interface NavIconProps {
   size?: number;
@@ -14,7 +14,7 @@ export interface NavIconProps {
  * here), and an icon that ignores the theme is invisible in one of the two.
  * Same reasoning, and the same `0 -960 960 960` viewBox, as `NotedMark`.
  */
-export function StickyNoteIcon({ size = 24, color = "currentColor" }: NavIconProps) {
+export function StickyNoteIcon({ size = 24, color = 'currentColor' }: NavIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 -960 960 960" accessibilityRole="image">
       <Path
@@ -25,7 +25,7 @@ export function StickyNoteIcon({ size = 24, color = "currentColor" }: NavIconPro
   );
 }
 
-export function AddTaskIcon({ size = 24, color = "currentColor" }: NavIconProps) {
+export function AddTaskIcon({ size = 24, color = 'currentColor' }: NavIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 -960 960 960" accessibilityRole="image">
       <Path

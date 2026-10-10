@@ -37,7 +37,10 @@ const KEYWORDS = new Set([
 /** Strip quoting and schema prefixes; null when the token is not an identifier. */
 export function normalizeIdentifier(token: string): string | null {
   const last = token.split('.').pop() ?? token;
-  const cleaned = last.replace(/^[`"[]+/, '').replace(/[`"\])]+$/, '').toLowerCase();
+  const cleaned = last
+    .replace(/^[`"[]+/, '')
+    .replace(/[`"\])]+$/, '')
+    .toLowerCase();
   if (!/^[a-z_][a-z0-9_]*$/.test(cleaned)) return null;
   return KEYWORDS.has(cleaned) ? null : cleaned;
 }

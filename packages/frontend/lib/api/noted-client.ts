@@ -11,7 +11,12 @@ type Query = {
 export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs = 10_000) {
   const linked = oxy.createLinkedClient({ baseURL });
 
-  async function request<T>(method: Method, path: string, body?: unknown, query?: Query): Promise<{ data: T }> {
+  async function request<T>(
+    method: Method,
+    path: string,
+    body?: unknown,
+    query?: Query,
+  ): Promise<{ data: T }> {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query?.params ?? {})) {
       if (value !== undefined && value !== null) params.set(key, String(value));
@@ -26,9 +31,12 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
       }
     };
     assertAccount();
-    const unsubscribe = expectedViewerId === undefined ? undefined : oxy.session.onChange(() => {
-      if (oxy.session.userId !== expectedViewerId) controller.abort();
-    });
+    const unsubscribe =
+      expectedViewerId === undefined
+        ? undefined
+        : oxy.session.onChange(() => {
+            if (oxy.session.userId !== expectedViewerId) controller.abort();
+          });
     // One deadline covers headers, response body and the SDK's bounded 401 retry.
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -43,15 +51,22 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
       assertAccount();
       let data: unknown = null;
       if (text) {
-        try { data = JSON.parse(text); } catch {
+        try {
+          data = JSON.parse(text);
+        } catch {
           // Keep known HTTP errors even when a proxy returns HTML/plain text.
           // Never expose that untrusted body as a diagnostic message.
           if (response.ok) throw new Error('Invalid JSON response');
         }
       }
       if (!response.ok) {
-        const message = typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string'
-          ? data.error : `Request failed with status ${response.status}`;
+        const message =
+          typeof data === 'object' &&
+          data !== null &&
+          'error' in data &&
+          typeof data.error === 'string'
+            ? data.error
+            : `Request failed with status ${response.status}`;
         // Existing Noted callers inspect response.status (404 deletes) and data.error.
         throw Object.assign(new Error(message), { response: { status: response.status, data } });
       }
@@ -64,10 +79,14 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
 
   return {
     get: <T = unknown>(path: string, query?: Query) => request<T>('GET', path, undefined, query),
-    post: <T = unknown>(path: string, body?: unknown, query?: Query) => request<T>('POST', path, body, query),
-    put: <T = unknown>(path: string, body?: unknown, query?: Query) => request<T>('PUT', path, body, query),
-    patch: <T = unknown>(path: string, body?: unknown, query?: Query) => request<T>('PATCH', path, body, query),
-    delete: <T = unknown>(path: string, query?: Query) => request<T>('DELETE', path, undefined, query),
+    post: <T = unknown>(path: string, body?: unknown, query?: Query) =>
+      request<T>('POST', path, body, query),
+    put: <T = unknown>(path: string, body?: unknown, query?: Query) =>
+      request<T>('PUT', path, body, query),
+    patch: <T = unknown>(path: string, body?: unknown, query?: Query) =>
+      request<T>('PATCH', path, body, query),
+    delete: <T = unknown>(path: string, query?: Query) =>
+      request<T>('DELETE', path, undefined, query),
     isAccountActive: (viewerId: string) => oxy.session.userId === viewerId,
     dispose: linked.dispose,
   };

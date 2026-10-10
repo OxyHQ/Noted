@@ -7,6 +7,9 @@ export interface LocalStoreState {
   retry: () => void;
 }
 export const LocalStoreContext = createContext<LocalStoreState>({
-  viewerId: null, isReady: false, error: null, retry: () => undefined,
+  viewerId: null,
+  isReady: false,
+  error: null,
+  retry: () => undefined,
 });
 export const useLocalStoreState = () => useContext(LocalStoreContext);

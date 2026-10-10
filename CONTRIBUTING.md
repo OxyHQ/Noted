@@ -56,11 +56,21 @@ Vitest. Place test files next to the source as `*.test.ts`. `packages/backend` i
 CI runs the following on every pull request, and each line runs locally as written:
 
 ```bash
-bun run --filter @noted/backend lint
+bunx biome ci .                  # Biome: lint + format check, whole repo
 bun run --filter @noted/backend test
 bun run build:backend
 bun run build:frontend
 ```
+
+## Formatting and linting
+
+Biome (`biome.json` at the root) formats and lints every package; there is no
+ESLint or Prettier. `bun run lint` checks, `bun run lint:fix` applies safe
+fixes and formatting, `bun run format` only formats. The Expo app's
+`EXPO_PUBLIC_*` guards (no destructuring of `process.env`, no computed
+`process.env[...]` reads, both of which Metro silently fails to inline) are a
+GritQL plugin in `biome-plugins/expo-env-vars.grit`, scoped to
+`packages/frontend`.
 
 ## Conventions
 

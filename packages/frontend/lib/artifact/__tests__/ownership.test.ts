@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { allItems } from '@/lib/artifact/artifact';
 import type { UserItemOverride } from '@noted/shared-types';
-import { applyOverrides, carryProtectedItems, emptyOverride, isProtected, isTouched, overridesById } from '@/lib/artifact/ownership';
+import {
+  applyOverrides,
+  carryProtectedItems,
+  emptyOverride,
+  isProtected,
+  isTouched,
+  overridesById,
+} from '@/lib/artifact/ownership';
 import {
   artifact,
   checklist,
@@ -54,8 +61,10 @@ describe('applyOverrides', () => {
     const generated = artifact({
       checklists: [checklist('c', [checklistItem('a1', 'pollo', { checked: true })])],
     });
-    expect(applyOverrides(generated, overrides({ itemId: 'a1', text: 'pollo de corral' }))
-      .checklists[0].items[0].checked).toBe(true);
+    expect(
+      applyOverrides(generated, overrides({ itemId: 'a1', text: 'pollo de corral' })).checklists[0]
+        .items[0].checked,
+    ).toBe(true);
   });
 
   it('takes out what the user deleted', () => {

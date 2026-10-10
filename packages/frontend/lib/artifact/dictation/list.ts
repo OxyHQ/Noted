@@ -21,7 +21,13 @@
 
 import type { ListCommand } from '@/lib/artifact/dictation/instructions';
 import { itemId } from '@/lib/artifact/item-id';
-import type { DocumentIntent, GeneratedChecklist, GeneratedChecklistItem, PendingExpansion, SourceRange } from '@noted/shared-types';
+import type {
+  DocumentIntent,
+  GeneratedChecklist,
+  GeneratedChecklistItem,
+  PendingExpansion,
+  SourceRange,
+} from '@noted/shared-types';
 import { isNearDuplicate, normaliseForComparison } from '@/lib/structure/similar';
 
 /** Which checklist a given intent produces. */
@@ -171,7 +177,8 @@ export function buildDictatedList(input: BuildListInput): DictatedList {
     }
   }
 
-  if (items.length === 0) return { intent: intent ?? 'freeform', checklist: null, pendingExpansions };
+  if (items.length === 0)
+    return { intent: intent ?? 'freeform', checklist: null, pendingExpansions };
 
   const resolved = intent ?? 'checklist';
   return {

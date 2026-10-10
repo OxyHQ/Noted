@@ -10,7 +10,6 @@ async function summarizeOrNull(...args: Parameters<typeof summarize>) {
   return result.ok ? result.value : null;
 }
 
-
 /** A document with one paragraph per line given, which is what the model returns now. */
 function reply(
   paragraphs: (string | { text: string; s?: number[] })[],
@@ -138,9 +137,7 @@ describe('citations become evidence', () => {
     const withHeading = (text: string, line: number) =>
       JSON.stringify({
         title: 'Charla',
-        sections: [
-          { heading: 'La imprenta', blocks: [{ type: 'paragraph', text, s: [line] }] },
-        ],
+        sections: [{ heading: 'La imprenta', blocks: [{ type: 'paragraph', text, s: [line] }] }],
         actions: [],
         openQuestions: [],
         listAdditions: [],
@@ -166,7 +163,11 @@ describe('authorised expansion', () => {
     const generate = vi.fn().mockResolvedValue(
       reply([], 'Compra', {
         listAdditions: [
-          { text: 'mozzarella', s: [1], derived: { subject: 'una pizza de pollo', reason: 'base' } },
+          {
+            text: 'mozzarella',
+            s: [1],
+            derived: { subject: 'una pizza de pollo', reason: 'base' },
+          },
         ],
       }),
     );

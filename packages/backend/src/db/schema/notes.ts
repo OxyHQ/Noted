@@ -81,13 +81,7 @@ export const notes = pgTable(
   },
   (t) => [
     // The feed: one user's notes for one view, pinned first, then by position.
-    index('notes_feed_idx').on(
-      t.oxyUserId,
-      t.trashed,
-      t.archived,
-      t.pinned.desc(),
-      t.sortOrder,
-    ),
+    index('notes_feed_idx').on(t.oxyUserId, t.trashed, t.archived, t.pinned.desc(), t.sortOrder),
     // Incremental sync: everything this user changed after an instant, in
     // change order, tombstones included.
     index('notes_sync_idx').on(t.oxyUserId, t.updatedAt),
@@ -100,9 +94,7 @@ export const notes = pgTable(
     index('notes_labels_idx').using('gin', t.labels),
     index('notes_search_idx').using('gin', t.searchVector),
     // The expiry sweep's own read path.
-    index('notes_deleted_at_idx')
-      .on(t.deletedAt)
-      .where(sql`${t.deletedAt} is not null`),
+    index('notes_deleted_at_idx').on(t.deletedAt).where(sql`${t.deletedAt} is not null`),
   ],
 );
 
