@@ -65,6 +65,12 @@ the measured `AppShell.bottomBar` slot, and page actions use `Screen.primaryActi
 do not replace their clearance with fixed bottom offsets. Note colors, note
 packing and local search remain product behavior.
 
+`Screen` inherits the containing panel fill and owns the positioning of its
+`header` slot, including the panel inset. Put `PageHeader` directly in that slot;
+do not add a second sticky wrapper or repaint the page background inside a panel.
+Native stack scenes use `useSurfaceFill()` so retained routes stay opaque with
+the same fill as the shell.
+
 The web editor uses Bloom's public controlled `Dialog` API because its visible
 state belongs to the route. A dismissal requests navigation; `usePreventRemove`
 keeps the route and dialog mounted until the last local save succeeds. Do not
@@ -75,6 +81,8 @@ Expo Router's route descriptors; native retains its transparent-modal stack.
 The editor opts out of document scrolling: every ready-state wrapper, including
 `LocalStoreBoundary`, must keep Bloom's bounded flex height so the editor's
 `ScrollView` can overflow. Document-growth styles belong only to document routes.
+Its toolbar and recording controls occupy normal flow below the scroller; the
+content needs ordinary spacing, not extra clearance for a floating footer.
 
 Verify document scrolling, sticky navigation and headers in a real browser,
 including small viewports. Read and edit a note longer than the dialog; verify
