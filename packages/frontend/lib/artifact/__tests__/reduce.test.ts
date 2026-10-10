@@ -93,7 +93,7 @@ describe('reconcileItems', () => {
     // Its id survives, so anything the user did to it still points at something,
     // and the note can say the difference between "answered" and "never
     // mentioned again".
-    const reconciled = reconcileItems([item('q', '¿Eliminamos MongoDB?')], [], {
+    const reconciled = reconcileItems([item('q', '¿Eliminamos el servidor antiguo?')], [], {
       overrides: NONE,
       missing: 'resolve',
     });

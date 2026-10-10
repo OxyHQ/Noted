@@ -26,8 +26,8 @@ const feedbackSchema = z.object({
 /**
  * The wire shape, listed field by field.
  *
- * The previous implementation returned the raw document, which leaked
- * `oxyUserId` and Mongo's own bookkeeping to the client. Feedback carries device
+ * Returning the raw row would leak `oxyUserId` and internal bookkeeping
+ * columns to the client. Feedback carries device
  * metadata and whatever the user chose to write, so it is exactly the payload
  * that should not gain fields by accident.
  */

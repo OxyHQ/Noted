@@ -71,7 +71,7 @@ Both halves ship from GitHub Actions:
 
 | workflow | what it does |
 |---|---|
-| `ci.yml` | lint, tests, both builds, and a guard that refuses to let MongoDB back in |
+| `ci.yml` | lint, tests and both builds |
 | `deploy-aws.yml` | builds the linux/arm64 backend image, pushes it to ECR, and rolls the ECS service on `oxy-cluster` |
 | `deploy-cloudflare.yml` | exports the Expo web build and deploys it as the Cloudflare Worker `noted`, serving `noted.oxy.so` |
 

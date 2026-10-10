@@ -41,14 +41,16 @@ describe('isTouched', () => {
 
 describe('applyOverrides', () => {
   const base = artifact({
-    sections: [section('s', [item('n1', 'Migrar a PostgreSQL'), item('n2', 'Borrar Mongo')])],
+    sections: [
+      section('s', [item('n1', 'Migrar a PostgreSQL'), item('n2', 'Borrar el servidor antiguo')]),
+    ],
     checklists: [checklist('c', [checklistItem('a1', 'pollo'), checklistItem('a2', 'pasta')])],
   });
 
   it('shows the user their own wording', () => {
     const shown = applyOverrides(base, overrides({ itemId: 'n1', text: 'Migrar a Postgres 17' }));
     expect(unitsOf(shown.sections[0])[0].text).toBe('Migrar a Postgres 17');
-    expect(unitsOf(shown.sections[0])[1].text).toBe('Borrar Mongo');
+    expect(unitsOf(shown.sections[0])[1].text).toBe('Borrar el servidor antiguo');
   });
 
   it('keeps the tick the user set', () => {

@@ -17,10 +17,9 @@ Future hosted point inference -> Oxy -> Kaana
 Future agent/chat/tools/memory -> Alia -> Oxy -> Kaana
 ```
 
-The backend is PostgreSQL/Drizzle only. There is no MongoDB runtime, secondary
-store or database fallback. The client writes locally first and synchronises
-afterwards, so reading remains available offline and survives an interrupted
-edit.
+The backend is PostgreSQL/Drizzle only. There is no secondary store or database
+fallback. The client writes locally first and synchronises afterwards, so
+reading remains available offline and survives an interrupted edit.
 
 ## Local storage and browser tabs
 
