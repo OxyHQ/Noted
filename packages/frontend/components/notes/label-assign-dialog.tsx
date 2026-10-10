@@ -1,8 +1,10 @@
 import React from "react";
+import { GlyphButton } from "@oxy.so/bloom/button";
+import { Checkbox } from "@oxy.so/bloom/checkbox";
+import { TextFieldInput } from "@oxy.so/bloom/text-field";
 import { EmptyState } from "@/components/empty-state";
-import { View, Pressable, TextInput, ScrollView } from "react-native";
-import { Check, Plus, Tag } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
+import { View, ScrollView } from "react-native";
+import { Plus } from "lucide-react-native";
 import {
   Dialog,
   DialogContent,
@@ -57,9 +59,9 @@ export function LabelAssignDialog({
           <DialogTitle>{t("notes.labelNote")}</DialogTitle>
         </DialogHeader>
 
-        <View className="flex-row items-center gap-2 rounded-lg border border-border px-3">
-          <Tag size={16} color={colors.mutedForeground} />
-          <TextInput
+        <View className="gap-2">
+          <TextFieldInput
+            label={t("notes.createLabelPlaceholder")}
             editable={!createLabel.isPending}
             value={draft}
             onChangeText={setDraft}
@@ -70,9 +72,15 @@ export function LabelAssignDialog({
             returnKeyType="done"
           />
           {draft.trim().length > 0 && (
-            <Pressable disabled={createLabel.isPending} onPress={handleCreate} hitSlop={6} accessibilityLabel={t("common.create")}>
-              <Plus size={18} color={colors.primary} />
-            </Pressable>
+            <GlyphButton
+              disabled={createLabel.isPending}
+              onPress={handleCreate}
+              accessibilityLabel={t("common.create")}
+              color={colors.primary}
+              size={36}
+            >
+              {(foreground) => <Plus size={20} color={foreground} />}
+            </GlyphButton>
           )}
         </View>
 
@@ -83,15 +91,13 @@ export function LabelAssignDialog({
             allLabels.map((label) => {
               const isAssigned = assignedSet.has(label.id);
               return (
-                <Pressable
+                <Checkbox
                   key={label.id}
-                  onPress={() => onToggle(label.id)}
-                  className="flex-row items-center gap-3 rounded-lg px-2 py-2.5 active:bg-muted"
-                >
-                  <Tag size={16} color={colors.mutedForeground} />
-                  <Text className="flex-1 text-base text-foreground">{label.name}</Text>
-                  {isAssigned && <Check size={18} color={colors.primary} />}
-                </Pressable>
+                  checked={isAssigned}
+                  label={label.name}
+                  onCheckedChange={() => onToggle(label.id)}
+                  style={{ paddingVertical: 10 }}
+                />
               );
             })
           )}

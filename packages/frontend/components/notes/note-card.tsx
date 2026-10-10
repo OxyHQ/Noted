@@ -1,3 +1,5 @@
+import { Button, GlyphButton } from "@oxy.so/bloom/button";
+import { Card } from "@oxy.so/bloom/card";
 import React from "react";
 import { View, Pressable, Platform } from "react-native";
 import Animated, { ZoomIn, ZoomOut } from "react-native-reanimated";
@@ -70,17 +72,19 @@ function HoverIconButton({
   focusable: boolean;
 }) {
   return (
-    <Pressable
-      onPress={(e) => {
-        e.stopPropagation();
-        onPress();
-      }}
+    <Button
+      appearance="plain"
+      tone="neutral"
+      iconOnly
+      size="sm"
+      stopPropagation
+      onPress={onPress}
       accessibilityLabel={label}
-      focusable={focusable}
-      className="h-8 w-8 items-center justify-center rounded-full web:transition web:duration-150 web:hover:bg-foreground/10"
-    >
-      <Icon size={16} color={color} />
-    </Pressable>
+      tabIndex={focusable ? 0 : -1}
+      renderLeadingIcon={({ size: iconSize, color: iconColor }) => (
+        <Icon size={iconSize} color={iconColor} />
+      )}
+    />
   );
 }
 
@@ -118,12 +122,12 @@ export const NoteCard = React.memo(function NoteCard({
   // metadata queries). The card only needs to know whether any exist.
   const hasAttachments = (note.attachments?.length ?? 0) > 0;
 
-  const isEmpty =
-    !note.title && !note.body && !hasChecklist && !hasAttachments;
+  const isEmpty = !note.title && !note.body && !hasChecklist && !hasAttachments;
 
   // Top-right corner control: pin (web hover) / pin indicator (pinned) / nothing.
   const showPinControl =
-    !selectionMode && (note.pinned || (showHoverAffordances && Boolean(onTogglePin)));
+    !selectionMode &&
+    (note.pinned || (showHoverAffordances && Boolean(onTogglePin)));
   // Top-left select control appears on hover or whenever selection mode is on.
   const showSelectControl =
     selectionMode || (showHoverAffordances && Boolean(onToggleSelect));
@@ -162,196 +166,212 @@ export const NoteCard = React.memo(function NoteCard({
       }}
       onPointerLeave={() => setHovered(false)}
       delayLongPress={250}
-      className={cn(
-        "overflow-hidden rounded-xl border web:transition web:duration-150",
-        selected ? "border-primary" : "border-border",
-        isWeb && !tint && !selected ? "web:hover:border-foreground/30" : "",
-        isWeb ? "web:hover:shadow-lg" : ""
-      )}
-      style={{
-        backgroundColor: tint ? tint.background : colors.card,
-        borderColor: selected
-          ? colors.primary
-          : tint
-            ? tint.border
-            : colors.border,
-        borderWidth: selected ? 2 : 1,
-      }}
     >
-      {/* Top-left multi-select control */}
-      {showSelectControl && (
-        <Animated.View
-          entering={reduceMotion ? undefined : ZoomIn.duration(150)}
-          exiting={reduceMotion ? undefined : ZoomOut.duration(120)}
-          className="absolute left-2 top-2 z-10"
-        >
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              onToggleSelect?.(note);
-            }}
-            accessibilityLabel="Select note"
-            className="h-6 w-6 items-center justify-center rounded-full border web:transition"
-            style={{
-              backgroundColor: selected ? colors.primary : colors.background,
-              borderColor: selected ? colors.primary : colors.border,
-            }}
+      <Card
+        appearance="outline"
+        radius="radius-12"
+        clipContent
+        border={selected ? "medium" : "thin"}
+        elevation={hovered ? "m" : "none"}
+        style={{
+          backgroundColor: tint ? tint.background : colors.card,
+          borderColor: selected
+            ? colors.primary
+            : tint
+              ? tint.border
+              : colors.border,
+        }}
+      >
+        {/* Top-left multi-select control */}
+        {showSelectControl && (
+          <Animated.View
+            entering={reduceMotion ? undefined : ZoomIn.duration(150)}
+            exiting={reduceMotion ? undefined : ZoomOut.duration(120)}
+            className="absolute left-2 top-2 z-10"
           >
-            {selected && <Check size={14} color={colors.primaryForeground} />}
-          </Pressable>
-        </Animated.View>
-      )}
-
-      {/* Top-right pin control */}
-      {showPinControl && (
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation();
-            onTogglePin?.(note);
-          }}
-          disabled={!onTogglePin}
-          accessibilityLabel={note.pinned ? "Unpin note" : "Pin note"}
-          className="absolute right-2 top-2 z-10 h-7 w-7 items-center justify-center rounded-full web:transition web:hover:bg-foreground/10"
-        >
-          <Pin
-            size={15}
-            color={colors.mutedForeground}
-            fill={note.pinned ? colors.mutedForeground : "transparent"}
-          />
-        </Pressable>
-      )}
-
-      {hasAttachments && (
-        <View className="px-4 pt-4">
-          <AttachmentsRow attachments={note.attachments ?? []} variant="card" />
-        </View>
-      )}
-
-      <View className="p-4">
-        {note.title ? (
-          <Text
-            className="text-sm font-medium text-foreground"
-            numberOfLines={2}
-          >
-            {note.title}
-          </Text>
-        ) : null}
-
-        {!hasChecklist && note.body ? (
-          <Text
-            className={cn("text-sm text-foreground/80", note.title ? "mt-1.5" : "")}
-            numberOfLines={8}
-          >
-            {/* Flattened, because a card is a glance: `## Summary` in a preview
-                is syntax where prose should be, and it costs a line to say
-                nothing. The note itself keeps its Markdown. */}
-            {toPreviewText(note.body)}
-          </Text>
-        ) : null}
-
-        {hasChecklist ? (
-          <View className={cn("gap-1.5", note.title ? "mt-2.5" : "")}>
-            {shownChecklist.map((item) => {
-              const Box = item.checked ? CheckSquare : Square;
-              return (
-                <View key={item.id} className="flex-row items-center gap-2">
-                  <Box size={14} className="text-muted-foreground" />
-                  <Text
-                    className={cn(
-                      "flex-1 text-sm",
-                      item.checked
-                        ? "text-muted-foreground line-through"
-                        : "text-foreground/80"
-                    )}
-                    numberOfLines={1}
-                  >
-                    {item.text}
-                  </Text>
-                </View>
-              );
-            })}
-            {remainingChecklist > 0 && (
-              <Text className="text-xs text-muted-foreground">
-                + {remainingChecklist} more
-              </Text>
-            )}
-          </View>
-        ) : null}
-
-        {isEmpty && (
-          <Text className="text-sm italic text-muted-foreground">Empty note</Text>
+            <Button
+              appearance={selected ? "solid" : "outline"}
+              tone="accent"
+              iconOnly
+              size="xs"
+              stopPropagation
+              onPress={() => onToggleSelect?.(note)}
+              accessibilityLabel="Select note"
+              pressed={selected}
+              icon={
+                selected ? (
+                  <Check
+                    size={14}
+                    color={
+                      selected
+                        ? colors.primaryForeground
+                        : colors.mutedForeground
+                    }
+                  />
+                ) : undefined
+              }
+            />
+          </Animated.View>
         )}
 
-        <LabelChips labelIds={note.labels} allLabels={allLabels} max={3} />
+        {/* Top-right pin control */}
+        {showPinControl && (
+          <GlyphButton
+            onPress={(event) => {
+              event.stopPropagation();
+              onTogglePin?.(note);
+            }}
+            disabled={!onTogglePin}
+            accessibilityLabel={note.pinned ? "Unpin note" : "Pin note"}
+            pressed={note.pinned}
+            size={28}
+            glyphSize={15}
+            style={{ position: "absolute", right: 8, top: 8, zIndex: 10 }}
+          >
+            {(foreground) => <Pin size={20} color={foreground} />}
+          </GlyphButton>
+        )}
 
-        {note.reminderAt ? (
-          <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
-            <View className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5">
-              <Bell size={10} className="text-muted-foreground" />
-              <Text className="text-[11px] text-muted-foreground">
-                {formatReminder(note.reminderAt)}
-              </Text>
-            </View>
+        {hasAttachments && (
+          <View className="px-4 pt-4">
+            <AttachmentsRow
+              attachments={note.attachments ?? []}
+              variant="card"
+            />
           </View>
-        ) : null}
-      </View>
+        )}
 
-      {/* Bottom hover action row (web only) */}
-      {renderActionRow && (
-        <View
-          style={{
-            opacity: hovered ? 1 : 0,
-            pointerEvents: hovered ? "auto" : "none",
-          }}
-          className="flex-row items-center gap-0.5 px-2 pb-1.5 web:transition web:duration-150"
-        >
-          {onReminder && (
-            <HoverIconButton
-              icon={Bell}
-              label="Reminder"
-              color={colors.mutedForeground}
-              onPress={() => onReminder(note)}
-              focusable={hovered}
-            />
+        <View className="p-4">
+          {note.title ? (
+            <Text
+              className="text-sm font-medium text-foreground"
+              numberOfLines={2}
+            >
+              {note.title}
+            </Text>
+          ) : null}
+
+          {!hasChecklist && note.body ? (
+            <Text
+              className={cn(
+                "text-sm text-foreground/80",
+                note.title ? "mt-1.5" : "",
+              )}
+              numberOfLines={8}
+            >
+              {/* Flattened, because a card is a glance: `## Summary` in a preview
+                is syntax where prose should be, and it costs a line to say
+                nothing. The note itself keeps its Markdown. */}
+              {toPreviewText(note.body)}
+            </Text>
+          ) : null}
+
+          {hasChecklist ? (
+            <View className={cn("gap-1.5", note.title ? "mt-2.5" : "")}>
+              {shownChecklist.map((item) => {
+                const Box = item.checked ? CheckSquare : Square;
+                return (
+                  <View key={item.id} className="flex-row items-center gap-2">
+                    <Box size={14} className="text-muted-foreground" />
+                    <Text
+                      className={cn(
+                        "flex-1 text-sm",
+                        item.checked
+                          ? "text-muted-foreground line-through"
+                          : "text-foreground/80",
+                      )}
+                      numberOfLines={1}
+                    >
+                      {item.text}
+                    </Text>
+                  </View>
+                );
+              })}
+              {remainingChecklist > 0 && (
+                <Text className="text-xs text-muted-foreground">
+                  + {remainingChecklist} more
+                </Text>
+              )}
+            </View>
+          ) : null}
+
+          {isEmpty && (
+            <Text className="text-sm italic text-muted-foreground">
+              Empty note
+            </Text>
           )}
-          {onColor && (
-            <HoverIconButton
-              icon={Palette}
-              label="Color"
-              color={colors.mutedForeground}
-              onPress={() => onColor(note)}
-              focusable={hovered}
-            />
-          )}
-          {onAttach && (
-            <HoverIconButton
-              icon={Paperclip}
-              label="Attach file"
-              color={colors.mutedForeground}
-              onPress={() => onAttach(note)}
-              focusable={hovered}
-            />
-          )}
-          {onArchive && (
-            <HoverIconButton
-              icon={Archive}
-              label="Archive"
-              color={colors.mutedForeground}
-              onPress={() => onArchive(note)}
-              focusable={hovered}
-            />
-          )}
-          {onDelete && (
-            <HoverIconButton
-              icon={Trash2}
-              label="Delete"
-              color={colors.mutedForeground}
-              onPress={() => onDelete(note)}
-              focusable={hovered}
-            />
-          )}
+
+          <LabelChips labelIds={note.labels} allLabels={allLabels} max={3} />
+
+          {note.reminderAt ? (
+            <View className="mt-2 flex-row flex-wrap items-center gap-1.5">
+              <View className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5">
+                <Bell size={10} className="text-muted-foreground" />
+                <Text className="text-[11px] text-muted-foreground">
+                  {formatReminder(note.reminderAt)}
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </View>
-      )}
+
+        {/* Bottom hover action row (web only) */}
+        {renderActionRow && (
+          <View
+            style={{
+              opacity: hovered ? 1 : 0,
+              pointerEvents: hovered ? "auto" : "none",
+            }}
+            className="flex-row items-center gap-0.5 px-2 pb-1.5 web:transition web:duration-150"
+          >
+            {onReminder && (
+              <HoverIconButton
+                icon={Bell}
+                label="Reminder"
+                color={colors.mutedForeground}
+                onPress={() => onReminder(note)}
+                focusable={hovered}
+              />
+            )}
+            {onColor && (
+              <HoverIconButton
+                icon={Palette}
+                label="Color"
+                color={colors.mutedForeground}
+                onPress={() => onColor(note)}
+                focusable={hovered}
+              />
+            )}
+            {onAttach && (
+              <HoverIconButton
+                icon={Paperclip}
+                label="Attach file"
+                color={colors.mutedForeground}
+                onPress={() => onAttach(note)}
+                focusable={hovered}
+              />
+            )}
+            {onArchive && (
+              <HoverIconButton
+                icon={Archive}
+                label="Archive"
+                color={colors.mutedForeground}
+                onPress={() => onArchive(note)}
+                focusable={hovered}
+              />
+            )}
+            {onDelete && (
+              <HoverIconButton
+                icon={Trash2}
+                label="Delete"
+                color={colors.mutedForeground}
+                onPress={() => onDelete(note)}
+                focusable={hovered}
+              />
+            )}
+          </View>
+        )}
+      </Card>
     </Pressable>
   );
 });

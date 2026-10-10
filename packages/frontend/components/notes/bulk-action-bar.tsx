@@ -1,4 +1,5 @@
-import { View, Pressable } from "react-native";
+import { GlyphButton } from "@oxy.so/bloom/button";
+import { View } from "react-native";
 import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, Pin, Palette, Archive, Trash2 } from "lucide-react-native";
@@ -37,13 +38,15 @@ export function BulkActionBar({
     label: string;
     onPress: () => void;
   }) => (
-    <Pressable
+    <GlyphButton
       onPress={onPress}
       accessibilityLabel={label}
-      className="h-10 w-10 items-center justify-center rounded-full active:bg-muted"
+      size={40}
+      glyphSize={20}
+      color={colors.foreground}
     >
-      <Icon size={20} color={colors.foreground} />
-    </Pressable>
+      {(foreground) => <Icon size={20} color={foreground} />}
+    </GlyphButton>
   );
 
   return (
@@ -54,14 +57,18 @@ export function BulkActionBar({
       style={{ paddingTop: insets.top }}
     >
       <View className="h-14 flex-row items-center">
-        <Pressable
+        <GlyphButton
           onPress={onClose}
           accessibilityLabel="Close selection"
-          className="h-10 w-10 items-center justify-center rounded-full active:bg-muted"
+          size={40}
+          glyphSize={20}
+          color={colors.foreground}
         >
-          <X size={20} color={colors.foreground} />
-        </Pressable>
-        <Text className="ml-1 text-base font-semibold text-foreground">{count}</Text>
+          {(foreground) => <X size={20} color={foreground} />}
+        </GlyphButton>
+        <Text className="ml-1 text-base font-semibold text-foreground">
+          {count}
+        </Text>
       </View>
       <View className="ml-auto flex-row items-center gap-1">
         <Action icon={Pin} label="Pin" onPress={onPin} />

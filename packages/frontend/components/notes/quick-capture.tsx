@@ -1,7 +1,16 @@
+import { Button, GlyphButton } from "@oxy.so/bloom/button";
+import { Card } from "@oxy.so/bloom/card";
+import { TextFieldInput } from "@oxy.so/bloom/text-field";
 import React from "react";
-import { View, Pressable, TextInput } from "react-native";
+import { View, TextInput } from "react-native";
 import Animated, { LinearTransition, FadeIn } from "react-native-reanimated";
-import { CheckSquare, X, Palette, Paperclip, Archive } from "lucide-react-native";
+import {
+  CheckSquare,
+  X,
+  Palette,
+  Paperclip,
+  Archive,
+} from "lucide-react-native";
 import { Text } from "@/components/ui/text";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
 import {
@@ -18,7 +27,12 @@ import { DEFAULT_NEW_NOTE_COLOR, type NoteColor } from "@noted/shared-types";
 
 interface QuickCaptureProps {
   /** Create a plain note from the composed title/body/color. */
-  onCreate: (input: { title: string; body: string; color?: NoteColor; archived?: boolean }) => Promise<{ id: string }>;
+  onCreate: (input: {
+    title: string;
+    body: string;
+    color?: NoteColor;
+    archived?: boolean;
+  }) => Promise<{ id: string }>;
   onOpenNote: (id: string, mode: "checklist" | "attachment") => void;
   /** Open the full editor in checklist mode for a new note. */
   onCreateChecklist: () => void;
@@ -45,15 +59,18 @@ function ToolButton({
   disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <GlyphButton
       onPress={onPress}
       disabled={disabled}
-      accessibilityState={{ disabled }}
       accessibilityLabel={label}
-      className="h-9 w-9 items-center justify-center rounded-full web:transition active:bg-foreground/10 web:hover:bg-foreground/10"
+      size={36}
+      glyphSize={18}
+      color={color}
+      pressed={active}
+      activeColor={activeColor}
     >
-      <Icon size={18} color={active && activeColor ? activeColor : color} />
-    </Pressable>
+      {(foreground) => <Icon size={18} color={foreground} />}
+    </GlyphButton>
   );
 }
 
@@ -95,31 +112,48 @@ export function QuickCapture({
     setDiscardOpen(false);
   }, []);
 
-  const commit = React.useCallback(async (archived = false, mode?: "checklist" | "attachment") => {
-    if (savingRef.current) return;
-    const trimmedTitle = title.trim();
-    const trimmedBody = body.trim();
-    if (!trimmedTitle && !trimmedBody) {
-      reset();
-      if (mode === "checklist") onCreateChecklist();
-      if (mode === "attachment") onCreateAttachment();
-      return;
-    }
-    savingRef.current = true;
-    setSaving(true);
-    setSaveFailed(false);
-    try {
-      const created = await onCreate({ title: trimmedTitle, body: trimmedBody, color, archived });
-      reset();
-      if (mode) onOpenNote(created.id, mode);
-    } catch {
-      // The mutation reports its error; keep the complete draft available to retry.
-      setSaveFailed(true);
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-  }, [title, body, color, onCreate, onOpenNote, onCreateChecklist, onCreateAttachment, reset]);
+  const commit = React.useCallback(
+    async (archived = false, mode?: "checklist" | "attachment") => {
+      if (savingRef.current) return;
+      const trimmedTitle = title.trim();
+      const trimmedBody = body.trim();
+      if (!trimmedTitle && !trimmedBody) {
+        reset();
+        if (mode === "checklist") onCreateChecklist();
+        if (mode === "attachment") onCreateAttachment();
+        return;
+      }
+      savingRef.current = true;
+      setSaving(true);
+      setSaveFailed(false);
+      try {
+        const created = await onCreate({
+          title: trimmedTitle,
+          body: trimmedBody,
+          color,
+          archived,
+        });
+        reset();
+        if (mode) onOpenNote(created.id, mode);
+      } catch {
+        // The mutation reports its error; keep the complete draft available to retry.
+        setSaveFailed(true);
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
+    },
+    [
+      title,
+      body,
+      color,
+      onCreate,
+      onOpenNote,
+      onCreateChecklist,
+      onCreateAttachment,
+      reset,
+    ],
+  );
 
   const expand = React.useCallback(() => {
     setExpanded(true);
@@ -135,27 +169,44 @@ export function QuickCapture({
       <Animated.View
         layout={layout}
         entering={fadeIn}
-        className="w-full max-w-[600px] self-center flex-row items-center rounded-xl border border-border bg-card px-4 shadow-sm web:transition web:hover:shadow-md"
+        className="w-full max-w-[600px] self-center"
       >
-        <Pressable onPress={expand} className="h-12 flex-1 justify-center">
-          <Text className="text-base text-muted-foreground">
+        <Card
+          testID="quick-capture"
+          appearance="outline"
+          radius="radius-12"
+          elevation="s"
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 16,
+          }}
+        >
+          <Button
+            appearance="plain"
+            tone="neutral"
+            onPress={expand}
+            style={{ flex: 1, justifyContent: "flex-start" }}
+          >
             {t("notes.takeANote")}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onCreateChecklist}
-          accessibilityLabel={t("notes.newChecklist")}
-          className="h-10 w-10 items-center justify-center rounded-full web:transition active:bg-muted web:hover:bg-muted"
-        >
-          <CheckSquare size={20} className="text-muted-foreground" />
-        </Pressable>
-        <Pressable
-          onPress={onCreateAttachment}
-          accessibilityLabel={t("notes.attachFile")}
-          className="h-10 w-10 items-center justify-center rounded-full web:transition active:bg-muted web:hover:bg-muted"
-        >
-          <Paperclip size={20} className="text-muted-foreground" />
-        </Pressable>
+          </Button>
+          <GlyphButton
+            onPress={onCreateChecklist}
+            accessibilityLabel={t("notes.newChecklist")}
+            size={40}
+            glyphSize={20}
+          >
+            {(foreground) => <CheckSquare size={20} color={foreground} />}
+          </GlyphButton>
+          <GlyphButton
+            onPress={onCreateAttachment}
+            accessibilityLabel={t("notes.attachFile")}
+            size={40}
+            glyphSize={20}
+          >
+            {(foreground) => <Paperclip size={20} color={foreground} />}
+          </GlyphButton>
+        </Card>
       </Animated.View>
     );
   }
@@ -164,112 +215,155 @@ export function QuickCapture({
     <Animated.View
       layout={layout}
       entering={fadeIn}
-      className="w-full max-w-[600px] self-center rounded-xl border border-border px-4 py-2 shadow-md"
-      style={{
-        backgroundColor: tint ? tint.background : colors.card,
-        borderColor: tint ? tint.border : colors.border,
-      }}
+      className="w-full max-w-[600px] self-center"
     >
-      <TextInput
-        editable={!saving}
-        accessibilityLabel={t("notes.titlePlaceholder")}
-        value={title}
-        onChangeText={setTitle}
-        placeholder={t("notes.titlePlaceholder")}
-        placeholderTextColor={colors.mutedForeground}
-        className="py-2 text-base font-medium text-foreground"
-        returnKeyType="next"
-        onSubmitEditing={() => bodyRef.current?.focus()}
-      />
-      <TextInput
-        editable={!saving}
-        accessibilityLabel={t("notes.takeANote")}
-        ref={bodyRef}
-        value={body}
-        onChangeText={setBody}
-        placeholder={t("notes.takeANote")}
-        placeholderTextColor={colors.mutedForeground}
-        className="min-h-[44px] py-1 text-base text-foreground"
-        multiline
-      />
-      {saveFailed && <Text accessibilityRole="alert" className="py-2 text-sm text-destructive">{t("notes.quickSaveFailed")}</Text>}
-      <View className="mt-1 flex-row items-center justify-between">
-        <View className="flex-row items-center gap-0.5">
-          <ToolButton
-            icon={CheckSquare}
-            label={t("notes.newChecklist")}
-            color={colors.mutedForeground}
-            disabled={saving}
-            onPress={() => { void commit(false, "checklist"); }}
-          />
-          <ToolButton
-            icon={Palette}
-            label={t("notes.color")}
-            color={colors.mutedForeground}
-            disabled={saving}
-            onPress={() => setColorOpen(true)}
-            active={color !== DEFAULT_NEW_NOTE_COLOR}
-            activeColor={colors.foreground}
-          />
-          <ToolButton
-            icon={Paperclip}
-            label={t("notes.attachFile")}
-            color={colors.mutedForeground}
-            disabled={saving}
-            onPress={() => { void commit(false, "attachment"); }}
-          />
-          <ToolButton
-            icon={Archive}
-            label={t("notes.archive")}
-            color={colors.mutedForeground}
-            disabled={saving}
-            onPress={() => { void commit(true); }}
-          />
-        </View>
-        <Pressable
-          disabled={saving}
-          onPress={() => { void commit(); }}
-          className="h-9 items-center justify-center rounded-lg px-4 web:transition active:bg-foreground/10 web:hover:bg-foreground/10"
-        >
-          <Text className="text-sm font-semibold text-foreground">
-            {t(saving ? "notes.saveStatus.saving" : "common.close")}
-          </Text>
-        </Pressable>
-      </View>
-      <Pressable
-        disabled={saving}
-        onPress={() => title.trim() || body.trim() ? setDiscardOpen(true) : reset()}
-        accessibilityLabel={t("common.cancel")}
-        className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-full web:transition active:bg-foreground/10 web:hover:bg-foreground/10"
+      <Card
+        testID="quick-capture"
+        appearance="outline"
+        radius="radius-12"
+        elevation="m"
+        style={{
+          gap: 8,
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          backgroundColor: tint ? tint.background : colors.card,
+          borderColor: tint ? tint.border : colors.border,
+        }}
       >
-        <X size={14} color={colors.mutedForeground} />
-      </Pressable>
-
-      <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{t("notes.discardDraftTitle")}</DialogTitle></DialogHeader>
-          <Text className="text-sm text-muted-foreground">{t("notes.discardDraftSubtitle")}</Text>
-          <View className="flex-row justify-end gap-4">
-            <Pressable onPress={() => setDiscardOpen(false)}><Text>{t("notes.keepEditing")}</Text></Pressable>
-            <Pressable onPress={reset}><Text className="text-destructive">{t("notes.discardDraft")}</Text></Pressable>
+        <TextFieldInput
+          label={t("notes.titlePlaceholder")}
+          editable={!saving}
+          accessibilityLabel={t("notes.titlePlaceholder")}
+          value={title}
+          onChangeText={setTitle}
+          placeholder={t("notes.titlePlaceholder")}
+          placeholderTextColor={colors.mutedForeground}
+          className="py-2 text-base font-medium text-foreground"
+          returnKeyType="next"
+          onSubmitEditing={() => bodyRef.current?.focus()}
+        />
+        <TextFieldInput
+          label={t("notes.takeANote")}
+          editable={!saving}
+          accessibilityLabel={t("notes.takeANote")}
+          inputRef={bodyRef}
+          value={body}
+          onChangeText={setBody}
+          placeholder={t("notes.takeANote")}
+          placeholderTextColor={colors.mutedForeground}
+          className="min-h-[44px] py-1 text-base text-foreground"
+          multiline
+        />
+        {saveFailed && (
+          <Text
+            accessibilityRole="alert"
+            className="py-2 text-sm text-destructive"
+          >
+            {t("notes.quickSaveFailed")}
+          </Text>
+        )}
+        <View className="mt-1 flex-row items-center justify-between">
+          <View className="flex-row items-center gap-0.5">
+            <ToolButton
+              icon={CheckSquare}
+              label={t("notes.newChecklist")}
+              color={colors.mutedForeground}
+              disabled={saving}
+              onPress={() => {
+                void commit(false, "checklist");
+              }}
+            />
+            <ToolButton
+              icon={Palette}
+              label={t("notes.color")}
+              color={colors.mutedForeground}
+              disabled={saving}
+              onPress={() => setColorOpen(true)}
+              active={color !== DEFAULT_NEW_NOTE_COLOR}
+              activeColor={colors.foreground}
+            />
+            <ToolButton
+              icon={Paperclip}
+              label={t("notes.attachFile")}
+              color={colors.mutedForeground}
+              disabled={saving}
+              onPress={() => {
+                void commit(false, "attachment");
+              }}
+            />
+            <ToolButton
+              icon={Archive}
+              label={t("notes.archive")}
+              color={colors.mutedForeground}
+              disabled={saving}
+              onPress={() => {
+                void commit(true);
+              }}
+            />
           </View>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={colorOpen} onOpenChange={setColorOpen}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle>{t("notes.pickColor")}</DialogTitle>
-          </DialogHeader>
-          <NoteColorPicker
-            selected={color}
-            onSelect={(next: NoteColor) => {
-              setColor(next);
-              setColorOpen(false);
+          <Button
+            appearance="plain"
+            tone="neutral"
+            disabled={saving}
+            loading={saving}
+            onPress={() => {
+              void commit();
             }}
-            scroll={false}
-          />
-        </DialogContent>
-      </Dialog>
+          >
+            {t(saving ? "notes.saveStatus.saving" : "common.close")}
+          </Button>
+        </View>
+        <GlyphButton
+          disabled={saving}
+          onPress={() =>
+            title.trim() || body.trim() ? setDiscardOpen(true) : reset()
+          }
+          accessibilityLabel={t("common.cancel")}
+          size={28}
+          glyphSize={14}
+          style={{ position: "absolute", right: 8, top: 8 }}
+        >
+          {(foreground) => <X size={14} color={foreground} />}
+        </GlyphButton>
+
+        <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("notes.discardDraftTitle")}</DialogTitle>
+            </DialogHeader>
+            <Text className="text-sm text-muted-foreground">
+              {t("notes.discardDraftSubtitle")}
+            </Text>
+            <View className="flex-row justify-end gap-4">
+              <Button
+                appearance="plain"
+                tone="neutral"
+                onPress={() => setDiscardOpen(false)}
+              >
+                {t("notes.keepEditing")}
+              </Button>
+              <Button tone="danger" onPress={reset}>
+                {t("notes.discardDraft")}
+              </Button>
+            </View>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={colorOpen} onOpenChange={setColorOpen}>
+          <DialogContent className="max-w-xs">
+            <DialogHeader>
+              <DialogTitle>{t("notes.pickColor")}</DialogTitle>
+            </DialogHeader>
+            <NoteColorPicker
+              selected={color}
+              onSelect={(next: NoteColor) => {
+                setColor(next);
+                setColorOpen(false);
+              }}
+              scroll={false}
+            />
+          </DialogContent>
+        </Dialog>
+      </Card>
     </Animated.View>
   );
 }

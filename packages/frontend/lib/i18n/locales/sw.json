@@ -714,7 +714,8 @@
     "subtitle": "Manage your notification preferences",
     "pushNotifications": "Push Notifications",
     "pushDescription": "Receive alerts about new messages and updates",
-    "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications."
+    "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications.",
+    "markAllRead": "Mark all as read"
   },
   "agents": {
     "title": "Agents",
@@ -1171,7 +1172,9 @@
     "quickSaveFailed": "Could not save. Your draft is still here.",
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
-    "openAttachmentFailed": "Could not open this attachment"
+    "openAttachmentFailed": "Could not open this attachment",
+    "listView": "Switch to list view",
+    "gridView": "Switch to grid view"
   },
   "capture": {
     "start": "Anza",

@@ -1,9 +1,15 @@
+import { PageHeader } from "@oxy.so/bloom/page-header";
+import { AppShellMenuButton } from "@oxy.so/bloom/app-shell";
+import { Button } from "@oxy.so/bloom/button";
+import { ButtonGroup } from "@oxy.so/bloom/button-group";
+import { RiNotification3Line } from "@oxy.so/bloom/icons/RiNotification3Line";
+import { RiCheckDoubleLine } from "@oxy.so/bloom/icons/RiCheckDoubleLine";
 import { EmptyState } from "@/components/empty-state";
 import { View, ScrollView, Pressable, Platform } from "react-native";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Bell, BellOff, CheckCheck, Zap, Clock, Eye, AlertTriangle, MessageSquare, X } from "lucide-react-native";
+import { Bell, BellOff, Zap, Clock, Eye, AlertTriangle, MessageSquare, X } from "lucide-react-native";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@oxy.so/services";
 import * as ExpoNotifications from "expo-notifications";
@@ -116,37 +122,29 @@ export default function NotificationsScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background">
-      {/* Header */}
-      <View className="px-6 py-6 border-b border-border">
-        <View className="flex-row items-center justify-between mb-4">
-          <Pressable onPress={() => router.back()} className="flex-row items-center">
-            <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-            <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
-          </Pressable>
-          <Pressable onPress={() => setShowSettings(s => !s)} className="p-2">
-            <Bell size={18} className="text-muted-foreground" />
-          </Pressable>
-        </View>
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-semibold text-foreground">{t('notifications.title')}</Text>
-            {unreadCount > 0 && (
-              <Text className="text-sm text-muted-foreground mt-1">
-                {unreadCount} unread
-              </Text>
-            )}
-          </View>
-          {unreadCount > 0 && (
-            <Pressable
+      <PageHeader
+        safeArea={false}
+        title={t("notifications.title")}
+        leading={<AppShellMenuButton />}
+        actions={
+          <ButtonGroup>
+            {unreadCount > 0 && <Button
+              iconOnly
+              icon={RiCheckDoubleLine}
+              accessibilityLabel={t("notifications.markAllRead")}
+              disabled={markAllAsRead.isPending}
               onPress={() => markAllAsRead.mutate()}
-              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:bg-muted/80"
-            >
-              <CheckCheck size={14} className="text-muted-foreground" />
-              <Text className="text-xs text-muted-foreground">Mark all read</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
+            />}
+            <Button
+              iconOnly
+              icon={RiNotification3Line}
+              accessibilityLabel={t("notifications.pushNotifications")}
+              pressed={showSettings}
+              onPress={() => setShowSettings((shown) => !shown)}
+            />
+          </ButtonGroup>
+        }
+      />
 
       {/* Push Settings (collapsible) */}
       {showSettings && (
@@ -165,7 +163,7 @@ export default function NotificationsScreen() {
               <Switch
                 value={pushEnabled}
                 onValueChange={handleTogglePush}
-                disabled={pushLoading}
+                disabled={pushLoading || Platform.OS === "web"}
               />
             </View>
             {permissionStatus === "denied" && (

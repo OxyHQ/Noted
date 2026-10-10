@@ -1,4 +1,5 @@
-import { View, useWindowDimensions } from "react-native";
+import { useState } from "react";
+import { View } from "react-native";
 import Animated, {
   LinearTransition,
   FadeIn,
@@ -98,14 +99,16 @@ export function NoteGrid({
   onAttach,
   onDelete,
 }: NoteGridProps) {
-  const { width } = useWindowDimensions();
+  const [width, setWidth] = useState(0);
   const selectedIds = useNotesUIStore((s) => s.selectedIds);
   const selectionMode = useNotesUIStore((s) => s.selectionMode);
   const reduceMotion = useReducedMotion();
 
   const columnCount = columnsForWidth(width, viewMode);
 
-  const layout = reduceMotion ? undefined : LinearTransition.duration(REFLOW_MS);
+  const layout = reduceMotion
+    ? undefined
+    : LinearTransition.duration(REFLOW_MS);
   const entering = reduceMotion ? undefined : FadeIn.duration(ENTER_MS);
   const exiting = reduceMotion ? undefined : FadeOut.duration(EXIT_MS);
 
@@ -121,7 +124,10 @@ export function NoteGrid({
   }
 
   const grid = (
-    <View className="flex-row gap-3">
+    <View
+      className="flex-row gap-3"
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+    >
       {columns.map((column, colIndex) => (
         <Animated.View key={colIndex} layout={layout} className="flex-1 gap-3">
           {column.map((note) => (

@@ -11,8 +11,10 @@ import { Platform } from 'react-native';
 
 import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
+import { NotedSettingsProvider } from '@/components/settings/settings-provider';
 import { LocalStoreProvider } from '@/components/local-store-provider';
 import { QueryProvider } from '@/lib/query-client';
+import { configureLottieWeb } from '@/lib/lottieWeb';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { KeyboardProvider } from '@/lib/keyboard';
@@ -26,6 +28,9 @@ import { handleLanguageError } from '@/lib/i18n/handleLanguageError';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
+
+// Configure the bundled web renderer before any sticker mounts.
+configureLottieWeb();
 
 // The bare locale codes `OxyProvider` matches an account's language against —
 // derived from the catalogue's entries rather than duplicated, so a locale
@@ -72,6 +77,7 @@ function AppContent() {
       <QueryProvider>
       <LocalStoreProvider>
       <KeyboardProvider>
+      <NotedSettingsProvider>
         <Stack
           screenOptions={{
             contentStyle: {
@@ -80,7 +86,7 @@ function AppContent() {
           }}
         >
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          {/* Editor presented as a transparent modal ABOVE the (app) drawer so
+          {/* Editor presented as a transparent modal ABOVE the (app) shell so
               the masonry grid + sidebar stay mounted and visible behind it —
               Keep-style overlay, not a page change. */}
           <Stack.Screen
@@ -101,6 +107,7 @@ function AppContent() {
             }}
           />
         </Stack>
+      </NotedSettingsProvider>
       </KeyboardProvider>
       </LocalStoreProvider>
       </QueryProvider>

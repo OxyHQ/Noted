@@ -1,83 +1,50 @@
-import { View, Pressable, useWindowDimensions } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "expo-router";
-import type { DrawerNavigationProp } from "@react-navigation/drawer";
-import { Menu, LayoutGrid, Rows3 } from "lucide-react-native";
+import { View } from "react-native";
+import { AppShellMenuButton } from "@oxy.so/bloom/app-shell";
+import { PageHeader } from "@oxy.so/bloom/page-header";
+import { Button } from "@oxy.so/bloom/button";
 import { Search } from "@oxy.so/bloom/search";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
+import { RiLayoutGridLine } from "@oxy.so/bloom/icons/RiLayoutGridLine";
+import { RiListView } from "@oxy.so/bloom/icons/RiListView";
 import { useTranslation } from "@/hooks/useTranslation";
-import { useNotesUIStore, type ViewMode } from "@/lib/stores/notes-ui-store";
+import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
 
 interface NotesHeaderProps {
   title: string;
-  /** Show the live search input (home only). */
+  /** Show the live local search input (home only). */
   searchable?: boolean;
 }
 
-type DrawerNav = DrawerNavigationProp<Record<string, object | undefined>>;
-
-/** Top bar for note list screens: drawer toggle, title/search, layout toggle. */
 export function NotesHeader({ title, searchable = false }: NotesHeaderProps) {
-  const navigation = useNavigation<DrawerNav>();
-  const insets = useSafeAreaInsets();
-  const { colors } = useColorScheme();
   const { t } = useTranslation();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
-
-  const viewMode = useNotesUIStore((s) => s.viewMode);
-  const toggleViewMode = useNotesUIStore((s) => s.toggleViewMode);
-  const searchQuery = useNotesUIStore((s) => s.searchQuery);
-  const setSearchQuery = useNotesUIStore((s) => s.setSearchQuery);
-
-  const LayoutIcon = viewMode === "grid" ? Rows3 : LayoutGrid;
-  const nextMode: ViewMode = viewMode === "grid" ? "list" : "grid";
+  const viewMode = useNotesUIStore((state) => state.viewMode);
+  const toggleViewMode = useNotesUIStore((state) => state.toggleViewMode);
+  const searchQuery = useNotesUIStore((state) => state.searchQuery);
+  const setSearchQuery = useNotesUIStore((state) => state.setSearchQuery);
 
   return (
-    <View
-      className="border-b border-border bg-background px-3"
-      style={{ paddingTop: insets.top }}
-    >
-      <View className="h-14 flex-row items-center gap-1">
-        {!isLargeScreen && (
-          <Pressable
-            onPress={() => navigation.toggleDrawer()}
-            accessibilityLabel="Open menu"
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-muted"
-          >
-            <Menu size={20} color={colors.foreground} />
-          </Pressable>
-        )}
-
-        {searchable ? (
-          // Bloom's Search rather than a hand-rolled field: it already carries
-          // the magnifier, the pill shape, the clear button, the search return
-          // key and the `search` accessibility role, and it follows the Bloom
-          // theme everywhere else in the ecosystem does. `label` is what Bloom
-          // renders as the placeholder.
-          <View className="ml-1 flex-1">
-            <Search
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              label={t("notes.searchPlaceholder")}
-              onClearText={() => setSearchQuery("")}
-            />
-          </View>
-        ) : (
-          <Text className="ml-1 flex-1 text-lg font-bold text-foreground">
-            {title}
-          </Text>
-        )}
-
-        <Pressable
+    <PageHeader
+      safeArea={false}
+      leading={<AppShellMenuButton />}
+      title={searchable ? (
+        <View style={{ width: "100%", maxWidth: 720 }}>
+          <Search
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            label={t("notes.searchPlaceholder")}
+            onClearText={() => setSearchQuery("")}
+          />
+        </View>
+      ) : title}
+      actions={
+        <Button
+          appearance="plain"
+          tone="neutral"
+          iconOnly
+          icon={viewMode === "grid" ? RiListView : RiLayoutGridLine}
           onPress={toggleViewMode}
-          accessibilityLabel={`Switch to ${nextMode} view`}
-          className="h-10 w-10 items-center justify-center rounded-full active:bg-muted"
-        >
-          <LayoutIcon size={20} color={colors.foreground} />
-        </Pressable>
-      </View>
-    </View>
+          accessibilityLabel={t(viewMode === "grid" ? "notes.listView" : "notes.gridView")}
+        />
+      }
+    />
   );
 }

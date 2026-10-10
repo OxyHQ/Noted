@@ -8,7 +8,7 @@
  * have no business overwriting each other's choice.
  */
 
-import { execute, executeTransaction, type Row } from '@/lib/db/client';
+import { execute, executeTransaction, getActiveViewerId, type Row } from '@/lib/db/client';
 import { useLiveQuery } from '@/lib/db/live-query';
 
 export const SETTING_KEYS = {
@@ -66,14 +66,18 @@ export function readSetting<T>(
   return isValid(value) ? value : fallback;
 }
 
-export async function writeSetting(key: string, value: unknown): Promise<void> {
+export async function writeSetting(
+  key: string,
+  value: unknown,
+  expectedViewerId: string | null = getActiveViewerId(),
+): Promise<void> {
   await executeTransaction([
     {
       sql: `INSERT INTO app_settings (key, value_json) VALUES (?, ?)
             ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`,
       params: [key, JSON.stringify(value)],
     },
-  ]);
+  ], expectedViewerId);
 }
 
 /**

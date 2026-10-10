@@ -1,12 +1,15 @@
 import { View, Pressable, ActivityIndicator } from "react-native";
 import { Check, Download, Trash2 } from "lucide-react-native";
 
-import { Text } from "@/components/ui/text";
-import { cn } from "@/lib/utils";
+import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
+import { Switch } from '@oxy.so/bloom/switch';
+import { SettingsCard, SettingsRow } from '@oxy.so/bloom/settings-modal';
 import { useTranslation } from "@/hooks/useTranslation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { hasDownloadableModels } from "@/lib/capture/support";
 import { DEFAULT_STT_MODEL, type SttModelId } from "@/lib/stt/models";
+import { selectSttModel } from "@/lib/stt/select-model";
 import { useSttModels, type ModelEntry } from "@/lib/stt/use-models";
 import { useLlmModel } from "@/lib/enhance/use-llm-model";
 import {
@@ -131,25 +134,11 @@ function LanguageRow() {
       </Text>
       <View className="flex-row gap-2">
         {LANGUAGES.map((language) => (
-          <Pressable
-            key={language}
-            onPress={() => void writeSetting(SETTING_KEYS.sttLanguage, language)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: language === selected }}
-            className={cn(
-              "rounded-full border px-4 py-2",
-              language === selected ? "border-primary bg-primary/10" : "border-border",
-            )}
-          >
-            <Text
-              className={cn(
-                "text-sm",
-                language === selected ? "text-primary" : "text-foreground",
-              )}
-            >
-              {t(`transcription.language.${language}`)}
-            </Text>
-          </Pressable>
+          <Button key={language} appearance="outline" size="sm"
+            pressed={language === selected}
+            onPress={() => void writeSetting(SETTING_KEYS.sttLanguage, language)}>
+            {t(`transcription.language.${language}`)}
+          </Button>
         ))}
       </View>
       <Text className="text-sm text-muted-foreground">
@@ -261,28 +250,12 @@ export function TranscriptionSection() {
         </Text>
       </View>
 
-      <Pressable
-        onPress={() => void writeSetting(SETTING_KEYS.liveNotes, !live)}
-        className="flex-row items-center justify-between rounded-2xl border border-border px-4 py-3"
-        accessibilityRole="switch"
-        accessibilityState={{ checked: live }}
-      >
-        <View className="flex-1 pr-3">
-          <Text className="text-base text-foreground">
-            {t("transcription.live.label")}
-          </Text>
-          <Text className="text-sm text-muted-foreground">
-            {t("transcription.live.note")}
-          </Text>
-        </View>
-        <View
-          className={`h-6 w-6 items-center justify-center rounded-full border ${
-            live ? "border-primary bg-primary" : "border-border"
-          }`}
-        >
-          {live ? <Text className="text-xs text-primary-foreground">✓</Text> : null}
-        </View>
-      </Pressable>
+      <SettingsCard>
+        <SettingsRow label={t('transcription.live.label')} description={t('transcription.live.note')}>
+          <Switch checked={live} accessibilityLabel={t('transcription.live.label')}
+            onCheckedChange={value => void writeSetting(SETTING_KEYS.liveNotes, value)} />
+        </SettingsRow>
+      </SettingsCard>
 
       <LanguageRow />
 
@@ -301,15 +274,10 @@ export function TranscriptionSection() {
               entry={entry}
               isSelected={entry.model.id === selected}
               onSelect={() => {
-                if (entry.state === "ready") {
-                  void writeSetting(SETTING_KEYS.sttModel, entry.model.id);
-                  return;
-                }
-                // Selecting a model it does not have yet is a request for it.
-                void download(entry.model.id).then(
-                  () => writeSetting(SETTING_KEYS.sttModel, entry.model.id),
-                  () => undefined,
-                );
+                // Both the download and selection belong to the initiating account.
+                void selectSttModel(entry.model.id, () => entry.state === "ready"
+                  ? Promise.resolve()
+                  : download(entry.model.id)).catch(() => undefined);
               }}
               onRemove={() => void remove(entry.model.id)}
             />

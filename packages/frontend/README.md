@@ -20,7 +20,7 @@ bun run android
 
 | path | what lives there |
 |---|---|
-| `app/` | the routes, file-based via expo-router — `(app)/` is the authenticated drawer, `n/[id]` is the note editor, presented as a transparent modal above it |
+| `app/` | the routes, file-based via expo-router — `(app)/` uses Bloom AppShell and a routed stack, `n/[id]` is the note editor, presented as a transparent modal above it |
 | `components/` | the UI, including `notes/` (cards, grid, editor chrome) and `capture/` (the recording indicator) |
 | `lib/db/` | the local-first SQLite store: schema, migrations, repositories, and the sync that reconciles it with the API |
 | `lib/capture/` | recording: which engine holds the microphone, and what happens to a recording when it stops |
@@ -36,8 +36,11 @@ must never use an `EXPO_PUBLIC_` variable.
 ## Things worth knowing before changing them
 
 - **The local database is the source of truth for reading.** Screens query SQLite through `lib/db/live-query`, never the API directly, and must not query before `useLocalStore()` reports ready — a query with no active account has no database file to open.
-- **One engine holds the microphone.** `CaptureEngineHost` mounts it once and publishes to the capture store; the indicator is drawn from that store in two places (inside the drawer's scenes and inside the note editor) because they are different layers of the app. A second engine would be a second microphone.
+- **One engine holds the microphone.** `CaptureEngineHost` mounts it once and publishes to the capture store; the indicator is drawn from that store in two places (inside the shell’s scenes and inside the note editor) because they are different layers of the app. A second engine would be a second microphone.
+- **Bloom owns shared controls and surfaces.** Editor actions use Bloom buttons, checklists use Checkbox, and note/composer chrome uses Card. Keep note tint and masonry measurements in the app; size the grid from its actual container. Use an animated layout wrapper around Card, with ordinary `style` values on Card, to preserve its geometry across web/native.
 - **Unit tests do not catch layout, hover or animation bugs.** Verify those in a real, foregrounded browser tab.
+- **App preferences use Bloom SettingsModal.** Open sections with `useNotedSettings().open(section?)` through the lazy `NotedSettingsProvider`. Legacy `/settings/*` links open the same dialog. Transcription settings mount only after the local store is ready.
+- **Stickers need their animation players.** Bloom's optional players must be direct frontend dependencies: `@lottiefiles/dotlottie-react` on web and `lottie-react-native` on native. `lib/lottieWeb.web.ts` configures the bundled `@lottiefiles/dotlottie-web` renderer before stickers mount; Metro already accepts `.wasm` assets. Missing players silently show still images in production. Validate an exported app in a foreground browser with reduced motion disabled: the renderer must load from the app's origin and the sticker's canvas frames must change. Reduced motion should keep the still image.
 
 `AGENTS.md` at the repository root carries the standards that apply to every change here.
 
@@ -59,3 +62,20 @@ commits its text.
 A browser storage failure offers recovery instructions without automatically
 clearing OPFS or deleting another account's data. A mismatched database owner is
 rejected rather than wiped. Attachment loading failures offer a retry action.
+
+## Settings ownership
+
+`NotedSettingsProvider` lives at the root, but loads Bloom's `SettingsModal` only
+when `useNotedSettings().open(section?)` is called. Settings own their controls;
+Bloom owns the navigation, responsive layout, scrolling, focus and dismissal.
+Account and language controls close settings before opening the Oxy-owned dialog.
+
+Existing `/settings` and `/settings/{general,storage,transcription,feedback}` links
+open the corresponding section over the notes route. They do not create a second
+settings sidebar or a separate settings screen. Appearance uses Bloom's preset
+catalogue names and gates; adding a Bloom preset must not require a Noted locale
+key before the settings dialog can open.
+
+Transcription controls mount inside `LocalStoreBoundary` only after the current
+account's SQLite store is ready. Signed-out users see the sign-in empty state;
+model downloads remain on the device, without an audio or transcript upload.
