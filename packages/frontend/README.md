@@ -72,10 +72,15 @@ move that navigation into imperative Dialog's post-exit `onClose`: a failed save
 would leave a hidden draft. Bloom owns the backdrop, Escape handling, focus and
 scroll lock. The root navigator retains the notes route behind the dialog using
 Expo Router's route descriptors; native retains its transparent-modal stack.
+The editor opts out of document scrolling: every ready-state wrapper, including
+`LocalStoreBoundary`, must keep Bloom's bounded flex height so the editor's
+`ScrollView` can overflow. Document-growth styles belong only to document routes.
 
 Verify document scrolling, sticky navigation and headers in a real browser,
-including small viewports. Open an editor after scrolling and return without
-losing the background position; check browser Back and direct note links.
+including small viewports. Read and edit a note longer than the dialog; verify
+its scroll offset advances and its final paragraph is reachable. Open an editor
+after scrolling and return without losing the background position; check browser
+Back and direct note links.
 Backdrop and Escape dismissal must keep an unsaved draft visible if storage
 fails, and restore scrolling after a successful save. Shared behavior missing
 from Bloom must be fixed and published upstream before updating the app.

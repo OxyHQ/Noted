@@ -23,7 +23,7 @@ export function LocalStoreBoundary({ children, fallbackHeader, documentScroll = 
   const { isAuthenticated } = useOxy();
   const { isReady, error, viewerId } = useLocalStoreState();
   const { t } = useTranslation();
-  if (isAuthenticated && isReady) return <View key={viewerId} style={Platform.OS === 'web' ? { flexGrow: 1 } : { flex: 1 }}>{children}</View>;
+  if (isAuthenticated && isReady) return <View key={viewerId} style={documentScroll && Platform.OS === 'web' ? { flexGrow: 1 } : { flex: 1 }}>{children}</View>;
   return <Screen documentScroll={documentScroll} header={fallbackHeader}>
     <View className="flex-1 justify-center">
     {!isAuthenticated ? <EmptyState sticker="welcome"
