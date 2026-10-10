@@ -13,6 +13,7 @@ import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
 import { LocalStoreProvider } from '@/components/local-store-provider';
 import { QueryProvider } from '@/lib/query-client';
+import { configureLottieWeb } from '@/lib/lottieWeb';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { KeyboardProvider } from '@/lib/keyboard';
@@ -26,6 +27,9 @@ import { handleLanguageError } from '@/lib/i18n/handleLanguageError';
 import 'react-native-reanimated';
 import '../global.css';
 import '@/lib/i18n';
+
+// Configure the bundled web renderer before any sticker mounts.
+configureLottieWeb();
 
 // The bare locale codes `OxyProvider` matches an account's language against —
 // derived from the catalogue's entries rather than duplicated, so a locale
