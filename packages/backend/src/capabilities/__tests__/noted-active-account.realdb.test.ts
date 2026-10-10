@@ -29,12 +29,14 @@ vi.mock('@oxy.so/mcp', async (importOriginal) => {
         ...transport,
         introspectToken: async () => {
           if (!authority.active) return null;
+          const externalMcp = options.catalog.externalMcp;
+          if (!externalMcp) throw new Error('the Noted catalog declares no external MCP resource');
           const now = Math.floor(Date.now() / 1000);
           return {
             iss: options.authorizationServer,
             sub: 'fixture-requester',
             aud: options.catalog.audience,
-            resource: options.catalog.externalMcp!.resource,
+            resource: externalMcp.resource,
             client_id: 'fixture-client',
             jti: 'fixture-token',
             iat: now,
@@ -126,17 +128,19 @@ beforeAll(async () => {
     .returning();
   labelB = insertedLabels[1];
   const service = createNotedMcpHttpService();
-  server = createServer((req, res) => {
+  const httpServer = createServer((req, res) => {
     void service.handleMcp(req, res);
   });
-  await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
-  origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  server = httpServer;
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  origin = `http://127.0.0.1:${(httpServer.address() as AddressInfo).port}`;
 }, 120_000);
 
 afterAll(async () => {
-  if (server)
+  const running = server;
+  if (running)
     await new Promise<void>((resolve, reject) =>
-      server!.close((error) => (error ? reject(error) : resolve())),
+      running.close((error) => (error ? reject(error) : resolve())),
     );
   await closePostgres();
   if (databaseUrl) await dropTestDatabase(databaseUrl);
@@ -145,14 +149,32 @@ afterAll(async () => {
   expect(unexpectedFetch).not.toHaveBeenCalled();
 });
 
+/** The slice of a JSON-RPC `tools/call` reply these tests read. */
+interface ToolCallBody {
+  result: {
+    isError?: boolean;
+    structuredContent: {
+      notes: { id: string }[];
+      labels: { id: string }[];
+      note: { id: string };
+    };
+  };
+}
+
+const MCP_HOST = (() => {
+  const externalMcp = NOTED_CAPABILITY_CATALOG.externalMcp;
+  if (!externalMcp) throw new Error('the Noted catalog declares no external MCP resource');
+  return new URL(externalMcp.resource).host;
+})();
+
 async function call(name: string, args: Record<string, unknown> = {}) {
-  return new Promise<{ status: number; body: any }>((resolve, reject) => {
+  return new Promise<{ status: number; body: ToolCallBody }>((resolve, reject) => {
     const req = request(
       `${origin}/mcp`,
       {
         method: 'POST',
         headers: {
-          host: new URL(NOTED_CAPABILITY_CATALOG.externalMcp!.resource).host,
+          host: MCP_HOST,
           authorization: 'Bearer fixture-token',
           'content-type': 'application/json',
           accept: 'application/json, text/event-stream',
