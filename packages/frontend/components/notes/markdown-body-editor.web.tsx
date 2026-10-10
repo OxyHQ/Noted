@@ -1,5 +1,6 @@
 import React from "react";
 import { TextInput, View } from "react-native";
+import { useTheme } from "@oxy.so/bloom/theme";
 import {
   EnrichedMarkdownText,
   type MarkdownStyle,
@@ -47,6 +48,7 @@ export function MarkdownBodyEditor({
   placeholder,
 }: MarkdownBodyEditorProps) {
   const { colors } = useColorScheme();
+  const linkColor = useTheme().colors.primarySubtleForeground;
   // The renderer gives every block its own light-mode defaults; setting the
   // container color cannot override them. Pair all text and filled surfaces
   // with Bloom tokens so opening a note reads like its editable field.
@@ -95,7 +97,7 @@ export function MarkdownBodyEditor({
         checkmarkColor: colors.primaryForeground,
         borderColor: colors.mutedForeground,
       },
-      link: { color: colors.primary },
+      link: { color: linkColor },
       strikethrough: { color: colors.mutedForeground },
       underline: { color: colors.foreground },
       thematicBreak: { color: colors.border },
@@ -107,7 +109,7 @@ export function MarkdownBodyEditor({
       },
       spoiler: { color: colors.mutedForeground },
     }),
-    [colors],
+    [colors, linkColor],
   );
   const [height, setHeight] = React.useState(MIN_BODY_HEIGHT);
   const [editing, setEditing] = React.useState(false);
