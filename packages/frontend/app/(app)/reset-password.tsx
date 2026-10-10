@@ -20,7 +20,7 @@ export default function ResetPasswordScreen() {
     if (!token) {
       setError(t('resetPassword.invalidToken'));
     }
-  }, [token]);
+  }, [token, t]);
 
   const handleResetPassword = async () => {
     setError('');

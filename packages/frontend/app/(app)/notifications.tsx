@@ -74,28 +74,27 @@ export default function NotificationsScreen() {
     if (!isAuthenticated) {
       router.replace('/(app)');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   useEffect(() => {
-    checkPermissions();
+    const checkPermissions = async () => {
+      if (Platform.OS === 'web') {
+        setPermissionStatus('unavailable');
+        setPushLoading(false);
+        return;
+      }
+      try {
+        const { status } = await ExpoNotifications.getPermissionsAsync();
+        setPermissionStatus(status);
+        setPushEnabled(status === 'granted');
+      } catch {
+        setPermissionStatus('unavailable');
+      } finally {
+        setPushLoading(false);
+      }
+    };
+    void checkPermissions();
   }, []);
-
-  const checkPermissions = async () => {
-    if (Platform.OS === 'web') {
-      setPermissionStatus('unavailable');
-      setPushLoading(false);
-      return;
-    }
-    try {
-      const { status } = await ExpoNotifications.getPermissionsAsync();
-      setPermissionStatus(status);
-      setPushEnabled(status === 'granted');
-    } catch {
-      setPermissionStatus('unavailable');
-    } finally {
-      setPushLoading(false);
-    }
-  };
 
   const handleTogglePush = async (value: boolean) => {
     if (Platform.OS === 'web') return;

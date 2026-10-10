@@ -190,7 +190,7 @@ export default function AuthorizeScreen() {
       setStatus('error');
       setMessage(errorMessage);
     }
-  }, [params, isOxyAuth, router, channel, app, appConfig.displayName]);
+  }, [params, isOxyAuth, router, channel, app, appConfig.displayName, t]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -219,12 +219,12 @@ export default function AuthorizeScreen() {
   }, [
     isAuthenticated,
     authLoading,
-    app,
     channel,
     params,
     router,
     handleChannelAuth,
     appConfig.isChannel,
+    t,
   ]);
 
   // Real-time socket subscription for Telegram token linking
@@ -248,7 +248,7 @@ export default function AuthorizeScreen() {
     return () => {
       socket.disconnect();
     };
-  }, [app, params.token]);
+  }, [app, params.token, t]);
 
   const handleCancel = () => {
     const { callback } = params;
