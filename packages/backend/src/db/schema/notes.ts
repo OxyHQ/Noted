@@ -67,12 +67,10 @@ export const notes = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     /**
-     * Full-text search over title and body, replacing Mongo's weighted text
-     * index. `simple` rather than a language configuration on purpose: Noted is
+     * Weighted full-text search over title and body. `simple` rather than a language configuration on purpose: Noted is
      * translated and a user's notes are not all in one language, so stemming
      * with the wrong dictionary would help one language and quietly hurt the
-     * rest. Weights keep the title's contribution above the body's, as the
-     * Mongo index's `{ title: 3, body: 1 }` did.
+     * rest. Weights keep the title's contribution above the body's.
      */
     searchVector: tsvector().generatedAlwaysAs(
       (): SQL =>

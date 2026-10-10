@@ -104,7 +104,10 @@ describe('supersedeRevisedDecisions', () => {
 });
 
 describe('closeAnsweredQuestions', () => {
-  const asked = [item('q1', '¿Eliminamos MongoDB?'), item('q2', '¿Quién firma el contrato?')];
+  const asked = [
+    item('q1', '¿Eliminamos el servidor antiguo?'),
+    item('q2', '¿Quién firma el contrato?'),
+  ];
 
   it('closes the one the recording went on to answer', () => {
     // A question raised in one window and settled in the next: the
@@ -129,7 +132,7 @@ describe('finalizeArtifact', () => {
   const live = artifact({
     stage: 'live',
     sections: [section('s', [item('n1', 'PostgreSQL será la única base de datos')])],
-    openQuestions: [item('q1', '¿Eliminamos MongoDB?')],
+    openQuestions: [item('q1', '¿Eliminamos el servidor antiguo?')],
   });
 
   it('settles the stage, whatever the fresh reading called itself', () => {
@@ -153,7 +156,7 @@ describe('finalizeArtifact', () => {
         sections: [
           section('s', [
             item('n1', 'PostgreSQL será la única base de datos'),
-            item('n2', 'La migración terminó y Mongo ya no se usa'),
+            item('n2', 'La migración terminó y el servidor antiguo ya no se usa'),
           ]),
         ],
         openQuestions: [],

@@ -31,7 +31,6 @@ bytes or a separate allowance.
   were deliberately not executed; this is not a native device build.
 - `bun run build:types` and frontend `tsc --noEmit` passed.
 - `bun run --filter @noted/frontend test`: 72 files, 849 tests passed.
-- `bun run validate:no-mongo`: source scan and 33 guard cases passed.
 - Eight added shared-storage regressions cover actual-limit preservation (free, bundle, larger individual),
   refreshed cancellation/expiry limits, unconfigured status, malformed responses,
   and delayed picker account/session/sign-out isolation. Metadata cache keys include account and session; pending private responses are rejected after switching.

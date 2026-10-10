@@ -51,7 +51,7 @@ export const DEFAULT_NEW_NOTE_COLOR: NoteColor = 'yellow';
  * their closest current hue, and anything unrecognised falls back to
  * `default`. This keeps the API tolerant of old data without a migration.
  *
- * Pure (no mongoose dependency), so it lives in the shared contract and is used
+ * Pure (no database dependency), so it lives in the shared contract and is used
  * by both the API serializers/routes and any client validation.
  */
 export function normalizeNoteColor(color: unknown): NoteColor {

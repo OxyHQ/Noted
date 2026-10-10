@@ -6,9 +6,9 @@
 > only hard rules, commands and pointers. **Budget: under 8 KB.**
 
 Noted is Oxy's local-first notes and meeting-capture app: Expo frontend,
-Express API and shared DTOs. This repository was forked from Clarity; a Clarity,
-retired hosting or MongoDB reference is a leftover unless a document explicitly
-marks it as migration history.
+Express API and shared DTOs. This repository was forked from Clarity; a Clarity
+or retired hosting reference is a leftover unless a document explicitly marks it
+as migration history.
 
 ## Commands
 
@@ -20,7 +20,6 @@ bun run dev:backend
 bun run lint            # Biome (lint + format check); bun run lint:fix to apply
 bun run build
 bun run --filter @noted/backend test
-bun run validate:no-mongo
 bun run db:migrate --target-database=noted_dev
 ```
 
@@ -28,9 +27,8 @@ Use Bun only. Package order is `shared-types` before frontend/backend.
 
 ## Hard boundaries
 
-- The backend is PostgreSQL/Drizzle only. Never add MongoDB, Mongoose, a dual
-  store or a fallback store. `bun run validate:no-mongo` is a reintroduction
-  gate, not a migration checklist.
+- The backend is PostgreSQL/Drizzle only. Never add a second database, a dual
+  store or a fallback store.
 - Every generated PostgreSQL migration needs an
   `-- oxy:deploy-phase=pre|post` marker. Production uses `db:migrate`; do not
   bypass its exact-target and phase checks with `drizzle-kit migrate`.

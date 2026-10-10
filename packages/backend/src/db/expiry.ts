@@ -1,15 +1,13 @@
 /**
- * The expiry registry — Noted's replacement for Mongo's TTL indexes.
+ * The expiry registry — Noted's time-based row deletion.
  *
- * Postgres has no TTL index. Every collection that carried `expireAfterSeconds`
- * before the port needs an entry here, or its table grows forever with no error,
- * no failing test and no symptom of any kind until the disk fills. It is the
- * quietest failure in a Mongo-to-Postgres port precisely because the thing doing
- * the work was never in this codebase to be missed.
+ * Postgres has no TTL index. Every table whose rows should expire needs an
+ * entry here, or it grows forever with no error, no failing test and no
+ * symptom of any kind until the disk fills. A deadline that only exists in the
+ * schema deletes nothing.
  *
- * Both entries below were TTL indexes on the Mongo models they replace. Each was
- * checked for INTENT rather than replicated blindly: deleting really is what
- * should happen to both, and neither table holds unprocessed work that a stalled
+ * Each entry is registered for its INTENT: deleting really is what should
+ * happen to it, and no registered table holds unprocessed work that a stalled
  * consumer would lose to the sweep.
  *
  * Scheduling lives with the reminder scheduler in `lib/reminders.ts`, which is
@@ -64,9 +62,8 @@ const TARGETS: readonly ExpirySweepTarget[] = [
       'Notification the user dismissed. Only dismissed ones expire, which is why ' +
       'the column is `dismissedAt` and not `createdAt`: a sweep target has no ' +
       'predicate, and a NULL never matches `column <= now() - retention`, so the ' +
-      'nullable column IS the filter. Registering `createdAt` — the column Mongo ' +
-      'TTL-indexed, with a partial filter it could express and this cannot — ' +
-      'would delete every notification past the retention, dismissed or not.',
+      'nullable column IS the filter. Registering `createdAt` would delete every ' +
+      'notification past the retention, dismissed or not.',
   },
   {
     table: capabilityExecutions,

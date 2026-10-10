@@ -58,10 +58,8 @@ export const notifications = pgTable(
      *
      * A column rather than a predicate because the sweep registry has no
      * predicate: it deletes where `column <= now() - retention`, and a NULL
-     * never matches. Mongo expressed the same rule as a TTL index on
-     * `createdAt` with `partialFilterExpression: { status: 'dismissed' }`;
-     * registering `createdAt` here instead would delete EVERY notification past
-     * the retention, dismissed or not.
+     * never matches. Registering `createdAt` instead would delete EVERY
+     * notification past the retention, dismissed or not.
      *
      * Kept in step with `status` by the dismiss route — the only place that
      * writes `status = 'dismissed'`.
