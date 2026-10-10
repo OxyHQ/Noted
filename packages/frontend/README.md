@@ -52,7 +52,10 @@ The web shell uses `AppShell` with `scroll="document"`; the browser document is
 the page's only scroller. Its routes render through Expo Router's unstyled
 navigation APIs. Do not put a viewport-bound Stack, `ScrollViewStyleReset`,
 overflow-hidden wrapper or wheel forwarding layer around the web shell.
-Native keeps its stack and uses bounded screen scrolling.
+Native keeps its stack and uses bounded screen scrolling. The plain sidebar uses
+`navigationAlign="content"`: Bloom keeps the desktop panel gutter and removes the
+outer frame when navigation moves into the compact drawer. Do not add window
+breakpoint padding around that shell.
 
 Expo's single-page export reads `public/index.html`; `app/+html.tsx` does not
 configure that output. Keep the document-growth reset and page metadata in the
