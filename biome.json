@@ -57,6 +57,7 @@
       }
     }
   },
+  "plugins": ["./biome-plugins/no-unexpected-multiline.grit"],
   "linter": {
     "enabled": true,
     "rules": {

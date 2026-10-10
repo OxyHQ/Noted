@@ -77,6 +77,15 @@ intentionally correct, suppress the one line with
 GritQL plugin in `biome-plugins/expo-env-vars.grit`, scoped to
 `packages/frontend`.
 
+Four ESLint core rules went with ESLint. `no-delete-var` and `no-octal` are
+syntax errors to Biome's parser (every file is parsed as strict-mode module
+code), and octal escapes are Biome's `noOctalEscape`. `no-invalid-regexp` is
+covered by `tsc` for literals (`bun run typecheck`), and Biome's
+`useRegexLiterals` turns a constant `new RegExp('…')` into one. Biome has no
+`no-unexpected-multiline`, so `biome-plugins/no-unexpected-multiline.grit`
+reports a `(`, `` ` `` or `[` that starts a line and continues a bare name on
+the line above.
+
 ## Conventions
 
 Architecture and product contracts, including the reason Noted deliberately
