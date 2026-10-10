@@ -34,6 +34,7 @@ type Message =
 interface Pending {
   request: Request;
   sent: boolean;
+  ownerRetries: number;
   resolve: (result: DatabaseResult) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -51,13 +52,13 @@ interface BrokerOptions {
 const accountChanged = () => new Error('The active account changed before this write could be saved');
 const ownerChanged = () => new Error('The local notes connection changed before the operation was confirmed. Reopen the note to check it before retrying.');
 
-function needsDeduplication(operation: DatabaseOperation): boolean {
-  if (operation.type === 'transaction') return true;
+function isStandaloneRead(operation: DatabaseOperation): boolean {
+  if (operation.type === 'transaction') return false;
   // Ordinary live SELECTs can return entire notebooks. Do not retain hundreds
   // of those snapshots just to deduplicate harmless duplicate reads. Treat
   // unfamiliar or compound SQL conservatively rather than guessing it is safe.
   const sql = operation.sql.trim().replace(/;$/, '');
-  return !/^SELECT\b/i.test(sql) || sql.includes(';') || writtenTables(sql).size > 0;
+  return /^SELECT\b/i.test(sql) && !sql.includes(';') && writtenTables(sql).size === 0;
 }
 
 /** All tabs, including the owner, enter the same viewer-scoped dispatcher. */
@@ -102,7 +103,15 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
   function acceptLeader(term: Term) {
     const changed = leader?.epoch !== term.epoch;
     if (changed && leader) {
-      for (const [key, item] of pending) if (item.sent) rejectPending(key, ownerChanged());
+      for (const [key, item] of pending) if (item.sent) {
+        // A startup SELECT may have no mounted subscription to refresh it.
+        // Retry once on confirmed owner change, within its original deadline.
+        // Writes remain uncertain and are never replayed.
+        if (item.ownerRetries === 0 && isStandaloneRead(item.request.operation)) {
+          item.sent = false;
+          item.ownerRetries++;
+        } else rejectPending(key, ownerChanged());
+      }
     }
     leader = term;
     if (changed && current.viewer) onInvalidate(current.viewer, null);
@@ -131,7 +140,7 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
     if (!term) return;
     if (request.epoch !== term.epoch) { emit({ kind: 'leader', term }); return; }
     rememberSession(request.client, request);
-    const deduplicate = needsDeduplication(request.operation);
+    const deduplicate = !isStandaloneRead(request.operation);
     const execute = async () => {
       if (stopped) return;
       const cached = completed.get(`${request.client}:${request.request}`);
@@ -231,7 +240,7 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
         pending.set(request, { request: {
           kind: 'request', client: id, request, viewer, generation, operation,
           deadline: now() + timeoutMs, epoch: '',
-        }, sent: false, resolve, reject, timer });
+        }, sent: false, ownerRetries: 0, resolve, reject, timer });
       });
       discover();
       sendPending();

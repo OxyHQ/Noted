@@ -159,6 +159,43 @@ it('never replays an unconfirmed committed write after owner death and refreshes
   expect(committed).toBe(1);
 });
 
+it('retries an in-flight startup SELECT once when its owner disappears', async () => {
+  const browser = platform();
+  const oldReply = deferred<DatabaseResult>();
+  const oldDispatch = vi.fn(async () => oldReply.promise);
+  const old = makeBroker('old', browser, oldDispatch);
+  const nextDispatch = vi.fn(async () => [{ title: 'Current owner' }]);
+  const next = makeBroker('next', browser, nextDispatch);
+  old.broker.setSession('alice', 1); next.broker.setSession('alice', 1);
+  const pending = next.broker.call('alice', 1, read);
+  await vi.waitFor(() => expect(oldDispatch).toHaveBeenCalledOnce());
+  old.broker.disconnect(); browser.destroyDocument('old');
+  await expect(pending).resolves.toEqual([{ title: 'Current owner' }]);
+  expect(nextDispatch).toHaveBeenCalledExactlyOnceWith('alice', read);
+  oldReply.resolve([{ title: 'Stale owner' }]);
+});
+
+it('bounds a read retry to one owner change', async () => {
+  const browser = platform();
+  const oldReply = deferred<DatabaseResult>(), nextReply = deferred<DatabaseResult>();
+  const oldDispatch = vi.fn(async () => oldReply.promise);
+  const nextDispatch = vi.fn(async () => nextReply.promise);
+  const lastDispatch = vi.fn(async () => []);
+  const old = makeBroker('old', browser, oldDispatch);
+  const next = makeBroker('next', browser, nextDispatch);
+  const last = makeBroker('last', browser, lastDispatch);
+  for (const tab of [old, next, last]) tab.broker.setSession('alice', 1);
+  const pending = last.broker.call('alice', 1, read);
+  const rejected = expect(pending).rejects.toThrow('before the operation was confirmed');
+  await vi.waitFor(() => expect(oldDispatch).toHaveBeenCalledOnce());
+  old.broker.disconnect(); browser.destroyDocument('old');
+  await vi.waitFor(() => expect(nextDispatch).toHaveBeenCalledOnce());
+  next.broker.disconnect(); browser.destroyDocument('next');
+  await rejected;
+  expect(lastDispatch).not.toHaveBeenCalled();
+  oldReply.resolve([]); nextReply.resolve([]);
+});
+
 it('preserves exact guarded-rollback errors and publishes no committed invalidation', async () => {
   const browser = platform();
   const failure = 'transaction statement 0 affected 0 rows; expected 1';
