@@ -1,7 +1,11 @@
 import type { OxyServices } from '@oxy.so/core';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-type Query = { params?: Record<string, string | number | boolean | null | undefined> };
+type Query = {
+  params?: Record<string, string | number | boolean | null | undefined>;
+  /** Reject/abort if a queued account-owned operation outlives its session. */
+  expectedViewerId?: string;
+};
 
 /** Keep Noted's complete JSON bodies, including sync tombstones and serverTime. */
 export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs = 10_000) {
@@ -15,6 +19,16 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
     const suffix = params.toString();
     const url = suffix ? `${path}${path.includes('?') ? '&' : '?'}${suffix}` : path;
     const controller = new AbortController();
+    const expectedViewerId = query?.expectedViewerId;
+    const assertAccount = () => {
+      if (expectedViewerId !== undefined && oxy.session.userId !== expectedViewerId) {
+        throw new Error('The active account changed before this request completed');
+      }
+    };
+    assertAccount();
+    const unsubscribe = expectedViewerId === undefined ? undefined : oxy.session.onChange(() => {
+      if (oxy.session.userId !== expectedViewerId) controller.abort();
+    });
     // One deadline covers headers, response body and the SDK's bounded 401 retry.
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -26,6 +40,7 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
         signal: controller.signal,
       });
       const text = await response.text();
+      assertAccount();
       let data: unknown = null;
       if (text) {
         try { data = JSON.parse(text); } catch {
@@ -43,15 +58,17 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
       return { data: data as T };
     } finally {
       clearTimeout(timer);
+      unsubscribe?.();
     }
   }
 
   return {
     get: <T = unknown>(path: string, query?: Query) => request<T>('GET', path, undefined, query),
-    post: <T = unknown>(path: string, body?: unknown) => request<T>('POST', path, body),
-    put: <T = unknown>(path: string, body?: unknown) => request<T>('PUT', path, body),
-    patch: <T = unknown>(path: string, body?: unknown) => request<T>('PATCH', path, body),
-    delete: <T = unknown>(path: string) => request<T>('DELETE', path),
+    post: <T = unknown>(path: string, body?: unknown, query?: Query) => request<T>('POST', path, body, query),
+    put: <T = unknown>(path: string, body?: unknown, query?: Query) => request<T>('PUT', path, body, query),
+    patch: <T = unknown>(path: string, body?: unknown, query?: Query) => request<T>('PATCH', path, body, query),
+    delete: <T = unknown>(path: string, query?: Query) => request<T>('DELETE', path, undefined, query),
+    isAccountActive: (viewerId: string) => oxy.session.userId === viewerId,
     dispose: linked.dispose,
   };
 }

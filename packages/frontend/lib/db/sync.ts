@@ -18,6 +18,7 @@ import { API_ROUTES } from '@/lib/api/routes';
 import {
   execute,
   executeTransaction,
+  getActiveViewerId,
   isDbAvailable,
   type Row,
   type Statement,
@@ -39,6 +40,14 @@ import {
 const logger = createLogger('NotedSync');
 
 const CURSOR_KEY = 'notes_cursor';
+
+function isCurrentViewer(viewerId: string): boolean {
+  return getActiveViewerId() === viewerId && apiClient.isAccountActive(viewerId);
+}
+
+function assertCurrentViewer(viewerId: string): void {
+  if (!isCurrentViewer(viewerId)) throw new Error('The active account changed during sync');
+}
 
 /** Where a failure happened, so a log line says which half of syncing broke. */
 export type SyncStage = 'push' | 'pull' | 'persist';
@@ -179,19 +188,20 @@ function conflictCopyStatements(note: Note, copyId: string, now: string): Statem
   ];
 }
 
-async function readCursor(): Promise<string | null> {
+async function readCursor(viewerId: string): Promise<string | null> {
   const rows = await execute<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [
     CURSOR_KEY,
-  ]);
+  ], viewerId);
   return rows[0]?.value ?? null;
 }
 
-async function readLocalStates(ids: readonly string[]): Promise<Map<string, LocalNoteState>> {
+async function readLocalStates(ids: readonly string[], viewerId: string): Promise<Map<string, LocalNoteState>> {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(', ');
   const rows = await execute<LocalStateRow>(
     `SELECT id, updated_at, server_updated_at, dirty FROM notes WHERE id IN (${placeholders})`,
     ids,
+    viewerId,
   );
   return new Map(
     rows.map((row) => [
@@ -207,16 +217,20 @@ async function readLocalStates(ids: readonly string[]): Promise<Map<string, Loca
  * `makeConflictId` mints the id for a conflict copy; it is a parameter so the
  * caller owns id generation (and tests can make it deterministic).
  */
-export async function pullNotes(makeConflictId: () => string): Promise<{ applied: number; conflicts: number }> {
-  if (!isDbAvailable()) return { applied: 0, conflicts: 0 };
+export async function pullNotes(makeConflictId: () => string, viewerId = getActiveViewerId()): Promise<{ applied: number; conflicts: number }> {
+  if (!viewerId || !isDbAvailable()) return { applied: 0, conflicts: 0 };
+  assertCurrentViewer(viewerId);
 
-  const cursor = await readCursor();
+  const cursor = await readCursor(viewerId);
+  assertCurrentViewer(viewerId);
   const response = await apiClient.get<SyncResponse>(API_ROUTES.notes.sync, {
     params: cursor ? { since: cursor } : {},
+    expectedViewerId: viewerId,
   });
+  assertCurrentViewer(viewerId);
   const { data, deleted, serverTime } = response.data;
 
-  const states = await readLocalStates(data.map((note) => note.id));
+  const states = await readLocalStates(data.map((note) => note.id), viewerId);
   const statements: Statement[] = [];
   const now = nowIso();
   let applied = 0;
@@ -252,7 +266,7 @@ export async function pullNotes(makeConflictId: () => string): Promise<{ applied
     params: [CURSOR_KEY, serverTime],
   });
 
-  await executeTransaction(statements);
+  await executeTransaction(statements, viewerId);
   if (applied > 0 || conflicts > 0 || deleted.length > 0) {
     logger.info('Pulled changes', { applied, conflicts, deleted: deleted.length });
   }
@@ -302,10 +316,10 @@ function parseArray(value: string): unknown[] {
  * somebody is still talking, and uploading it would be a request per slice
  * describing a recording that has not finished.
  */
-async function notePayloadWithGenerated(row: PushableNoteRow): Promise<Record<string, unknown>> {
+async function notePayloadWithGenerated(row: PushableNoteRow, viewerId: string): Promise<Record<string, unknown>> {
   const [artifacts, overrides] = await Promise.all([
-    listFinalArtifacts(row.id),
-    getNoteOverrides(row.id),
+    listFinalArtifacts(row.id, viewerId),
+    getNoteOverrides(row.id, viewerId),
   ]);
   return { ...notePayload(row), artifacts, itemOverrides: overrides };
 }
@@ -337,27 +351,19 @@ SELECT notes.id, notes.title, notes.body, notes.checklist_json, notes.color,
 FROM notes WHERE notes.id = ?
 `;
 
-async function pushNote(entityId: string): Promise<void> {
-  const row = (await execute<PushableNoteRow>(PUSHABLE_NOTE_SQL, [entityId]))[0];
+async function pushNote(entityId: string, viewerId: string): Promise<void> {
+  const row = (await execute<PushableNoteRow>(PUSHABLE_NOTE_SQL, [entityId], viewerId))[0];
   if (!row) return;
 
   // A note the server has never confirmed is created with the id it already has
   // locally; POST is idempotent on that id, so a retry after a lost response
   // returns the existing note instead of duplicating it.
-  const note =
-    row.server_updated_at === null
-      ? (
-          await apiClient.post<Note>(API_ROUTES.notes.create, {
-            id: row.id,
-            ...(await notePayloadWithGenerated(row)),
-          })
-        ).data
-      : (
-          await apiClient.patch<Note>(
-            API_ROUTES.notes.update(row.id),
-            await notePayloadWithGenerated(row),
-          )
-        ).data;
+  const payload = await notePayloadWithGenerated(row, viewerId);
+  assertCurrentViewer(viewerId);
+  const options = { expectedViewerId: viewerId };
+  const note = row.server_updated_at === null
+    ? (await apiClient.post<Note>(API_ROUTES.notes.create, { id: row.id, ...payload }, options)).data
+    : (await apiClient.patch<Note>(API_ROUTES.notes.update(row.id), payload, options)).data;
 
   await executeTransaction([
     // We now know which server version this note agrees with, whatever else has
@@ -374,17 +380,18 @@ async function pushNote(entityId: string): Promise<void> {
       sql: 'UPDATE notes SET dirty = 0 WHERE id = ? AND updated_at = ?',
       params: [row.id, row.updated_at],
     },
-  ]);
+  ], viewerId);
 }
 
-async function pushDeletion(entityId: string): Promise<void> {
+async function pushDeletion(entityId: string, viewerId: string): Promise<void> {
+  assertCurrentViewer(viewerId);
   try {
-    await apiClient.delete(API_ROUTES.notes.delete(entityId));
+    await apiClient.delete(API_ROUTES.notes.delete(entityId), { expectedViewerId: viewerId });
   } catch (error) {
     // Already gone server-side is the outcome this entry wanted.
     if (!isNotFound(error)) throw error;
   }
-  await executeTransaction([{ sql: 'DELETE FROM notes WHERE id = ?', params: [entityId] }]);
+  await executeTransaction([{ sql: 'DELETE FROM notes WHERE id = ?', params: [entityId] }], viewerId);
 }
 
 function isNotFound(error: unknown): boolean {
@@ -402,24 +409,27 @@ function isNotFound(error: unknown): boolean {
  * same note in flight together could land out of order and make the older body
  * win.
  */
-export async function flushOutbox(): Promise<{ sent: number; failed: number }> {
-  if (!isDbAvailable()) return { sent: 0, failed: 0 };
+export async function flushOutbox(viewerId = getActiveViewerId()): Promise<{ sent: number; failed: number }> {
+  if (!viewerId || !isDbAvailable()) return { sent: 0, failed: 0 };
+  assertCurrentViewer(viewerId);
 
   const ready = await execute<OutboxRow>(
     `SELECT id, entity, entity_id, op, attempts FROM outbox
      WHERE next_attempt_at <= ? AND attempts < ?
      ORDER BY id ASC LIMIT 200`,
     [nowIso(), OUTBOX_MAX_ATTEMPTS],
+    viewerId,
   );
 
   let sent = 0;
   let failed = 0;
   for (const entry of ready) {
+    assertCurrentViewer(viewerId);
     try {
       if (entry.op === 'delete') {
-        await pushDeletion(entry.entity_id);
+        await pushDeletion(entry.entity_id, viewerId);
       } else {
-        await pushNote(entry.entity_id);
+        await pushNote(entry.entity_id, viewerId);
       }
       // Retire the entry only if the note is settled. An edit that landed while
       // the request was in flight left this same row in place (there is one row
@@ -432,9 +442,10 @@ export async function flushOutbox(): Promise<{ sent: number; failed: number }> {
                 )`,
           params: [entry.id],
         },
-      ]);
+      ], viewerId);
       sent += 1;
     } catch (error) {
+      assertCurrentViewer(viewerId);
       const attempts = entry.attempts + 1;
       const nextAttemptAt = new Date(Date.now() + outboxRetryDelayMs(attempts)).toISOString();
       await executeTransaction([
@@ -442,7 +453,7 @@ export async function flushOutbox(): Promise<{ sent: number; failed: number }> {
           sql: 'UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?',
           params: [attempts, errorMessage(error), nextAttemptAt, entry.id],
         },
-      ]);
+      ], viewerId);
       failed += 1;
       logger.warn('Outbox entry failed', {
         stage: 'push' satisfies SyncStage,
@@ -462,10 +473,12 @@ export async function flushOutbox(): Promise<{ sent: number; failed: number }> {
  * labels, and the server's list is the only way to learn that one was deleted
  * elsewhere (labels carry no tombstone).
  */
-export async function pullLabels(): Promise<void> {
-  if (!isDbAvailable()) return;
-  const response = await apiClient.get<{ data: Label[] }>(API_ROUTES.labels.list);
-  await saveLabels(response.data.data);
+export async function pullLabels(viewerId = getActiveViewerId()): Promise<void> {
+  if (!viewerId || !isDbAvailable()) return;
+  assertCurrentViewer(viewerId);
+  const response = await apiClient.get<{ data: Label[] }>(API_ROUTES.labels.list, { expectedViewerId: viewerId });
+  assertCurrentViewer(viewerId);
+  await saveLabels(response.data.data, viewerId);
 }
 
 /**
@@ -476,20 +489,26 @@ export async function pullLabels(): Promise<void> {
  * failing pull must not stop the outbox from draining on the next attempt, and
  * labels failing must not cost the notes their sync.
  */
-async function runSyncCycle(makeConflictId: () => string): Promise<void> {
+async function runSyncCycle(makeConflictId: () => string, viewerId: string): Promise<void> {
+  if (!isCurrentViewer(viewerId)) return;
   try {
-    await flushOutbox();
+    await flushOutbox(viewerId);
   } catch (error) {
+    if (!isCurrentViewer(viewerId)) return;
     logger.error('Push failed', { stage: 'push' satisfies SyncStage, error: errorMessage(error) });
   }
+  if (!isCurrentViewer(viewerId)) return;
   try {
-    await pullNotes(makeConflictId);
+    await pullNotes(makeConflictId, viewerId);
   } catch (error) {
+    if (!isCurrentViewer(viewerId)) return;
     logger.error('Pull failed', { stage: 'pull' satisfies SyncStage, error: errorMessage(error) });
   }
+  if (!isCurrentViewer(viewerId)) return;
   try {
-    await pullLabels();
+    await pullLabels(viewerId);
   } catch (error) {
+    if (!isCurrentViewer(viewerId)) return;
     logger.error('Label pull failed', {
       stage: 'pull' satisfies SyncStage,
       error: errorMessage(error),
@@ -531,7 +550,8 @@ export function syncNotes(makeConflictId: () => string): Promise<void> {
       // Cleared before the cycle, not after: a request that arrives while this
       // one runs must survive into the next iteration.
       rerunRequested = false;
-      await runSyncCycle(makeConflictId);
+      const viewerId = getActiveViewerId();
+      if (viewerId) await runSyncCycle(makeConflictId, viewerId);
     } while (rerunRequested);
   })().finally(() => {
     inFlight = null;

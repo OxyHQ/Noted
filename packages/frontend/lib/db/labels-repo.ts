@@ -13,7 +13,7 @@
  * tracking a cursor per row.
  */
 
-import { executeTransaction, type Statement } from '@/lib/db/client';
+import { executeTransaction, getActiveViewerId, type Statement } from '@/lib/db/client';
 import { normalizeNoteColor, type Label } from '@noted/shared-types';
 import type { Row } from '@/lib/db/client';
 
@@ -54,6 +54,6 @@ export function replaceLabels(labels: readonly Label[], now: string): Statement[
 }
 
 /** Apply a fresh label list. */
-export function saveLabels(labels: readonly Label[]): Promise<number[]> {
-  return executeTransaction(replaceLabels(labels, new Date().toISOString()));
+export function saveLabels(labels: readonly Label[], expectedViewerId = getActiveViewerId()): Promise<number[]> {
+  return executeTransaction(replaceLabels(labels, new Date().toISOString()), expectedViewerId);
 }

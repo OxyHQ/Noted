@@ -97,7 +97,7 @@ describe('Noted domain requests through the linked SDK', () => {
       let refreshes = 0;
       oxy.http.setAuthRefreshHandler(async () => { refreshes += 1; return jwt('A', 'renewed'); });
       const before = requests.length;
-      expect(await client.post('/refresh', { id: 'note-B' })).toEqual({ data: envelope });
+      expect(await client.post('/refresh', { id: 'note-B' }, { expectedViewerId: 'A' })).toEqual({ data: envelope });
       expect(refreshes).toBe(1);
       expect(requests.slice(before).map(({ body }) => body)).toEqual(['{"id":"note-B"}', '{"id":"note-B"}']);
       expect(requests.at(-1)?.bearer).toBe(`Bearer ${jwt('A', 'renewed')}`);
@@ -155,4 +155,35 @@ it.each(['preflight', 'response-401'] as const)('enforces the Noted deadline whi
     await outcome;
     expect(requests).toHaveLength(before + (phase === 'preflight' ? 0 : 1));
   } finally { clearTimeout(timer); release(); client.dispose(); }
+});
+
+it('rejects an old-account operation before sending under a different bearer', async () => {
+  const { oxy, client } = fixture();
+  try {
+    oxy.session.setAccessToken(jwt('B'));
+    const before = requests.length;
+    await expect(client.post('/notes', { title: 'Alice private note' }, { expectedViewerId: 'A' })).rejects.toThrow('active account changed');
+    expect(requests).toHaveLength(before);
+  } finally { client.dispose(); }
+});
+
+it.each(['preflight', 'response-401'] as const)('aborts old-account work during %s instead of sending it as the next account', async phase => {
+  const { oxy, client } = fixture();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let entered!: () => void;
+  const ready = new Promise<void>(resolve => { entered = resolve; });
+  try {
+    oxy.session.setAccessToken(phase === 'preflight' ? jwt('A', 'initial', Math.floor(Date.now() / 1000) + 10) : jwt('A'));
+    oxy.http.setAuthRefreshHandler(async () => { entered(); await gate; return jwt('B', 'renewed'); });
+    const before = requests.length;
+    const outcome = client.post('/refresh', { title: 'Alice private note' }, { expectedViewerId: 'A' }).catch(error => error);
+    await ready;
+    oxy.session.setAccessToken(jwt('B'));
+    release();
+    const error = await outcome;
+    expect(error).toBeInstanceOf(Error);
+    expect(requests.slice(before)).toHaveLength(phase === 'preflight' ? 0 : 1);
+    expect(requests.slice(before).every(request => request.bearer === `Bearer ${jwt('A')}`)).toBe(true);
+  } finally { release(); client.dispose(); }
 });
