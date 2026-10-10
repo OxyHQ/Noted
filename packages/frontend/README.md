@@ -75,6 +75,8 @@ Expo Router's route descriptors; native retains its transparent-modal stack.
 The editor opts out of document scrolling: every ready-state wrapper, including
 `LocalStoreBoundary`, must keep Bloom's bounded flex height so the editor's
 `ScrollView` can overflow. Document-growth styles belong only to document routes.
+Its toolbar and recording controls occupy normal flow below the scroller; the
+content needs ordinary spacing, not extra clearance for a floating footer.
 
 Verify document scrolling, sticky navigation and headers in a real browser,
 including small viewports. Read and edit a note longer than the dialog; verify

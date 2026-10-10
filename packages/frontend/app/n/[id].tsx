@@ -663,7 +663,7 @@ function NoteEditor() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="px-4 pb-32 pt-1"
+        contentContainerClassName="px-4 pb-4 pt-1"
         keyboardShouldPersistTaps="handled"
         style={
           isLargeScreen && !isWebModal
