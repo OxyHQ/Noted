@@ -70,8 +70,9 @@ fixes and formatting, `bun run format` only formats. Every rule runs at its
 recommended severity or stricter and CI fails on any warning; where code is
 intentionally correct, suppress the one line with
 `// biome-ignore lint/<group>/<rule>: <reason>`. The Expo app's
-`EXPO_PUBLIC_*` guards (no destructuring of `process.env`, no computed
-`process.env[...]` reads, both of which Metro silently fails to inline) are a
+`EXPO_PUBLIC_*` guards (no destructuring of `process.env` or of `env` out of
+`process`, whether declared, assigned or as a parameter default, and no computed
+`process.env[...]` reads, all of which Metro silently fails to inline) are a
 GritQL plugin in `biome-plugins/expo-env-vars.grit`, scoped to
 `packages/frontend`.
 
