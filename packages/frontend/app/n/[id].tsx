@@ -1,5 +1,8 @@
 import { scopedAttachmentSelection } from "@/lib/shared-storage";
 import React from "react";
+import { LocalStoreBoundary } from "@/components/local-store-boundary";
+import { EmptyState } from "@/components/empty-state";
+import { NoteSaveQueue } from "@/lib/notes/save-queue";
 import {
   View,
   ScrollView,
@@ -16,6 +19,7 @@ import Animated, {
   FadeOutDown,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePreventRemove } from "@react-navigation/native";
 
 import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
@@ -94,6 +98,10 @@ function presetDate(preset: ReminderPreset): Date {
 const logger = createLogger("NotedNotes");
 
 export default function NoteEditorScreen() {
+  return <LocalStoreBoundary><NoteEditor /></LocalStoreBoundary>;
+}
+
+function NoteEditor() {
   const params = useLocalSearchParams<{ id: string; mode?: string }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -109,7 +117,7 @@ export default function NoteEditorScreen() {
   const isNew = params.id === "new";
   const startInChecklist = params.mode === "checklist";
 
-  const { data: fetchedNote, isLoading } = useNote(isNew ? undefined : params.id);
+  const { data: fetchedNote, isLoading, error: loadError } = useNote(isNew ? undefined : params.id);
   const { data: labels } = useLabels();
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
@@ -119,7 +127,11 @@ export default function NoteEditorScreen() {
   // The note id we PATCH against. Starts null for `n/new` until the first save
   // creates a server note; thereafter all edits PATCH this id.
   const noteIdRef = React.useRef<string | null>(isNew ? null : params.id);
-  const creatingRef = React.useRef(false);
+  const allowLeaveRef = React.useRef(false);
+  const leavingRef = React.useRef(false);
+  const saveVersion = React.useRef(0);
+  const editVersion = React.useRef(0);
+  const [saveState, setSaveState] = React.useState<"saved" | "unsaved" | "saving" | "error">("saved");
 
   // The draft the fields render from. A text input cannot be re-rendered from
   // the database on every keystroke and still keep a caret, so the editor holds
@@ -137,6 +149,7 @@ export default function NoteEditorScreen() {
   const [showReminders, setShowReminders] = React.useState(false);
 
   const setDraft = React.useCallback((next: LocalNote) => {
+    editVersion.current++;
     draftRef.current = next;
     setDraftState(next);
   }, []);
@@ -177,106 +190,101 @@ export default function NoteEditorScreen() {
    * would compose the block back in on the very next write, just after they
    * converted it away.
    */
-  const persist = React.useCallback(
-    (next: LocalNote, bodyTakenOver = false) => {
-      if (!isAuthenticated) return;
+  const writeDraft = async (next: LocalNote, bodyTakenOver: boolean) => {
+    if (!isAuthenticated) throw new Error("Authentication required");
+    const userBody = userBodyOf(next.body, next.generatedBody);
+    const input = {
+      title: next.title,
+      userBody,
+      ...(bodyTakenOver ? { generatedBody: "" } : {}),
+      checklist: next.checklist,
+      color: next.color,
+      labels: next.labels,
+      pinned: next.pinned,
+      archived: next.archived,
+      reminderAt: next.reminderAt,
+      attachments: next.attachments,
+    };
+    const id = noteIdRef.current;
+    if (id) {
+      await updateNote.mutateAsync({ id, patch: input });
+    } else if (!isEmptyNote({ ...next, userBody })) {
+      const created = await createNote.mutateAsync(input);
+      noteIdRef.current = created.id;
+      setBase(created);
+      router.setParams({ id: created.id });
+    }
+  };
+  const writeDraftRef = React.useRef(writeDraft);
+  writeDraftRef.current = writeDraft;
+  const [saveQueue] = React.useState(() => new NoteSaveQueue<LocalNote>(
+    (next, takeOverBody) => writeDraftRef.current(next, takeOverBody),
+  ));
+  const persist = React.useCallback(async (next: LocalNote, bodyTakenOver = false) => {
+    const version = ++saveVersion.current;
+    setSaveState("saving");
+    try {
+      await saveQueue.save(next, bodyTakenOver);
+      if (version === saveVersion.current) setSaveState("saved");
+    } catch (error) {
+      if (version === saveVersion.current) setSaveState("error");
+      throw error;
+    }
+  }, [saveQueue]);
 
-      // Only the half of the body this editor owns goes up. The other half is
-      // added back by the store, from whatever the recorder has written by the
-      // time this lands — which is what stops a note left open from erasing the
-      // minutes of transcript that arrived while it sat there. The block is
-      // taken out using the one embedded in THIS draft, not the store's: those
-      // differ exactly when a slice has landed, and that is the case that
-      // matters.
-      const userBody = userBodyOf(next.body, next.generatedBody);
+  const autosave = useDebouncedCallback(() => {
+    void persist(draftRef.current).catch(() => {});
+  }, AUTOSAVE_MS);
 
+  // Keep the editor mounted until its last local write succeeds. A failed disk
+  // write leaves the draft visible with a retry action instead of losing it.
+  usePreventRemove(isNew || base !== null, (event) => {
+    if (allowLeaveRef.current) {
+      navigation.dispatch(event.data.action);
+      return;
+    }
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    autosave.cancel();
+    void (async () => {
+      let next: LocalNote;
+      let version: number;
+      do {
+        autosave.cancel();
+        version = editVersion.current;
+        next = draftRef.current;
+        await persist(next);
+      } while (version !== editVersion.current);
       const id = noteIdRef.current;
-      if (id) {
-        updateNote.mutate({
-          id,
-          patch: {
-            title: next.title,
-            userBody,
-            ...(bodyTakenOver ? { generatedBody: "" } : {}),
-            checklist: next.checklist,
-            color: next.color,
-            labels: next.labels,
-            pinned: next.pinned,
-            archived: next.archived,
-            reminderAt: next.reminderAt,
-            attachments: next.attachments,
-          },
-        });
-        return;
+      if (id && isEmptyNote({ ...next, userBody: userBodyOf(next.body, next.generatedBody) })) {
+        await deleteNote.mutateAsync(id);
       }
+      allowLeaveRef.current = true;
+      navigation.dispatch(event.data.action);
+    })().catch(() => {
+      setSaveState("error");
+    }).finally(() => { leavingRef.current = false; });
+  });
 
-      // First save for a brand-new note: create once, then route to its id so
-      // subsequent edits PATCH the real server note. The same question the close
-      // path asks, asked in one place — two copies of "is this empty" drift, and
-      // the drift shows up as a note that could be created but not kept.
-      if (isEmptyNote({ ...next, userBody }) || creatingRef.current) return;
-
-      creatingRef.current = true;
-      createNote.mutate(
-        {
-          title: next.title,
-          userBody,
-          checklist: next.checklist,
-          color: next.color,
-          labels: next.labels,
-          pinned: next.pinned,
-          reminderAt: next.reminderAt,
-        },
-        {
-          onSuccess: (created) => {
-            noteIdRef.current = created.id;
-            creatingRef.current = false;
-            // The note the draft now agrees with, so the live query arriving a
-            // moment later is recognised as the same version rather than
-            // reloading over whatever has been typed since.
-            setBase(created);
-            router.setParams({ id: created.id });
-          },
-          onError: () => {
-            creatingRef.current = false;
-          },
-        }
-      );
-    },
-    [isAuthenticated, updateNote, createNote, router]
-  );
-
-  const autosave = useDebouncedCallback(persist, AUTOSAVE_MS);
-
-  // Commit any pending autosave when leaving the editor, and throw the note away
-  // if there is nothing left in it.
-  //
-  // `base` is the guard that matters. It is null until the note has actually
-  // loaded, and the draft starts blank — so without it, opening an existing note
-  // and closing it before it loads would read as "the user emptied this" and
-  // delete something they never even saw.
+  // Browser refresh/close cannot await SQLite. Warn only while a draft is at risk.
   React.useEffect(() => {
-    const unsub = navigation.addListener("beforeRemove", () => {
-      autosave.flush();
-
-      const id = noteIdRef.current;
-      const next = draftRef.current;
-      if (!id || !base) return;
-      if (!isEmptyNote({ ...next, userBody: userBodyOf(next.body, next.generatedBody) })) return;
-
-      // Discarded rather than trashed. There is nothing in it to recover, and a
-      // trash full of blank cards is a chore the user has to clean up after.
-      deleteNote.mutate(id);
-    });
-    return unsub;
-  }, [navigation, autosave, base, deleteNote]);
+    if (Platform.OS !== "web" || saveState === "saved") return;
+    const protectDraft = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", protectDraft);
+    return () => window.removeEventListener("beforeunload", protectDraft);
+  }, [saveState]);
 
   // Apply a draft change locally and schedule a debounced autosave (typing).
   const update = React.useCallback(
     (patch: Partial<LocalNote>) => {
       const next = { ...draftRef.current, ...patch };
       setDraft(next);
-      autosave.run(next);
+      saveVersion.current++;
+      setSaveState("unsaved");
+      autosave.run();
     },
     [autosave, setDraft]
   );
@@ -287,7 +295,7 @@ export default function NoteEditorScreen() {
       const next = { ...draftRef.current, ...patch };
       setDraft(next);
       autosave.cancel();
-      persist(next);
+      void persist(next).catch(() => {});
     },
     [autosave, persist, setDraft]
   );
@@ -324,9 +332,10 @@ export default function NoteEditorScreen() {
       next = { ...prev, body: "", checklist: items, generatedBody: "" };
     }
     setDraft(next);
-    autosave.run(next, true);
+    autosave.cancel();
+    void persist(next, true).catch(() => {});
     setShowChecklist((s) => !s);
-  }, [showChecklist, autosave, setDraft]);
+  }, [showChecklist, autosave, setDraft, persist]);
 
   const handleToggleLabel = React.useCallback(
     (labelId: string) => {
@@ -405,12 +414,54 @@ export default function NoteEditorScreen() {
     setShowReminders(false);
   }, [updateNow]);
 
-  const handleTrash = React.useCallback(() => {
-    autosave.flush();
-    const id = noteIdRef.current;
-    if (id) trashNote.mutate(id);
-    router.back();
-  }, [autosave, trashNote, router]);
+  const handleTrash = React.useCallback(async () => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    autosave.cancel();
+    try {
+      let version: number;
+      do {
+        autosave.cancel();
+        version = editVersion.current;
+        await persist(draftRef.current);
+      } while (version !== editVersion.current);
+      const id = noteIdRef.current;
+      if (id) await trashNote.mutateAsync(id);
+      allowLeaveRef.current = true;
+      router.back();
+    } catch {
+      setSaveState("error");
+    } finally {
+      leavingRef.current = false;
+    }
+  }, [autosave, persist, trashNote, router]);
+
+  const checklistOpened = React.useRef(false);
+  React.useEffect(() => {
+    if (params.mode !== "checklist" || isNew || !base || checklistOpened.current) return;
+    checklistOpened.current = true;
+    if (!showChecklist) handleToggleChecklist();
+  }, [params.mode, isNew, base, showChecklist, handleToggleChecklist]);
+
+  const attachmentOpened = React.useRef(false);
+  React.useEffect(() => {
+    if (params.mode !== "attachment" || attachmentOpened.current) return;
+    attachmentOpened.current = true;
+    handleAttachFile();
+  }, [params.mode, handleAttachFile]);
+
+  if (!isNew && !isLoading && (loadError || !fetchedNote) && !base) {
+    return (
+      <View className="flex-1 bg-background">
+        <EmptyState
+          sticker={loadError ? "loadError" : "notFound"}
+          title={t(loadError ? "notes.loadFailed" : "notes.notFoundTitle")}
+          subtitle={t(loadError ? "notes.loadFailedSubtitle" : "notes.notFoundSubtitle")}
+          action={{ label: t("common.back"), onPress: () => router.canGoBack() ? router.back() : router.replace("/") }}
+        />
+      </View>
+    );
+  }
 
   if (!isNew && isLoading && base === null) {
     return (
@@ -477,6 +528,17 @@ export default function NoteEditorScreen() {
           />
           <IconButton icon={Trash2} label={t("common.delete")} onPress={handleTrash} />
         </View>
+      </View>
+
+      <View className="flex-row items-center justify-between px-4 pb-1" accessibilityLiveRegion="polite">
+        <Text className={saveState === "error" ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+          {t(`notes.saveStatus.${saveState}`)}
+        </Text>
+        {saveState === "error" && (
+          <Pressable onPress={() => { autosave.cancel(); void persist(draftRef.current).catch(() => {}); }} accessibilityRole="button">
+            <Text className="text-sm font-semibold text-primary">{t("common.retry")}</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Reminder presets */}

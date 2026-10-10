@@ -35,14 +35,14 @@ describe('the editor', () => {
   });
 
   it('throws the note away when it is left empty', () => {
-    expect(EDITOR).toContain('deleteNote.mutate(id)');
+    expect(EDITOR).toContain('await deleteNote.mutateAsync(id)');
   });
 
   it('will not delete a note it has not loaded yet', () => {
     // `base` is null until the note arrives and the draft starts blank, so
     // without this, opening an existing note and closing it before it loads
     // reads as "the user emptied this".
-    expect(EDITOR).toMatch(/if \(!id \|\| !base\) return;/);
+    expect(EDITOR).toContain("usePreventRemove(isNew || base !== null");
   });
 
   it('compares the user half of the body, not the composed one', () => {

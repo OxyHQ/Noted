@@ -3,6 +3,7 @@ import { Pressable, TextInput, View } from 'react-native';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react-native';
 
 import { Text } from '@/components/ui/text';
+import { EmptyState } from '@/components/empty-state';
 import { useCaptureTranscript, useNoteCaptures } from '@/lib/capture/captures-repo';
 import { searchTranscript, transcriptLines } from '@/lib/capture/transcript-view';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -68,9 +69,7 @@ export function TranscriptPanel({ noteId }: { noteId: string }) {
           </View>
 
           {shown.length === 0 ? (
-            <Text className="py-2 text-xs text-muted-foreground">
-              {t('capture.transcript.noMatches')}
-            </Text>
+            <EmptyState sticker="search" title={t('capture.transcript.noMatches')} action={{ label: t('common.clear'), onPress: () => setQuery('') }} />
           ) : (
             shown.map(({ line, matches }) => (
               <View key={line.id} className="flex-row gap-3 py-1">
