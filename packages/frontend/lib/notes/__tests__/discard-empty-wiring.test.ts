@@ -28,6 +28,13 @@ describe('the editor', () => {
     expect(EDITOR).toContain('export default function NoteEditorScreen');
   });
 
+  it('uses the removal guard from the same navigation context as Expo Router', () => {
+    // SDK 56 owns its navigation context. The upstream hook typechecks but
+    // throws "Could not find a navigation object" when opening a real editor.
+    expect(EDITOR).toContain('import { usePreventRemove } from "expo-router/react-navigation"');
+    expect(EDITOR).not.toContain('from "@react-navigation/native"');
+  });
+
   it('asks one question about emptiness, in both places', () => {
     // Two copies of "is this empty" drift, and the drift shows up as a note that
     // could be created but not kept — or worse, kept but not created.

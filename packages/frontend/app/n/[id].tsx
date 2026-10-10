@@ -20,7 +20,7 @@ import Animated, {
   FadeOutDown,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { usePreventRemove } from "@react-navigation/native";
+import { usePreventRemove } from "expo-router/react-navigation";
 
 import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
