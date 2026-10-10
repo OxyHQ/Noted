@@ -63,6 +63,42 @@ A browser storage failure offers recovery instructions without automatically
 clearing OPFS or deleting another account's data. A mismatched database owner is
 rejected rather than wiped. Attachment loading failures offer a retry action.
 
+Edits update only explicitly changed fields. The editor captures the draft's
+common ancestor when queueing a save, so a later peer refresh cannot turn an
+untouched field into an apparent edit. User/generated body halves compare their
+SQLite snapshot before committing; a stale snapshot rolls back labels and outbox
+writes too, then recomposes from the current row. Only that confirmed rollback
+is retried. An unanswered write after a connection failure is not replayed.
+
+## Browser storage coordination
+
+Multiple tabs can read and edit the same account without closing another tab.
+`lib/db/client.web.ts` preserves the native client API and forwards operations
+through `web-store-broker.ts`. One document owns the origin-wide Web Lock
+`noted:expo-sqlite:opfs` and uses `client-engine.ts` to access Expo SQLite. Other
+documents communicate over BroadcastChannel; they do not open another OPFS pool.
+The owner also uses the broker queue. Account selection and each operation,
+including whole transactions, run together in that queue.
+
+Each tab owns its session generation. Requests and responses carry that identity;
+committed table changes invalidate only matching account subscriptions. An owner
+change refreshes subscriptions. The storage lock lasts until document destruction,
+including across sign-out and backgrounding: closing a SQLite connection does not
+release the worker's OPFS access handles. Do not steal ownership after a heartbeat
+timeout or reset the pool to recover from contention.
+
+Sync holds a separate per-account Web Lock for the complete network/reconciliation
+cycle. Each recording holds a per-account/per-capture lock from before its first
+persisted row until the microphone stops and final persistence finishes. Startup
+recovery tries each capture lock without waiting and only interrupts an abandoned
+capture; opening a tab must never interrupt another tab's active recording.
+
+Validate with real browser storage as well as unit tests: start two tabs together,
+edit from both, observe changes without reloading, close the SQLite owner and
+continue in the remaining tab, then reload and verify unsynchronized notes remain.
+Include distinct accounts and startup while another tab records. TanStack Query
+still owns mutation/resource state; note reads remain SQLite live queries.
+
 ## Settings ownership
 
 `NotedSettingsProvider` lives at the root, but loads Bloom's `SettingsModal` only
