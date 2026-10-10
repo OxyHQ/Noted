@@ -101,8 +101,10 @@ jobs:
 
       # Biome formats and lints the whole repository (backend, app, shared
       # types, scripts) from the root biome.json. `biome ci` never writes.
+      # Several recommended rules default to warning severity, which `biome ci`
+      # would otherwise let through; the warning count is held at zero.
       - name: Lint & format check (Biome)
-        run: bunx biome ci .
+        run: bunx biome ci --error-on-warnings .
 
       - name: Run API tests
         run: bun run --filter @noted/backend test

@@ -56,7 +56,7 @@ Vitest. Place test files next to the source as `*.test.ts`. `packages/backend` i
 CI runs the following on every pull request, and each line runs locally as written:
 
 ```bash
-bunx biome ci .                  # Biome: lint + format check, whole repo
+bunx biome ci --error-on-warnings .  # Biome: lint + format check, whole repo, zero warnings
 bun run --filter @noted/backend test
 bun run build:backend
 bun run build:frontend
@@ -66,7 +66,10 @@ bun run build:frontend
 
 Biome (`biome.json` at the root) formats and lints every package; there is no
 ESLint or Prettier. `bun run lint` checks, `bun run lint:fix` applies safe
-fixes and formatting, `bun run format` only formats. The Expo app's
+fixes and formatting, `bun run format` only formats. Every rule runs at its
+recommended severity or stricter and CI fails on any warning; where code is
+intentionally correct, suppress the one line with
+`// biome-ignore lint/<group>/<rule>: <reason>`. The Expo app's
 `EXPO_PUBLIC_*` guards (no destructuring of `process.env`, no computed
 `process.env[...]` reads, both of which Metro silently fails to inline) are a
 GritQL plugin in `biome-plugins/expo-env-vars.grit`, scoped to
