@@ -61,7 +61,7 @@
     "@react-native/babel-preset": "0.85.3",
     "@react-native/metro-babel-transformer": "0.85.3",
     "@react-native/metro-config": "0.85.3",
-    "@oxy.so/bloom": "7.23.0",
+    "@oxy.so/bloom": "7.24.0",
     "@oxy.so/contracts": "4.10.0",
     "@oxy.so/core": "4.4.0",
     "@oxy.so/services": "11.1.10",
@@ -73,7 +73,7 @@
     "@oxy.so/mcp": "1.1.0"
   },
   "dependencies": {
-    "@oxy.so/bloom": "7.23.0",
+    "@oxy.so/bloom": "7.24.0",
     "@oxy.so/contracts": "4.10.0",
     "@oxy.so/core": "4.4.0",
     "@oxy.so/services": "11.1.10"
