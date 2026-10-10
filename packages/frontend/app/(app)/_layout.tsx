@@ -51,7 +51,7 @@ export default function AppLayout() {
           safeArea
           panel
           sidebar={sidebar}
-          drawer="overlay"
+          drawer="reveal"
           drawerOpen={drawerOpen}
           onDrawerOpenChange={setDrawerOpen}
           navFrom={768}
