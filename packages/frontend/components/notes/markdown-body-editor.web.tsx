@@ -1,6 +1,9 @@
 import React from "react";
 import { TextInput, View } from "react-native";
-import { EnrichedMarkdownText } from "react-native-enriched-markdown";
+import {
+  EnrichedMarkdownText,
+  type MarkdownStyle,
+} from "react-native-enriched-markdown";
 
 import { useColorScheme } from "@/lib/useColorScheme";
 import { markdownOffsetForRenderedPrefix } from "@/lib/markdown/caret";
@@ -44,6 +47,68 @@ export function MarkdownBodyEditor({
   placeholder,
 }: MarkdownBodyEditorProps) {
   const { colors } = useColorScheme();
+  // The renderer gives every block its own light-mode defaults; setting the
+  // container color cannot override them. Pair all text and filled surfaces
+  // with Bloom tokens so opening a note reads like its editable field.
+  const markdownStyle = React.useMemo<MarkdownStyle>(
+    () => ({
+      paragraph: { color: colors.foreground },
+      h1: { color: colors.foreground },
+      h2: { color: colors.foreground },
+      h3: { color: colors.foreground },
+      h4: { color: colors.foreground },
+      h5: { color: colors.foreground },
+      h6: { color: colors.foreground },
+      strong: { color: colors.foreground },
+      em: { color: colors.foreground },
+      list: {
+        color: colors.foreground,
+        bulletColor: colors.mutedForeground,
+        markerColor: colors.mutedForeground,
+      },
+      blockquote: {
+        color: colors.foreground,
+        backgroundColor: colors.muted,
+        borderColor: colors.border,
+      },
+      code: {
+        color: colors.foreground,
+        backgroundColor: colors.muted,
+        borderColor: colors.border,
+      },
+      codeBlock: {
+        color: colors.foreground,
+        backgroundColor: colors.muted,
+        borderColor: colors.border,
+      },
+      table: {
+        color: colors.foreground,
+        headerTextColor: colors.foreground,
+        headerBackgroundColor: colors.muted,
+        rowEvenBackgroundColor: "transparent",
+        rowOddBackgroundColor: colors.muted,
+        borderColor: colors.border,
+      },
+      taskList: {
+        checkedTextColor: colors.mutedForeground,
+        checkedColor: colors.primary,
+        checkmarkColor: colors.primaryForeground,
+        borderColor: colors.mutedForeground,
+      },
+      link: { color: colors.primary },
+      strikethrough: { color: colors.mutedForeground },
+      underline: { color: colors.foreground },
+      thematicBreak: { color: colors.border },
+      math: { color: colors.foreground, backgroundColor: colors.muted },
+      inlineMath: { color: colors.foreground },
+      highlight: {
+        color: colors.primaryForeground,
+        backgroundColor: colors.primary,
+      },
+      spoiler: { color: colors.mutedForeground },
+    }),
+    [colors],
+  );
   const [height, setHeight] = React.useState(MIN_BODY_HEIGHT);
   const [editing, setEditing] = React.useState(false);
 
@@ -75,7 +140,8 @@ export function MarkdownBodyEditor({
       if ((event.target as HTMLElement | null)?.closest("a")) return;
 
       const prefix = renderedPrefixAt(reader as HTMLElement, event);
-      caretRef.current = prefix === null ? null : markdownOffsetForRenderedPrefix(value, prefix);
+      caretRef.current =
+        prefix === null ? null : markdownOffsetForRenderedPrefix(value, prefix);
       setEditing(true);
     }
 
@@ -86,7 +152,13 @@ export function MarkdownBodyEditor({
   React.useEffect(() => {
     if (!showField) return;
     const field = document.getElementById(fieldId);
-    if (!(field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement)) return;
+    if (
+      !(
+        field instanceof HTMLTextAreaElement ||
+        field instanceof HTMLInputElement
+      )
+    )
+      return;
 
     field.focus();
     const caret = caretRef.current;
@@ -103,13 +175,12 @@ export function MarkdownBodyEditor({
           // makes and for the same reason: NativeWind's `className` only reaches
           // components its interop knows, and a class on a third-party view is
           // silently inert — unstyled text with no error to explain it.
-          //
-          // Colour and size go on the container rather than into `markdownStyle`,
-          // which has a key per block type and none for "the text": this renderer
-          // emits real DOM, so every heading, list and quote inside inherits them
-          // and each one stops being a place the theme can be forgotten.
-          containerStyle={{ paddingVertical: 4, color: colors.foreground, fontSize: 16 }}
-          markdownStyle={{ link: { color: colors.primary } }}
+          containerStyle={{
+            paddingVertical: 4,
+            color: colors.foreground,
+            fontSize: 16,
+          }}
+          markdownStyle={markdownStyle}
           // Notes are not papers. Loading a maths typesetter for a shopping list
           // is a download the user never asked for.
           md4cFlags={{ latexMath: false }}
@@ -130,7 +201,9 @@ export function MarkdownBodyEditor({
       multiline
       textAlignVertical="top"
       scrollEnabled={false}
-      onContentSizeChange={(event) => setHeight(event.nativeEvent.contentSize.height)}
+      onContentSizeChange={(event) =>
+        setHeight(event.nativeEvent.contentSize.height)
+      }
       // The page scrolls, not the field: a box that scrolls inside a half-empty
       // note is the thing this replaced. The one value that cannot be a class,
       // because it is measured.
@@ -140,7 +213,10 @@ export function MarkdownBodyEditor({
 }
 
 /** The visible text from the start of the note to where the user clicked. */
-function renderedPrefixAt(container: HTMLElement, event: MouseEvent): string | null {
+function renderedPrefixAt(
+  container: HTMLElement,
+  event: MouseEvent,
+): string | null {
   const point = caretPoint(event);
   if (!point) return null;
 
@@ -159,12 +235,19 @@ function renderedPrefixAt(container: HTMLElement, event: MouseEvent): string | n
  */
 function caretPoint(event: MouseEvent): { node: Node; offset: number } | null {
   if (typeof document.caretPositionFromPoint === "function") {
-    const position = document.caretPositionFromPoint(event.clientX, event.clientY);
-    return position ? { node: position.offsetNode, offset: position.offset } : null;
+    const position = document.caretPositionFromPoint(
+      event.clientX,
+      event.clientY,
+    );
+    return position
+      ? { node: position.offsetNode, offset: position.offset }
+      : null;
   }
   if (typeof document.caretRangeFromPoint === "function") {
     const range = document.caretRangeFromPoint(event.clientX, event.clientY);
-    return range ? { node: range.startContainer, offset: range.startOffset } : null;
+    return range
+      ? { node: range.startContainer, offset: range.startOffset }
+      : null;
   }
   return null;
 }
