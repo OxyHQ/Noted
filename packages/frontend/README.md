@@ -54,6 +54,10 @@ navigation APIs. Do not put a viewport-bound Stack, `ScrollViewStyleReset`,
 overflow-hidden wrapper or wheel forwarding layer around the web shell.
 Native keeps its stack and uses bounded screen scrolling.
 
+Expo's single-page export reads `public/index.html`; `app/+html.tsx` does not
+configure that output. Keep the document-growth reset and page metadata in the
+public template, and check the exported HTML when changing the host layout.
+
 Pages compose Bloom `Screen`, `PageHeader`, `ScreenScrollView` and
 `useScrollRestoration` for their platform. Search belongs in the notes content;
 the header keeps the page title and grouped actions. Shell bottom chrome uses
