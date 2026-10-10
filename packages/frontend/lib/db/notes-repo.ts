@@ -346,36 +346,64 @@ export async function createNote(id: string, input: NoteInput, viewerId = getAct
 /**
  * Apply a partial edit.
  *
- * The current row is read first so the write carries a whole note; the read and
- * the write are not atomic, but every writer is this process and the outbox
- * sends the row as it stands at flush time, so a lost interleaving costs at most
- * one redundant push.
- *
- * That read is also what makes the body safe. The two halves are recombined here
- * against the row as it stands NOW, so a caller sending its own half never
- * overwrites the other one, however long it has been holding its copy — and both
- * halves land in the same statement, so no live query can ever observe a body
- * paired with the wrong `generated_body`.
+ * Only named fields are updated, so concurrent patches from different tabs do
+ * not restore unrelated fields from an older read. Body halves are assembled
+ * against a snapshot and compared in SQL before writing; a changed snapshot
+ * rolls back the entire transaction, including labels and the outbox.
  */
 export async function updateNote(id: string, patch: NoteInput, viewerId = getActiveViewerId()): Promise<LocalNote | null> {
-  const current = await getNote(id, viewerId);
-  if (!current) return null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const current = await getNote(id, viewerId);
+    if (!current) return null;
 
-  const now = nowIso();
-  const { userBody, generatedBody, kind, ...fields } = patch;
-  const body = nextNoteBody(current, { userBody, generatedBody });
-  const next: LocalNote = {
-    ...current,
-    ...fields,
-    kind: kind ?? current.kind,
-    body: body.body,
-    generatedBody: body.generatedBody,
-    color: patch.color ?? current.color,
-    reminderAt: patch.reminderAt === undefined ? current.reminderAt : patch.reminderAt,
-    updatedAt: now,
-  };
-  await executeTransaction(upsertStatements(next, now), viewerId);
-  return next;
+    const now = nowIso();
+    const assignments = ['dirty = ?', 'updated_at = ?'];
+    const params: unknown[] = [DIRTY, now];
+    const set = (column: string, value: unknown) => {
+      if (value === undefined) return;
+      assignments.push(`${column} = ?`);
+      params.push(value);
+    };
+    set('kind', patch.kind);
+    set('title', patch.title);
+    set('checklist_json', patch.checklist === undefined ? undefined : JSON.stringify(patch.checklist));
+    set('color', patch.color);
+    set('pinned', patch.pinned === undefined ? undefined : Number(patch.pinned));
+    set('archived', patch.archived === undefined ? undefined : Number(patch.archived));
+    set('trashed', patch.trashed === undefined ? undefined : Number(patch.trashed));
+    set('attachments_json', patch.attachments === undefined ? undefined : JSON.stringify(patch.attachments));
+    set('reminder_at', patch.reminderAt);
+    set('sort_order', patch.order);
+
+    const changesBody = patch.userBody !== undefined || patch.generatedBody !== undefined;
+    if (changesBody) {
+      const body = nextNoteBody(current, patch);
+      set('body', body.body);
+      set('generated_body', body.generatedBody);
+    }
+    params.push(id);
+    if (changesBody) params.push(current.body, current.generatedBody);
+
+    try {
+      await executeTransaction([
+        {
+          sql: `UPDATE notes SET ${assignments.join(', ')}
+                WHERE id = ? AND deleted_at IS NULL${changesBody ? ' AND body = ? AND generated_body = ?' : ''}`,
+          params,
+          expectedRowsAffected: 1,
+        },
+        ...(patch.labels === undefined ? [] : labelStatements(id, patch.labels)),
+        enqueueOutbox(id, 'upsert', now),
+      ], viewerId);
+    } catch (error) {
+      // This exact error proves statement 0 changed nothing and the transaction
+      // rolled back. Transport loss may hide a committed write: never replay it.
+      if (!(error instanceof Error) || error.message !== 'transaction statement 0 affected 0 rows; expected 1') throw error;
+      continue;
+    }
+    return getNote(id, viewerId);
+  }
+  throw new Error('This note changed while saving. Your draft has been preserved; try saving again.');
 }
 
 /** Move a note to the trash (recoverable). */
