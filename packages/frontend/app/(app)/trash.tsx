@@ -1,11 +1,15 @@
+import { Screen } from "@oxy.so/bloom/screen";
+import { NotesContent } from "@/components/notes/notes-content";
 import React from "react";
 import { useRouter } from "expo-router";
 import { EmptyState } from "@/components/empty-state";
 import { LocalStoreError } from "@/components/local-store-boundary";
-import { View, ScrollView, Pressable, ActivityIndicator } from "react-native";
-import { RotateCcw, X } from "lucide-react-native";
+import { View, ActivityIndicator } from "react-native";
+import { RiArrowGoBackLine } from "@oxy.so/bloom/icons/RiArrowGoBackLine";
+import { RiDeleteBinLine } from "@oxy.so/bloom/icons/RiDeleteBinLine";
+import { Card } from "@oxy.so/bloom/card";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
+import { Button } from "@oxy.so/bloom/button";
 import { NotesHeader } from "@/components/notes/notes-header";
 import { alert } from "@oxy.so/bloom/surfaces";
 import { getNoteColorTint } from "@/lib/note-colors";
@@ -58,10 +62,9 @@ export default function TrashScreen() {
   );
 
   return (
-    <View className="flex-1 bg-background">
-      <NotesHeader title={t("notes.trashTitle")} />
+    <Screen documentScroll header={<NotesHeader title={t("notes.trashTitle")} />}>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-3 pb-24 pt-3">
+      <NotesContent ready={!isLoading}>
         {error ? <LocalStoreError /> : isLoading ? (
           <View className="items-center justify-center py-16">
             <ActivityIndicator color={colors.primary} />
@@ -76,10 +79,8 @@ export default function TrashScreen() {
               <Text className="text-xs text-muted-foreground">
                 {t("notes.trashHint")}
               </Text>
-              <Button variant="ghost" size="sm" onPress={askEmptyTrash}>
-                <Text className="text-sm font-semibold text-destructive">
-                  {t("notes.emptyTrash")}
-                </Text>
+              <Button appearance="plain" tone="danger" size="sm" onPress={askEmptyTrash}>
+                {t("notes.emptyTrash")}
               </Button>
             </View>
 
@@ -100,8 +101,8 @@ export default function TrashScreen() {
             </View>
           </>
         )}
-      </ScrollView>
-    </View>
+      </NotesContent>
+    </Screen>
   );
 }
 
@@ -131,9 +132,9 @@ function TrashCard({
     "";
 
   return (
-    <View
-      className="overflow-hidden rounded-2xl border p-3"
+    <Card
       style={{
+        padding: 16,
         backgroundColor: tint ? tint.background : cardColor,
         borderColor: tint ? tint.border : borderColor,
       }}
@@ -149,23 +150,11 @@ function TrashCard({
         </Text>
       ) : null}
       <View className="mt-2 flex-row justify-end gap-1">
-        <Pressable
-          onPress={onRestore}
-          accessibilityLabel={restoreLabel}
-          className="h-9 flex-row items-center gap-1.5 rounded-full px-3 active:bg-foreground/10"
-        >
-          <RotateCcw size={16} className="text-muted-foreground" />
-          <Text className="text-sm text-muted-foreground">{restoreLabel}</Text>
-        </Pressable>
-        <Pressable
-          onPress={onDelete}
-          accessibilityLabel={deleteLabel}
-          className="h-9 flex-row items-center gap-1.5 rounded-full px-3 active:bg-foreground/10"
-        >
-          <X size={16} className="text-destructive" />
-          <Text className="text-sm text-destructive">{deleteLabel}</Text>
-        </Pressable>
+        <Button appearance="plain" tone="neutral" icon={RiArrowGoBackLine}
+          onPress={onRestore} accessibilityLabel={restoreLabel}>{restoreLabel}</Button>
+        <Button appearance="plain" tone="danger" icon={RiDeleteBinLine}
+          onPress={onDelete} accessibilityLabel={deleteLabel}>{deleteLabel}</Button>
       </View>
-    </View>
+    </Card>
   );
 }

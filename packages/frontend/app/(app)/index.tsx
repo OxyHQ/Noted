@@ -1,9 +1,13 @@
 import React from "react";
-import { View, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } from "react-native";
+import { View, ActivityIndicator, useWindowDimensions } from "react-native";
 import Head from "expo-router/head";
 import { useRouter } from "expo-router";
 import { useOxy } from "@oxy.so/services";
-import { Plus } from "lucide-react-native";
+import { RiAddLine } from "@oxy.so/bloom/icons/RiAddLine";
+import { Fab } from "@oxy.so/bloom/fab";
+import { Screen } from "@oxy.so/bloom/screen";
+import { Search } from "@oxy.so/bloom/search";
+import { NotesContent } from "@/components/notes/notes-content";
 import { Text } from "@/components/ui/text";
 import { EmptyState } from "@/components/empty-state";
 import { LocalStoreError } from "@/components/local-store-boundary";
@@ -241,13 +245,8 @@ export default function HomeScreen() {
       : "default";
 
   return (
-    <View className="flex-1 bg-background">
-      <Head>
-        <title>Noted</title>
-        <meta name="description" content="Noted — capture notes, lists, and reminders." />
-      </Head>
-
-      {selectionMode ? (
+    <Screen documentScroll
+      header={selectionMode ? (
         <BulkActionBar
           count={selectedIds.size}
           onClose={clearSelection}
@@ -257,14 +256,24 @@ export default function HomeScreen() {
           onDelete={handleBulkDelete}
         />
       ) : (
-        <NotesHeader title={t("notes.title")} searchable />
+        <NotesHeader title={t("notes.title")} />
       )}
+      primaryAction={!isLargeScreen && !selectionMode && isAuthenticated ? (
+        <Fab icon={RiAddLine} onPress={handleCreateNote} accessibilityLabel={t("notes.takeANote")} />
+      ) : undefined}
+    >
+      <Head>
+        <title>Noted</title>
+        <meta name="description" content="Noted — capture notes, lists, and reminders." />
+      </Head>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-6 px-3 pb-24 pt-3"
-        keyboardShouldPersistTaps="handled"
-      >
+      <NotesContent ready={!isLoading} restorationKey={`${activeLabel ?? "all"}:${searchQuery.trim()}`}>
+        {!selectionMode && <Search
+          value={searchQuery}
+          onChangeText={useNotesUIStore.getState().setSearchQuery}
+          label={t("notes.searchPlaceholder")}
+          onClearText={() => useNotesUIStore.getState().setSearchQuery("")}
+        />}
         {!selectionMode && (
           <QuickCapture
             onCreate={handleCreate}
@@ -329,19 +338,7 @@ export default function HomeScreen() {
             )}
           </View>
         )}
-      </ScrollView>
-
-      {/* Mobile FAB */}
-      {!isLargeScreen && !selectionMode && isAuthenticated && (
-        <Pressable
-          onPress={handleCreateNote}
-          accessibilityLabel={t("notes.takeANote")}
-          className="absolute bottom-6 right-6 h-14 w-14 items-center justify-center rounded-full bg-primary shadow-lg active:opacity-90"
-        >
-          <Plus size={26} color={colors.primaryForeground} />
-        </Pressable>
-      )}
-
+      </NotesContent>
 
       <Dialog
         open={colorTarget !== null}
@@ -358,7 +355,7 @@ export default function HomeScreen() {
           />
         </DialogContent>
       </Dialog>
-    </View>
+    </Screen>
   );
 }
 

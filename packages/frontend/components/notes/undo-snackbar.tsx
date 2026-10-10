@@ -32,7 +32,6 @@ export function UndoSnackbar() {
       exiting={reduceMotion ? undefined : SlideOutDown.duration(150)}
     >
       <Card
-        radius="radius-12"
         elevation="m"
         style={{ backgroundColor: colors.foreground }}
       >

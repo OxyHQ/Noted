@@ -1,10 +1,18 @@
+import { Screen } from "@oxy.so/bloom/screen";
+import { NotesContent } from "@/components/notes/notes-content";
 import React from "react";
 import { EmptyState } from "@/components/empty-state";
 import { LocalStoreError } from "@/components/local-store-boundary";
-import { View, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, TextInput, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import { Tag, Plus, Trash2, Check, X } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
+import { TextField, TextFieldInput, TextFieldIcon } from "@oxy.so/bloom/text-field";
+import { Button } from "@oxy.so/bloom/button";
+import { ButtonGroup } from "@oxy.so/bloom/button-group";
+import { RiPriceTag3Line } from "@oxy.so/bloom/icons/RiPriceTag3Line";
+import { RiAddLine } from "@oxy.so/bloom/icons/RiAddLine";
+import { RiCheckLine } from "@oxy.so/bloom/icons/RiCheckLine";
+import { RiCloseLine } from "@oxy.so/bloom/icons/RiCloseLine";
+import { RiDeleteBinLine } from "@oxy.so/bloom/icons/RiDeleteBinLine";
 import { NotesHeader } from "@/components/notes/notes-header";
 import { alert } from "@oxy.so/bloom/surfaces";
 import {
@@ -64,29 +72,24 @@ export default function LabelsScreen() {
   const allLabels = labels ?? [];
 
   return (
-    <View className="flex-1 bg-background">
-      <NotesHeader title={t("notes.labelsTitle")} />
+    <Screen documentScroll header={<NotesHeader title={t("notes.labelsTitle")} />}>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-24 pt-3">
-        {/* Create row */}
-        <View className="mb-3 flex-row items-center gap-2 rounded-xl border border-border px-3">
-          <Plus size={18} color={colors.mutedForeground} />
-          <TextInput
-            ref={inputRef}
-            editable={!createLabel.isPending}
-            value={draft}
-            onChangeText={setDraft}
-            onSubmitEditing={handleCreate}
-            placeholder={t("notes.createLabelPlaceholder")}
-            placeholderTextColor={colors.mutedForeground}
-            className="h-11 flex-1 text-base text-foreground"
-            returnKeyType="done"
-          />
-          {draft.trim().length > 0 && (
-            <Pressable disabled={createLabel.isPending} onPress={handleCreate} hitSlop={6} accessibilityLabel={t("common.create")}>
-              <Check size={18} color={colors.primary} />
-            </Pressable>
-          )}
+      <NotesContent ready={!isLoading}>
+        <View className="flex-row items-center gap-2">
+          <TextField style={{ flex: 1 }} disabled={createLabel.isPending}>
+            <TextFieldIcon icon={RiAddLine} />
+            <TextFieldInput
+              inputRef={inputRef}
+              value={draft}
+              onChangeText={setDraft}
+              onSubmitEditing={handleCreate}
+              label={t("notes.createLabelPlaceholder")}
+              placeholder={t("notes.createLabelPlaceholder")}
+              returnKeyType="done"
+            />
+          </TextField>
+          <Button iconOnly icon={RiCheckLine} disabled={!draft.trim() || createLabel.isPending}
+            loading={createLabel.isPending} onPress={handleCreate} accessibilityLabel={t("common.create")} />
         </View>
 
         {error ? <LocalStoreError /> : isLoading ? (
@@ -110,8 +113,8 @@ export default function LabelsScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
-    </View>
+      </NotesContent>
+    </Screen>
   );
 }
 
@@ -126,7 +129,6 @@ function LabelRow({
   onRename: (name: string) => void;
   onDelete: () => void;
 }) {
-  const { colors } = useColorScheme();
   const { t } = useTranslation();
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState(label.name);
@@ -140,49 +142,30 @@ function LabelRow({
 
   if (editing) {
     return (
-      <View className="flex-row items-center gap-2 rounded-lg px-2 py-1">
-        <Tag size={18} color={colors.mutedForeground} />
-        <TextInput
-          value={value}
-          onChangeText={setValue}
-          onSubmitEditing={commit}
-          autoFocus
-          className="h-10 flex-1 text-base text-foreground"
-          placeholderTextColor={colors.mutedForeground}
-          returnKeyType="done"
-        />
-        <Pressable onPress={commit} hitSlop={6} accessibilityLabel={t("common.save")}>
-          <Check size={18} color={colors.primary} />
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            setValue(label.name);
-            setEditing(false);
-          }}
-          hitSlop={6}
-          accessibilityLabel={t("common.cancel")}
-        >
-          <X size={18} color={colors.mutedForeground} />
-        </Pressable>
+      <View className="flex-row items-center gap-2 py-1">
+        <TextField style={{ flex: 1 }}>
+          <TextFieldIcon icon={RiPriceTag3Line} />
+          <TextFieldInput value={value} onChangeText={setValue} onSubmitEditing={commit}
+            autoFocus label={t("notes.labelsTitle")} returnKeyType="done" />
+        </TextField>
+        <ButtonGroup>
+          <Button iconOnly icon={RiCheckLine} onPress={commit} accessibilityLabel={t("common.save")} />
+          <Button iconOnly icon={RiCloseLine} onPress={() => { setValue(label.name); setEditing(false); }}
+            accessibilityLabel={t("common.cancel")} />
+        </ButtonGroup>
       </View>
     );
   }
 
   return (
-    <View className="flex-row items-center gap-2 rounded-lg px-2 py-1">
-      <Pressable
-        onPress={onOpen}
-        className="h-10 flex-1 flex-row items-center gap-3 active:opacity-70"
-      >
-        <Tag size={18} color={colors.mutedForeground} />
-        <Text className="flex-1 text-base text-foreground">{label.name}</Text>
-      </Pressable>
-      <Pressable onPress={() => setEditing(true)} hitSlop={6} accessibilityLabel={t("common.edit")}>
-        <Text className="text-sm text-muted-foreground">{t("common.edit")}</Text>
-      </Pressable>
-      <Pressable onPress={onDelete} hitSlop={6} accessibilityLabel={t("common.delete")}>
-        <Trash2 size={16} color={colors.mutedForeground} />
-      </Pressable>
+    <View className="flex-row items-center gap-2 py-1">
+      <Button appearance="plain" tone="neutral" icon={RiPriceTag3Line} onPress={onOpen}
+        style={{ flex: 1, justifyContent: "flex-start" }}>{label.name}</Button>
+      <ButtonGroup>
+        <Button onPress={() => setEditing(true)}>{t("common.edit")}</Button>
+        <Button iconOnly icon={RiDeleteBinLine} tone="danger" onPress={onDelete}
+          accessibilityLabel={t("common.delete")} />
+      </ButtonGroup>
     </View>
   );
 }
