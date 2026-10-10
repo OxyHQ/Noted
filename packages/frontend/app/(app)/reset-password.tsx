@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
+import { responseErrorMessage } from '@/lib/api/noted-client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -19,7 +20,7 @@ export default function ResetPasswordScreen() {
     if (!token) {
       setError(t('resetPassword.invalidToken'));
     }
-  }, [token]);
+  }, [token, t]);
 
   const handleResetPassword = async () => {
     setError('');
@@ -55,9 +56,9 @@ export default function ResetPasswordScreen() {
 
       toast.success(t('resetPassword.successMessage'));
       router.replace('/login');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Reset password error:', error);
-      const errorMessage = error.response?.data?.error || t('resetPassword.failedToReset');
+      const errorMessage = responseErrorMessage(error) || t('resetPassword.failedToReset');
       setError(errorMessage);
 
       toast.error(errorMessage);

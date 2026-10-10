@@ -4,7 +4,7 @@ const publisher = vi.hoisted(() => ({
   observeHttp: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
   installFetch: vi.fn(),
   observeSocket: vi.fn(),
-  stop: vi.fn(async () => {}),
+  stop: vi.fn(async () => undefined),
 }));
 const create = vi.hoisted(() => vi.fn((_options: unknown) => publisher));
 vi.mock('@oxy.so/core/server', () => ({ createEcosystemTraffic: create }));
@@ -20,7 +20,7 @@ describe('ecosystem activity lifecycle', () => {
     vi.stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'true');
     vi.stubEnv('OXY_APPLICATION_KEY', 'test-key');
     vi.stubEnv('OXY_APPLICATION_SECRET', 'test-secret');
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.clearAllMocks();
   });
   afterEach(async () => {

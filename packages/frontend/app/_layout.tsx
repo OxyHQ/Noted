@@ -59,7 +59,7 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
   const resolveImageSource = useCallback(
     (fileId: string): string | undefined => {
       const url = oxyServices.assets.publicUrl(fileId, 'thumb');
-      return url && url.startsWith('http') ? url : undefined;
+      return url?.startsWith('http') ? url : undefined;
     },
     [oxyServices],
   );

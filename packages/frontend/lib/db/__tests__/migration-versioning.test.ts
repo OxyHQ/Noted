@@ -28,27 +28,6 @@ const statementsAfter = (from: number): string[] => MIGRATIONS.slice(from).flat(
 /** Every statement, as a database created from nothing would run them. */
 const allStatements = (): string[] => MIGRATIONS.flat();
 
-/** Columns a `CREATE TABLE`/`ALTER TABLE` sequence leaves on one table. */
-function columnsOf(statements: readonly string[], table: string): Set<string> {
-  const columns = new Set<string>();
-  for (const statement of statements) {
-    const created = new RegExp(
-      `CREATE TABLE (?:IF NOT EXISTS )?${table}\\s*\\(([\\s\\S]*?)\\)\\s*$`,
-      'i',
-    ).exec(statement.trim());
-    if (created) {
-      for (const line of created[1].split(',')) {
-        const name = line.trim().split(/\s+/)[0];
-        if (name && !/^(PRIMARY|FOREIGN|UNIQUE|CHECK)$/i.test(name)) columns.add(name);
-      }
-      continue;
-    }
-    const added = new RegExp(`ALTER TABLE ${table} ADD COLUMN (\\w+)`, 'i').exec(statement);
-    if (added) columns.add(added[1]);
-  }
-  return columns;
-}
-
 /**
  * What each already-released migration hashes to.
  *

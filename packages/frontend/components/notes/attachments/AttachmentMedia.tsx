@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Pressable,
-  Linking,
   Image as RNImage,
   StyleSheet,
   Platform,
@@ -161,7 +160,6 @@ function AttachmentImage({ src, onPress, registerHost }: AttachmentImageProps) {
 }
 
 interface AttachmentVideoProps {
-  src: string;
   poster?: string;
   onPress?: () => void;
 }
@@ -171,7 +169,7 @@ interface AttachmentVideoProps {
  * file in the system viewer (`Linking.openURL`). Kept dependency-light — no
  * embedded player — per Noted's notes use case.
  */
-function AttachmentVideo({ src, poster, onPress }: AttachmentVideoProps) {
+function AttachmentVideo({ poster, onPress }: AttachmentVideoProps) {
   const theme = useTheme();
   return (
     <Pressable

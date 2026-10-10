@@ -580,6 +580,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
                     const fit = fitForRatio(ratio);
                     return (
                       <Pressable
+                        // biome-ignore lint/suspicious/noArrayIndexKey: the same file can be attached twice, so the position disambiguates equal URIs
                         key={`${img.uri}-${idx}`}
                         onPress={handleDismiss}
                         style={[
@@ -616,6 +617,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
                 <View style={styles.dotsRow}>
                   {images.map((img, idx) => (
                     <View
+                      // biome-ignore lint/suspicious/noArrayIndexKey: the same file can be attached twice, so the position disambiguates equal URIs
                       key={`dot-${img.uri}-${idx}`}
                       style={[
                         styles.dot,

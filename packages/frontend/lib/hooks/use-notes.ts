@@ -63,10 +63,8 @@ const EMPTY_NOTES: LocalNote[] = [];
 export function useNotes(params: NoteListParams) {
   // The SQL text and its parameters are derived from the filters, so a changed
   // filter resubscribes rather than filtering an already-fetched list.
-  const query = useMemo(
-    () => noteListQuery(params),
-    [params.view, params.label, params.pinned, params.q],
-  );
+  const { view, label, pinned, q } = params;
+  const query = useMemo(() => noteListQuery({ view, label, pinned, q }), [view, label, pinned, q]);
   const { data, isLoading, error } = useLiveQuery<NoteRow, LocalNote[]>({
     sql: query.sql,
     params: query.params,

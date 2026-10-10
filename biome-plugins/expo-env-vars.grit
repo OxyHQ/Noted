@@ -1,9 +1,37 @@
 language js
 
+// Metro inlines EXPO_PUBLIC_* only where the source reads
+// process.env.EXPO_PUBLIC_NAME literally. Every form below hides the name from
+// it, so the value is undefined in the bundle. Object destructuring is matched
+// on Biome's syntax nodes rather than a `{ $props } = process.env` snippet,
+// which only matched a single shorthand property in a declaration and missed
+// renamed, multiple and rest properties and every assignment.
 or {
-  `{ $props } = process.env` as $match where {
+  // const { A, B: b, ...rest } = process.env
+  JsVariableDeclarator(id=JsObjectBindingPattern(), initializer=JsInitializerClause(expression=`process.env`)) as $match where {
     register_diagnostic(span=$match, message="Do not destructure process.env in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a destructured read is undefined in the bundle (eslint-plugin-expo: no-env-var-destructuring).")
   },
+  // function f({ A } = process.env) {}
+  JsFormalParameter(binding=JsObjectBindingPattern(), initializer=JsInitializerClause(expression=`process.env`)) as $match where {
+    register_diagnostic(span=$match, message="Do not destructure process.env in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a destructured read is undefined in the bundle (eslint-plugin-expo: no-env-var-destructuring).")
+  },
+  // ({ A: a } = process.env)
+  JsAssignmentExpression(left=JsObjectAssignmentPattern(), right=`process.env`) as $match where {
+    register_diagnostic(span=$match, message="Do not destructure process.env in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a destructured read is undefined in the bundle (eslint-plugin-expo: no-env-var-destructuring).")
+  },
+  // const { env } = process, const { env: { A } } = process
+  JsVariableDeclarator(id=$pattern, initializer=JsInitializerClause(expression=`process`)) as $match where {
+    $pattern <: JsObjectBindingPattern(),
+    $pattern <: contains `env`,
+    register_diagnostic(span=$match, message="Do not destructure env out of process in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; any other read is undefined in the bundle.")
+  },
+  // ({ env } = process)
+  JsAssignmentExpression(left=$pattern, right=`process`) as $match where {
+    $pattern <: JsObjectAssignmentPattern(),
+    $pattern <: contains `env`,
+    register_diagnostic(span=$match, message="Do not destructure env out of process in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; any other read is undefined in the bundle.")
+  },
+  // process.env[key]
   `process.env[$key]` as $match where {
     register_diagnostic(span=$match, message="Do not read process.env with a computed key in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a dynamic read is undefined in the bundle (eslint-plugin-expo: no-dynamic-env-var).")
   }

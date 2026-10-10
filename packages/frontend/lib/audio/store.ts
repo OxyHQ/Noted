@@ -50,7 +50,7 @@ export async function createPlaybackUrl(reference: string): Promise<string | nul
  * document, so a screen that mints one per render leaks a recording per render.
  */
 export function releasePlaybackUrl(url: string | null): void {
-  if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+  if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
 }
 
 /** Forget a recording's audio, wherever it is stored. */

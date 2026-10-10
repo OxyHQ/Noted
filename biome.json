@@ -57,26 +57,11 @@
       }
     }
   },
+  "plugins": ["./biome-plugins/no-unexpected-multiline.grit"],
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended",
-      "a11y": {
-        "noSvgWithoutTitle": "warn",
-        "useValidLang": "warn"
-      },
-      "correctness": {
-        "useExhaustiveDependencies": "warn",
-        "noVoidTypeReturn": "warn"
-      },
-      "security": {
-        "noDangerouslySetInnerHtml": "warn"
-      },
-      "suspicious": {
-        "noArrayIndexKey": "warn",
-        "noControlCharactersInRegex": "warn",
-        "useIterableCallbackReturn": "warn"
-      }
+      "preset": "recommended"
     }
   },
   "overrides": [
@@ -109,7 +94,7 @@
             "noUnsafeOptionalChaining": "error",
             "noUnusedLabels": "error",
             "noUnusedPrivateClassMembers": "error",
-            "noUnusedVariables": "warn",
+            "noUnusedVariables": "error",
             "useIsNan": "error",
             "useValidForDirection": "error",
             "useValidTypeof": "error",
@@ -129,7 +114,7 @@
             "noDuplicateElseIf": "error",
             "noDuplicateObjectKeys": "error",
             "noDuplicateParameters": "error",
-            "noEmptyBlockStatements": "warn",
+            "noEmptyBlockStatements": "error",
             "noFallthroughSwitchClause": "error",
             "noFunctionAssign": "error",
             "noGlobalAssign": "error",

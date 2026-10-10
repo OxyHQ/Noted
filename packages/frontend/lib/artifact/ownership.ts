@@ -23,7 +23,7 @@ import type {
   GeneratedNoteArtifact,
   UserItemOverride,
 } from '@noted/shared-types';
-import { allItems, blockUnits, filterItems, mapItems } from '@/lib/artifact/artifact';
+import { allItems, filterItems, mapItems } from '@/lib/artifact/artifact';
 
 /**
  * One user decision about one generated item.

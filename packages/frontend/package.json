@@ -15,6 +15,7 @@
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit -p .",
     "test:watch": "vitest",
     "copy-ort-runtime": "bun scripts/copy-ort-runtime.ts"
   },

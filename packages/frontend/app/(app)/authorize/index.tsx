@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, ActivityIndicator, Linking, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
+import { responseErrorMessage } from '@/lib/api/noted-client';
 import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -122,10 +123,10 @@ export default function AuthorizeScreen() {
           window.location.href = finalUrl;
         }
       }, 1000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Authorization error:', error);
       setStatus('error');
-      setMessage(error.response?.data?.error || t('authorize.failedToAuthorize'));
+      setMessage(responseErrorMessage(error) || t('authorize.failedToAuthorize'));
     }
   };
 
@@ -152,7 +153,7 @@ export default function AuthorizeScreen() {
         setMessage(res.data?.error || t('authorize.tokenExpired'));
         return;
       }
-    } catch (e: any) {
+    } catch {
       setStatus('error');
       setMessage(t('authorize.invalidOrExpiredToken'));
       return;
@@ -183,13 +184,13 @@ export default function AuthorizeScreen() {
         setStatus('error');
         setMessage(t('authorize.failedToLink'));
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Bot link error:', error);
-      const errorMessage = error.response?.data?.error || t('authorize.failedToLink');
+      const errorMessage = responseErrorMessage(error) || t('authorize.failedToLink');
       setStatus('error');
       setMessage(errorMessage);
     }
-  }, [params, isOxyAuth, router, channel, app, appConfig.displayName]);
+  }, [params, isOxyAuth, router, channel, app, appConfig.displayName, t]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -218,12 +219,12 @@ export default function AuthorizeScreen() {
   }, [
     isAuthenticated,
     authLoading,
-    app,
     channel,
     params,
     router,
     handleChannelAuth,
     appConfig.isChannel,
+    t,
   ]);
 
   // Real-time socket subscription for Telegram token linking
@@ -247,7 +248,7 @@ export default function AuthorizeScreen() {
     return () => {
       socket.disconnect();
     };
-  }, [app, params.token]);
+  }, [app, params.token, t]);
 
   const handleCancel = () => {
     const { callback } = params;
@@ -306,8 +307,8 @@ export default function AuthorizeScreen() {
                     {t('authorize.willAllow', { app: appConfig.displayName })}
                   </Text>
                   <View className="gap-2 pl-1">
-                    {appConfig.permissionKeys.map((key, index) => (
-                      <Text key={index} className="text-sm">
+                    {appConfig.permissionKeys.map((key) => (
+                      <Text key={key} className="text-sm">
                         • {t(`authorize.${key}`, { app: appConfig.displayName })}
                       </Text>
                     ))}

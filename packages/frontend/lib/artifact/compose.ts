@@ -20,7 +20,7 @@
 
 import type { ChecklistItem } from '@noted/shared-types';
 
-import { type GeneratedNoteArtifact } from '@noted/shared-types';
+import type { GeneratedNoteArtifact } from '@noted/shared-types';
 import { type ArtifactLabels, DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
 import { nonEmptyChecklists } from '@/lib/artifact/artifact';
 import type { UserItemOverride } from '@noted/shared-types';

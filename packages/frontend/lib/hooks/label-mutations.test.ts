@@ -15,6 +15,12 @@ const state = vi.hoisted(() => ({
   patch: vi.fn(),
   sync: vi.fn(),
 }));
+
+/** The fixture database. `beforeEach` opens it before any test or mocked write reads it. */
+function liveDb(): DatabaseSync {
+  if (!state.db) throw new Error('The fixture database is not open');
+  return state.db;
+}
 vi.mock('@tanstack/react-query', async (original) => ({
   ...(await original<typeof import('@tanstack/react-query')>()),
   useMutation: (options: MutationObserverOptions) => options,
@@ -28,7 +34,11 @@ vi.mock('@/lib/db/client', () => ({
   executeTransaction: async (statements: Statement[], expectedViewerId: string) => {
     if (expectedViewerId !== state.viewer) throw new Error('Account changed');
     return statements.map(({ sql, params }) =>
-      Number(state.db!.prepare(sql).run(...(params as SQLInputValue[])).changes),
+      Number(
+        liveDb()
+          .prepare(sql)
+          .run(...(params as SQLInputValue[])).changes,
+      ),
     );
   },
 }));
@@ -58,7 +68,7 @@ const mutation = (hook: typeof useUpdateLabel | typeof useCreateLabel) =>
     client,
     hook() as unknown as MutationObserverOptions<unknown, Error, unknown>,
   );
-const labels = () => state.db!.prepare('SELECT id,name,color FROM labels ORDER BY id').all();
+const labels = () => liveDb().prepare('SELECT id,name,color FROM labels ORDER BY id').all();
 
 it('persists a confirmed color change and null clear without dropping sibling labels or sending an unchanged name', async () => {
   state.patch
@@ -76,7 +86,7 @@ it('persists a confirmed color change and null clear without dropping sibling la
   ]);
   await mutation(useUpdateLabel).mutate({ id: 'label', patch: { color: null } });
   expect(labels()[0]).toMatchObject({ color: null, name: 'Renamed elsewhere' });
-  expect(state.db!.prepare('SELECT * FROM outbox').all()).toHaveLength(0);
+  expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(0);
 });
 
 it('adds a colored server-confirmed label to the local read store', async () => {

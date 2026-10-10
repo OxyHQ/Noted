@@ -175,7 +175,12 @@ async function probeCapability(): Promise<LocalModelCapability> {
   const shaderF16 =
     device.features?.has('shader-f16') === true || adapter.features?.has('shader-f16') === true;
 
-  return { kind: 'ready', backend: 'webgpu', dtype: shaderF16 ? 'q4f16' : 'q4', shaderF16 };
+  return {
+    kind: 'ready',
+    backend: 'webgpu',
+    dtype: shaderF16 ? DTYPE_WITH_F16 : DTYPE_WITHOUT_F16,
+    shaderF16,
+  };
 }
 
 function capability(): Promise<LocalModelCapability> {

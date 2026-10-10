@@ -1,7 +1,7 @@
 import { observeEcosystemSocket } from './ecosystemActivity';
 import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import http from 'http';
+import type http from 'node:http';
 import { getRedisClient, getRedisSubClient } from './lib/redis.js';
 import { oxyClient } from './middleware/auth.js';
 import { log } from './lib/logger.js';
@@ -17,7 +17,7 @@ const ALLOWED_ORIGINS = [
 let io: Server | null = null;
 
 export function initSocket(server: http.Server) {
-  io = new Server(server, {
+  const socketServer = new Server(server, {
     cors: {
       origin: ALLOWED_ORIGINS,
       methods: ['GET', 'POST'],
@@ -25,6 +25,7 @@ export function initSocket(server: http.Server) {
     },
     transports: ['websocket', 'polling'],
   });
+  io = socketServer;
 
   // Attach Redis adapter for horizontal scaling
   const pubClient = getRedisClient();
@@ -32,7 +33,7 @@ export function initSocket(server: http.Server) {
   if (pubClient && subClient) {
     Promise.all([pubClient.connect(), subClient.connect()])
       .then(() => {
-        io!.adapter(createAdapter(pubClient, subClient));
+        socketServer.adapter(createAdapter(pubClient, subClient));
         log.general.info('Socket.IO Redis adapter attached');
       })
       .catch((err) => {
@@ -60,8 +61,12 @@ export function initSocket(server: http.Server) {
     // Parameterless opt-in events kept for client compatibility — they are
     // no-ops because the verified room is already joined above. They NEVER
     // join a client-supplied id.
-    socket.on('subscribe-notes', () => {});
-    socket.on('subscribe-notifications', () => {});
+    socket.on('subscribe-notes', () => {
+      // Intentionally empty: the verified room was joined on connection.
+    });
+    socket.on('subscribe-notifications', () => {
+      // Intentionally empty: the verified room was joined on connection.
+    });
   });
 
   return io;
