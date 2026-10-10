@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, ActivityIndicator, Linking, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
@@ -152,7 +152,7 @@ export default function AuthorizeScreen() {
         setMessage(res.data?.error || t('authorize.tokenExpired'));
         return;
       }
-    } catch (e: any) {
+    } catch {
       setStatus('error');
       setMessage(t('authorize.invalidOrExpiredToken'));
       return;

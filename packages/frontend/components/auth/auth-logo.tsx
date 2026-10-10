@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { View } from 'react-native';
 import { cn } from '@/lib/utils';
 import { NotedWordmark } from '@/components/ui/noted-wordmark';
