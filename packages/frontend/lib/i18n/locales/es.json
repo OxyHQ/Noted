@@ -714,7 +714,8 @@
     "subtitle": "Manage your notification preferences",
     "pushNotifications": "Push Notifications",
     "pushDescription": "Receive alerts about new messages and updates",
-    "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications."
+    "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications.",
+    "markAllRead": "Marcar todo como leído"
   },
   "agents": {
     "title": "Agents",
@@ -1171,7 +1172,9 @@
     "quickSaveFailed": "No se pudo guardar. Tu borrador sigue aquí.",
     "removeItem": "Eliminar elemento",
     "loadAttachmentFailed": "No se pudo cargar este archivo adjunto",
-    "openAttachmentFailed": "No se pudo abrir este archivo adjunto"
+    "openAttachmentFailed": "No se pudo abrir este archivo adjunto",
+    "listView": "Cambiar a vista de lista",
+    "gridView": "Cambiar a vista de cuadrícula"
   },
   "capture": {
     "start": "Tomar apuntes",

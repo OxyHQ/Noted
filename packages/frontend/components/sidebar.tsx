@@ -1,291 +1,107 @@
-import React from "react";
-import {
-  View,
-  Pressable,
-  ScrollView,
-  useWindowDimensions,
-} from "react-native";
-import { Text } from "@/components/ui/text";
-import {
-  Tag,
-  Archive,
-  Trash2,
-  Settings,
-  ChevronsLeft,
-  ChevronsRight,
-  Plus,
-} from "lucide-react-native";
-import { AddTaskIcon, StickyNoteIcon } from "@/components/ui/nav-icons";
+import { useCallback } from "react";
+import { usePathname, useRouter, type Href } from "expo-router";
+import type { SidebarProps } from "@oxy.so/bloom/sidebar";
+import { ProfileButton, openAccountDialog } from "@oxy.so/services";
+import { RiFileTextLine } from "@oxy.so/bloom/icons/RiFileTextLine";
+import { RiCalendarScheduleLine } from "@oxy.so/bloom/icons/RiCalendarScheduleLine";
+import { RiPriceTag3Line } from "@oxy.so/bloom/icons/RiPriceTag3Line";
+import { RiArchiveLine } from "@oxy.so/bloom/icons/RiArchiveLine";
+import { RiDeleteBinLine } from "@oxy.so/bloom/icons/RiDeleteBinLine";
+import { RiSettings3Line } from "@oxy.so/bloom/icons/RiSettings3Line";
+import { RiAddLine } from "@oxy.so/bloom/icons/RiAddLine";
+import { RiNotification3Line } from "@oxy.so/bloom/icons/RiNotification3Line";
+import { NotedMark } from "@/components/ui/noted-mark";
+import { useNotedSettings } from "@/components/settings/settings-provider";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useLabels } from "@/lib/hooks/use-labels";
+import { useLocalStoreState } from "@/lib/db/local-store-context";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
-import { useRouter, usePathname, useNavigation } from "expo-router";
-import type { DrawerNavigationProp } from "@react-navigation/drawer";
-import { SettingsSidebar } from "@/components/settings/settings-sidebar";
-import { openAccountDialog, ProfileButton } from "@oxy.so/services";
-import { NotedWordmark } from "@/components/ui/noted-wordmark";
-import { NotedMark } from "@/components/ui/noted-mark";
-import { useLabels } from "@/lib/hooks/use-labels";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { cn } from "@/lib/utils";
 
-type DrawerNav = DrawerNavigationProp<Record<string, object | undefined>>;
-
-/* ================================================================
-   Root sidebar — routes to settings sidebar on /settings
-   ================================================================ */
-
-export function Sidebar() {
-  const pathname = usePathname();
-  if (pathname.startsWith("/settings")) return <SettingsSidebar />;
-  return <NotesSidebar />;
-}
-
-/* ================================================================
-   Nav item
-   ================================================================ */
-
-interface NavItemProps {
-  /** Lucide or one of the Material Symbols in `nav-icons` — both draw at a size in a colour. */
-  icon: React.ComponentType<{ size?: number; color?: string }>;
-  label: string;
-  onPress: () => void;
-  isActive?: boolean;
-  collapsed?: boolean;
-}
-
-function NavItem({ icon: Icon, label, onPress, isActive, collapsed }: NavItemProps) {
-  const { colors } = useColorScheme();
-
-  if (collapsed) {
-    return (
-      <Pressable
-        onPress={onPress}
-        accessibilityLabel={label}
-        className={cn(
-          "h-12 w-12 items-center justify-center rounded-full web:transition",
-          isActive ? "bg-primary/10" : "active:bg-muted web:hover:bg-muted"
-        )}
-      >
-        <Icon size={20} color={isActive ? colors.primary : colors.foreground} />
-      </Pressable>
-    );
-  }
-
-  return (
-    <Pressable
-      onPress={onPress}
-      className={cn(
-        "mx-2 h-12 flex-row items-center gap-4 rounded-full px-4 web:transition",
-        isActive ? "bg-primary/10" : "active:bg-muted web:hover:bg-muted"
-      )}
-    >
-      <Icon size={20} color={isActive ? colors.primary : colors.foreground} />
-      <Text
-        className={cn(
-          "flex-1 text-sm",
-          isActive ? "font-semibold text-primary" : "text-foreground"
-        )}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-/* ================================================================
-   Notes sidebar
-   ================================================================ */
-
-const NotesSidebar = React.memo(function NotesSidebar() {
+/** Noted owns destinations; Bloom owns the responsive rail, drawer and chrome. */
+export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
   const router = useRouter();
-  const navigation = useNavigation<DrawerNav>();
   const pathname = usePathname();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
-  const insets = useSafeAreaInsets();
-  const dimensions = useWindowDimensions();
-  const isLargeScreen = dimensions.width >= 768;
-
-  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
-  const toggleSidebarCollapsed = useUIStore((s) => s.toggleSidebarCollapsed);
-  const activeLabel = useNotesUIStore((s) => s.activeLabel);
-  const setActiveLabel = useNotesUIStore((s) => s.setActiveLabel);
-  const setSearchQuery = useNotesUIStore((s) => s.setSearchQuery);
-
+  const settings = useNotedSettings();
+  const { isReady } = useLocalStoreState();
   const { data: labels } = useLabels();
+  const collapsed = useUIStore((state) => state.sidebarCollapsed);
+  const setCollapsed = useUIStore((state) => state.setSidebarCollapsed);
+  const activeLabel = useNotesUIStore((state) => state.activeLabel);
+  const setActiveLabel = useNotesUIStore((state) => state.setActiveLabel);
+  const setSearchQuery = useNotesUIStore((state) => state.setSearchQuery);
 
-  const isCollapsed = isLargeScreen && sidebarCollapsed;
-
-  const closeDrawerOnMobile = React.useCallback(() => {
-    if (!isLargeScreen) navigation.closeDrawer();
-  }, [isLargeScreen, navigation]);
-
-  const goHome = React.useCallback(() => {
+  const navigate = useCallback((href: Href) => {
+    closeDrawer();
+    router.navigate(href);
+  }, [closeDrawer, router]);
+  const goHome = useCallback(() => {
     setActiveLabel(null);
     setSearchQuery("");
-    router.push("/(app)");
-    closeDrawerOnMobile();
-  }, [router, setActiveLabel, setSearchQuery, closeDrawerOnMobile]);
+    navigate("/(app)");
+  }, [navigate, setActiveLabel, setSearchQuery]);
+  const openSettings = useCallback(() => {
+    closeDrawer();
+    settings.open();
+  }, [closeDrawer, settings]);
+  const openAccount = useCallback(() => {
+    closeDrawer();
+    settings.open("account");
+  }, [closeDrawer, settings]);
+  const addAccount = useCallback(() => {
+    closeDrawer();
+    openAccountDialog();
+  }, [closeDrawer]);
 
-  const goReminders = React.useCallback(() => {
-    router.push("/(app)/reminders");
-    closeDrawerOnMobile();
-  }, [router, closeDrawerOnMobile]);
-
-  const goArchive = React.useCallback(() => {
-    router.push("/(app)/archive");
-    closeDrawerOnMobile();
-  }, [router, closeDrawerOnMobile]);
-
-  const goTrash = React.useCallback(() => {
-    router.push("/(app)/trash");
-    closeDrawerOnMobile();
-  }, [router, closeDrawerOnMobile]);
-
-  const goLabels = React.useCallback(() => {
-    router.push("/(app)/labels");
-    closeDrawerOnMobile();
-  }, [router, closeDrawerOnMobile]);
-
-  const goSettings = React.useCallback(() => {
-    router.push("/(app)/settings");
-    closeDrawerOnMobile();
-  }, [router, closeDrawerOnMobile]);
-
-  const openLabel = React.useCallback(
-    (labelId: string) => {
-      setActiveLabel(labelId);
-      setSearchQuery("");
-      router.push("/(app)");
-      closeDrawerOnMobile();
+  return {
+    surface: "plain",
+    size: "md",
+    showSearch: false,
+    showThemeToggle: false,
+    collapsed,
+    onCollapsedChange: setCollapsed,
+    logo: {
+      icon: <NotedMark size={28} color={colors.foreground} />,
+      wordmark: "Noted",
+      accessibilityLabel: "Noted",
+      href: "/",
+      onPress: goHome,
     },
-    [router, setActiveLabel, setSearchQuery, closeDrawerOnMobile]
-  );
-
-  const handleLogin = React.useCallback(() => openAccountDialog(), []);
-
-  const isHome = pathname === "/" || pathname === "/(app)" || (pathname.startsWith("/(app)") && !pathname.includes("/"));
-  const allLabels = labels ?? [];
-
-  /* ───────────────── Collapsed (desktop) ───────────────── */
-  if (isCollapsed) {
-    return (
-      <View
-        className="h-full flex-col items-center border-r border-border bg-background"
-        style={{ width: 48, paddingTop: insets.top, paddingBottom: insets.bottom }}
-      >
-        {/* The mark, not the wordmark: the rail is 48px wide, and a word
-            squeezed into it is unreadable rather than small. */}
-        <View className="h-14 items-center justify-center">
-          <NotedMark size={24} color={colors.foreground} />
-        </View>
-        <View className="flex-col items-center gap-1 py-1">
-          <NavItem icon={StickyNoteIcon} label={t("notes.title")} onPress={goHome} collapsed />
-          <NavItem icon={AddTaskIcon} label={t("notes.remindersTitle")} onPress={goReminders} collapsed />
-          <NavItem icon={Tag} label={t("notes.labelsTitle")} onPress={goLabels} collapsed />
-          <NavItem icon={Archive} label={t("notes.archiveTitle")} onPress={goArchive} collapsed />
-          <NavItem icon={Trash2} label={t("notes.trashTitle")} onPress={goTrash} collapsed />
-          <NavItem icon={Settings} label={t("nav.settings")} onPress={goSettings} collapsed />
-        </View>
-        <View className="flex-1" />
-        <View className="flex-col items-center gap-2 p-2">
-          <Pressable
-            onPress={toggleSidebarCollapsed}
-            accessibilityLabel="Expand sidebar"
-            className="h-10 w-10 items-center justify-center rounded-full active:bg-muted"
-          >
-            <ChevronsRight size={18} color={colors.mutedForeground} />
-          </Pressable>
-          <ProfileButton
-            expanded={false}
-            onNavigateManage={goSettings}
-            onAddAccount={handleLogin}
-          />
-        </View>
-      </View>
-    );
-  }
-
-  /* ───────────────── Expanded ───────────────── */
-  return (
-    <View
-      className="h-full w-full flex-col border-r border-border bg-background"
-      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-    >
-      {/* Header */}
-      <View className="h-14 flex-row items-center px-4">
-        <Pressable onPress={goHome} className="rounded-xl p-1 active:bg-muted">
-          <NotedWordmark width={96} color={colors.foreground} />
-        </Pressable>
-        {isLargeScreen && (
-          <View className="ml-auto">
-            <Pressable
-              onPress={toggleSidebarCollapsed}
-              accessibilityLabel="Collapse sidebar"
-              className="h-10 w-10 items-center justify-center rounded-full active:bg-muted"
-            >
-              <ChevronsLeft size={18} color={colors.mutedForeground} />
-            </Pressable>
-          </View>
-        )}
-      </View>
-
-      {/* Nav */}
-      <ScrollView className="flex-1" contentContainerClassName="py-1">
-        <NavItem
-          icon={StickyNoteIcon}
-          label={t("notes.title")}
-          onPress={goHome}
-          isActive={isHome && !activeLabel}
-        />
-        <NavItem icon={AddTaskIcon} label={t("notes.remindersTitle")} onPress={goReminders} isActive={pathname.includes("/reminders")} />
-
-        {/* Labels */}
-        {allLabels.length > 0 && (
-          <>
-            <View className="mb-1 mt-3 pl-6">
-              <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {t("notes.labelsTitle")}
-              </Text>
-            </View>
-            {allLabels.map((label) => (
-              <NavItem
-                key={label.id}
-                icon={Tag}
-                label={label.name}
-                onPress={() => openLabel(label.id)}
-                isActive={isHome && activeLabel === label.id}
-              />
-            ))}
-          </>
-        )}
-
-        <Pressable
-          onPress={goLabels}
-          className="mx-2 h-12 flex-row items-center gap-4 rounded-full px-4 web:transition active:bg-muted web:hover:bg-muted"
-        >
-          <Plus size={20} color={colors.mutedForeground} />
-          <Text className="text-sm text-muted-foreground">{t("notes.editLabels")}</Text>
-        </Pressable>
-
-        <View className="my-2 mx-4 border-t border-border/40" />
-
-        <NavItem icon={Archive} label={t("notes.archiveTitle")} onPress={goArchive} isActive={pathname.includes("/archive")} />
-        <NavItem icon={Trash2} label={t("notes.trashTitle")} onPress={goTrash} isActive={pathname.includes("/trash")} />
-        <NavItem icon={Settings} label={t("nav.settings")} onPress={goSettings} isActive={pathname.includes("/settings")} />
-      </ScrollView>
-
-      {/* Account trigger. `ProfileButton` from the SDK owns all three auth
-          states (undetermined skeleton, signed-in row + account switcher,
-          signed-out "Sign in") and the device-account menu — the same component
-          Mention's sidebar uses, so switching accounts behaves identically
-          across Oxy apps and no app re-implements the session UI. */}
-      <View className="mt-auto border-t border-border/40 p-2">
-        <ProfileButton onNavigateManage={goSettings} onAddAccount={handleLogin} />
-      </View>
-    </View>
-  );
-});
+    selected: pathname === "/" && activeLabel ? `label:${activeLabel}` : pathname,
+    items: [
+      { key: "/", label: t("notes.title"), icon: RiFileTextLine, href: "/", onPress: goHome },
+      { key: "/reminders", label: t("notes.remindersTitle"), icon: RiCalendarScheduleLine, href: "/reminders", onPress: () => navigate("/(app)/reminders") },
+      { key: "/archive", label: t("notes.archiveTitle"), icon: RiArchiveLine, href: "/archive", onPress: () => navigate("/(app)/archive") },
+      { key: "/trash", label: t("notes.trashTitle"), icon: RiDeleteBinLine, href: "/trash", onPress: () => navigate("/(app)/trash") },
+      { key: "/labels", label: t("notes.editLabels"), icon: RiPriceTag3Line, href: "/labels", onPress: () => navigate("/(app)/labels") },
+      ...(labels ?? []).map((label) => ({
+        key: `label:${label.id}`,
+        label: label.name,
+        icon: RiPriceTag3Line,
+        onPress: () => {
+          setActiveLabel(label.id);
+          setSearchQuery("");
+          navigate("/(app)");
+        },
+      })),
+    ],
+    secondaryItems: [
+      { key: "/notifications", label: t("notifications.title"), icon: RiNotification3Line, href: "/notifications", onPress: () => navigate("/(app)/notifications") },
+      { key: "settings", label: t("nav.settings"), icon: RiSettings3Line, onPress: openSettings },
+    ],
+    primaryAction: {
+      label: t("notes.takeANote"),
+      icon: RiAddLine,
+      disabled: !isReady,
+      onPress: () => {
+        navigate({ pathname: "/n/[id]", params: { id: "new", ...(pathname === "/" && activeLabel ? { label: activeLabel } : {}) } });
+      },
+    },
+    footer: ({ collapsed: isCollapsed }) => (
+      <ProfileButton expanded={!isCollapsed} onNavigateManage={openAccount} onAddAccount={addAccount} />
+    ),
+  };
+}

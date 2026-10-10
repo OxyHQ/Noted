@@ -20,7 +20,7 @@ bun run android
 
 | path | what lives there |
 |---|---|
-| `app/` | the routes, file-based via expo-router — `(app)/` is the authenticated drawer, `n/[id]` is the note editor, presented as a transparent modal above it |
+| `app/` | the routes, file-based via expo-router — `(app)/` uses Bloom AppShell and a routed stack, `n/[id]` is the note editor, presented as a transparent modal above it |
 | `components/` | the UI, including `notes/` (cards, grid, editor chrome) and `capture/` (the recording indicator) |
 | `lib/db/` | the local-first SQLite store: schema, migrations, repositories, and the sync that reconciles it with the API |
 | `lib/capture/` | recording: which engine holds the microphone, and what happens to a recording when it stops |
@@ -36,7 +36,7 @@ must never use an `EXPO_PUBLIC_` variable.
 ## Things worth knowing before changing them
 
 - **The local database is the source of truth for reading.** Screens query SQLite through `lib/db/live-query`, never the API directly, and must not query before `useLocalStore()` reports ready — a query with no active account has no database file to open.
-- **One engine holds the microphone.** `CaptureEngineHost` mounts it once and publishes to the capture store; the indicator is drawn from that store in two places (inside the drawer's scenes and inside the note editor) because they are different layers of the app. A second engine would be a second microphone.
+- **One engine holds the microphone.** `CaptureEngineHost` mounts it once and publishes to the capture store; the indicator is drawn from that store in two places (inside the shell’s scenes and inside the note editor) because they are different layers of the app. A second engine would be a second microphone.
 - **Unit tests do not catch layout, hover or animation bugs.** Verify those in a real, foregrounded browser tab.
 - **Stickers need their animation players.** Bloom's optional players must be direct frontend dependencies: `@lottiefiles/dotlottie-react` on web and `lottie-react-native` on native. `lib/lottieWeb.web.ts` configures the bundled `@lottiefiles/dotlottie-web` renderer before stickers mount; Metro already accepts `.wasm` assets. Missing players silently show still images in production. Validate an exported app in a foreground browser with reduced motion disabled: the renderer must load from the app's origin and the sticker's canvas frames must change. Reduced motion should keep the still image.
 
