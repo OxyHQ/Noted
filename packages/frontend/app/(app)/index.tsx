@@ -36,7 +36,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, user } = useOxy();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
 
@@ -103,9 +103,9 @@ export default function HomeScreen() {
     (input: { title: string; body: string; color?: NoteColor; archived?: boolean }) => {
       // Nothing has been recorded into a note born here, so every word of it is
       // the user's half.
-      return createNote.mutateAsync({ title: input.title, userBody: input.body, color: input.color, archived: input.archived, labels: activeLabel ? [activeLabel] : [] });
+      return createNote.mutateAsync({ expectedViewerId: user?.id, title: input.title, userBody: input.body, color: input.color, archived: input.archived, labels: activeLabel ? [activeLabel] : [] });
     },
-    [createNote, activeLabel]
+    [createNote, activeLabel, user?.id]
   );
 
   const handleCreateChecklist = React.useCallback(() => {
