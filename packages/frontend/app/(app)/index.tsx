@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text";
 import { EmptyState } from "@/components/empty-state";
 import { LocalStoreError } from "@/components/local-store-boundary";
 import { NotesHeader } from "@/components/notes/notes-header";
-import { QuickCapture } from "@/components/notes/quick-capture";
+import { QuickCapture, type QuickCaptureCreation } from "@/components/notes/quick-capture";
 import { NoteGrid } from "@/components/notes/note-grid";
 import { BulkActionBar } from "@/components/notes/bulk-action-bar";
 import { NoteColorPicker } from "@/components/notes/note-color-picker";
@@ -100,10 +100,20 @@ export default function HomeScreen() {
   );
 
   const handleCreate = React.useCallback(
-    (input: { title: string; body: string; color?: NoteColor; archived?: boolean }) => {
+    (input: QuickCaptureCreation) => {
       // Nothing has been recorded into a note born here, so every word of it is
       // the user's half.
-      return createNote.mutateAsync({ expectedViewerId: user?.id, title: input.title, userBody: input.body, color: input.color, archived: input.archived, labels: activeLabel ? [activeLabel] : [] });
+      return createNote.mutateAsync({
+        expectedViewerId: user?.id,
+        creationId: input.creationId,
+        initialInput: {
+          title: input.initialInput.title, userBody: input.initialInput.body,
+          color: input.initialInput.color, archived: input.initialInput.archived,
+          labels: activeLabel ? [activeLabel] : [],
+        },
+        title: input.title, userBody: input.body, color: input.color,
+        archived: input.archived, labels: activeLabel ? [activeLabel] : [],
+      });
     },
     [createNote, activeLabel, user?.id]
   );

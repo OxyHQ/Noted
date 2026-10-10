@@ -52,10 +52,9 @@ vi.mock('expo-sqlite', () => {
       },
       getAllAsync: () => Promise.resolve(file.rows),
       closeAsync: async () => {
-        // Closing flushes and releases the OPFS handle, so it is not
-        // instantaneous. The delay is what gives a racing open a window to
-        // collide in — with an immediate close, an unserialised implementation
-        // looks correct by luck.
+        // Model an asynchronous database-connection close so lifecycle races
+        // remain visible. Expo's web VFS pool retains its OPFS handles beyond
+        // closeAsync; document-lifetime ownership is covered by browser tests.
         await new Promise((resolve) => setTimeout(resolve, state.closeMs));
         state.open.delete(name);
         state.concurrent -= 1;

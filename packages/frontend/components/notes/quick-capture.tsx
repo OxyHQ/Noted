@@ -24,15 +24,22 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { useTranslation } from "@/hooks/useTranslation";
 import { DEFAULT_NEW_NOTE_COLOR, type NoteColor } from "@noted/shared-types";
+import { newNoteId } from "@/lib/db/ids";
+
+interface QuickCaptureInput {
+  title: string;
+  body: string;
+  color?: NoteColor;
+  archived?: boolean;
+}
+export interface QuickCaptureCreation extends QuickCaptureInput {
+  creationId: string;
+  initialInput: QuickCaptureInput;
+}
 
 interface QuickCaptureProps {
   /** Create a plain note from the composed title/body/color. */
-  onCreate: (input: {
-    title: string;
-    body: string;
-    color?: NoteColor;
-    archived?: boolean;
-  }) => Promise<{ id: string }>;
+  onCreate: (input: QuickCaptureCreation) => Promise<{ id: string }>;
   onOpenNote: (id: string, mode: "checklist" | "attachment") => void;
   /** Open the full editor in checklist mode for a new note. */
   onCreateChecklist: () => void;
@@ -98,11 +105,13 @@ export function QuickCapture({
   const [saveFailed, setSaveFailed] = React.useState(false);
   const [discardOpen, setDiscardOpen] = React.useState(false);
   const savingRef = React.useRef(false);
+  const creation = React.useRef<{ id: string; input: QuickCaptureInput } | null>(null);
   const bodyRef = React.useRef<TextInput>(null);
 
   const tint = getNoteColorTint(color, colorScheme);
 
   const reset = React.useCallback(() => {
+    creation.current = null;
     setTitle("");
     setBody("");
     setColor(DEFAULT_NEW_NOTE_COLOR);
@@ -127,11 +136,12 @@ export function QuickCapture({
       setSaving(true);
       setSaveFailed(false);
       try {
+        const input = { title: trimmedTitle, body: trimmedBody, color, archived };
+        creation.current ??= { id: newNoteId(), input };
         const created = await onCreate({
-          title: trimmedTitle,
-          body: trimmedBody,
-          color,
-          archived,
+          ...input,
+          creationId: creation.current.id,
+          initialInput: creation.current.input,
         });
         reset();
         if (mode) onOpenNote(created.id, mode);

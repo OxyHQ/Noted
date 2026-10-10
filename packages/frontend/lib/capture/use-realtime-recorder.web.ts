@@ -126,6 +126,7 @@ export function useRealtimeRecorder(
 
         if (!active) {
           await session.stop();
+          await coordinator.markFailed('capture_cancelled').catch(() => undefined);
           return;
         }
         sessionRef.current = session;

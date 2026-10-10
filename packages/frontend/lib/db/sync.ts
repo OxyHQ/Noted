@@ -24,6 +24,7 @@ import {
   type Statement,
 } from '@/lib/db/client';
 import { saveLabels } from '@/lib/db/labels-repo';
+import { withAccountSyncLock } from '@/lib/db/web-locks';
 import {
   artifactUpsertStatement,
   getNoteOverrides,
@@ -551,7 +552,9 @@ export function syncNotes(makeConflictId: () => string): Promise<void> {
       // one runs must survive into the next iteration.
       rerunRequested = false;
       const viewerId = getActiveViewerId();
-      if (viewerId) await runSyncCycle(makeConflictId, viewerId);
+      if (viewerId) {
+        await withAccountSyncLock(viewerId, () => runSyncCycle(makeConflictId, viewerId));
+      }
     } while (rerunRequested);
   })().finally(() => {
     inFlight = null;

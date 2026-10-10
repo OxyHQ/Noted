@@ -6,6 +6,7 @@ import React from "react";
 import { LocalStoreBoundary } from "@/components/local-store-boundary";
 import { EmptyState } from "@/components/empty-state";
 import { NoteSaveQueue } from "@/lib/notes/save-queue";
+import { editorPatch, type EditorSaveSnapshot } from "@/lib/notes/editor-patch";
 import { getActiveViewerId } from "@/lib/db/client";
 import {
   View,
@@ -71,7 +72,7 @@ import {
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
-import type { LocalNote } from "@/lib/db/notes-repo";
+import type { LocalNote, NoteInput } from "@/lib/db/notes-repo";
 import { reconcileDraft } from "@/lib/notes/draft-sync";
 import { userBodyOf } from "@/lib/notes/generated-body";
 import { isEmptyNote } from "@/lib/notes/emptiness";
@@ -187,6 +188,10 @@ function NoteEditor() {
   }));
   const draftRef = React.useRef(draft);
   const [base, setBase] = React.useState<LocalNote | null>(null);
+  const baseRef = React.useRef(base);
+  baseRef.current = base;
+  const lastSavedDraft = React.useRef<LocalNote | null>(null);
+  const creationInput = React.useRef<NoteInput | null>(null);
   const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
@@ -203,15 +208,14 @@ function NoteEditor() {
   // documented pattern for syncing state to changed props (here: the note, read
   // through a live SQL subscription).
   //
-  // `updatedAt` is the gate rather than a one-way `hydrated` flag: the flag was
-  // the bug. It never went back to false, so nothing written after the editor
-  // opened ever reached the draft, and the note's own card and its open editor
-  // showed different text for the same note.
+  // Live-query snapshots are the gate: two writes can share an updatedAt
+  // millisecond, so timestamps cannot establish that the store is unchanged.
   const stored = isNew ? null : fetchedNote;
   if (stored !== null && (base === null || base.id !== stored.id)) {
     // First sight of this note: there is nothing of the user's to protect yet.
     draftRef.current = stored;
     setDraftState(stored);
+    baseRef.current = stored;
     setBase(stored);
     // Only on arrival. Flipping this on a later slice would drag someone out of
     // the field they are typing in because the structurer found a task.
@@ -219,13 +223,14 @@ function NoteEditor() {
   } else if (
     stored !== null &&
     base !== null &&
-    base.updatedAt !== stored.updatedAt
+    base !== stored
   ) {
     // Written to since the draft last agreed with it — a transcription slice, a
     // sync from another device, or this editor's own autosave landing.
     const next = reconcileDraft(base, draftRef.current, stored);
     draftRef.current = next;
     setDraftState(next);
+    baseRef.current = stored;
     setBase(stored);
   }
 
@@ -238,7 +243,7 @@ function NoteEditor() {
    * would compose the block back in on the very next write, just after they
    * converted it away.
    */
-  const writeDraft = async (next: LocalNote, bodyTakenOver: boolean) => {
+  const writeDraft = async ({ draft: next, base: queuedBase }: EditorSaveSnapshot, bodyTakenOver: boolean) => {
     if (
       !isAuthenticated ||
       !editorOwner.current ||
@@ -250,31 +255,33 @@ function NoteEditor() {
       );
     }
     const userBody = userBodyOf(next.body, next.generatedBody);
-    const input = {
-      title: next.title,
-      userBody,
-      ...(bodyTakenOver ? { generatedBody: "" } : {}),
-      checklist: next.checklist,
-      color: next.color,
-      labels: next.labels,
-      pinned: next.pinned,
-      archived: next.archived,
-      reminderAt: next.reminderAt,
-      attachments: next.attachments,
-    };
     const id = noteIdRef.current;
+    const input = editorPatch(id ? queuedBase ?? lastSavedDraft.current : null, next, bodyTakenOver);
     if (id) {
-      await updateNote.mutateAsync({
-        id,
-        patch: input,
-        expectedViewerId: editorOwner.current,
-      });
+      if (Object.keys(input).length > 0) {
+        await updateNote.mutateAsync({
+          id,
+          patch: input,
+          expectedViewerId: editorOwner.current,
+        });
+      }
+      lastSavedDraft.current = next;
     } else if (!isEmptyNote({ ...next, userBody })) {
+      creationInput.current ??= input;
       const created = await createNote.mutateAsync({
         ...input,
+        creationId: next.id,
+        initialInput: creationInput.current,
         expectedViewerId: editorOwner.current,
       });
       noteIdRef.current = created.id;
+      lastSavedDraft.current = next;
+      // Confirmation may return a note already edited in another tab. Follow
+      // those fields while retaining typing made during the pending request.
+      const confirmedDraft = reconcileDraft(next, draftRef.current, created);
+      draftRef.current = confirmedDraft;
+      setDraftState(confirmedDraft);
+      baseRef.current = created;
       setBase(created);
       router.setParams({ id: created.id });
     }
@@ -283,7 +290,7 @@ function NoteEditor() {
   writeDraftRef.current = writeDraft;
   const [saveQueue] = React.useState(
     () =>
-      new NoteSaveQueue<LocalNote>((next, takeOverBody) =>
+      new NoteSaveQueue<EditorSaveSnapshot>((next, takeOverBody) =>
         writeDraftRef.current(next, takeOverBody),
       ),
   );
@@ -293,7 +300,7 @@ function NoteEditor() {
       const version = ++saveVersion.current;
       setSaveState("saving");
       try {
-        await saveQueue.save(next, bodyTakenOver);
+        await saveQueue.save({ draft: next, base: baseRef.current }, bodyTakenOver);
         if (version === saveVersion.current) setSaveState("saved");
       } catch (error) {
         if (version === saveVersion.current) setSaveState("error");

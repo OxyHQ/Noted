@@ -22,6 +22,25 @@ store or database fallback. The client writes locally first and synchronises
 afterwards, so reading remains available offline and survives an interrupted
 edit.
 
+## Local storage and browser tabs
+
+Multiple browser tabs must remain usable at the same time: each can read and
+edit notes, and committed local changes refresh the other tabs for that account.
+Opening another tab must not require closing the first or clearing browser data.
+
+SQLite remains the read source of truth. TanStack Query manages mutation state
+and remote resources; it does not replace SQLite or coordinate its file handles.
+On web, tabs share access to one SQLite owner through an origin-wide broker.
+The owner serializes each account-bound operation, including whole transactions,
+and broadcasts account-scoped invalidations. Each tab keeps its own active
+account, while each account keeps its own database and unsynchronized writes.
+
+Losing a tab must preserve persisted notes. Ownership can transfer only after
+the browser releases the previous owner's storage lease. An unacknowledged write
+may already have committed, so ownership changes must not automatically replay
+it. Storage recovery never deletes the OPFS pool or substitutes a remote or
+in-memory notes store.
+
 ## AI ownership
 
 Current recording intelligence is local to the user's device:

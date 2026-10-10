@@ -1290,7 +1290,7 @@
   },
   "emptyStates": {
     "storeErrorTitle": "Your notes could not be opened",
-    "storeErrorSubtitle": "Noted needs device storage to open your notes. Try again, or check that storage is available in your browser or device settings.",
+    "storeErrorSubtitle": "Your local notes have been preserved. Try opening them again. If the problem continues, check that this browser allows site storage.",
     "retry": "Try again",
     "signIn": "Sign in with Oxy",
     "loadingTitle": "Getting your notes ready",
@@ -1303,6 +1303,10 @@
     "notificationsError": "Notifications could not be loaded",
     "notificationsErrorSubtitle": "Check your connection and try again.",
     "notFoundTitle": "This page could not be found",
-    "notFoundSubtitle": "The link may be outdated. Your notes are still on the home screen."
+    "notFoundSubtitle": "The link may be outdated. Your notes are still on the home screen.",
+    "storeLockedSubtitle": "A tab running an older version of Noted is using your local notes. Close the older tabs and reload this page. Your notes have been preserved.",
+    "storeReloadSubtitle": "The local notes connection needs to restart. Close the other Noted tabs, then reload this page. Your saved notes have been preserved.",
+    "reload": "Reload page",
+    "storePausedSubtitle": "Another Noted tab is paused. Bring it to the foreground or close it, then try again. Your notes have been preserved."
   }
 }
