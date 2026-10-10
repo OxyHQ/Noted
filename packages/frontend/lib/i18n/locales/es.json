@@ -1305,7 +1305,7 @@
     "notFoundTitle": "No se encontró esta página",
     "notFoundSubtitle": "Puede que el enlace esté desactualizado. Tus notas siguen en la pantalla de inicio.",
     "storeLockedSubtitle": "Una pestaña con una versión anterior de Noted está utilizando tus notas locales. Cierra las pestañas antiguas y recarga esta página. Tus notas se han conservado.",
-    "storeReloadSubtitle": "La conexión con tus notas locales necesita reiniciarse. Recarga esta página para abrirla de nuevo. Tus notas se han conservado.",
+    "storeReloadSubtitle": "La conexión con tus notas locales necesita reiniciarse. Cierra las otras pestañas de Noted y recarga esta página. Tus notas guardadas se han conservado.",
     "reload": "Recargar página",
     "storePausedSubtitle": "Otra pestaña de Noted está en pausa. Ábrela o ciérrala y vuelve a intentarlo. Tus notas se han conservado."
   }
