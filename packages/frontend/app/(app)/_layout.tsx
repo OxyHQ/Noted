@@ -56,6 +56,7 @@ export default function AppLayout() {
           onDrawerOpenChange={setDrawerOpen}
           navFrom={768}
           contentWidth={1800}
+          navigationAlign="content"
           navigationGap={8}
           gutter={8}
           header={null}
