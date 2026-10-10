@@ -499,28 +499,6 @@ function NoteEditor() {
   // (Keep-style); native and small web keep the full-screen editor.
   const isWebModal = Platform.OS === "web" && isLargeScreen;
 
-  const IconButton = ({
-    icon: Icon,
-    label,
-    onPress,
-    active,
-  }: {
-    icon: typeof Pin;
-    label: string;
-    onPress: () => void;
-    active?: boolean;
-  }) => (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={active === undefined ? undefined : { selected: active }}
-      className="h-10 w-10 items-center justify-center rounded-full active:bg-foreground/10"
-      style={active ? { backgroundColor: colors.foreground + "1a" } : undefined}
-    >
-      <Icon size={20} color={colors.foreground} />
-    </Pressable>
-  );
 
   const editorContent = (
     <>
@@ -727,6 +705,34 @@ function NoteEditor() {
       <FloatingBottomStack />
     </View>
   );
+}
+
+// Keep toolbar hosts mounted when a checklist field commits on blur. Replacing
+// them between pointer-down and pointer-up loses the button press.
+function IconButton({
+  icon: Icon,
+  label,
+  onPress,
+  active,
+}: {
+  icon: typeof Pin;
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+}) {
+  const { colors } = useColorScheme();
+  return (
+  <Pressable
+    onPress={onPress}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+    accessibilityState={active === undefined ? undefined : { selected: active }}
+    className="h-10 w-10 items-center justify-center rounded-full active:bg-foreground/10"
+    style={active ? { backgroundColor: colors.foreground + "1a" } : undefined}
+  >
+    <Icon size={20} color={colors.foreground} />
+  </Pressable>
+);
 }
 
 function ReminderChip({
