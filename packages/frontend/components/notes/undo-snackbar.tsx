@@ -1,4 +1,6 @@
-import { Pressable } from "react-native";
+import { View } from "react-native";
+import { Card } from "@oxy.so/bloom/card";
+import { Button } from "@oxy.so/bloom/button";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -29,31 +31,35 @@ export function UndoSnackbar() {
       entering={reduceMotion ? undefined : SlideInDown.duration(200)}
       exiting={reduceMotion ? undefined : SlideOutDown.duration(150)}
     >
-      <Pressable
-        accessibilityRole="alert"
-        className="max-w-[420px] flex-row items-center justify-between rounded-lg px-4 py-3 shadow-lg"
+      <Card
+        radius="radius-12"
+        elevation="m"
         style={{ backgroundColor: colors.foreground }}
       >
-        <Text
-          className="flex-1 text-sm"
-          numberOfLines={1}
-          style={{ color: colors.background }}
-        >
-          {message}
-        </Text>
-        <Pressable
-          onPress={onUndo}
-          accessibilityLabel={t("common.undo")}
-          className="ml-3 rounded-md px-2 py-1 web:transition active:opacity-70 web:hover:opacity-80"
+        <View
+          accessibilityRole="alert"
+          className="max-w-[420px] flex-row items-center justify-between px-4 py-3"
         >
           <Text
-            className="text-sm font-semibold uppercase"
-            style={{ color: colors.primary }}
+            className="flex-1 text-sm"
+            numberOfLines={1}
+            style={{ color: colors.background }}
+          >
+            {message}
+          </Text>
+          <Button
+            appearance="plain"
+            size="sm"
+            onPress={onUndo}
+            colors={{
+              background: colors.foreground,
+              foreground: colors.background,
+            }}
           >
             {t("common.undo")}
-          </Text>
-        </Pressable>
-      </Pressable>
+          </Button>
+        </View>
+      </Card>
     </Animated.View>
   );
 }

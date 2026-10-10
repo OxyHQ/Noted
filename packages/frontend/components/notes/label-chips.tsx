@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { Tag } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
+import { Chip } from "@oxy.so/bloom/chip";
 import type { Label } from "@noted/shared-types";
 
 interface LabelChipsProps {
@@ -29,20 +29,20 @@ export function LabelChips({ labelIds, allLabels, max }: LabelChipsProps) {
   return (
     <View className="mt-1.5 flex-row flex-wrap gap-1">
       {shown.map((label) => (
-        <View
+        <Chip
           key={label.id}
-          className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-0.5"
+          size="sm"
+          appearance="subtle"
+          tone="neutral"
+          leadingIcon={Tag}
         >
-          <Tag size={10} className="text-muted-foreground" />
-          <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
-            {label.name}
-          </Text>
-        </View>
+          {label.name}
+        </Chip>
       ))}
       {overflow > 0 && (
-        <View className="rounded-full bg-foreground/10 px-2 py-0.5">
-          <Text className="text-[11px] text-muted-foreground">+{overflow}</Text>
-        </View>
+        <Chip size="sm" appearance="subtle" tone="neutral">
+          +{overflow}
+        </Chip>
       )}
     </View>
   );

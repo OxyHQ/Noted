@@ -1,6 +1,9 @@
 import React from "react";
-import { View, Pressable, TextInput } from "react-native";
-import { Square, CheckSquare, X, Plus } from "lucide-react-native";
+import { View, TextInput } from "react-native";
+import { X, Plus } from "lucide-react-native";
+import { GlyphButton } from "@oxy.so/bloom/button";
+import { Checkbox } from "@oxy.so/bloom/checkbox";
+import { TextField, TextFieldInput } from "@oxy.so/bloom/text-field";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";
 import { generateUUID } from "@/lib/utils";
@@ -21,7 +24,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
 
   const toggle = (id: string) =>
     onChange(
-      items.map((it) => (it.id === id ? { ...it, checked: !it.checked } : it))
+      items.map((it) => (it.id === id ? { ...it, checked: !it.checked } : it)),
     );
 
   const editText = (id: string, text: string) =>
@@ -40,48 +43,70 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
   return (
     <View className="gap-1">
       {items.map((item) => {
-        const Box = item.checked ? CheckSquare : Square;
         return (
           <View key={item.id} className="flex-row items-center gap-2">
-            <Pressable
-              onPress={() => toggle(item.id)}
+            <Checkbox
+              checked={item.checked}
+              onCheckedChange={() => toggle(item.id)}
               accessibilityLabel={item.text}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: item.checked }}
-              hitSlop={6}
-            >
-              <Box size={20} color={colors.mutedForeground} />
-            </Pressable>
-            <TextInput
-              value={item.text}
-              onChangeText={(text) => editText(item.id, text)}
-              placeholderTextColor={colors.mutedForeground}
-              className="flex-1 py-1 text-base text-foreground"
-              style={item.checked ? { textDecorationLine: "line-through" } : undefined}
+              size="sm"
             />
-            <Pressable onPress={() => remove(item.id)} hitSlop={6} accessibilityLabel={t("notes.removeItem")}>
-              <X size={16} color={colors.mutedForeground} />
-            </Pressable>
+            <TextField className="flex-1">
+              <TextFieldInput
+                label={item.text || t("notes.addItem")}
+                value={item.text}
+                onValueChange={(text) => editText(item.id, text)}
+                placeholderTextColor={colors.mutedForeground}
+                className="flex-1 py-1 text-base text-foreground"
+                style={
+                  item.checked
+                    ? { textDecorationLine: "line-through" }
+                    : undefined
+                }
+              />
+            </TextField>
+            <GlyphButton
+              onPress={() => remove(item.id)}
+              size={32}
+              glyphSize={16}
+              accessibilityLabel={t("notes.removeItem")}
+            >
+              {(foreground) => <X size={20} color={foreground} />}
+            </GlyphButton>
           </View>
         );
       })}
 
       <View className="flex-row items-center gap-2">
-        <Pressable onPress={() => { addItem(); inputRef.current?.focus(); }} accessibilityRole="button" accessibilityLabel={t("notes.addItem")} hitSlop={8}>
-          <Plus size={20} color={colors.mutedForeground} />
-        </Pressable>
-        <TextInput
-          ref={inputRef}
-          value={draft}
-          onChangeText={(text) => { draftRef.current = text; setDraft(text); }}
-          onBlur={addItem}
-          onSubmitEditing={addItem}
-          blurOnSubmit={false}
-          placeholder={t("notes.addItem")}
-          placeholderTextColor={colors.mutedForeground}
-          className="flex-1 py-1 text-base text-foreground"
-          returnKeyType="done"
-        />
+        <GlyphButton
+          onPress={() => {
+            addItem();
+            inputRef.current?.focus();
+          }}
+          accessibilityLabel={t("notes.addItem")}
+          size={32}
+          glyphSize={20}
+        >
+          {(foreground) => <Plus size={20} color={foreground} />}
+        </GlyphButton>
+        <TextField className="flex-1">
+          <TextFieldInput
+            label={t("notes.addItem")}
+            inputRef={inputRef}
+            value={draft}
+            onChangeText={(text) => {
+              draftRef.current = text;
+              setDraft(text);
+            }}
+            onBlur={addItem}
+            onSubmitEditing={addItem}
+            blurOnSubmit={false}
+            placeholder={t("notes.addItem")}
+            placeholderTextColor={colors.mutedForeground}
+            className="flex-1 py-1 text-base text-foreground"
+            returnKeyType="done"
+          />
+        </TextField>
       </View>
     </View>
   );

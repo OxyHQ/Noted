@@ -1,3 +1,6 @@
+import { Button, GlyphButton } from "@oxy.so/bloom/button";
+import { Card } from "@oxy.so/bloom/card";
+import { TextFieldInput } from "@oxy.so/bloom/text-field";
 import { scopedAttachmentSelection } from "@/lib/shared-storage";
 import React from "react";
 import { LocalStoreBoundary } from "@/components/local-store-boundary";
@@ -7,7 +10,6 @@ import { getActiveViewerId } from "@/lib/db/client";
 import {
   View,
   ScrollView,
-  TextInput,
   Pressable,
   ActivityIndicator,
   useWindowDimensions,
@@ -103,19 +105,32 @@ export default function NoteEditorScreen() {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   return (
-    <LocalStoreBoundary fallbackHeader={
-      <Pressable accessibilityRole="button" accessibilityLabel={t("common.back")} onPress={() => router.canGoBack() ? router.back() : router.replace("/")} className="flex-row items-center gap-2 px-4 py-4">
-        <ArrowLeft size={20} color={colors.foreground} />
-        <Text>{t("notes.title")}</Text>
-      </Pressable>
-    }>
+    <LocalStoreBoundary
+      fallbackHeader={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("common.back")}
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace("/")
+          }
+          className="flex-row items-center gap-2 px-4 py-4"
+        >
+          <ArrowLeft size={20} color={colors.foreground} />
+          <Text>{t("notes.title")}</Text>
+        </Pressable>
+      }
+    >
       <NoteEditor />
     </LocalStoreBoundary>
   );
 }
 
 function NoteEditor() {
-  const params = useLocalSearchParams<{ id: string; mode?: string }>();
+  const params = useLocalSearchParams<{
+    id: string;
+    mode?: string;
+    label?: string;
+  }>();
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -124,14 +139,24 @@ function NoteEditor() {
   const { width } = useWindowDimensions();
   const { isAuthenticated, showBottomSheet, user, activeSessionId } = useOxy();
   const editorOwner = React.useRef(user?.id);
-  const attachmentIdentity = React.useRef({ accountId: user?.id ?? null, sessionId: activeSessionId ?? null });
-  attachmentIdentity.current = { accountId: user?.id ?? null, sessionId: activeSessionId ?? null };
+  const attachmentIdentity = React.useRef({
+    accountId: user?.id ?? null,
+    sessionId: activeSessionId ?? null,
+  });
+  attachmentIdentity.current = {
+    accountId: user?.id ?? null,
+    sessionId: activeSessionId ?? null,
+  };
   const reduceMotion = useReducedMotion();
 
   const isNew = params.id === "new";
   const startInChecklist = params.mode === "checklist";
 
-  const { data: fetchedNote, isLoading, error: loadError } = useNote(isNew ? undefined : params.id);
+  const {
+    data: fetchedNote,
+    isLoading,
+    error: loadError,
+  } = useNote(isNew ? undefined : params.id);
   const { data: labels } = useLabels();
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
@@ -145,7 +170,9 @@ function NoteEditor() {
   const leavingRef = React.useRef(false);
   const saveVersion = React.useRef(0);
   const editVersion = React.useRef(0);
-  const [saveState, setSaveState] = React.useState<"saved" | "unsaved" | "saving" | "error">("saved");
+  const [saveState, setSaveState] = React.useState<
+    "saved" | "unsaved" | "saving" | "error"
+  >("saved");
 
   // The draft the fields render from. A text input cannot be re-rendered from
   // the database on every keystroke and still keep a caret, so the editor holds
@@ -154,7 +181,10 @@ function NoteEditor() {
   // draft last agreed with the store on, and it is what lets the two be merged
   // instead of one of them winning. A ref mirrors the draft so handlers can read
   // the latest value and persist outside the state updater.
-  const [draft, setDraftState] = React.useState<LocalNote>(() => makeDraftNote());
+  const [draft, setDraftState] = React.useState<LocalNote>(() => ({
+    ...makeDraftNote(),
+    labels: isNew && params.label ? [params.label] : [],
+  }));
   const draftRef = React.useRef(draft);
   const [base, setBase] = React.useState<LocalNote | null>(null);
   const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
@@ -186,7 +216,11 @@ function NoteEditor() {
     // Only on arrival. Flipping this on a later slice would drag someone out of
     // the field they are typing in because the structurer found a task.
     setShowChecklist(stored.checklist.length > 0);
-  } else if (stored !== null && base !== null && base.updatedAt !== stored.updatedAt) {
+  } else if (
+    stored !== null &&
+    base !== null &&
+    base.updatedAt !== stored.updatedAt
+  ) {
     // Written to since the draft last agreed with it — a transcription slice, a
     // sync from another device, or this editor's own autosave landing.
     const next = reconcileDraft(base, draftRef.current, stored);
@@ -205,8 +239,15 @@ function NoteEditor() {
    * converted it away.
    */
   const writeDraft = async (next: LocalNote, bodyTakenOver: boolean) => {
-    if (!isAuthenticated || !editorOwner.current || user?.id !== editorOwner.current || getActiveViewerId() !== editorOwner.current) {
-      throw new Error("The active account changed before this write could be saved");
+    if (
+      !isAuthenticated ||
+      !editorOwner.current ||
+      user?.id !== editorOwner.current ||
+      getActiveViewerId() !== editorOwner.current
+    ) {
+      throw new Error(
+        "The active account changed before this write could be saved",
+      );
     }
     const userBody = userBodyOf(next.body, next.generatedBody);
     const input = {
@@ -223,9 +264,16 @@ function NoteEditor() {
     };
     const id = noteIdRef.current;
     if (id) {
-      await updateNote.mutateAsync({ id, patch: input, expectedViewerId: editorOwner.current });
+      await updateNote.mutateAsync({
+        id,
+        patch: input,
+        expectedViewerId: editorOwner.current,
+      });
     } else if (!isEmptyNote({ ...next, userBody })) {
-      const created = await createNote.mutateAsync({ ...input, expectedViewerId: editorOwner.current });
+      const created = await createNote.mutateAsync({
+        ...input,
+        expectedViewerId: editorOwner.current,
+      });
       noteIdRef.current = created.id;
       setBase(created);
       router.setParams({ id: created.id });
@@ -233,21 +281,27 @@ function NoteEditor() {
   };
   const writeDraftRef = React.useRef(writeDraft);
   writeDraftRef.current = writeDraft;
-  const [saveQueue] = React.useState(() => new NoteSaveQueue<LocalNote>(
-    (next, takeOverBody) => writeDraftRef.current(next, takeOverBody),
-  ));
+  const [saveQueue] = React.useState(
+    () =>
+      new NoteSaveQueue<LocalNote>((next, takeOverBody) =>
+        writeDraftRef.current(next, takeOverBody),
+      ),
+  );
   React.useEffect(() => () => saveQueue.cancelPending(), [saveQueue]);
-  const persist = React.useCallback(async (next: LocalNote, bodyTakenOver = false) => {
-    const version = ++saveVersion.current;
-    setSaveState("saving");
-    try {
-      await saveQueue.save(next, bodyTakenOver);
-      if (version === saveVersion.current) setSaveState("saved");
-    } catch (error) {
-      if (version === saveVersion.current) setSaveState("error");
-      throw error;
-    }
-  }, [saveQueue]);
+  const persist = React.useCallback(
+    async (next: LocalNote, bodyTakenOver = false) => {
+      const version = ++saveVersion.current;
+      setSaveState("saving");
+      try {
+        await saveQueue.save(next, bodyTakenOver);
+        if (version === saveVersion.current) setSaveState("saved");
+      } catch (error) {
+        if (version === saveVersion.current) setSaveState("error");
+        throw error;
+      }
+    },
+    [saveQueue],
+  );
 
   const autosave = useDebouncedCallback(() => {
     void persist(draftRef.current).catch(() => {});
@@ -273,14 +327,24 @@ function NoteEditor() {
         await persist(next);
       } while (version !== editVersion.current);
       const id = noteIdRef.current;
-      if (id && isEmptyNote({ ...next, userBody: userBodyOf(next.body, next.generatedBody) })) {
+      if (
+        id &&
+        isEmptyNote({
+          ...next,
+          userBody: userBodyOf(next.body, next.generatedBody),
+        })
+      ) {
         await deleteNote.mutateAsync(id);
       }
       allowLeaveRef.current = true;
       navigation.dispatch(event.data.action);
-    })().catch(() => {
-      setSaveState("error");
-    }).finally(() => { leavingRef.current = false; });
+    })()
+      .catch(() => {
+        setSaveState("error");
+      })
+      .finally(() => {
+        leavingRef.current = false;
+      });
   });
 
   // Browser refresh/close cannot await SQLite. Warn only while a draft is at risk.
@@ -303,7 +367,7 @@ function NoteEditor() {
       setSaveState("unsaved");
       autosave.run();
     },
-    [autosave, setDraft]
+    [autosave, setDraft],
   );
 
   // A field change that should save immediately (toggles), not debounced.
@@ -314,17 +378,19 @@ function NoteEditor() {
       autosave.cancel();
       void persist(next).catch(() => {});
     },
-    [autosave, persist, setDraft]
+    [autosave, persist, setDraft],
   );
 
   const handleExport = React.useCallback(() => {
     const note = draftRef.current;
     // Read from the ref rather than from `draft`, so what is exported is what is
     // on screen right now and not the render this handler was created in.
-    void saveTextFile(noteFilename(note), noteToMarkdown(note)).catch((error: unknown) => {
-      logger.error('Could not export the note', { error: String(error) });
-      toast.error(t("notes.exportFailed"));
-    });
+    void saveTextFile(noteFilename(note), noteToMarkdown(note)).catch(
+      (error: unknown) => {
+        logger.error("Could not export the note", { error: String(error) });
+        toast.error(t("notes.exportFailed"));
+      },
+    );
   }, [t]);
 
   const handleToggleChecklist = React.useCallback(() => {
@@ -363,7 +429,7 @@ function NoteEditor() {
         : [...prev.labels, labelId];
       updateNow({ labels: nextLabels });
     },
-    [updateNow]
+    [updateNow],
   );
 
   // Append Oxy file IDs to the draft, deduped, and persist immediately. The
@@ -385,11 +451,15 @@ function NoteEditor() {
         updateNow({ attachments: next });
       }
     },
-    [updateNow]
+    [updateNow],
   );
 
   const handleAttachFile = React.useCallback(() => {
-    const select = scopedAttachmentSelection(attachmentIdentity.current, () => attachmentIdentity.current, attachFileIds);
+    const select = scopedAttachmentSelection(
+      attachmentIdentity.current,
+      () => attachmentIdentity.current,
+      attachFileIds,
+    );
     showBottomSheet?.({
       screen: "FileManagement",
       props: {
@@ -411,11 +481,11 @@ function NoteEditor() {
     (id: string) => {
       updateNow({
         attachments: (draftRef.current.attachments ?? []).filter(
-          (i) => i !== id
+          (i) => i !== id,
         ),
       });
     },
-    [updateNow]
+    [updateNow],
   );
 
   const handleSetReminder = React.useCallback(
@@ -423,7 +493,7 @@ function NoteEditor() {
       updateNow({ reminderAt: presetDate(preset).toISOString() });
       setShowReminders(false);
     },
-    [updateNow]
+    [updateNow],
   );
 
   const handleClearReminder = React.useCallback(() => {
@@ -455,7 +525,13 @@ function NoteEditor() {
 
   const checklistOpened = React.useRef(false);
   React.useEffect(() => {
-    if (params.mode !== "checklist" || isNew || !base || checklistOpened.current) return;
+    if (
+      params.mode !== "checklist" ||
+      isNew ||
+      !base ||
+      checklistOpened.current
+    )
+      return;
     checklistOpened.current = true;
     if (!showChecklist) handleToggleChecklist();
   }, [params.mode, isNew, base, showChecklist, handleToggleChecklist]);
@@ -473,8 +549,14 @@ function NoteEditor() {
         <EmptyState
           sticker={loadError ? "loadError" : "notFound"}
           title={t(loadError ? "notes.loadFailed" : "notes.notFoundTitle")}
-          subtitle={t(loadError ? "notes.loadFailedSubtitle" : "notes.notFoundSubtitle")}
-          action={{ label: t("common.back"), onPress: () => router.canGoBack() ? router.back() : router.replace("/") }}
+          subtitle={t(
+            loadError ? "notes.loadFailedSubtitle" : "notes.notFoundSubtitle",
+          )}
+          action={{
+            label: t("common.back"),
+            onPress: () =>
+              router.canGoBack() ? router.back() : router.replace("/"),
+          }}
         />
       </View>
     );
@@ -499,7 +581,6 @@ function NoteEditor() {
   // (Keep-style); native and small web keep the full-screen editor.
   const isWebModal = Platform.OS === "web" && isLargeScreen;
 
-
   const editorContent = (
     <>
       {/* Top bar */}
@@ -508,7 +589,11 @@ function NoteEditor() {
         style={{ paddingTop: isWebModal ? 0 : insets.top }}
       >
         <View className="h-14 flex-row items-center">
-          <IconButton icon={ArrowLeft} label={t("common.back")} onPress={() => router.back()} />
+          <IconButton
+            icon={ArrowLeft}
+            label={t("common.back")}
+            onPress={() => router.back()}
+          />
         </View>
         <View className="ml-auto flex-row items-center">
           <IconButton
@@ -517,35 +602,72 @@ function NoteEditor() {
             onPress={() => updateNow({ pinned: !draft.pinned })}
             active={draft.pinned}
           />
-          <IconButton icon={Bell} label={t("notes.reminder")} onPress={() => setShowReminders((s) => !s)} />
+          <IconButton
+            icon={Bell}
+            label={t("notes.reminder")}
+            onPress={() => setShowReminders((s) => !s)}
+          />
           <IconButton
             icon={draft.archived ? ArchiveRestore : Archive}
             label={draft.archived ? t("notes.unarchive") : t("notes.archive")}
             onPress={() => updateNow({ archived: !draft.archived })}
           />
-          <IconButton icon={Trash2} label={t("common.delete")} onPress={handleTrash} />
+          <IconButton
+            icon={Trash2}
+            label={t("common.delete")}
+            onPress={handleTrash}
+          />
         </View>
       </View>
 
-      <View className="flex-row items-center justify-between px-4 pb-1" accessibilityLiveRegion="polite">
-        <Text className={saveState === "error" ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+      <View
+        className="flex-row items-center justify-between px-4 pb-1"
+        accessibilityLiveRegion="polite"
+      >
+        <Text
+          className={
+            saveState === "error"
+              ? "text-xs text-destructive"
+              : "text-xs text-muted-foreground"
+          }
+        >
           {t(`notes.saveStatus.${saveState}`)}
         </Text>
         {saveState === "error" && (
-          <Pressable onPress={() => { autosave.cancel(); void persist(draftRef.current).catch(() => {}); }} accessibilityRole="button">
-            <Text className="text-sm font-semibold text-primary">{t("common.retry")}</Text>
-          </Pressable>
+          <Button
+            appearance="plain"
+            size="sm"
+            onPress={() => {
+              autosave.cancel();
+              void persist(draftRef.current).catch(() => {});
+            }}
+          >
+            {t("common.retry")}
+          </Button>
         )}
       </View>
 
       {/* Reminder presets */}
       {showReminders && (
         <View className="mx-3 mb-1 flex-row flex-wrap gap-2 rounded-xl border border-border bg-card p-2">
-          <ReminderChip label={t("notes.laterToday")} onPress={() => handleSetReminder("laterToday")} />
-          <ReminderChip label={t("notes.tomorrow")} onPress={() => handleSetReminder("tomorrow")} />
-          <ReminderChip label={t("notes.nextWeek")} onPress={() => handleSetReminder("nextWeek")} />
+          <ReminderChip
+            label={t("notes.laterToday")}
+            onPress={() => handleSetReminder("laterToday")}
+          />
+          <ReminderChip
+            label={t("notes.tomorrow")}
+            onPress={() => handleSetReminder("tomorrow")}
+          />
+          <ReminderChip
+            label={t("notes.nextWeek")}
+            onPress={() => handleSetReminder("nextWeek")}
+          />
           {draft.reminderAt && (
-            <ReminderChip label={t("notes.clearReminder")} onPress={handleClearReminder} destructive />
+            <ReminderChip
+              label={t("notes.clearReminder")}
+              onPress={handleClearReminder}
+              destructive
+            />
           )}
         </View>
       )}
@@ -573,9 +695,10 @@ function NoteEditor() {
         {/* What is happening to this note's recording, read from the capture row
             rather than from anything this screen remembers — so it says the same
             thing after a restart, and offers the same repair. */}
-        <CaptureStatusLine noteId={isNew ? '' : params.id} />
+        <CaptureStatusLine noteId={isNew ? "" : params.id} />
 
-        <TextInput
+        <TextFieldInput
+          label={t("notes.titlePlaceholder")}
           value={draft.title}
           onChangeText={(title) => update({ title })}
           placeholder={t("notes.titlePlaceholder")}
@@ -592,7 +715,11 @@ function NoteEditor() {
               // honest after the next finalisation. Without them the next pass
               // rebuilds the artifact, finds no record that anybody touched a
               // generated item, and the tick disappears minutes later.
-              void recordChecklistOverrides(params.id, draft.checklist, checklist);
+              void recordChecklistOverrides(
+                params.id,
+                draft.checklist,
+                checklist,
+              );
               update({ checklist });
             }}
           />
@@ -612,13 +739,13 @@ function NoteEditor() {
             default: a note is the handful of things worth reading again, and
             opening the transcript unasked puts the work the app exists to save
             back in front of the reader. */}
-        <TranscriptPanel noteId={isNew ? '' : params.id} />
+        <TranscriptPanel noteId={isNew ? "" : params.id} />
 
         {/* What this recording was, and what it is still keeping. Both belong on
             the note rather than in settings: both are about THIS recording, and
             burying retention two screens away is how an hour of audio stays on a
             phone forever. */}
-        <RecordingControls noteId={isNew ? '' : params.id} />
+        <RecordingControls noteId={isNew ? "" : params.id} />
       </ScrollView>
 
       {/* Color picker strip */}
@@ -634,18 +761,42 @@ function NoteEditor() {
       {/* Bottom toolbar */}
       <View
         className="flex-row items-center gap-1 border-t border-border px-2"
-        style={{ paddingBottom: isWebModal ? 0 : insets.bottom, backgroundColor }}
+        style={{
+          paddingBottom: isWebModal ? 0 : insets.bottom,
+          backgroundColor,
+        }}
       >
         <View className="h-12 flex-row items-center gap-1">
-          <IconButton icon={Paperclip} label={t("notes.attachFile")} onPress={handleAttachFile} />
-          <IconButton icon={Palette} label={t("notes.color")} onPress={() => setShowColors((s) => !s)} active={showColors} />
-          <IconButton icon={Tag} label={t("notes.labels")} onPress={() => setLabelDialogOpen(true)} />
+          <IconButton
+            icon={Paperclip}
+            label={t("notes.attachFile")}
+            onPress={handleAttachFile}
+          />
+          <IconButton
+            icon={Palette}
+            label={t("notes.color")}
+            onPress={() => setShowColors((s) => !s)}
+            active={showColors}
+          />
+          <IconButton
+            icon={Tag}
+            label={t("notes.labels")}
+            onPress={() => setLabelDialogOpen(true)}
+          />
           <IconButton
             icon={showChecklist ? Type : CheckSquare}
-            label={showChecklist ? t("notes.convertToText") : t("notes.convertToChecklist")}
+            label={
+              showChecklist
+                ? t("notes.convertToText")
+                : t("notes.convertToChecklist")
+            }
             onPress={handleToggleChecklist}
           />
-          <IconButton icon={Download} label={t("notes.exportMarkdown")} onPress={handleExport} />
+          <IconButton
+            icon={Download}
+            label={t("notes.exportMarkdown")}
+            onPress={handleExport}
+          />
         </View>
       </View>
     </>
@@ -680,10 +831,17 @@ function NoteEditor() {
         <Animated.View
           entering={reduceMotion ? undefined : FadeInDown.duration(200)}
           exiting={reduceMotion ? undefined : FadeOutDown.duration(150)}
-          className="max-h-[85%] w-full max-w-[600px] overflow-hidden rounded-2xl shadow-lg"
-          style={{ backgroundColor }}
+          className="h-[85%] w-full max-w-[720px]"
         >
-          {editorContent}
+          <Card
+            radius="radius-16"
+            clipContent
+            elevation="m"
+            style={{ backgroundColor, flex: 1 }}
+            contentStyle={{ flex: 1 }}
+          >
+            {editorContent}
+          </Card>
         </Animated.View>
         {labelDialog}
         {/* The editor is a sibling route painted above the whole app, so the
@@ -720,19 +878,17 @@ function IconButton({
   onPress: () => void;
   active?: boolean;
 }) {
-  const { colors } = useColorScheme();
   return (
-  <Pressable
-    onPress={onPress}
-    accessibilityRole="button"
-    accessibilityLabel={label}
-    accessibilityState={active === undefined ? undefined : { selected: active }}
-    className="h-10 w-10 items-center justify-center rounded-full active:bg-foreground/10"
-    style={active ? { backgroundColor: colors.foreground + "1a" } : undefined}
-  >
-    <Icon size={20} color={colors.foreground} />
-  </Pressable>
-);
+    <GlyphButton
+      onPress={onPress}
+      accessibilityLabel={label}
+      pressed={active}
+      size={40}
+      glyphSize={20}
+    >
+      {(foreground) => <Icon size={20} color={foreground} />}
+    </GlyphButton>
+  );
 }
 
 function ReminderChip({
@@ -745,20 +901,13 @@ function ReminderChip({
   destructive?: boolean;
 }) {
   return (
-    <Pressable
+    <Button
+      appearance="outline"
+      tone={destructive ? "danger" : "neutral"}
+      size="sm"
       onPress={onPress}
-      accessibilityRole="button"
-      className="rounded-full border border-border px-3 py-1.5 active:bg-muted"
     >
-      <Text
-        className={
-          destructive
-            ? "text-sm font-medium text-destructive"
-            : "text-sm font-medium text-foreground"
-        }
-      >
-        {label}
-      </Text>
-    </Pressable>
+      {label}
+    </Button>
   );
 }
