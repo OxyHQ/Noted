@@ -1,7 +1,9 @@
+import { Screen } from "@oxy.so/bloom/screen";
+import { NotesContent } from "@/components/notes/notes-content";
 import React from "react";
 import { EmptyState } from "@/components/empty-state";
 import { LocalStoreError } from "@/components/local-store-boundary";
-import { View, ScrollView, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { NotesHeader } from "@/components/notes/notes-header";
 import { NoteGrid } from "@/components/notes/note-grid";
@@ -34,9 +36,8 @@ export default function RemindersScreen() {
   const noop = React.useCallback(() => {}, []);
 
   return (
-    <View className="flex-1 bg-background">
-      <NotesHeader title={t("notes.remindersTitle")} />
-      <ScrollView className="flex-1" contentContainerClassName="px-3 pb-24 pt-3">
+    <Screen documentScroll header={<NotesHeader title={t("notes.remindersTitle")} />}>
+      <NotesContent ready={!isLoading}>
         {error ? <LocalStoreError /> : isLoading ? (
           <View className="items-center justify-center py-16">
             <ActivityIndicator color={colors.primary} />
@@ -54,7 +55,7 @@ export default function RemindersScreen() {
             onLongPressNote={noop}
           />
         )}
-      </ScrollView>
-    </View>
+      </NotesContent>
+    </Screen>
   );
 }

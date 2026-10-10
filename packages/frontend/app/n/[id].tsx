@@ -1,5 +1,6 @@
 import { Button, GlyphButton } from "@oxy.so/bloom/button";
-import { Card } from "@oxy.so/bloom/card";
+import { Dialog } from "@oxy.so/bloom/dialog";
+import { PageHeader } from "@oxy.so/bloom/page-header";
 import { TextFieldInput } from "@oxy.so/bloom/text-field";
 import { scopedAttachmentSelection } from "@/lib/shared-storage";
 import React from "react";
@@ -11,17 +12,10 @@ import { getActiveViewerId } from "@/lib/db/client";
 import {
   View,
   ScrollView,
-  Pressable,
   ActivityIndicator,
   useWindowDimensions,
   Platform,
 } from "react-native";
-import Animated, {
-  FadeIn,
-  FadeOut,
-  FadeInDown,
-  FadeOutDown,
-} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePreventRemove } from "expo-router/react-navigation";
 
@@ -71,7 +65,6 @@ import {
   makeDraftNote,
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
-import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import type { LocalNote, NoteInput } from "@/lib/db/notes-repo";
 import { reconcileDraft } from "@/lib/notes/draft-sync";
 import { userBodyOf } from "@/lib/notes/generated-body";
@@ -104,26 +97,17 @@ const logger = createLogger("NotedNotes");
 export default function NoteEditorScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
-  return (
-    <LocalStoreBoundary
-      fallbackHeader={
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("common.back")}
-          onPress={() =>
-            router.canGoBack() ? router.back() : router.replace("/")
-          }
-          className="flex-row items-center gap-2 px-4 py-4"
-        >
-          <ArrowLeft size={20} color={colors.foreground} />
-          <Text>{t("notes.title")}</Text>
-        </Pressable>
-      }
-    >
-      <NoteEditor />
-    </LocalStoreBoundary>
-  );
+  const goBack = () => router.canGoBack() ? router.back() : router.replace("/");
+  const content = <LocalStoreBoundary documentScroll={false}
+    fallbackHeader={<PageHeader title={t("notes.title")} onBack={goBack} />}>
+    <NoteEditor />
+  </LocalStoreBoundary>;
+  // Controlled dismissal asks the router to leave. Its save guard keeps both
+  // the route and this surface mounted until the final local write succeeds.
+  return Platform.OS === "web" ? <Dialog open onClose={goBack}
+    label={t("notes.title")} maxWidth={720} scrollable={false} contentPadding={0}>
+    {content}
+  </Dialog> : content;
 }
 
 function NoteEditor() {
@@ -148,7 +132,6 @@ function NoteEditor() {
     accountId: user?.id ?? null,
     sessionId: activeSessionId ?? null,
   };
-  const reduceMotion = useReducedMotion();
 
   const isNew = params.id === "new";
   const startInChecklist = params.mode === "checklist";
@@ -584,9 +567,8 @@ function NoteEditor() {
   const backgroundColor = tint ? tint.background : colors.background;
   const allLabels = labels ?? [];
   const isLargeScreen = width >= 768;
-  // On web at desktop widths the editor renders as a centered modal overlay
-  // (Keep-style); native and small web keep the full-screen editor.
-  const isWebModal = Platform.OS === "web" && isLargeScreen;
+  // Bloom owns the web dialog; native retains its full-screen editor.
+  const isWebModal = Platform.OS === "web";
 
   const editorContent = (
     <>
@@ -599,7 +581,7 @@ function NoteEditor() {
           <IconButton
             icon={ArrowLeft}
             label={t("common.back")}
-            onPress={() => router.back()}
+            onPress={() => router.canGoBack() ? router.back() : router.replace("/")}
           />
         </View>
         <View className="ml-auto flex-row items-center">
@@ -818,50 +800,7 @@ function NoteEditor() {
     />
   );
 
-  // On web at desktop widths the editor floats as a centered card over a dim
-  // backdrop (Keep-style). The route is itself a transparentModal, so the
-  // grid + sidebar stay mounted and visible behind this overlay — no inner
-  // RN <Modal> is needed.
-  if (isWebModal) {
-    return (
-      <Animated.View
-        entering={reduceMotion ? undefined : FadeIn.duration(150)}
-        exiting={reduceMotion ? undefined : FadeOut.duration(150)}
-        className="flex-1 items-center justify-center bg-black/50 px-4"
-        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-      >
-        <Pressable
-          className="absolute inset-0"
-          accessibilityLabel={t("common.close")}
-          onPress={() => router.back()}
-        />
-        <Animated.View
-          entering={reduceMotion ? undefined : FadeInDown.duration(200)}
-          exiting={reduceMotion ? undefined : FadeOutDown.duration(150)}
-          className="h-[85%] w-full max-w-[720px]"
-        >
-          <Card
-            clipContent
-            elevation="m"
-            style={{ backgroundColor, flex: 1 }}
-            contentStyle={{ flex: 1 }}
-          >
-            {editorContent}
-          </Card>
-        </Animated.View>
-        {labelDialog}
-        {/* The editor is a sibling route painted above the whole app, so the
-            copy of this stack living in the drawer's scenes is behind it. A
-            recording has to stay visible and stoppable while a note is open —
-            that is the screen someone is on during a meeting. */}
-        <FloatingBottomStack />
-      </Animated.View>
-    );
-  }
-
-  // Native and small-web: the editor fills the screen with the note's tint.
-  // The transparentModal route still presents it full-bleed (no dim) on top
-  // of the grid.
+  // The route fills its native scene or Bloom dialog with the note tint.
   return (
     <View className="flex-1" style={{ backgroundColor }}>
       {editorContent}

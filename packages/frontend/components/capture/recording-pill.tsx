@@ -1,12 +1,14 @@
-import { View, Pressable } from "react-native";
-import { Mic, Square } from "lucide-react-native";
+import { View } from "react-native";
+import { Button } from "@oxy.so/bloom/button";
+import { Card } from "@oxy.so/bloom/card";
+import { RiMicLine } from "@oxy.so/bloom/icons/RiMicLine";
+import { RiStopFill } from "@oxy.so/bloom/icons/RiStopFill";
 import { usePathname } from "expo-router";
 
 import { Text } from "@/components/ui/text";
 import { Waveform } from "@/components/capture/waveform";
 import { useStartCapture } from "@/lib/capture/use-start-capture";
 import { useCaptureStore } from "@/lib/stores/capture-store";
-import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
 import { showsRecordButton } from "@/lib/capture/surfaces";
@@ -41,7 +43,6 @@ export function RecordingPill() {
   const partialText = useCaptureStore((s) => s.partialText);
   const stop = useCaptureStore((s) => s.stop);
   const { start, isSupported } = useStartCapture();
-  const { colors } = useColorScheme();
   const { t } = useTranslation();
   const pathname = usePathname();
 
@@ -65,7 +66,7 @@ export function RecordingPill() {
     <>
       {isRecording ? (
         <View className="items-center gap-2">
-        <View className="max-w-[420px] flex-row items-center gap-3 rounded-full border border-border bg-background px-4 py-2.5 shadow-lg">
+        <Card radius="radius-max" elevation="m" style={{ maxWidth: 420, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
           {/* Red is the one colour a recording indicator cannot borrow from the
               theme: it means "live", not "primary". */}
           <View
@@ -87,7 +88,7 @@ export function RecordingPill() {
             {formatDuration(durationMs)}
           </Text>
 
-          <Pressable
+          <Button iconOnly icon={RiStopFill} appearance="subtle" tone="neutral" size="sm"
             onPress={() => {
               // Cleared whatever the outcome: a recorder that failed to save is
               // still not recording, and leaving the pill up would say otherwise.
@@ -95,12 +96,8 @@ export function RecordingPill() {
               void stop?.().finally(() => clearCapture());
             }}
             accessibilityLabel={t("capture.stop")}
-            className="h-8 w-8 items-center justify-center rounded-full bg-muted active:opacity-70"
-            hitSlop={8}
-          >
-            <Square size={13} color={colors.foreground} fill={colors.foreground} />
-          </Pressable>
-        </View>
+          />
+        </Card>
 
         {/* What is being said right now, before it is part of the transcript.
             Set apart from the note itself, and never written into it: the
@@ -118,19 +115,9 @@ export function RecordingPill() {
         )}
         </View>
       ) : (
-        <Pressable
-          onPress={() => void start()}
-          accessibilityLabel={t("capture.start")}
-          className="flex-row items-center gap-2 rounded-full bg-primary px-5 py-3 shadow-lg active:opacity-90"
-        >
-          <Mic size={18} color={colors.primaryForeground} />
-          <Text
-            className="text-sm font-semibold"
-            style={{ color: colors.primaryForeground }}
-          >
-            {t("capture.start")}
-          </Text>
-        </Pressable>
+        <Button icon={RiMicLine} onPress={() => void start()} accessibilityLabel={t("capture.start")}>
+          {t("capture.start")}
+        </Button>
       )}
     </>
   );

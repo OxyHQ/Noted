@@ -1,11 +1,12 @@
-import { GlyphButton } from "@oxy.so/bloom/button";
-import { View } from "react-native";
-import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X, Pin, Palette, Archive, Trash2 } from "lucide-react-native";
-import { Text } from "@/components/ui/text";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import { Button } from "@oxy.so/bloom/button";
+import { ButtonGroup } from "@oxy.so/bloom/button-group";
+import { PageHeader } from "@oxy.so/bloom/page-header";
+import { RiCloseLine } from "@oxy.so/bloom/icons/RiCloseLine";
+import { RiPushpinLine } from "@oxy.so/bloom/icons/RiPushpinLine";
+import { RiPaletteLine } from "@oxy.so/bloom/icons/RiPaletteLine";
+import { RiArchiveLine } from "@oxy.so/bloom/icons/RiArchiveLine";
+import { RiDeleteBinLine } from "@oxy.so/bloom/icons/RiDeleteBinLine";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface BulkActionBarProps {
   count: number;
@@ -16,66 +17,17 @@ interface BulkActionBarProps {
   onDelete: () => void;
 }
 
-/** Top action bar shown while in multi-select mode on a list screen. */
-export function BulkActionBar({
-  count,
-  onClose,
-  onPin,
-  onColor,
-  onArchive,
-  onDelete,
-}: BulkActionBarProps) {
-  const insets = useSafeAreaInsets();
-  const { colors } = useColorScheme();
-  const reduceMotion = useReducedMotion();
-
-  const Action = ({
-    icon: Icon,
-    label,
-    onPress,
-  }: {
-    icon: typeof Pin;
-    label: string;
-    onPress: () => void;
-  }) => (
-    <GlyphButton
-      onPress={onPress}
-      accessibilityLabel={label}
-      size={40}
-      glyphSize={20}
-      color={colors.foreground}
-    >
-      {(foreground) => <Icon size={20} color={foreground} />}
-    </GlyphButton>
-  );
-
-  return (
-    <Animated.View
-      entering={reduceMotion ? undefined : FadeInDown.duration(200)}
-      exiting={reduceMotion ? undefined : FadeOutUp.duration(150)}
-      className="flex-row items-center border-b border-border bg-background px-2"
-      style={{ paddingTop: insets.top }}
-    >
-      <View className="h-14 flex-row items-center">
-        <GlyphButton
-          onPress={onClose}
-          accessibilityLabel="Close selection"
-          size={40}
-          glyphSize={20}
-          color={colors.foreground}
-        >
-          {(foreground) => <X size={20} color={foreground} />}
-        </GlyphButton>
-        <Text className="ml-1 text-base font-semibold text-foreground">
-          {count}
-        </Text>
-      </View>
-      <View className="ml-auto flex-row items-center gap-1">
-        <Action icon={Pin} label="Pin" onPress={onPin} />
-        <Action icon={Palette} label="Color" onPress={onColor} />
-        <Action icon={Archive} label="Archive" onPress={onArchive} />
-        <Action icon={Trash2} label="Delete" onPress={onDelete} />
-      </View>
-    </Animated.View>
-  );
+/** Selection shares the same header and control surfaces as the rest of the app. */
+export function BulkActionBar({ count, onClose, onPin, onColor, onArchive, onDelete }: BulkActionBarProps) {
+  const { t } = useTranslation();
+  return <PageHeader safeArea={false} title={String(count)}
+    leading={<ButtonGroup><Button iconOnly icon={RiCloseLine}
+      accessibilityLabel={t("common.cancel")} onPress={onClose} /></ButtonGroup>}
+    actions={<ButtonGroup>
+      <Button iconOnly icon={RiPushpinLine} accessibilityLabel={t("notes.pin")} onPress={onPin} />
+      <Button iconOnly icon={RiPaletteLine} accessibilityLabel={t("notes.pickColor")} onPress={onColor} />
+      <Button iconOnly icon={RiArchiveLine} accessibilityLabel={t("notes.archive")} onPress={onArchive} />
+      <Button iconOnly icon={RiDeleteBinLine} tone="danger" accessibilityLabel={t("common.delete")} onPress={onDelete} />
+    </ButtonGroup>}
+  />;
 }

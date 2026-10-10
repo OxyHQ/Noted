@@ -1,10 +1,12 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Navigator, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useEffect, useMemo } from 'react';
+import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { OxyProvider, useOxy } from '@oxy.so/services';
-import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { BloomProvider } from '@oxy.so/bloom/provider';
+import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
+import { OverlayInertBoundary } from '@oxy.so/bloom/overlay';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
@@ -69,6 +71,18 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Expo's unstyled navigator preserves the notes route underneath Bloom's dialog
+ * without imposing a viewport-sized native-stack scene on the web document. */
+function WebRoutes() {
+  const { state, descriptors, NavigationContent } = Navigator.useContext();
+  const current = state.routes[state.index];
+  const routes = state.routes.filter((route) => route.key === current.key ||
+    (current.name === 'n/[id]' && route.name === '(app)'));
+  return <NavigationContent>
+    {routes.map((route) => <Fragment key={route.key}>{descriptors[route.key].render()}</Fragment>)}
+  </NavigationContent>;
+}
+
 function AppContent() {
   const { colors } = useColorScheme();
 
@@ -78,7 +92,9 @@ function AppContent() {
       <LocalStoreProvider>
       <KeyboardProvider>
       <NotedSettingsProvider>
-        <Stack
+        {Platform.OS === 'web' ? <OverlayInertBoundary>
+          <Navigator initialRouteName="(app)"><WebRoutes /></Navigator>
+        </OverlayInertBoundary> : <Stack
           screenOptions={{
             contentStyle: {
               backgroundColor: colors.background,
@@ -95,18 +111,11 @@ function AppContent() {
               presentation: "transparentModal",
               animation: "fade",
               headerShown: false,
-              // Override the global opaque contentStyle so the modal screen's
-              // content container does NOT paint a solid background. Without this
-              // the inherited `colors.background` covers the (app) grid → solid
-              // black behind the dialog on web. The native-stack web renderer
-              // already (a) sets the transparentModal screen's own wrapper to
-              // transparent and (b) keeps the previous (app) screen mounted and
-              // displayed because the next screen is a transparent presentation,
-              // so the grid + sidebar stay visible behind the dim backdrop.
+              // Keep the native shell visible beneath the editor scene.
               contentStyle: { backgroundColor: "transparent" },
             }}
           />
-        </Stack>
+        </Stack>}
       </NotedSettingsProvider>
       </KeyboardProvider>
       </LocalStoreProvider>
@@ -135,7 +144,8 @@ function RootLayout() {
 
   return (
     <AppErrorBoundary>
-      <BloomThemeProvider
+      <BloomProvider
+        scrollAdapter={expoRouterScrollAdapter}
         defaultMode="system"
         defaultColorPreset="yellow"
         persistKey={BLOOM_THEME_PERSIST_KEY}
@@ -155,7 +165,7 @@ function RootLayout() {
         >
           <AppContent />
         </OxyProvider>
-      </BloomThemeProvider>
+      </BloomProvider>
     </AppErrorBoundary>
   );
 }

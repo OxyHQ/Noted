@@ -20,7 +20,7 @@ bun run android
 
 | path | what lives there |
 |---|---|
-| `app/` | the routes, file-based via expo-router — `(app)/` uses Bloom AppShell and a routed stack, `n/[id]` is the note editor, presented as a transparent modal above it |
+| `app/` | the routes, file-based via expo-router — `(app)/` uses Bloom AppShell; web routes flow in the document, native routes use a stack; `n/[id]` opens the note editor above the notes |
 | `components/` | the UI, including `notes/` (cards, grid, editor chrome) and `capture/` (the recording indicator) |
 | `lib/db/` | the local-first SQLite store: schema, migrations, repositories, and the sync that reconciles it with the API |
 | `lib/capture/` | recording: which engine holds the microphone, and what happens to a recording when it stops |
@@ -44,6 +44,41 @@ must never use an `EXPO_PUBLIC_` variable.
 - **Stickers need their animation players.** Bloom's optional players must be direct frontend dependencies: `@lottiefiles/dotlottie-react` on web and `lottie-react-native` on native. `lib/lottieWeb.web.ts` configures the bundled `@lottiefiles/dotlottie-web` renderer before stickers mount; Metro already accepts `.wasm` assets. Missing players silently show still images in production. Validate an exported app in a foreground browser with reduced motion disabled: the renderer must load from the app's origin and the sticker's canvas frames must change. Reduced motion should keep the still image.
 
 `AGENTS.md` at the repository root carries the standards that apply to every change here.
+
+## Layout and scrolling
+
+Bloom owns the app frame, navigation, headers, surfaces and scroll geometry.
+The web shell uses `AppShell` with `scroll="document"`; the browser document is
+the page's only scroller. Its routes render through Expo Router's unstyled
+navigation APIs. Do not put a viewport-bound Stack, `ScrollViewStyleReset`,
+overflow-hidden wrapper or wheel forwarding layer around the web shell.
+Native keeps its stack and uses bounded screen scrolling.
+
+Expo's single-page export reads `public/index.html`; `app/+html.tsx` does not
+configure that output. Keep the document-growth reset and page metadata in the
+public template, and check the exported HTML when changing the host layout.
+
+Pages compose Bloom `Screen`, `PageHeader`, `ScreenScrollView` and
+`useScrollRestoration` for their platform. Search belongs in the notes content;
+the header keeps the page title and grouped actions. Shell bottom chrome uses
+the measured `AppShell.bottomBar` slot, and page actions use `Screen.primaryAction`;
+do not replace their clearance with fixed bottom offsets. Note colors, note
+packing and local search remain product behavior.
+
+The web editor uses Bloom's public controlled `Dialog` API because its visible
+state belongs to the route. A dismissal requests navigation; `usePreventRemove`
+keeps the route and dialog mounted until the last local save succeeds. Do not
+move that navigation into imperative Dialog's post-exit `onClose`: a failed save
+would leave a hidden draft. Bloom owns the backdrop, Escape handling, focus and
+scroll lock. The root navigator retains the notes route behind the dialog using
+Expo Router's route descriptors; native retains its transparent-modal stack.
+
+Verify document scrolling, sticky navigation and headers in a real browser,
+including small viewports. Open an editor after scrolling and return without
+losing the background position; check browser Back and direct note links.
+Backdrop and Escape dismissal must keep an unsaved draft visible if storage
+fails, and restore scrolling after a successful save. Shared behavior missing
+from Bloom must be fixed and published upstream before updating the app.
 
 ## Editing and recovery
 

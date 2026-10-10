@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
+import { Screen } from '@oxy.so/bloom/screen';
 import { openAccountDialog, useOxy } from '@oxy.so/services';
 import { EmptyState } from '@/components/empty-state';
 import { useLocalStoreState } from '@/lib/db/local-store-context';
@@ -18,13 +19,12 @@ export function LocalStoreError() {
 }
 
 /** Children must mount only after their account's SQLite file has opened. */
-export function LocalStoreBoundary({ children, fallbackHeader }: { children: ReactNode; fallbackHeader?: ReactNode }) {
+export function LocalStoreBoundary({ children, fallbackHeader, documentScroll = Platform.OS === 'web' }: { children: ReactNode; fallbackHeader?: ReactNode; documentScroll?: boolean }) {
   const { isAuthenticated } = useOxy();
   const { isReady, error, viewerId } = useLocalStoreState();
   const { t } = useTranslation();
-  if (isAuthenticated && isReady) return <View key={viewerId} style={{ flex: 1 }}>{children}</View>;
-  return <View className="flex-1 bg-background">
-    {fallbackHeader}
+  if (isAuthenticated && isReady) return <View key={viewerId} style={Platform.OS === 'web' ? { flexGrow: 1 } : { flex: 1 }}>{children}</View>;
+  return <Screen documentScroll={documentScroll} header={fallbackHeader}>
     <View className="flex-1 justify-center">
     {!isAuthenticated ? <EmptyState sticker="welcome"
       title={t('notes.signInTitle')} subtitle={t('notes.signInSubtitle')}
@@ -33,5 +33,5 @@ export function LocalStoreBoundary({ children, fallbackHeader }: { children: Rea
       : <EmptyState sticker="notes" title={t('emptyStates.loadingTitle')}
         subtitle={t('emptyStates.loadingSubtitle')} />}
     </View>
-  </View>;
+  </Screen>;
 }

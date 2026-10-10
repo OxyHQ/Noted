@@ -1,15 +1,18 @@
+import { Screen } from "@oxy.so/bloom/screen";
+import { NotesContent } from "@/components/notes/notes-content";
 import { PageHeader } from "@oxy.so/bloom/page-header";
 import { AppShellMenuButton } from "@oxy.so/bloom/app-shell";
 import { Button } from "@oxy.so/bloom/button";
 import { ButtonGroup } from "@oxy.so/bloom/button-group";
 import { RiNotification3Line } from "@oxy.so/bloom/icons/RiNotification3Line";
 import { RiCheckDoubleLine } from "@oxy.so/bloom/icons/RiCheckDoubleLine";
+import { RiCloseLine } from "@oxy.so/bloom/icons/RiCloseLine";
 import { EmptyState } from "@/components/empty-state";
-import { View, ScrollView, Pressable, Platform } from "react-native";
+import { View, Pressable, Platform } from "react-native";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { useRouter } from "expo-router";
-import { Bell, BellOff, Zap, Clock, Eye, AlertTriangle, MessageSquare, X } from "lucide-react-native";
+import { Bell, BellOff, Zap, Clock, Eye, AlertTriangle, MessageSquare } from "lucide-react-native";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@oxy.so/services";
 import * as ExpoNotifications from "expo-notifications";
@@ -121,8 +124,7 @@ export default function NotificationsScreen() {
   const StatusIcon = pushEnabled ? Bell : BellOff;
 
   return (
-    <ScrollView className="flex-1 bg-background">
-      <PageHeader
+    <Screen documentScroll header={<PageHeader
         safeArea={false}
         title={t("notifications.title")}
         leading={<AppShellMenuButton />}
@@ -144,8 +146,8 @@ export default function NotificationsScreen() {
             />
           </ButtonGroup>
         }
-      />
-
+      />}>
+      <NotesContent ready={!isLoading} style={{ padding: 0, gap: 0 }}>
       {/* Push Settings (collapsible) */}
       {showSettings && (
         <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
@@ -214,16 +216,13 @@ export default function NotificationsScreen() {
                         <Text className="text-xs text-muted-foreground">
                           {timeAgo(notification.createdAt)}
                         </Text>
-                        <Pressable
+                        <Button iconOnly icon={RiCloseLine} appearance="plain" tone="neutral" size="sm"
+                          accessibilityLabel={t("common.close")}
                           onPress={(e) => {
                             e.stopPropagation();
                             dismiss.mutate(notification._id);
                           }}
-                          className="p-1"
-                          hitSlop={8}
-                        >
-                          <X size={12} className="text-muted-foreground" />
-                        </Pressable>
+                        />
                       </View>
                     </View>
                     <Text className="text-xs text-muted-foreground" numberOfLines={3}>
@@ -236,6 +235,7 @@ export default function NotificationsScreen() {
           })}
         </View>
       )}
-    </ScrollView>
+      </NotesContent>
+    </Screen>
   );
 }
