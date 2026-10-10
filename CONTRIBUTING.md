@@ -57,6 +57,7 @@ CI runs the following on every pull request, and each line runs locally as writt
 
 ```bash
 bunx biome ci --error-on-warnings .  # Biome: lint + format check, whole repo, zero warnings
+bun run typecheck                # tsc --noEmit for the API and the app
 bun run --filter @noted/backend test
 bun run build:backend
 bun run build:frontend

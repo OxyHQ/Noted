@@ -106,6 +106,14 @@ jobs:
       - name: Lint & format check (Biome)
         run: bunx biome ci --error-on-warnings .
 
+      # Neither build typechecks: the API is bundled by Bun and the app by
+      # Metro/Babel, both of which strip types. This is the only place `tsc`
+      # runs, and it is what reports invalid regular expressions (bad group
+      # references, out-of-order quantifiers, unknown Unicode properties) that
+      # ESLint's no-invalid-regexp used to catch and Biome's parser does not.
+      - name: Typecheck
+        run: bun run typecheck
+
       - name: Run API tests
         run: bun run --filter @noted/backend test
         env:
