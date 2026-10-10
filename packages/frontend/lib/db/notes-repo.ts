@@ -226,29 +226,13 @@ function labelStatements(noteId: string, labels: readonly string[]): Statement[]
   ];
 }
 
-const NOTE_UPSERT_SQL = `
+const NOTE_INSERT_SQL = `
 INSERT INTO notes (
   id, kind, title, body, generated_body, body_format, checklist_json, color,
   pinned, archived, trashed, attachments_json, reminder_at, sort_order,
   created_at, updated_at, deleted_at, dirty, server_updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
-ON CONFLICT (id) DO UPDATE SET
-  kind = excluded.kind,
-  title = excluded.title,
-  body = excluded.body,
-  generated_body = excluded.generated_body,
-  body_format = excluded.body_format,
-  checklist_json = excluded.checklist_json,
-  color = excluded.color,
-  pinned = excluded.pinned,
-  archived = excluded.archived,
-  trashed = excluded.trashed,
-  attachments_json = excluded.attachments_json,
-  reminder_at = excluded.reminder_at,
-  sort_order = excluded.sort_order,
-  updated_at = excluded.updated_at,
-  deleted_at = NULL,
-  dirty = excluded.dirty
+ON CONFLICT (id) DO NOTHING
 `;
 
 /**
@@ -283,10 +267,11 @@ export type NoteInput = Partial<
   generatedBody?: string;
 };
 
-function upsertStatements(note: LocalNote, now: string): Statement[] {
+function creationStatements(note: LocalNote, now: string): Statement[] {
   return [
     {
-      sql: NOTE_UPSERT_SQL,
+      sql: NOTE_INSERT_SQL,
+      expectedRowsAffected: 1,
       params: [
         note.id,
         note.kind,
@@ -339,7 +324,16 @@ export async function createNote(id: string, input: NoteInput, viewerId = getAct
     createdAt: now,
     updatedAt: now,
   };
-  await executeTransaction(upsertStatements(note, now), viewerId);
+  try {
+    await executeTransaction(creationStatements(note, now), viewerId);
+  } catch (error) {
+    // A manual retry may follow a committed insert whose response was lost.
+    // Confirm that same ID without overwriting edits made since its creation.
+    if (!(error instanceof Error) || error.message !== 'transaction statement 0 affected 0 rows; expected 1') throw error;
+    const existing = await getNote(id, viewerId);
+    if (!existing) throw new Error('This note was deleted before creation could be confirmed. Your draft has been preserved.');
+    return existing;
+  }
   return note;
 }
 

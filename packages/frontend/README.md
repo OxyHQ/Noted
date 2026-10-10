@@ -69,6 +69,10 @@ untouched field into an apparent edit. User/generated body halves compare their
 SQLite snapshot before committing; a stale snapshot rolls back labels and outbox
 writes too, then recomposes from the current row. Only that confirmed rollback
 is retried. An unanswered write after a connection failure is not replayed.
+New-note drafts retain one creation ID and their first attempted input until
+success or discard. A manual retry confirms that ID with an insert-only create;
+it preserves an existing row and applies only subsequent draft changes. This
+avoids duplicate notes when the first insert committed but its response was lost.
 
 ## Browser storage coordination
 

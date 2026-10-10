@@ -42,6 +42,7 @@ vi.mock('@/lib/capture/captures-repo', () => ({ deleteNoteRecordings: vi.fn() })
 
 import { MIGRATIONS } from '@/lib/db/migrations';
 import { createNote, getNote, updateNote } from '@/lib/db/notes-repo';
+import { resumeNoteCreation } from '@/lib/notes/resume-creation';
 
 beforeEach(async () => {
   state.db = new DatabaseSync(':memory:');
@@ -52,6 +53,53 @@ beforeEach(async () => {
   await createNote('note', { title: 'Original', userBody: 'Typed', generatedBody: 'Generated' });
   state.db.exec('DELETE FROM outbox');
   state.writes = 0;
+});
+
+describe('manual creation retries after an uncertain response', () => {
+  it('confirms the same note without overwriting peer edits, labels or its outbox', async () => {
+    const input = { title: 'First draft', userBody: 'Original body', labels: ['original'] };
+    state.afterCommit = () => {
+      state.afterCommit = null;
+      throw new Error('Owner disappeared after commit');
+    };
+    await expect(resumeNoteCreation('stable-id', input, input, 'viewer')).rejects.toThrow('Owner disappeared');
+    await updateNote('stable-id', { title: 'Other tab renamed it', labels: ['peer'] });
+    const outbox = state.db!.prepare('SELECT * FROM outbox WHERE entity_id = ?').all('stable-id');
+    const recovered = await resumeNoteCreation('stable-id', input, input, 'viewer');
+    expect(recovered).toMatchObject({ id: 'stable-id', title: 'Other tab renamed it', labels: ['peer'], body: 'Original body' });
+    expect(state.db!.prepare('SELECT id FROM notes WHERE id = ?').all('stable-id')).toHaveLength(1);
+    expect(state.db!.prepare('SELECT * FROM outbox WHERE entity_id = ?').all('stable-id')).toEqual(outbox);
+  });
+
+  it('preserves typing after the failed attempt without reverting untouched peer fields', async () => {
+    const input = { title: 'First draft', userBody: 'Original body', pinned: false };
+    await createNote('stable-id', input);
+    await updateNote('stable-id', { title: 'Peer title', pinned: true, generatedBody: 'Peer generated' });
+    const recovered = await resumeNoteCreation('stable-id', input, { ...input, userBody: 'Typed after error' }, 'viewer');
+    expect(recovered).toMatchObject({ title: 'Peer title', pinned: true, body: 'Typed after error\n\nPeer generated' });
+  });
+
+  it('creates once when the first attempt never committed and retains subsequent typing', async () => {
+    const input = { title: 'First draft', userBody: 'Original body' };
+    state.beforeWrite = () => {
+      state.beforeWrite = null;
+      throw new Error('Owner disappeared before commit');
+    };
+    await expect(resumeNoteCreation('stable-id', input, input, 'viewer')).rejects.toThrow('Owner disappeared');
+    const recovered = await resumeNoteCreation('stable-id', input, { ...input, title: 'More typing' }, 'viewer');
+    expect(recovered).toMatchObject({ id: 'stable-id', title: 'More typing' });
+    expect(state.db!.prepare('SELECT id FROM notes WHERE id = ?').all('stable-id')).toHaveLength(1);
+  });
+
+  it('does not resurrect a creation that another tab deleted before confirmation', async () => {
+    const input = { title: 'First draft', userBody: 'Original body' };
+    await createNote('stable-id', input);
+    state.db!.prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run('deleted', 'stable-id');
+    const outbox = state.db!.prepare('SELECT * FROM outbox').all();
+    await expect(resumeNoteCreation('stable-id', input, input, 'viewer')).rejects.toThrow('deleted before creation');
+    expect(await getNote('stable-id')).toBeNull();
+    expect(state.db!.prepare('SELECT * FROM outbox').all()).toEqual(outbox);
+  });
 });
 afterEach(() => state.db?.close());
 

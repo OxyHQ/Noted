@@ -72,7 +72,7 @@ import {
 } from "@/lib/hooks/use-notes";
 import { useLabels } from "@/lib/hooks/use-labels";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
-import type { LocalNote } from "@/lib/db/notes-repo";
+import type { LocalNote, NoteInput } from "@/lib/db/notes-repo";
 import { reconcileDraft } from "@/lib/notes/draft-sync";
 import { userBodyOf } from "@/lib/notes/generated-body";
 import { isEmptyNote } from "@/lib/notes/emptiness";
@@ -191,6 +191,7 @@ function NoteEditor() {
   const baseRef = React.useRef(base);
   baseRef.current = base;
   const lastSavedDraft = React.useRef<LocalNote | null>(null);
+  const creationInput = React.useRef<NoteInput | null>(null);
   const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
@@ -266,12 +267,20 @@ function NoteEditor() {
       }
       lastSavedDraft.current = next;
     } else if (!isEmptyNote({ ...next, userBody })) {
+      creationInput.current ??= input;
       const created = await createNote.mutateAsync({
         ...input,
+        creationId: next.id,
+        initialInput: creationInput.current,
         expectedViewerId: editorOwner.current,
       });
       noteIdRef.current = created.id;
       lastSavedDraft.current = next;
+      // Confirmation may return a note already edited in another tab. Follow
+      // those fields while retaining typing made during the pending request.
+      const confirmedDraft = reconcileDraft(next, draftRef.current, created);
+      draftRef.current = confirmedDraft;
+      setDraftState(confirmedDraft);
       baseRef.current = created;
       setBase(created);
       router.setParams({ id: created.id });

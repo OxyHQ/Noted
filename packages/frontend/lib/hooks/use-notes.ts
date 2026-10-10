@@ -16,8 +16,8 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "@oxy.so/bloom/toast";
 import { useLiveQuery } from "@/lib/db/live-query";
 import { newNoteId } from "@/lib/db/ids";
+import { resumeNoteCreation } from "@/lib/notes/resume-creation";
 import {
-  createNote as createNoteLocally,
   deleteNote as deleteNoteLocally,
   firstRowToNote,
   NOTE_DETAIL_SQL,
@@ -94,8 +94,12 @@ export function useCreateNote() {
   return useMutation({
     // A local write must never be replayed after switching accounts.
     retry: false,
-    mutationFn: ({ expectedViewerId, ...input }: NoteInput & { expectedViewerId?: string }): Promise<LocalNote> =>
-      createNoteLocally(newNoteId(), input, expectedViewerId),
+    mutationFn: ({ expectedViewerId, creationId, initialInput, ...input }: NoteInput & {
+      expectedViewerId?: string;
+      creationId?: string;
+      initialInput?: NoteInput;
+    }): Promise<LocalNote> =>
+      resumeNoteCreation(creationId ?? newNoteId(), initialInput ?? input, input, expectedViewerId),
     onError: (error: Error) => {
       toast.error(error.message || "Failed to create note");
     },
