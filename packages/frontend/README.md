@@ -65,6 +65,12 @@ the measured `AppShell.bottomBar` slot, and page actions use `Screen.primaryActi
 do not replace their clearance with fixed bottom offsets. Note colors, note
 packing and local search remain product behavior.
 
+`Screen` inherits the containing panel fill and owns the positioning of its
+`header` slot, including the panel inset. Put `PageHeader` directly in that slot;
+do not add a second sticky wrapper or repaint the page background inside a panel.
+Native stack scenes use `useSurfaceFill()` so retained routes stay opaque with
+the same fill as the shell.
+
 The web editor uses Bloom's public controlled `Dialog` API because its visible
 state belongs to the route. A dismissal requests navigation; `usePreventRemove`
 keeps the route and dialog mounted until the last local save succeeds. Do not
