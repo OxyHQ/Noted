@@ -92,6 +92,8 @@ export function useNote(id: string | undefined) {
 /** Create a note. Used both for `n/new` first-edit and quick-capture. */
 export function useCreateNote() {
   return useMutation({
+    // SQLite writes must run even when the network is unavailable.
+    networkMode: "always",
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: ({ expectedViewerId, creationId, initialInput, ...input }: NoteInput & {
@@ -109,6 +111,8 @@ export function useCreateNote() {
 /** Patch a note (body/title/color/pin/labels/checklist/etc). */
 export function useUpdateNote() {
   return useMutation({
+    // SQLite writes must run even when the network is unavailable.
+    networkMode: "always",
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: ({ id, patch, expectedViewerId }: { id: string; patch: NoteInput; expectedViewerId?: string }) =>
@@ -122,6 +126,8 @@ export function useUpdateNote() {
 /** Send a note to the trash. */
 export function useTrashNote() {
   return useMutation({
+    // SQLite writes must run even when the network is unavailable.
+    networkMode: "always",
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (id: string) => trashNoteLocally(id),
@@ -134,6 +140,8 @@ export function useTrashNote() {
 /** Restore a note from the trash. */
 export function useRestoreNote() {
   return useMutation({
+    // SQLite writes must run even when the network is unavailable.
+    networkMode: "always",
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (id: string) => restoreNoteLocally(id),
@@ -146,6 +154,8 @@ export function useRestoreNote() {
 /** Permanently delete a note (delete forever). */
 export function useDeleteNote() {
   return useMutation({
+    // SQLite writes must run even when the network is unavailable.
+    networkMode: "always",
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (id: string) => deleteNoteLocally(id),
@@ -158,6 +168,8 @@ export function useDeleteNote() {
 /** Persist a new ordering of note ids (drag-reorder). */
 export function useReorderNotes() {
   return useMutation({
+    // SQLite writes must run even when the network is unavailable.
+    networkMode: "always",
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (ids: string[]) => reorderNotesLocally(ids),
