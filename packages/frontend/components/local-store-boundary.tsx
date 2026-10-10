@@ -3,14 +3,18 @@ import { View } from 'react-native';
 import { openAccountDialog, useOxy } from '@oxy.so/services';
 import { EmptyState } from '@/components/empty-state';
 import { useLocalStoreState } from '@/lib/db/local-store-context';
+import { storageErrorKind } from '@/lib/db/storage-error';
 import { useTranslation } from '@/hooks/useTranslation';
 
 export function LocalStoreError() {
-  const { retry } = useLocalStoreState();
+  const { retry, error } = useLocalStoreState();
   const { t } = useTranslation();
+  const kind = storageErrorKind(error);
   return <EmptyState sticker="loadError" title={t('emptyStates.storeErrorTitle')}
-    subtitle={t('emptyStates.storeErrorSubtitle')}
-    action={{ label: t('emptyStates.retry'), onPress: retry }} />;
+    subtitle={t(kind === 'locked' ? 'emptyStates.storeLockedSubtitle'
+      : kind === 'reload' ? 'emptyStates.storeReloadSubtitle'
+      : kind === 'paused' ? 'emptyStates.storePausedSubtitle' : 'emptyStates.storeErrorSubtitle')}
+    action={{ label: t(kind === 'locked' || kind === 'reload' ? 'emptyStates.reload' : 'emptyStates.retry'), onPress: retry }} />;
 }
 
 /** Children must mount only after their account's SQLite file has opened. */

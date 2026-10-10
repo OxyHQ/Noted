@@ -18,6 +18,7 @@ import { clearActiveViewer, setActiveViewer } from '@/lib/db/client';
 import { newNoteId } from '@/lib/db/ids';
 import { syncNotes } from '@/lib/db/sync';
 
+import { reloadWebStore } from '@/lib/db/web-store-recovery';
 import type { LocalStoreState } from '@/lib/db/local-store-context';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 import { useUndoStore } from '@/lib/stores/undo-store';
@@ -43,7 +44,13 @@ export function useLocalStore(): LocalStoreState {
   const [openedViewer, setOpenedViewer] = useState<string | null>(null);
   const [failure, setFailure] = useState<{ viewerId: string; message: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const retry = useCallback(() => { setOpenedViewer(null); setAttempt(n => n + 1); }, []);
+  const retry = useCallback(() => {
+    // The web worker caches a partially initialized VFS after an OPFS error.
+    // Reopening that worker cannot recover it; reloading preserves its files.
+    if (reloadWebStore()) return;
+    setOpenedViewer(null);
+    setAttempt(n => n + 1);
+  }, []);
   // Hide outgoing rows during render, before the account-switch effect runs.
   const isReady = Boolean(viewerId && openedViewer === viewerId);
   const error = failure && failure.viewerId === viewerId ? failure.message : null;

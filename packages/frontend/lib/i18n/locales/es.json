@@ -1290,7 +1290,7 @@
   },
   "emptyStates": {
     "storeErrorTitle": "No se pudieron abrir tus notas",
-    "storeErrorSubtitle": "Noted necesita almacenamiento local para abrir tus notas. Reinténtalo o comprueba el almacenamiento en los ajustes del navegador o del dispositivo.",
+    "storeErrorSubtitle": "Tus notas locales se han conservado. Intenta abrirlas de nuevo. Si el problema continúa, comprueba que el navegador permite almacenar datos de este sitio.",
     "retry": "Reintentar",
     "signIn": "Iniciar sesión con Oxy",
     "loadingTitle": "Preparando tus notas",
@@ -1303,6 +1303,10 @@
     "notificationsError": "No se pudieron cargar las notificaciones",
     "notificationsErrorSubtitle": "Comprueba tu conexión y vuelve a intentarlo.",
     "notFoundTitle": "No se encontró esta página",
-    "notFoundSubtitle": "Puede que el enlace esté desactualizado. Tus notas siguen en la pantalla de inicio."
+    "notFoundSubtitle": "Puede que el enlace esté desactualizado. Tus notas siguen en la pantalla de inicio.",
+    "storeLockedSubtitle": "Una pestaña con una versión anterior de Noted está utilizando tus notas locales. Cierra las pestañas antiguas y recarga esta página. Tus notas se han conservado.",
+    "storeReloadSubtitle": "La conexión con tus notas locales necesita reiniciarse. Recarga esta página para abrirla de nuevo. Tus notas se han conservado.",
+    "reload": "Recargar página",
+    "storePausedSubtitle": "Otra pestaña de Noted está en pausa. Ábrela o ciérrala y vuelve a intentarlo. Tus notas se han conservado."
   }
 }
