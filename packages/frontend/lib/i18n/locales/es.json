@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "No se pudo cargar este archivo adjunto",
     "openAttachmentFailed": "No se pudo abrir este archivo adjunto",
     "listView": "Cambiar a vista de lista",
-    "gridView": "Cambiar a vista de cuadrícula"
+    "gridView": "Cambiar a vista de cuadrícula",
+    "labelColor": "Color de la etiqueta",
+    "labelSaveFailed": "No se pudo guardar la etiqueta. Inténtalo de nuevo.",
+    "labelColors": {
+      "default": "Sin color",
+      "teal": "Verde azulado",
+      "blue": "Azul",
+      "green": "Verde",
+      "yellow": "Amarillo",
+      "red": "Rojo",
+      "purple": "Morado",
+      "pink": "Rosa",
+      "sky": "Celeste",
+      "orange": "Naranja",
+      "mint": "Menta",
+      "pumpkin": "Calabaza",
+      "brown": "Marrón"
+    }
   },
   "capture": {
     "start": "Tomar apuntes",

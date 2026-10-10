@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "Цвет ярлыка",
+    "labelSaveFailed": "Не удалось сохранить ярлык. Попробуйте ещё раз.",
+    "labelColors": {
+      "default": "Без цвета",
+      "teal": "Бирюзовый",
+      "blue": "Синий",
+      "green": "Зелёный",
+      "yellow": "Жёлтый",
+      "red": "Красный",
+      "purple": "Фиолетовый",
+      "pink": "Розовый",
+      "sky": "Голубой",
+      "orange": "Оранжевый",
+      "mint": "Мятный",
+      "pumpkin": "Тыквенный",
+      "brown": "Коричневый"
+    }
   },
   "capture": {
     "start": "Начать",

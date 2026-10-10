@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "لون التصنيف",
+    "labelSaveFailed": "تعذر حفظ التصنيف. حاول مرة أخرى.",
+    "labelColors": {
+      "default": "بلا لون",
+      "teal": "أزرق مخضر",
+      "blue": "أزرق",
+      "green": "أخضر",
+      "yellow": "أصفر",
+      "red": "أحمر",
+      "purple": "بنفسجي",
+      "pink": "وردي",
+      "sky": "سماوي",
+      "orange": "برتقالي",
+      "mint": "نعناعي",
+      "pumpkin": "قرعي",
+      "brown": "بني"
+    }
   },
   "capture": {
     "start": "بدء",

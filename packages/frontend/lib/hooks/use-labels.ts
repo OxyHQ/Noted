@@ -3,7 +3,8 @@ import { toast } from "@oxy.so/bloom/toast";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { useLiveQuery } from "@/lib/db/live-query";
-import { LABEL_LIST_SQL, rowsToLabels, type LabelRow } from "@/lib/db/labels-repo";
+import { LABEL_LIST_SQL, rowsToLabels, saveLabel, type LabelRow } from "@/lib/db/labels-repo";
+import { getActiveViewerId } from "@/lib/db/client";
 import { requestSync } from "@/lib/db/use-local-store";
 import type { Label, NoteColor } from "@noted/shared-types";
 
@@ -35,8 +36,12 @@ export function useLabels() {
  */
 export function useCreateLabel() {
   return useMutation({
+    networkMode: "always",
+    retry: false,
     mutationFn: async (input: { name: string; color?: NoteColor | null }): Promise<Label> => {
-      const res = await apiClient.post<Label>(API_ROUTES.labels.create, input);
+      const viewerId = requireViewer();
+      const res = await apiClient.post<Label>(API_ROUTES.labels.create, input, { expectedViewerId: viewerId });
+      await saveLabel(res.data, viewerId);
       return res.data;
     },
     onSuccess: () => requestSync(),
@@ -48,6 +53,8 @@ export function useCreateLabel() {
 
 export function useUpdateLabel() {
   return useMutation({
+    networkMode: "always",
+    retry: false,
     mutationFn: async ({
       id,
       patch,
@@ -55,7 +62,9 @@ export function useUpdateLabel() {
       id: string;
       patch: { name?: string; color?: NoteColor | null };
     }): Promise<Label> => {
-      const res = await apiClient.patch<Label>(API_ROUTES.labels.update(id), patch);
+      const viewerId = requireViewer();
+      const res = await apiClient.patch<Label>(API_ROUTES.labels.update(id), patch, { expectedViewerId: viewerId });
+      await saveLabel(res.data, viewerId);
       return res.data;
     },
     onSuccess: () => requestSync(),
@@ -67,8 +76,10 @@ export function useUpdateLabel() {
 
 export function useDeleteLabel() {
   return useMutation({
+    networkMode: "always",
+    retry: false,
     mutationFn: async (id: string): Promise<string> => {
-      await apiClient.delete(API_ROUTES.labels.delete(id));
+      await apiClient.delete(API_ROUTES.labels.delete(id), { expectedViewerId: requireViewer() });
       return id;
     },
     // Deleting a label also strips its id from every note that carried it, so
@@ -78,4 +89,10 @@ export function useDeleteLabel() {
       toast.error(error.message || "Failed to delete label");
     },
   });
+}
+
+function requireViewer(): string {
+  const viewerId = getActiveViewerId();
+  if (!viewerId) throw new Error("No active account");
+  return viewerId;
 }

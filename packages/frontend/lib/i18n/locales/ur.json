@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "لیبل کا رنگ",
+    "labelSaveFailed": "لیبل محفوظ نہیں ہو سکا۔ دوبارہ کوشش کریں۔",
+    "labelColors": {
+      "default": "کوئی رنگ نہیں",
+      "teal": "نیلگوں سبز",
+      "blue": "نیلا",
+      "green": "سبز",
+      "yellow": "پیلا",
+      "red": "سرخ",
+      "purple": "جامنی",
+      "pink": "گلابی",
+      "sky": "آسمانی",
+      "orange": "نارنجی",
+      "mint": "پودینے کا رنگ",
+      "pumpkin": "کدو کا رنگ",
+      "brown": "بھورا"
+    }
   },
   "capture": {
     "start": "شروع",

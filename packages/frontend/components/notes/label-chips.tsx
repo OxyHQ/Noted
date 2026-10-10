@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { Tag } from "lucide-react-native";
+import { LabelChip } from "./label-color";
 import { Chip } from "@oxy.so/bloom/chip";
 import type { Label } from "@noted/shared-types";
 
@@ -29,15 +29,7 @@ export function LabelChips({ labelIds, allLabels, max }: LabelChipsProps) {
   return (
     <View className="mt-1.5 flex-row flex-wrap gap-1">
       {shown.map((label) => (
-        <Chip
-          key={label.id}
-          size="sm"
-          appearance="subtle"
-          tone="neutral"
-          leadingIcon={Tag}
-        >
-          {label.name}
-        </Chip>
+        <LabelChip key={label.id} label={label} />
       ))}
       {overflow > 0 && (
         <Chip size="sm" appearance="subtle" tone="neutral">

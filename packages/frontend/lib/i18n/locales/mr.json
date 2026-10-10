@@ -1174,7 +1174,24 @@
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
     "listView": "Switch to list view",
-    "gridView": "Switch to grid view"
+    "gridView": "Switch to grid view",
+    "labelColor": "लेबलचा रंग",
+    "labelSaveFailed": "लेबल जतन करता आले नाही. पुन्हा प्रयत्न करा.",
+    "labelColors": {
+      "default": "रंग नाही",
+      "teal": "निळसर हिरवा",
+      "blue": "निळा",
+      "green": "हिरवा",
+      "yellow": "पिवळा",
+      "red": "लाल",
+      "purple": "जांभळा",
+      "pink": "गुलाबी",
+      "sky": "आकाशी",
+      "orange": "नारिंगी",
+      "mint": "पुदिना",
+      "pumpkin": "भोपळा",
+      "brown": "तपकिरी"
+    }
   },
   "capture": {
     "start": "सुरू करा",
