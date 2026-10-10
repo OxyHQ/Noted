@@ -40,7 +40,6 @@ function mapSettings(rows: readonly SettingRow[]): Map<string, unknown> {
       // A row nobody can parse is a row nobody can act on. Skipping it leaves
       // the caller's default in place, which is the behaviour of an absent
       // setting — the one case every caller already handles.
-      continue;
     }
   }
   return settings;

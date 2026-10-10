@@ -301,7 +301,6 @@ export async function runNotedEventOutboxBatch(
         { eventId: row.eventId, attempts: row.attempts, deadLetter, err: error },
         'Normalized Noted event delivery failed',
       );
-      continue;
     }
   }
   return result;

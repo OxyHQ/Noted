@@ -5,7 +5,7 @@ import { NotesContent } from '@/components/notes/notes-content';
 import React from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { LocalStoreError } from '@/components/local-store-boundary';
-import { View, TextInput, ActivityIndicator } from 'react-native';
+import { View, type TextInput, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TextField, TextFieldInput, TextFieldIcon } from '@oxy.so/bloom/text-field';
 import { Button } from '@oxy.so/bloom/button';

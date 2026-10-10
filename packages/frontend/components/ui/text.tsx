@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Text as RNText, type TextProps as RNTextProps } from 'react-native';
+import type { Text as RNText, TextProps as RNTextProps } from 'react-native';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { cn } from '@/lib/utils';
 
