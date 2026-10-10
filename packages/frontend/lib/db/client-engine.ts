@@ -456,7 +456,10 @@ export async function execute<T extends Row = Row>(
   return rows;
 }
 
-async function runTransaction(statements: readonly Statement[], expectedViewerId?: string | null): Promise<number[]> {
+async function runTransaction(
+  statements: readonly Statement[],
+  expectedViewerId?: string | null,
+): Promise<number[]> {
   const db = await getDbForViewer(expectedViewerId);
   // IMMEDIATE takes the write lock up front, so a busy database fails here
   // rather than half-way through the statements.
@@ -492,7 +495,10 @@ async function runTransaction(statements: readonly Statement[], expectedViewerId
 }
 
 /** Run statements atomically, returning the rows affected by each. */
-export function executeTransaction(statements: readonly Statement[], expectedViewerId?: string | null): Promise<number[]> {
+export function executeTransaction(
+  statements: readonly Statement[],
+  expectedViewerId?: string | null,
+): Promise<number[]> {
   return enqueue(() => runTransaction(statements, expectedViewerId));
 }
 

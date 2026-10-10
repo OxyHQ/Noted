@@ -18,10 +18,7 @@ interface ErrorBoundaryState {
  * component tree, reports them when Sentry is configured, and displays a
  * recovery screen.
  */
-export class AppErrorBoundary extends React.Component<
-  ErrorBoundaryProps,
-  ErrorBoundaryState
-> {
+export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -59,20 +56,10 @@ export class AppErrorBoundary extends React.Component<
     if (this.state.hasError && this.state.error) {
       if (this.props.fallback) {
         const FallbackComponent = this.props.fallback;
-        return (
-          <FallbackComponent
-            error={this.state.error}
-            resetError={this.resetError}
-          />
-        );
+        return <FallbackComponent error={this.state.error} resetError={this.resetError} />;
       }
 
-      return (
-        <ErrorFallback
-          error={this.state.error}
-          resetError={this.resetError}
-        />
-      );
+      return <ErrorFallback error={this.state.error} resetError={this.resetError} />;
     }
 
     return this.props.children;
@@ -80,13 +67,7 @@ export class AppErrorBoundary extends React.Component<
 }
 
 /** Default full-screen error fallback UI. */
-function ErrorFallback({
-  error,
-  resetError,
-}: {
-  error: Error;
-  resetError: () => void;
-}) {
+function ErrorFallback({ error, resetError }: { error: Error; resetError: () => void }) {
   return (
     <View
       style={{
@@ -150,8 +131,7 @@ function ErrorFallback({
             marginBottom: 24,
           }}
         >
-          An unexpected error occurred. Try again. If the problem continues,
-          close and reopen Noted.
+          An unexpected error occurred. Try again. If the problem continues, close and reopen Noted.
         </Text>
 
         {/* Error details (collapsible in dev) */}

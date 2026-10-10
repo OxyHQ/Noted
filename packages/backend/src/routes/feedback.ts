@@ -109,9 +109,7 @@ router.get('/:id', async (req, res) => {
     const [row] = await getDb()
       .select()
       .from(feedback)
-      .where(
-        and(eq(feedback.id, feedbackId), eq(feedback.oxyUserId, getRequiredOxyUserId(req))),
-      );
+      .where(and(eq(feedback.id, feedbackId), eq(feedback.oxyUserId, getRequiredOxyUserId(req))));
     if (!row) return res.status(404).json({ error: 'Feedback not found' });
 
     res.json(serializeFeedback(row));

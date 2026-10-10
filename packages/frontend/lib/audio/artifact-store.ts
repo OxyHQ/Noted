@@ -190,9 +190,7 @@ export class AudioArtifactStore {
    * only thing missing is the recorder's own "I finished".
    */
   async interrupted(): Promise<AudioArtifact[]> {
-    return (await this.list()).filter(
-      (artifact) => !artifact.complete && artifact.chunkCount > 0,
-    );
+    return (await this.list()).filter((artifact) => !artifact.complete && artifact.chunkCount > 0);
   }
 
   /**

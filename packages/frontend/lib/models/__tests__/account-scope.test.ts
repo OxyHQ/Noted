@@ -13,7 +13,10 @@ const state = vi.hoisted(() => ({
 vi.mock('@/lib/db/client', () => ({
   getActiveViewerId: () => state.viewer,
   execute: vi.fn(async () => []),
-  executeTransaction: async (statements: { sql: string; params: unknown[] }[], expected?: string | null) => {
+  executeTransaction: async (
+    statements: { sql: string; params: unknown[] }[],
+    expected?: string | null,
+  ) => {
     if (state.transactionGate) await state.transactionGate;
     if (expected !== undefined && (!expected || expected !== state.viewer)) {
       throw new Error('The active account changed before this write could be saved');
@@ -26,15 +29,27 @@ vi.mock('@/lib/db/live-query', () => ({ useLiveQuery: vi.fn() }));
 vi.mock('@/lib/capture/support', () => ({ hasDownloadableModels: () => true }));
 vi.mock('expo-file-system', () => ({
   Paths: { document: 'file:///models' },
-  Directory: class { create() {} },
+  Directory: class {
+    create() {}
+  },
   File: class {
-    get exists() { return state.fileExists; }
-    get size() { return state.fileBytes; }
-    delete() { state.fileExists = false; }
+    get exists() {
+      return state.fileExists;
+    }
+    get size() {
+      return state.fileBytes;
+    }
+    delete() {
+      state.fileExists = false;
+    }
   },
   DownloadTask: class {
-    addListener() { return { remove: state.unsubscribe }; }
-    downloadAsync() { return state.download(); }
+    addListener() {
+      return { remove: state.unsubscribe };
+    }
+    downloadAsync() {
+      return state.download();
+    }
   },
 }));
 
@@ -43,13 +58,21 @@ import { selectSttModel } from '@/lib/stt/select-model';
 import { SETTING_KEYS, writeSetting } from '@/lib/db/settings-repo';
 
 const weights: Weights = {
-  id: 'base', kind: 'stt', directory: 'stt-models', filename: 'base.bin',
-  url: 'https://example.invalid/public-base.bin', bytes: 32, sha256: 'test',
+  id: 'base',
+  kind: 'stt',
+  directory: 'stt-models',
+  filename: 'base.bin',
+  url: 'https://example.invalid/public-base.bin',
+  bytes: 32,
+  sha256: 'test',
 };
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason: Error) => void;
-  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
   return { promise, resolve, reject };
 }
 
@@ -70,8 +93,15 @@ describe('model settings account ownership', () => {
       return { size: weights.bytes, delete: vi.fn() };
     });
     await selectSttModel('base', () => download(weights));
-    expect(state.writes.map(({ viewer }) => viewer)).toEqual(['account-a', 'account-a', 'account-a']);
-    expect(state.writes.map(({ params }) => params[5]).slice(0, 2)).toEqual(['downloading', 'ready']);
+    expect(state.writes.map(({ viewer }) => viewer)).toEqual([
+      'account-a',
+      'account-a',
+      'account-a',
+    ]);
+    expect(state.writes.map(({ params }) => params[5]).slice(0, 2)).toEqual([
+      'downloading',
+      'ready',
+    ]);
     expect(state.writes[2].params).toEqual([SETTING_KEYS.sttModel, '"base"']);
     expect(isPresent(weights)).toBe(true);
   });
@@ -86,7 +116,12 @@ describe('model settings account ownership', () => {
     state.writes = [];
     state.viewer = 'account-b';
     state.fileExists = true;
-    network.resolve({ size: weights.bytes, delete: () => { state.fileExists = false; } });
+    network.resolve({
+      size: weights.bytes,
+      delete: () => {
+        state.fileExists = false;
+      },
+    });
     await rejection;
     expect(state.writes).toEqual([]);
     expect(isPresent(weights)).toBe(true);

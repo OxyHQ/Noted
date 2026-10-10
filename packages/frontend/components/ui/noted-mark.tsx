@@ -1,4 +1,4 @@
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path } from 'react-native-svg';
 
 export interface NotedMarkProps {
   size?: number;
@@ -18,7 +18,7 @@ export interface NotedMarkProps {
  * carries: an exported asset bakes in whatever colour the exporter was set to,
  * and a mark that ignores the theme is invisible in one of the two.
  */
-export function NotedMark({ size = 24, color = "currentColor" }: NotedMarkProps) {
+export function NotedMark({ size = 24, color = 'currentColor' }: NotedMarkProps) {
   return (
     <Svg width={size} height={size} viewBox="0 -960 960 960" accessibilityRole="image">
       <Path

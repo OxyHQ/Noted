@@ -21,8 +21,12 @@ describe('translation catalogues', () => {
     const englishKeys = leafKeys(en).sort();
 
     for (const { code } of SUPPORTED_LOCALES) {
-      const locale = JSON.parse(fs.readFileSync(path.join(localesDirectory, `${code}.json`), 'utf8'));
-      const localeKeys = leafKeys(locale).filter((key) => !key.startsWith('meta.')).sort();
+      const locale = JSON.parse(
+        fs.readFileSync(path.join(localesDirectory, `${code}.json`), 'utf8'),
+      );
+      const localeKeys = leafKeys(locale)
+        .filter((key) => !key.startsWith('meta.'))
+        .sort();
       expect(localeKeys, code).toEqual(englishKeys);
     }
   });

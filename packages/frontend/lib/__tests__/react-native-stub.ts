@@ -11,6 +11,6 @@
  */
 export const Platform = {
   OS: 'ios' as string,
-  select: <T,>(specifics: Record<string, T>): T | undefined =>
+  select: <T>(specifics: Record<string, T>): T | undefined =>
     specifics.ios ?? specifics.native ?? specifics.default,
 };

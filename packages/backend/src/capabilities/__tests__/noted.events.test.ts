@@ -98,9 +98,16 @@ describe('Noted normalized events', () => {
   it('acknowledges only after both reminder deliveries succeed', async () => {
     const order: string[] = [];
     const deps = dependencies({
-      deliver: vi.fn(async () => { order.push('event'); }),
-      notifyReminder: vi.fn(async () => { order.push('notification'); }),
-      acknowledge: vi.fn(async () => { order.push('acknowledge'); return true; }),
+      deliver: vi.fn(async () => {
+        order.push('event');
+      }),
+      notifyReminder: vi.fn(async () => {
+        order.push('notification');
+      }),
+      acknowledge: vi.fn(async () => {
+        order.push('acknowledge');
+        return true;
+      }),
     });
     await expect(processClaimedNotedEvent(reminderEvent(), deps)).resolves.toBe(true);
     expect(order).toEqual(['event', 'notification', 'acknowledge']);

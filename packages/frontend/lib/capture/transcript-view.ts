@@ -73,7 +73,10 @@ export interface TranscriptSearchResult {
  * search rather than as a precise one.
  */
 function fold(text: string): string {
-  return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
 }
 
 /**

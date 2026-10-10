@@ -12,7 +12,9 @@ export function createLockManager() {
       const prior = tails.get(name);
       if (options.ifAvailable && prior) return await work(null!);
       let release!: () => void;
-      const held = new Promise<void>(resolve => { release = resolve; });
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
       tails.set(name, held);
       try {
         if (prior) await prior;
@@ -28,6 +30,8 @@ export function createLockManager() {
 
 export function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(settle => { resolve = settle; });
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
   return { promise, resolve };
 }

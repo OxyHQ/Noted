@@ -24,7 +24,16 @@
  * device that made it is the only one that can act on it.
  */
 
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, unique } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  unique,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { CAPTURE_PROFILES, DOCUMENT_INTENTS } from '@noted/shared-types';
 import type { GeneratedNoteArtifact } from '@noted/shared-types';

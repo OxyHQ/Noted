@@ -261,8 +261,7 @@ function readDerived(
 
   const wanted = subject.trim().toLowerCase();
   const match = authorised.find(
-    (candidate) =>
-      candidate === wanted || wanted.includes(candidate) || candidate.includes(wanted),
+    (candidate) => candidate === wanted || wanted.includes(candidate) || candidate.includes(wanted),
   );
   // The model helping itself. Not a formatting slip — the item is refused.
   if (!match || wanted === '') return 'unauthorised';
@@ -303,7 +302,11 @@ function readItems(value: unknown, options: ParseOptions, tally: Tally): Enhance
 
   for (const entry of raw) {
     const fields = record(entry);
-    const text = readText(typeof entry === 'string' ? entry : fields?.[FIELDS.text], 'listItem', tally);
+    const text = readText(
+      typeof entry === 'string' ? entry : fields?.[FIELDS.text],
+      'listItem',
+      tally,
+    );
     if (text === '') continue;
     // Repeats are the most common way a small model fills a list it has nothing
     // left to put in.
@@ -500,7 +503,8 @@ export function parseEnhancement(reply: string, options: ParseOptions): ParseEnh
     enhancement.openQuestions.length > 0 ||
     enhancement.listAdditions.length > 0;
 
-  if (hasContent) return { ok: true, value: enhancement, diagnostics: diagnose({ jsonParsed: true }) };
+  if (hasContent)
+    return { ok: true, value: enhancement, diagnostics: diagnose({ jsonParsed: true }) };
 
   // Two different failures, and only the second is the model's fault. Content
   // arrived and every piece of it was refused — an oversized paragraph, an

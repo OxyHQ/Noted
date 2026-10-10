@@ -82,28 +82,28 @@ function reminderIdentity(event: NormalizedAppEvent): { noteId: string; reminder
     throw new Error('Reminder event is missing noteId or reminderAt');
   }
   const reminderAt = new Date(reminderAtValue);
-  if (Number.isNaN(reminderAt.getTime())) throw new Error('Reminder event has an invalid reminderAt');
+  if (Number.isNaN(reminderAt.getTime()))
+    throw new Error('Reminder event has an invalid reminderAt');
   return { noteId, reminderAt };
 }
 
-async function activeReminder(
-  db: Database,
-  event: NormalizedAppEvent,
-): Promise<NoteRow | null> {
+async function activeReminder(db: Database, event: NormalizedAppEvent): Promise<NoteRow | null> {
   const identity = reminderIdentity(event);
   if (!identity) return null;
   const [note] = await db
     .select()
     .from(notes)
-    .where(and(
-      eq(notes.id, identity.noteId),
-      eq(notes.oxyUserId, event.accountId),
-      eq(notes.reminderAt, identity.reminderAt),
-      isNotNull(notes.reminderQueuedAt),
-      isNull(notes.reminderSentAt),
-      eq(notes.trashed, false),
-      isNull(notes.deletedAt),
-    ));
+    .where(
+      and(
+        eq(notes.id, identity.noteId),
+        eq(notes.oxyUserId, event.accountId),
+        eq(notes.reminderAt, identity.reminderAt),
+        isNotNull(notes.reminderQueuedAt),
+        isNull(notes.reminderSentAt),
+        eq(notes.trashed, false),
+        isNull(notes.deletedAt),
+      ),
+    );
   return note ?? null;
 }
 
@@ -158,14 +158,16 @@ function claimableEvents(db: Database, claimedBefore: Date, limit: number) {
   return db
     .select({ id: normalizedAppEventOutbox.id })
     .from(normalizedAppEventOutbox)
-    .where(and(
-      isNull(normalizedAppEventOutbox.processedAt),
-      isNull(normalizedAppEventOutbox.failedAt),
-      or(
-        isNull(normalizedAppEventOutbox.claimedAt),
-        lt(normalizedAppEventOutbox.claimedAt, claimedBefore),
+    .where(
+      and(
+        isNull(normalizedAppEventOutbox.processedAt),
+        isNull(normalizedAppEventOutbox.failedAt),
+        or(
+          isNull(normalizedAppEventOutbox.claimedAt),
+          lt(normalizedAppEventOutbox.claimedAt, claimedBefore),
+        ),
       ),
-    ))
+    )
     .orderBy(asc(normalizedAppEventOutbox.createdAt))
     .limit(limit)
     .for('update', { skipLocked: true });
@@ -188,23 +190,27 @@ async function finishEvent(
     const acknowledged = await transaction
       .update(normalizedAppEventOutbox)
       .set({ processedAt: new Date(), lastError: null })
-      .where(and(
-        eq(normalizedAppEventOutbox.id, rowId),
-        eq(normalizedAppEventOutbox.claimedBy, ownerId),
-        isNull(normalizedAppEventOutbox.processedAt),
-      ))
+      .where(
+        and(
+          eq(normalizedAppEventOutbox.id, rowId),
+          eq(normalizedAppEventOutbox.claimedBy, ownerId),
+          isNull(normalizedAppEventOutbox.processedAt),
+        ),
+      )
       .returning({ id: normalizedAppEventOutbox.id });
     if (acknowledged.length !== 1) return false;
     if (reminder) {
       await transaction
         .update(notes)
         .set({ reminderSentAt: new Date() })
-        .where(and(
-          eq(notes.id, reminder.noteId),
-          eq(notes.reminderAt, reminder.reminderAt),
-          isNotNull(notes.reminderQueuedAt),
-          isNull(notes.reminderSentAt),
-        ));
+        .where(
+          and(
+            eq(notes.id, reminder.noteId),
+            eq(notes.reminderAt, reminder.reminderAt),
+            isNotNull(notes.reminderQueuedAt),
+            isNull(notes.reminderSentAt),
+          ),
+        );
     }
     return true;
   });
@@ -221,14 +227,16 @@ export async function runNotedEventOutboxBatch(
       claimedBy: options.ownerId,
       attempts: sql`${normalizedAppEventOutbox.attempts} + 1`,
     })
-    .where(inArray(
-      normalizedAppEventOutbox.id,
-      claimableEvents(
-        db,
-        new Date(Date.now() - (options.leaseMs ?? NOTED_EVENT_OUTBOX_LEASE_MS)),
-        options.batchSize ?? positiveInteger('NOTED_EVENT_OUTBOX_BATCH_SIZE', DEFAULT_BATCH_SIZE),
+    .where(
+      inArray(
+        normalizedAppEventOutbox.id,
+        claimableEvents(
+          db,
+          new Date(Date.now() - (options.leaseMs ?? NOTED_EVENT_OUTBOX_LEASE_MS)),
+          options.batchSize ?? positiveInteger('NOTED_EVENT_OUTBOX_BATCH_SIZE', DEFAULT_BATCH_SIZE),
+        ),
       ),
-    ))
+    )
     .returning({
       id: normalizedAppEventOutbox.id,
       eventId: normalizedAppEventOutbox.eventId,
@@ -245,14 +253,19 @@ export async function runNotedEventOutboxBatch(
 
   for (const row of claimed) {
     if (row.attempts > NOTED_EVENT_OUTBOX_MAX_ATTEMPTS) {
-      await db.update(normalizedAppEventOutbox).set({
-        failedAt: new Date(),
-        lastError: sql`coalesce(${normalizedAppEventOutbox.lastError}, 'Attempt limit reached')`,
-      }).where(and(
-        eq(normalizedAppEventOutbox.id, row.id),
-        eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
-        isNull(normalizedAppEventOutbox.processedAt),
-      ));
+      await db
+        .update(normalizedAppEventOutbox)
+        .set({
+          failedAt: new Date(),
+          lastError: sql`coalesce(${normalizedAppEventOutbox.lastError}, 'Attempt limit reached')`,
+        })
+        .where(
+          and(
+            eq(normalizedAppEventOutbox.id, row.id),
+            eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
+            isNull(normalizedAppEventOutbox.processedAt),
+          ),
+        );
       result.deadLettered += 1;
       continue;
     }
@@ -269,14 +282,19 @@ export async function runNotedEventOutboxBatch(
       if (acknowledged) result.processed += 1;
     } catch (error) {
       const deadLetter = row.attempts >= NOTED_EVENT_OUTBOX_MAX_ATTEMPTS;
-      await db.update(normalizedAppEventOutbox).set({
-        lastError: describeError(error),
-        ...(deadLetter ? { failedAt: new Date() } : {}),
-      }).where(and(
-        eq(normalizedAppEventOutbox.id, row.id),
-        eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
-        isNull(normalizedAppEventOutbox.processedAt),
-      ));
+      await db
+        .update(normalizedAppEventOutbox)
+        .set({
+          lastError: describeError(error),
+          ...(deadLetter ? { failedAt: new Date() } : {}),
+        })
+        .where(
+          and(
+            eq(normalizedAppEventOutbox.id, row.id),
+            eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
+            isNull(normalizedAppEventOutbox.processedAt),
+          ),
+        );
       result.failed += 1;
       if (deadLetter) result.deadLettered += 1;
       log.notes.warn(
@@ -285,7 +303,6 @@ export async function runNotedEventOutboxBatch(
       );
       continue;
     }
-
   }
   return result;
 }
@@ -323,7 +340,10 @@ export function startNotedEventOutboxWorker(): boolean {
   timer = setInterval(() => void tick(), intervalMs);
   timer.unref?.();
   void tick();
-  log.notes.info({ ownerId: WORKER_OWNER_ID, intervalMs }, 'Normalized event outbox worker started');
+  log.notes.info(
+    { ownerId: WORKER_OWNER_ID, intervalMs },
+    'Normalized event outbox worker started',
+  );
   return true;
 }
 

@@ -1,9 +1,9 @@
-import { View, Pressable, ScrollView } from "react-native";
-import { Check } from "lucide-react-native";
-import { NOTE_COLORS, type NoteColor } from "@noted/shared-types";
-import { getNoteColorSwatch } from "@/lib/note-colors";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { cn } from "@/lib/utils";
+import { View, Pressable, ScrollView } from 'react-native';
+import { Check } from 'lucide-react-native';
+import { NOTE_COLORS, type NoteColor } from '@noted/shared-types';
+import { getNoteColorSwatch } from '@/lib/note-colors';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { cn } from '@/lib/utils';
 
 interface NoteColorPickerProps {
   selected: NoteColor;
@@ -29,8 +29,8 @@ export function NoteColorPicker({ selected, onSelect, scroll = true }: NoteColor
         accessibilityLabel={`Color ${color}`}
         accessibilityState={{ selected: isSelected }}
         className={cn(
-          "h-8 w-8 items-center justify-center rounded-full border-2",
-          isSelected ? "border-foreground" : "border-border"
+          'h-8 w-8 items-center justify-center rounded-full border-2',
+          isSelected ? 'border-foreground' : 'border-border',
         )}
         style={{ backgroundColor: swatch ?? colors.card }}
       >

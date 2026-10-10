@@ -22,10 +22,8 @@ describe('handleLanguageError', () => {
     const failure = new Error('missing catalogue entry');
 
     expect(() => handleLanguageError(failure, 'es')).not.toThrow();
-    expect(mockError).toHaveBeenCalledWith(
-      'Failed to follow the Oxy-resolved language',
-      failure,
-      { locale: 'es' },
-    );
+    expect(mockError).toHaveBeenCalledWith('Failed to follow the Oxy-resolved language', failure, {
+      locale: 'es',
+    });
   });
 });

@@ -31,7 +31,9 @@ describe('a note with something in it', () => {
   });
 
   it('is kept for a checklist item somebody typed', () => {
-    expect(isEmptyNote(note({ checklist: [{ id: 'a', text: 'pan', checked: false }] }))).toBe(false);
+    expect(isEmptyNote(note({ checklist: [{ id: 'a', text: 'pan', checked: false }] }))).toBe(
+      false,
+    );
   });
 
   it('is kept for an attachment', () => {

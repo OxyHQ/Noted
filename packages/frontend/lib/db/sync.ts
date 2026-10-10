@@ -190,13 +190,18 @@ function conflictCopyStatements(note: Note, copyId: string, now: string): Statem
 }
 
 async function readCursor(viewerId: string): Promise<string | null> {
-  const rows = await execute<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', [
-    CURSOR_KEY,
-  ], viewerId);
+  const rows = await execute<{ value: string }>(
+    'SELECT value FROM sync_state WHERE key = ?',
+    [CURSOR_KEY],
+    viewerId,
+  );
   return rows[0]?.value ?? null;
 }
 
-async function readLocalStates(ids: readonly string[], viewerId: string): Promise<Map<string, LocalNoteState>> {
+async function readLocalStates(
+  ids: readonly string[],
+  viewerId: string,
+): Promise<Map<string, LocalNoteState>> {
   if (ids.length === 0) return new Map();
   const placeholders = ids.map(() => '?').join(', ');
   const rows = await execute<LocalStateRow>(
@@ -218,7 +223,10 @@ async function readLocalStates(ids: readonly string[], viewerId: string): Promis
  * `makeConflictId` mints the id for a conflict copy; it is a parameter so the
  * caller owns id generation (and tests can make it deterministic).
  */
-export async function pullNotes(makeConflictId: () => string, viewerId = getActiveViewerId()): Promise<{ applied: number; conflicts: number }> {
+export async function pullNotes(
+  makeConflictId: () => string,
+  viewerId = getActiveViewerId(),
+): Promise<{ applied: number; conflicts: number }> {
   if (!viewerId || !isDbAvailable()) return { applied: 0, conflicts: 0 };
   assertCurrentViewer(viewerId);
 
@@ -231,7 +239,10 @@ export async function pullNotes(makeConflictId: () => string, viewerId = getActi
   assertCurrentViewer(viewerId);
   const { data, deleted, serverTime } = response.data;
 
-  const states = await readLocalStates(data.map((note) => note.id), viewerId);
+  const states = await readLocalStates(
+    data.map((note) => note.id),
+    viewerId,
+  );
   const statements: Statement[] = [];
   const now = nowIso();
   let applied = 0;
@@ -317,7 +328,10 @@ function parseArray(value: string): unknown[] {
  * somebody is still talking, and uploading it would be a request per slice
  * describing a recording that has not finished.
  */
-async function notePayloadWithGenerated(row: PushableNoteRow, viewerId: string): Promise<Record<string, unknown>> {
+async function notePayloadWithGenerated(
+  row: PushableNoteRow,
+  viewerId: string,
+): Promise<Record<string, unknown>> {
   const [artifacts, overrides] = await Promise.all([
     listFinalArtifacts(row.id, viewerId),
     getNoteOverrides(row.id, viewerId),
@@ -362,26 +376,31 @@ async function pushNote(entityId: string, viewerId: string): Promise<void> {
   const payload = await notePayloadWithGenerated(row, viewerId);
   assertCurrentViewer(viewerId);
   const options = { expectedViewerId: viewerId };
-  const note = row.server_updated_at === null
-    ? (await apiClient.post<Note>(API_ROUTES.notes.create, { id: row.id, ...payload }, options)).data
-    : (await apiClient.patch<Note>(API_ROUTES.notes.update(row.id), payload, options)).data;
+  const note =
+    row.server_updated_at === null
+      ? (await apiClient.post<Note>(API_ROUTES.notes.create, { id: row.id, ...payload }, options))
+          .data
+      : (await apiClient.patch<Note>(API_ROUTES.notes.update(row.id), payload, options)).data;
 
-  await executeTransaction([
-    // We now know which server version this note agrees with, whatever else has
-    // happened locally in the meantime.
-    {
-      sql: 'UPDATE notes SET server_updated_at = ? WHERE id = ?',
-      params: [note.updatedAt, row.id],
-    },
-    // Clear `dirty` only if nothing was typed while the request was in flight.
-    // The guard compares the local timestamp against the local timestamp read
-    // before sending — never against the server's, which is a different
-    // machine's clock and cannot order local edits.
-    {
-      sql: 'UPDATE notes SET dirty = 0 WHERE id = ? AND updated_at = ?',
-      params: [row.id, row.updated_at],
-    },
-  ], viewerId);
+  await executeTransaction(
+    [
+      // We now know which server version this note agrees with, whatever else has
+      // happened locally in the meantime.
+      {
+        sql: 'UPDATE notes SET server_updated_at = ? WHERE id = ?',
+        params: [note.updatedAt, row.id],
+      },
+      // Clear `dirty` only if nothing was typed while the request was in flight.
+      // The guard compares the local timestamp against the local timestamp read
+      // before sending — never against the server's, which is a different
+      // machine's clock and cannot order local edits.
+      {
+        sql: 'UPDATE notes SET dirty = 0 WHERE id = ? AND updated_at = ?',
+        params: [row.id, row.updated_at],
+      },
+    ],
+    viewerId,
+  );
 }
 
 async function pushDeletion(entityId: string, viewerId: string): Promise<void> {
@@ -392,7 +411,10 @@ async function pushDeletion(entityId: string, viewerId: string): Promise<void> {
     // Already gone server-side is the outcome this entry wanted.
     if (!isNotFound(error)) throw error;
   }
-  await executeTransaction([{ sql: 'DELETE FROM notes WHERE id = ?', params: [entityId] }], viewerId);
+  await executeTransaction(
+    [{ sql: 'DELETE FROM notes WHERE id = ?', params: [entityId] }],
+    viewerId,
+  );
 }
 
 function isNotFound(error: unknown): boolean {
@@ -410,7 +432,9 @@ function isNotFound(error: unknown): boolean {
  * same note in flight together could land out of order and make the older body
  * win.
  */
-export async function flushOutbox(viewerId = getActiveViewerId()): Promise<{ sent: number; failed: number }> {
+export async function flushOutbox(
+  viewerId = getActiveViewerId(),
+): Promise<{ sent: number; failed: number }> {
   if (!viewerId || !isDbAvailable()) return { sent: 0, failed: 0 };
   assertCurrentViewer(viewerId);
 
@@ -436,25 +460,31 @@ export async function flushOutbox(viewerId = getActiveViewerId()): Promise<{ sen
       // the request was in flight left this same row in place (there is one row
       // per entity), so deleting unconditionally would throw that edit's only
       // record away and it would never be sent.
-      await executeTransaction([
-        {
-          sql: `DELETE FROM outbox WHERE id = ? AND NOT EXISTS (
+      await executeTransaction(
+        [
+          {
+            sql: `DELETE FROM outbox WHERE id = ? AND NOT EXISTS (
                   SELECT 1 FROM notes WHERE notes.id = outbox.entity_id AND notes.dirty = 1
                 )`,
-          params: [entry.id],
-        },
-      ], viewerId);
+            params: [entry.id],
+          },
+        ],
+        viewerId,
+      );
       sent += 1;
     } catch (error) {
       assertCurrentViewer(viewerId);
       const attempts = entry.attempts + 1;
       const nextAttemptAt = new Date(Date.now() + outboxRetryDelayMs(attempts)).toISOString();
-      await executeTransaction([
-        {
-          sql: 'UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?',
-          params: [attempts, errorMessage(error), nextAttemptAt, entry.id],
-        },
-      ], viewerId);
+      await executeTransaction(
+        [
+          {
+            sql: 'UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?',
+            params: [attempts, errorMessage(error), nextAttemptAt, entry.id],
+          },
+        ],
+        viewerId,
+      );
       failed += 1;
       logger.warn('Outbox entry failed', {
         stage: 'push' satisfies SyncStage,
@@ -477,7 +507,9 @@ export async function flushOutbox(viewerId = getActiveViewerId()): Promise<{ sen
 export async function pullLabels(viewerId = getActiveViewerId()): Promise<void> {
   if (!viewerId || !isDbAvailable()) return;
   assertCurrentViewer(viewerId);
-  const response = await apiClient.get<{ data: Label[] }>(API_ROUTES.labels.list, { expectedViewerId: viewerId });
+  const response = await apiClient.get<{ data: Label[] }>(API_ROUTES.labels.list, {
+    expectedViewerId: viewerId,
+  });
   assertCurrentViewer(viewerId);
   await saveLabels(response.data.data, viewerId);
 }

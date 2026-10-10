@@ -6,34 +6,34 @@
 export const API_ROUTES = {
   // Notes
   notes: {
-    list: "/notes",
-    create: "/notes",
+    list: '/notes',
+    create: '/notes',
     get: (id: string) => `/notes/${id}`,
     update: (id: string) => `/notes/${id}`,
     delete: (id: string) => `/notes/${id}`,
     trash: (id: string) => `/notes/${id}/trash`,
     restore: (id: string) => `/notes/${id}/restore`,
-    reorder: "/notes/reorder",
+    reorder: '/notes/reorder',
     /** Everything changed since a cursor, tombstones included. */
-    sync: "/notes/sync",
+    sync: '/notes/sync',
   },
 
   // Labels
   labels: {
-    list: "/labels",
-    create: "/labels",
+    list: '/labels',
+    create: '/labels',
     update: (id: string) => `/labels/${id}`,
     delete: (id: string) => `/labels/${id}`,
   },
 
   // Notifications
   notifications: {
-    list: "/notifications",
-    pushToken: "/notifications/push-token",
-    vapidPublicKey: "/notifications/vapid-public-key",
-    webPushSubscription: "/notifications/web-push-subscription",
+    list: '/notifications',
+    pushToken: '/notifications/push-token',
+    vapidPublicKey: '/notifications/vapid-public-key',
+    webPushSubscription: '/notifications/web-push-subscription',
   },
 
   // Health check
-  health: "/health",
+  health: '/health',
 } as const;

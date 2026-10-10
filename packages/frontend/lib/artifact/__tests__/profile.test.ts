@@ -78,7 +78,9 @@ describe('what the recording looks like', () => {
 
   it('recognises a talk and a brainstorm', () => {
     expect(classifyProfile(blocks('El ponente empieza con una anécdota.'), [])).toBe('event');
-    expect(classifyProfile(blocks('Venga, lluvia de ideas para el nombre.'), [])).toBe('brainstorm');
+    expect(classifyProfile(blocks('Venga, lluvia de ideas para el nombre.'), [])).toBe(
+      'brainstorm',
+    );
   });
 
   it('recognises an interview from how much of it is questions', () => {

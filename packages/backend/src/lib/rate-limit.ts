@@ -18,12 +18,7 @@ import { oxyClient } from '../middleware/auth.js';
 import { getRedisClient } from './redis.js';
 import { log } from './logger.js';
 
-export type RateLimitScope =
-  | 'general'
-  | 'notes:read'
-  | 'notes:write'
-  | 'labels'
-  | 'feedback';
+export type RateLimitScope = 'general' | 'notes:read' | 'notes:write' | 'labels' | 'feedback';
 
 /**
  * Build a rate-limit middleware for a scope. The scope drives a unique

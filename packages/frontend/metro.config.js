@@ -1,12 +1,9 @@
-const path = require("path");
-const { getDefaultConfig } = require("expo/metro-config");
+const path = require('path');
+const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
 // Web shim for react-native-track-player (avoids bundling shaka-player)
-const trackPlayerWebShim = path.resolve(
-  __dirname,
-  "lib/shims/react-native-track-player.web.js"
-);
+const trackPlayerWebShim = path.resolve(__dirname, 'lib/shims/react-native-track-player.web.js');
 
 // Reached by path rather than by `require.resolve`, which honours the package's
 // `exports` map and so can only ever hand back the minified build this exists to
@@ -15,12 +12,12 @@ const trackPlayerWebShim = path.resolve(
 // at the wrong thing entirely.
 const onnxWebGpuBuild = path.resolve(
   __dirname,
-  "../../node_modules/onnxruntime-web/dist/ort.webgpu.mjs"
+  '../../node_modules/onnxruntime-web/dist/ort.webgpu.mjs',
 );
-if (!require("fs").existsSync(onnxWebGpuBuild)) {
+if (!require('fs').existsSync(onnxWebGpuBuild)) {
   throw new Error(
     `onnxruntime-web's unminified WebGPU build is missing at ${onnxWebGpuBuild}. ` +
-      "Web transcription cannot be bundled without it — see the resolver below."
+      'Web transcription cannot be bundled without it — see the resolver below.',
   );
 }
 
@@ -37,17 +34,17 @@ module.exports = (() => {
   const { transformer, resolver } = config;
   config.transformer = {
     ...transformer,
-    babelTransformerPath: require.resolve("react-native-svg-transformer/expo"),
+    babelTransformerPath: require.resolve('react-native-svg-transformer/expo'),
   };
   config.resolver = {
     ...resolver,
-    assetExts: [...resolver.assetExts.filter((ext) => ext !== "svg"), "wasm", "woff2", "woff"],
-    sourceExts: [...resolver.sourceExts, "svg"],
+    assetExts: [...resolver.assetExts.filter((ext) => ext !== 'svg'), 'wasm', 'woff2', 'woff'],
+    sourceExts: [...resolver.sourceExts, 'svg'],
     // On web, replace react-native-track-player with a no-op shim so the
     // bundler never pulls in shaka-player (TTS uses expo-speech on web).
     resolveRequest: (context, moduleName, platform) => {
-      if (platform === "web" && moduleName === "react-native-track-player") {
-        return { filePath: trackPlayerWebShim, type: "sourceFile" };
+      if (platform === 'web' && moduleName === 'react-native-track-player') {
+        return { filePath: trackPlayerWebShim, type: 'sourceFile' };
       }
       // transformers.js reaches ONNX through `onnxruntime-web/webgpu`, whose
       // exports map points at a MINIFIED bundle. Every minified build contains
@@ -60,8 +57,8 @@ module.exports = (() => {
       // pre-minified — and it is behind a dynamic import that only loads when
       // somebody actually transcribes, so the size is paid by that person
       // rather than by every page load.
-      if (platform === "web" && moduleName === "onnxruntime-web/webgpu") {
-        return { filePath: onnxWebGpuBuild, type: "sourceFile" };
+      if (platform === 'web' && moduleName === 'onnxruntime-web/webgpu') {
+        return { filePath: onnxWebGpuBuild, type: 'sourceFile' };
       }
       return context.resolveRequest(context, moduleName, platform);
     },
@@ -73,6 +70,6 @@ module.exports = (() => {
   // `app/_layout.tsx` and compiled by the CSS-aware Metro transformer.
   return withNativeWind(config, {
     inlineRem: 16,
-    inlineVariables: false
+    inlineVariables: false,
   });
 })();

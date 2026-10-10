@@ -20,7 +20,14 @@
  * neighbour tries to load it and crashes the app natively.
  */
 
-import { download, isPresent, remove, statesOf, weightsFile, type Weights } from '@/lib/models/weights';
+import {
+  download,
+  isPresent,
+  remove,
+  statesOf,
+  weightsFile,
+  type Weights,
+} from '@/lib/models/weights';
 import type { WeightsState } from '@/lib/models/weights';
 
 export const LLM_MODEL: Weights = {

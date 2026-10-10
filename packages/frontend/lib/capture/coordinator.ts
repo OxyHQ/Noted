@@ -98,7 +98,8 @@ export class CaptureCoordinator {
     this.writers = input.writers;
     this.onError = input.onError;
     this.queue = new CaptureProcessingQueue({
-      process: (task) => (task.stage === 'final' ? this.writers.finalize(task) : this.writers.live(task)),
+      process: (task) =>
+        task.stage === 'final' ? this.writers.finalize(task) : this.writers.live(task),
       onError: (error, task) => this.onError?.(task.stage, error),
     });
   }
@@ -287,7 +288,8 @@ export function lifecycleFor(outcome: EnhancementOutcome): {
       return {
         enhancement: 'unsupported',
         errorCode: null,
-        enhancementReason: outcome.capability.kind === 'unavailable' ? outcome.capability.reason : null,
+        enhancementReason:
+          outcome.capability.kind === 'unavailable' ? outcome.capability.reason : null,
       };
     // It ran and its answer was unusable. Retryable, and the retry is the point.
     case 'invalid-output':

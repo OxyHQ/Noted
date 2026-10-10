@@ -1,40 +1,35 @@
-import React from "react";
-import { View, ActivityIndicator, useWindowDimensions } from "react-native";
-import Head from "expo-router/head";
-import { useRouter } from "expo-router";
-import { useOxy } from "@oxy.so/services";
-import { RiAddLine } from "@oxy.so/bloom/icons/RiAddLine";
-import { Fab } from "@oxy.so/bloom/fab";
-import { Screen } from "@oxy.so/bloom/screen";
-import { Search } from "@oxy.so/bloom/search";
-import { NotesContent } from "@/components/notes/notes-content";
-import { Text } from "@/components/ui/text";
-import { EmptyState } from "@/components/empty-state";
-import { LocalStoreError } from "@/components/local-store-boundary";
-import { NotesHeader } from "@/components/notes/notes-header";
-import { QuickCapture, type QuickCaptureCreation } from "@/components/notes/quick-capture";
-import { NoteGrid } from "@/components/notes/note-grid";
-import { BulkActionBar } from "@/components/notes/bulk-action-bar";
-import { NoteColorPicker } from "@/components/notes/note-color-picker";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import React from 'react';
+import { View, ActivityIndicator, useWindowDimensions } from 'react-native';
+import Head from 'expo-router/head';
+import { useRouter } from 'expo-router';
+import { useOxy } from '@oxy.so/services';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { Fab } from '@oxy.so/bloom/fab';
+import { Screen } from '@oxy.so/bloom/screen';
+import { Search } from '@oxy.so/bloom/search';
+import { NotesContent } from '@/components/notes/notes-content';
+import { Text } from '@/components/ui/text';
+import { EmptyState } from '@/components/empty-state';
+import { LocalStoreError } from '@/components/local-store-boundary';
+import { NotesHeader } from '@/components/notes/notes-header';
+import { QuickCapture, type QuickCaptureCreation } from '@/components/notes/quick-capture';
+import { NoteGrid } from '@/components/notes/note-grid';
+import { BulkActionBar } from '@/components/notes/bulk-action-bar';
+import { NoteColorPicker } from '@/components/notes/note-color-picker';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   useNotes,
   useCreateNote,
   useUpdateNote,
   useTrashNote,
   useRestoreNote,
-} from "@/lib/hooks/use-notes";
-import { useLabels } from "@/lib/hooks/use-labels";
-import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
-import { useUndoStore } from "@/lib/stores/undo-store";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useColorScheme } from "@/lib/useColorScheme";
-import type { Note, NoteColor, NoteListParams } from "@noted/shared-types";
+} from '@/lib/hooks/use-notes';
+import { useLabels } from '@/lib/hooks/use-labels';
+import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
+import { useUndoStore } from '@/lib/stores/undo-store';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import type { Note, NoteColor, NoteListParams } from '@noted/shared-types';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -55,11 +50,11 @@ export default function HomeScreen() {
 
   const listParams: NoteListParams = React.useMemo(
     () => ({
-      view: "active",
+      view: 'active',
       ...(activeLabel ? { label: activeLabel } : {}),
       ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
     }),
-    [activeLabel, searchQuery]
+    [activeLabel, searchQuery],
   );
 
   const { data: notes, isLoading, error } = useNotes(listParams);
@@ -71,9 +66,7 @@ export default function HomeScreen() {
 
   // Color popover: in bulk mode it targets the selection; from a card's hover
   // palette it targets a single note id.
-  const [colorTarget, setColorTarget] = React.useState<"selection" | string | null>(
-    null
-  );
+  const [colorTarget, setColorTarget] = React.useState<'selection' | string | null>(null);
 
   // The snackbar itself is drawn by the layout, stacked above the record
   // button; this screen only says what happened and how to reverse it.
@@ -93,14 +86,14 @@ export default function HomeScreen() {
       }
       router.push(`/n/${note.id}`);
     },
-    [selectionMode, toggleSelected, router]
+    [selectionMode, toggleSelected, router],
   );
 
   const handleLongPressNote = React.useCallback(
     (note: Note) => {
       enterSelection(note.id);
     },
-    [enterSelection]
+    [enterSelection],
   );
 
   const handleCreate = React.useCallback(
@@ -111,23 +104,28 @@ export default function HomeScreen() {
         expectedViewerId: user?.id,
         creationId: input.creationId,
         initialInput: {
-          title: input.initialInput.title, userBody: input.initialInput.body,
-          color: input.initialInput.color, archived: input.initialInput.archived,
+          title: input.initialInput.title,
+          userBody: input.initialInput.body,
+          color: input.initialInput.color,
+          archived: input.initialInput.archived,
           labels: activeLabel ? [activeLabel] : [],
         },
-        title: input.title, userBody: input.body, color: input.color,
-        archived: input.archived, labels: activeLabel ? [activeLabel] : [],
+        title: input.title,
+        userBody: input.body,
+        color: input.color,
+        archived: input.archived,
+        labels: activeLabel ? [activeLabel] : [],
       });
     },
-    [createNote, activeLabel, user?.id]
+    [createNote, activeLabel, user?.id],
   );
 
   const handleCreateChecklist = React.useCallback(() => {
-    router.push("/n/new?mode=checklist");
+    router.push('/n/new?mode=checklist');
   }, [router]);
 
   const handleCreateNote = React.useCallback(() => {
-    router.push("/n/new");
+    router.push('/n/new');
   }, [router]);
 
   // ── Per-card hover actions (web) ───────────────────────────────────────────
@@ -135,7 +133,7 @@ export default function HomeScreen() {
     (note: Note) => {
       updateNote.mutate({ id: note.id, patch: { pinned: !note.pinned } });
     },
-    [updateNote]
+    [updateNote],
   );
 
   const handleCardToggleSelect = React.useCallback(
@@ -146,29 +144,29 @@ export default function HomeScreen() {
         enterSelection(note.id);
       }
     },
-    [selectionMode, toggleSelected, enterSelection]
+    [selectionMode, toggleSelected, enterSelection],
   );
 
   const handleCardArchive = React.useCallback(
     (note: Note) => {
       updateNote.mutate({ id: note.id, patch: { archived: true } });
-      showUndo(t("notes.archived"), () => {
+      showUndo(t('notes.archived'), () => {
         updateNote.mutate({ id: note.id, patch: { archived: false } });
         dismissUndo();
       });
     },
-    [updateNote, showUndo, dismissUndo, t]
+    [updateNote, showUndo, dismissUndo, t],
   );
 
   const handleCardDelete = React.useCallback(
     (note: Note) => {
       trashNote.mutate(note.id);
-      showUndo(t("notes.trashed"), () => {
+      showUndo(t('notes.trashed'), () => {
         restoreNote.mutate(note.id);
         dismissUndo();
       });
     },
-    [trashNote, restoreNote, showUndo, dismissUndo, t]
+    [trashNote, restoreNote, showUndo, dismissUndo, t],
   );
 
   const handleCardColor = React.useCallback((note: Note) => {
@@ -181,7 +179,7 @@ export default function HomeScreen() {
     (note: Note) => {
       router.push(`/n/${note.id}`);
     },
-    [router]
+    [router],
   );
 
   // ── Bulk actions (selection mode) ──────────────────────────────────────────
@@ -201,7 +199,7 @@ export default function HomeScreen() {
       updateNote.mutate({ id, patch: { archived: true } });
     }
     clearSelection();
-    showUndo(t("notes.archived"), () => {
+    showUndo(t('notes.archived'), () => {
       for (const id of affected) {
         updateNote.mutate({ id, patch: { archived: false } });
       }
@@ -215,7 +213,7 @@ export default function HomeScreen() {
       trashNote.mutate(id);
     }
     clearSelection();
-    showUndo(t("notes.trashed"), () => {
+    showUndo(t('notes.trashed'), () => {
       for (const id of affected) {
         restoreNote.mutate(id);
       }
@@ -226,7 +224,7 @@ export default function HomeScreen() {
   // Color picker: applies to either the bulk selection or a single card.
   const handleColorSelect = React.useCallback(
     (color: NoteColor) => {
-      if (colorTarget === "selection") {
+      if (colorTarget === 'selection') {
         for (const note of selectedNotes) {
           updateNote.mutate({ id: note.id, patch: { color } });
         }
@@ -236,69 +234,103 @@ export default function HomeScreen() {
       }
       setColorTarget(null);
     },
-    [colorTarget, selectedNotes, updateNote, clearSelection]
+    [colorTarget, selectedNotes, updateNote, clearSelection],
   );
 
   const colorSelected: NoteColor =
-    colorTarget && colorTarget !== "selection"
-      ? allNotes.find((n) => n.id === colorTarget)?.color ?? "default"
-      : "default";
+    colorTarget && colorTarget !== 'selection'
+      ? (allNotes.find((n) => n.id === colorTarget)?.color ?? 'default')
+      : 'default';
 
   return (
-    <Screen documentScroll
-      header={selectionMode ? (
-        <BulkActionBar
-          count={selectedIds.size}
-          onClose={clearSelection}
-          onPin={handleBulkPin}
-          onColor={() => setColorTarget("selection")}
-          onArchive={handleBulkArchive}
-          onDelete={handleBulkDelete}
-        />
-      ) : (
-        <NotesHeader title={t("notes.title")} />
-      )}
-      primaryAction={!isLargeScreen && !selectionMode && isAuthenticated ? (
-        <Fab icon={RiAddLine} onPress={handleCreateNote} accessibilityLabel={t("notes.takeANote")} />
-      ) : undefined}
+    <Screen
+      documentScroll
+      header={
+        selectionMode ? (
+          <BulkActionBar
+            count={selectedIds.size}
+            onClose={clearSelection}
+            onPin={handleBulkPin}
+            onColor={() => setColorTarget('selection')}
+            onArchive={handleBulkArchive}
+            onDelete={handleBulkDelete}
+          />
+        ) : (
+          <NotesHeader title={t('notes.title')} />
+        )
+      }
+      primaryAction={
+        !isLargeScreen && !selectionMode && isAuthenticated ? (
+          <Fab
+            icon={RiAddLine}
+            onPress={handleCreateNote}
+            accessibilityLabel={t('notes.takeANote')}
+          />
+        ) : undefined
+      }
     >
       <Head>
         <title>Noted</title>
         <meta name="description" content="Noted — capture notes, lists, and reminders." />
       </Head>
 
-      <NotesContent ready={!isLoading} restorationKey={`${activeLabel ?? "all"}:${searchQuery.trim()}`}>
-        {!selectionMode && <Search
-          value={searchQuery}
-          onChangeText={useNotesUIStore.getState().setSearchQuery}
-          label={t("notes.searchPlaceholder")}
-          onClearText={() => useNotesUIStore.getState().setSearchQuery("")}
-        />}
+      <NotesContent
+        ready={!isLoading}
+        restorationKey={`${activeLabel ?? 'all'}:${searchQuery.trim()}`}
+      >
+        {!selectionMode && (
+          <Search
+            value={searchQuery}
+            onChangeText={useNotesUIStore.getState().setSearchQuery}
+            label={t('notes.searchPlaceholder')}
+            onClearText={() => useNotesUIStore.getState().setSearchQuery('')}
+          />
+        )}
         {!selectionMode && (
           <QuickCapture
             onCreate={handleCreate}
             onCreateChecklist={handleCreateChecklist}
-            onCreateAttachment={() => router.push("/n/new?mode=attachment")}
+            onCreateAttachment={() => router.push('/n/new?mode=attachment')}
             onOpenNote={(id, mode) => router.push(`/n/${id}?mode=${mode}`)}
           />
         )}
 
-        {error ? <LocalStoreError /> : isLoading ? (
+        {error ? (
+          <LocalStoreError />
+        ) : isLoading ? (
           <View className="items-center justify-center py-16">
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : allNotes.length === 0 ? (
           <EmptyState
-            sticker={searchQuery.trim() || activeLabel ? "search" : "notes"}
-            action={{ label: searchQuery.trim() || activeLabel ? t("emptyStates.clearFilters") : t("notes.takeANote"), onPress: searchQuery.trim() || activeLabel ? () => { useNotesUIStore.getState().setSearchQuery(""); useNotesUIStore.getState().setActiveLabel(null); } : handleCreateNote }}
-            title={searchQuery.trim() || activeLabel ? t("notes.noResultsTitle") : t("notes.emptyTitle")}
-            subtitle={searchQuery.trim() || activeLabel ? t("notes.noResultsSubtitle") : t("notes.emptySubtitle")}
+            sticker={searchQuery.trim() || activeLabel ? 'search' : 'notes'}
+            action={{
+              label:
+                searchQuery.trim() || activeLabel
+                  ? t('emptyStates.clearFilters')
+                  : t('notes.takeANote'),
+              onPress:
+                searchQuery.trim() || activeLabel
+                  ? () => {
+                      useNotesUIStore.getState().setSearchQuery('');
+                      useNotesUIStore.getState().setActiveLabel(null);
+                    }
+                  : handleCreateNote,
+            }}
+            title={
+              searchQuery.trim() || activeLabel ? t('notes.noResultsTitle') : t('notes.emptyTitle')
+            }
+            subtitle={
+              searchQuery.trim() || activeLabel
+                ? t('notes.noResultsSubtitle')
+                : t('notes.emptySubtitle')
+            }
           />
         ) : (
           <View className="gap-4">
             {pinned.length > 0 && (
               <View className="gap-2">
-                <SectionLabel>{t("notes.pinned")}</SectionLabel>
+                <SectionLabel>{t('notes.pinned')}</SectionLabel>
                 <NoteGrid
                   notes={pinned}
                   allLabels={allLabels}
@@ -317,9 +349,7 @@ export default function HomeScreen() {
             )}
             {others.length > 0 && (
               <View className="gap-2">
-                {pinned.length > 0 && (
-                  <SectionLabel>{t("notes.others")}</SectionLabel>
-                )}
+                {pinned.length > 0 && <SectionLabel>{t('notes.others')}</SectionLabel>}
                 <NoteGrid
                   notes={others}
                   allLabels={allLabels}
@@ -340,19 +370,12 @@ export default function HomeScreen() {
         )}
       </NotesContent>
 
-      <Dialog
-        open={colorTarget !== null}
-        onOpenChange={(open) => !open && setColorTarget(null)}
-      >
+      <Dialog open={colorTarget !== null} onOpenChange={(open) => !open && setColorTarget(null)}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle>{t("notes.pickColor")}</DialogTitle>
+            <DialogTitle>{t('notes.pickColor')}</DialogTitle>
           </DialogHeader>
-          <NoteColorPicker
-            selected={colorSelected}
-            onSelect={handleColorSelect}
-            scroll={false}
-          />
+          <NoteColorPicker selected={colorSelected} onSelect={handleColorSelect} scroll={false} />
         </DialogContent>
       </Dialog>
     </Screen>

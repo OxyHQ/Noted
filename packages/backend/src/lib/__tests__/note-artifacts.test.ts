@@ -76,7 +76,9 @@ describe('the validator', () => {
         {
           id: 's1',
           kind: 'notes',
-          blocks: [{ id: 'b1', kind: 'paragraph', status: 'active', origin: 'transcript', sources: [] }],
+          blocks: [
+            { id: 'b1', kind: 'paragraph', status: 'active', origin: 'transcript', sources: [] },
+          ],
         },
       ],
     });
@@ -114,7 +116,14 @@ describe('the validator', () => {
           id: 's1',
           kind: 'notes',
           blocks: [
-            { id: 'b1', kind: 'paragraph', text: 'x', status: 'active', origin: 'trusted', sources: [] },
+            {
+              id: 'b1',
+              kind: 'paragraph',
+              text: 'x',
+              status: 'active',
+              origin: 'trusted',
+              sources: [],
+            },
           ],
         },
       ],

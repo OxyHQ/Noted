@@ -1,20 +1,15 @@
-import React from "react";
-import { LabelChip } from "./label-color";
-import { GlyphButton } from "@oxy.so/bloom/button";
-import { Checkbox } from "@oxy.so/bloom/checkbox";
-import { TextFieldInput } from "@oxy.so/bloom/text-field";
-import { EmptyState } from "@/components/empty-state";
-import { View, ScrollView } from "react-native";
-import { Plus } from "lucide-react-native";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useLabels, useCreateLabel } from "@/lib/hooks/use-labels";
+import React from 'react';
+import { LabelChip } from './label-color';
+import { GlyphButton } from '@oxy.so/bloom/button';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { EmptyState } from '@/components/empty-state';
+import { View, ScrollView } from 'react-native';
+import { Plus } from 'lucide-react-native';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useLabels, useCreateLabel } from '@/lib/hooks/use-labels';
 
 interface LabelAssignDialogProps {
   open: boolean;
@@ -36,7 +31,7 @@ export function LabelAssignDialog({
   const { t } = useTranslation();
   const { data: labels } = useLabels();
   const createLabel = useCreateLabel();
-  const [draft, setDraft] = React.useState("");
+  const [draft, setDraft] = React.useState('');
 
   const assignedSet = new Set(assigned);
   const allLabels = labels ?? [];
@@ -46,7 +41,7 @@ export function LabelAssignDialog({
     if (!name || createLabel.isPending) return;
     try {
       const created = await createLabel.mutateAsync({ name });
-      setDraft("");
+      setDraft('');
       onToggle(created.id);
     } catch {
       // The mutation reports the error; preserve the name so it can be retried.
@@ -57,17 +52,17 @@ export function LabelAssignDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("notes.labelNote")}</DialogTitle>
+          <DialogTitle>{t('notes.labelNote')}</DialogTitle>
         </DialogHeader>
 
         <View className="gap-2">
           <TextFieldInput
-            label={t("notes.createLabelPlaceholder")}
+            label={t('notes.createLabelPlaceholder')}
             editable={!createLabel.isPending}
             value={draft}
             onChangeText={setDraft}
             onSubmitEditing={handleCreate}
-            placeholder={t("notes.createLabelPlaceholder")}
+            placeholder={t('notes.createLabelPlaceholder')}
             placeholderTextColor={colors.mutedForeground}
             className="h-10 flex-1 text-base text-foreground"
             returnKeyType="done"
@@ -76,7 +71,7 @@ export function LabelAssignDialog({
             <GlyphButton
               disabled={createLabel.isPending}
               onPress={handleCreate}
-              accessibilityLabel={t("common.create")}
+              accessibilityLabel={t('common.create')}
               color={colors.primary}
               size={36}
             >
@@ -87,7 +82,7 @@ export function LabelAssignDialog({
 
         <ScrollView className="max-h-72">
           {allLabels.length === 0 ? (
-            <EmptyState sticker="labels" title={t("notes.noLabels")} />
+            <EmptyState sticker="labels" title={t('notes.noLabels')} />
           ) : (
             allLabels.map((label) => {
               const isAssigned = assignedSet.has(label.id);

@@ -93,15 +93,13 @@ export function useNotificationSetup() {
 
   // ── Notification tap handler (deep-link to conversation) ───────
   useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        if (!isAuthenticated) return;
-        const data = response.notification.request.content.data;
-        if (data?.noteId) {
-          router.push(`/n/${data.noteId}`);
-        }
-      },
-    );
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (!isAuthenticated) return;
+      const data = response.notification.request.content.data;
+      if (data?.noteId) {
+        router.push(`/n/${data.noteId}`);
+      }
+    });
 
     return () => subscription.remove();
   }, [router, isAuthenticated]);
@@ -117,7 +115,9 @@ export function useNotificationSetup() {
     (async () => {
       try {
         // Fetch VAPID public key from backend
-        const { data: vapidData } = await apiClient.get<{ publicKey?: string }>('/notifications/vapid-public-key');
+        const { data: vapidData } = await apiClient.get<{ publicKey?: string }>(
+          '/notifications/vapid-public-key',
+        );
         if (cancelled || !vapidData?.publicKey) return;
 
         // Register service worker

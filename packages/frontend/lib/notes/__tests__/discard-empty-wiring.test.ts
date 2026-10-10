@@ -14,10 +14,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const EDITOR = readFileSync(
-  join(import.meta.dirname, '../../..', 'app/n/[id].tsx'),
-  'utf8',
-);
+const EDITOR = readFileSync(join(import.meta.dirname, '../../..', 'app/n/[id].tsx'), 'utf8');
 
 function occurrences(source: string, needle: string): number {
   return source.split(needle).length - 1;
@@ -33,7 +30,9 @@ describe('the editor', () => {
     // throws "Could not find a navigation object" when opening a real editor.
     // Quote-agnostic: the formatter owns quote style, and a needle spelled with
     // one quote kind makes the negative check pass vacuously on the other.
-    expect(EDITOR).toMatch(/import \{ usePreventRemove \} from ['"]expo-router\/react-navigation['"]/);
+    expect(EDITOR).toMatch(
+      /import \{ usePreventRemove \} from ['"]expo-router\/react-navigation['"]/,
+    );
     expect(EDITOR).not.toMatch(/from ['"]@react-navigation\/native['"]/);
   });
 
@@ -51,7 +50,7 @@ describe('the editor', () => {
     // `base` is null until the note arrives and the draft starts blank, so
     // without this, opening an existing note and closing it before it loads
     // reads as "the user emptied this".
-    expect(EDITOR).toContain("usePreventRemove(isNew || base !== null");
+    expect(EDITOR).toContain('usePreventRemove(isNew || base !== null');
   });
 
   it('compares the user half of the body, not the composed one', () => {

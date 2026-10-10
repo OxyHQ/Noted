@@ -101,7 +101,9 @@ function replyBudget(transcriptChars: number): number {
  * else's contract — and it type-checked while returning a shape the library
  * does not produce.
  */
-type Generator = Awaited<ReturnType<typeof import('@huggingface/transformers').pipeline<'text-generation'>>>;
+type Generator = Awaited<
+  ReturnType<typeof import('@huggingface/transformers').pipeline<'text-generation'>>
+>;
 
 let generatorPromise: Promise<Generator> | null = null;
 
@@ -232,8 +234,9 @@ function textOf(output: Awaited<ReturnType<Generator>>): string {
  */
 function hitTokenCap(generator: Generator, text: string, budget: number): boolean | null {
   try {
-    const tokenizer = (generator as unknown as { tokenizer?: { encode: (input: string) => unknown[] } })
-      .tokenizer;
+    const tokenizer = (
+      generator as unknown as { tokenizer?: { encode: (input: string) => unknown[] } }
+    ).tokenizer;
     const tokens = tokenizer?.encode(text);
     // `null`, not `false`, when the tokenizer will not answer. They are opposite
     // facts: `false` says the model chose to stop and left the object open —

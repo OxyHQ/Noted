@@ -5,8 +5,10 @@ import { CaptureEngineHost } from '@/components/capture/capture-engine-host';
 
 export function LocalStoreProvider({ children }: { children: ReactNode }) {
   const state = useLocalStore();
-  return <LocalStoreContext.Provider value={state}>
-    {children}
-    {state.isReady && <CaptureEngineHost key={state.viewerId} />}
-  </LocalStoreContext.Provider>;
+  return (
+    <LocalStoreContext.Provider value={state}>
+      {children}
+      {state.isReady && <CaptureEngineHost key={state.viewerId} />}
+    </LocalStoreContext.Provider>
+  );
 }

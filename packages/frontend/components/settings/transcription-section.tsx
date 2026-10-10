@@ -1,23 +1,18 @@
-import { View, Pressable, ActivityIndicator } from "react-native";
-import { Check, Download, Trash2 } from "lucide-react-native";
+import { View, Pressable, ActivityIndicator } from 'react-native';
+import { Check, Download, Trash2 } from 'lucide-react-native';
 
 import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { Switch } from '@oxy.so/bloom/switch';
 import { SettingsCard, SettingsRow } from '@oxy.so/bloom/settings-modal';
-import { useTranslation } from "@/hooks/useTranslation";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { hasDownloadableModels } from "@/lib/capture/support";
-import { DEFAULT_STT_MODEL, type SttModelId } from "@/lib/stt/models";
-import { selectSttModel } from "@/lib/stt/select-model";
-import { useSttModels, type ModelEntry } from "@/lib/stt/use-models";
-import { useLlmModel } from "@/lib/enhance/use-llm-model";
-import {
-  readSetting,
-  SETTING_KEYS,
-  useSettings,
-  writeSetting,
-} from "@/lib/db/settings-repo";
+import { useTranslation } from '@/hooks/useTranslation';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { hasDownloadableModels } from '@/lib/capture/support';
+import { DEFAULT_STT_MODEL, type SttModelId } from '@/lib/stt/models';
+import { selectSttModel } from '@/lib/stt/select-model';
+import { useSttModels, type ModelEntry } from '@/lib/stt/use-models';
+import { useLlmModel } from '@/lib/enhance/use-llm-model';
+import { readSetting, SETTING_KEYS, useSettings, writeSetting } from '@/lib/db/settings-repo';
 
 const MEGABYTE = 1024 * 1024;
 
@@ -26,11 +21,11 @@ function formatSize(bytes: number): string {
 }
 
 function isModelId(value: unknown): value is SttModelId {
-  return value === "tiny" || value === "base" || value === "small";
+  return value === 'tiny' || value === 'base' || value === 'small';
 }
 
 function isBoolean(value: unknown): value is boolean {
-  return typeof value === "boolean";
+  return typeof value === 'boolean';
 }
 
 /**
@@ -53,7 +48,7 @@ function ModelRow({
 }) {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
-  const isDownloading = entry.state === "downloading";
+  const isDownloading = entry.state === 'downloading';
 
   return (
     <View className="flex-row items-center gap-3 rounded-2xl border border-border px-4 py-3">
@@ -69,8 +64,7 @@ function ModelRow({
             {t(`transcription.models.${entry.model.id}.name`)}
           </Text>
           <Text className="text-sm text-muted-foreground">
-            {formatSize(entry.model.bytes)} ·{" "}
-            {t(`transcription.models.${entry.model.id}.note`)}
+            {formatSize(entry.model.bytes)} · {t(`transcription.models.${entry.model.id}.note`)}
           </Text>
         </View>
 
@@ -84,7 +78,7 @@ function ModelRow({
               {String(Math.round((entry.progress ?? 0) * 100))}%
             </Text>
           </View>
-        ) : entry.state === "ready" ? (
+        ) : entry.state === 'ready' ? (
           isSelected ? (
             <Check size={18} color={colors.primary} />
           ) : null
@@ -93,10 +87,10 @@ function ModelRow({
         )}
       </Pressable>
 
-      {entry.state === "ready" && !isSelected ? (
+      {entry.state === 'ready' && !isSelected ? (
         <Pressable
           onPress={onRemove}
-          accessibilityLabel={t("transcription.remove")}
+          accessibilityLabel={t('transcription.remove')}
           hitSlop={8}
           className="active:opacity-70"
         >
@@ -130,20 +124,22 @@ function LanguageRow() {
   return (
     <View className="gap-2">
       <Text className="text-sm font-medium text-muted-foreground">
-        {t("transcription.language.title")}
+        {t('transcription.language.title')}
       </Text>
       <View className="flex-row gap-2">
         {LANGUAGES.map((language) => (
-          <Button key={language} appearance="outline" size="sm"
+          <Button
+            key={language}
+            appearance="outline"
+            size="sm"
             pressed={language === selected}
-            onPress={() => void writeSetting(SETTING_KEYS.sttLanguage, language)}>
+            onPress={() => void writeSetting(SETTING_KEYS.sttLanguage, language)}
+          >
             {t(`transcription.language.${language}`)}
           </Button>
         ))}
       </View>
-      <Text className="text-sm text-muted-foreground">
-        {t("transcription.language.note")}
-      </Text>
+      <Text className="text-sm text-muted-foreground">{t('transcription.language.note')}</Text>
     </View>
   );
 }
@@ -159,22 +155,22 @@ function UnderstandingRow() {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   const model = useLlmModel();
-  const isDownloading = model.state === "downloading";
+  const isDownloading = model.state === 'downloading';
 
   return (
     <View className="gap-2">
       <Text className="text-sm font-medium text-muted-foreground">
-        {t("transcription.understanding.title")}
+        {t('transcription.understanding.title')}
       </Text>
       <View className="flex-row items-center gap-3 rounded-2xl border border-border px-4 py-3">
         <View className="flex-1">
           <Text className="text-base text-foreground">
-            {t("transcription.understanding.label")}
+            {t('transcription.understanding.label')}
           </Text>
           <Text className="text-sm text-muted-foreground">
-            {model.state === "ready"
-              ? t("transcription.understanding.ready")
-              : t("transcription.understanding.note", { size: formatSize(model.bytes) })}
+            {model.state === 'ready'
+              ? t('transcription.understanding.ready')
+              : t('transcription.understanding.note', { size: formatSize(model.bytes) })}
           </Text>
         </View>
 
@@ -185,10 +181,10 @@ function UnderstandingRow() {
               {String(Math.round((model.progress ?? 0) * 100))}%
             </Text>
           </View>
-        ) : model.state === "ready" ? (
+        ) : model.state === 'ready' ? (
           <Pressable
             onPress={() => void model.remove()}
-            accessibilityLabel={t("transcription.remove")}
+            accessibilityLabel={t('transcription.remove')}
             hitSlop={8}
             className="active:opacity-70"
           >
@@ -197,7 +193,7 @@ function UnderstandingRow() {
         ) : (
           <Pressable
             onPress={() => void model.download().catch(() => undefined)}
-            accessibilityLabel={t("transcription.understanding.download")}
+            accessibilityLabel={t('transcription.understanding.download')}
             hitSlop={8}
             className="active:opacity-70"
           >
@@ -214,12 +210,7 @@ export function TranscriptionSection() {
   const { entries, isLoading, download, remove } = useSttModels();
   const { settings } = useSettings();
 
-  const selected = readSetting(
-    settings,
-    SETTING_KEYS.sttModel,
-    isModelId,
-    DEFAULT_STT_MODEL,
-  );
+  const selected = readSetting(settings, SETTING_KEYS.sttModel, isModelId, DEFAULT_STT_MODEL);
   const live = readSetting(settings, SETTING_KEYS.liveNotes, isBoolean, true);
 
   // The browser transcribes too, but it has nothing to manage: transformers.js
@@ -229,12 +220,8 @@ export function TranscriptionSection() {
   if (!hasDownloadableModels()) {
     return (
       <View className="gap-2">
-        <Text className="text-base font-semibold text-foreground">
-          {t("transcription.title")}
-        </Text>
-        <Text className="text-sm text-muted-foreground">
-          {t("transcription.browser")}
-        </Text>
+        <Text className="text-base font-semibold text-foreground">{t('transcription.title')}</Text>
+        <Text className="text-sm text-muted-foreground">{t('transcription.browser')}</Text>
       </View>
     );
   }
@@ -242,18 +229,20 @@ export function TranscriptionSection() {
   return (
     <View className="gap-6">
       <View className="gap-1">
-        <Text className="text-base font-semibold text-foreground">
-          {t("transcription.title")}
-        </Text>
-        <Text className="text-sm text-muted-foreground">
-          {t("transcription.explainer")}
-        </Text>
+        <Text className="text-base font-semibold text-foreground">{t('transcription.title')}</Text>
+        <Text className="text-sm text-muted-foreground">{t('transcription.explainer')}</Text>
       </View>
 
       <SettingsCard>
-        <SettingsRow label={t('transcription.live.label')} description={t('transcription.live.note')}>
-          <Switch checked={live} accessibilityLabel={t('transcription.live.label')}
-            onCheckedChange={value => void writeSetting(SETTING_KEYS.liveNotes, value)} />
+        <SettingsRow
+          label={t('transcription.live.label')}
+          description={t('transcription.live.note')}
+        >
+          <Switch
+            checked={live}
+            accessibilityLabel={t('transcription.live.label')}
+            onCheckedChange={(value) => void writeSetting(SETTING_KEYS.liveNotes, value)}
+          />
         </SettingsRow>
       </SettingsCard>
 
@@ -263,7 +252,7 @@ export function TranscriptionSection() {
 
       <View className="gap-2">
         <Text className="text-sm font-medium text-muted-foreground">
-          {t("transcription.modelsTitle")}
+          {t('transcription.modelsTitle')}
         </Text>
         {isLoading ? (
           <ActivityIndicator size="small" />
@@ -275,9 +264,9 @@ export function TranscriptionSection() {
               isSelected={entry.model.id === selected}
               onSelect={() => {
                 // Both the download and selection belong to the initiating account.
-                void selectSttModel(entry.model.id, () => entry.state === "ready"
-                  ? Promise.resolve()
-                  : download(entry.model.id)).catch(() => undefined);
+                void selectSttModel(entry.model.id, () =>
+                  entry.state === 'ready' ? Promise.resolve() : download(entry.model.id),
+                ).catch(() => undefined);
               }}
               onRemove={() => void remove(entry.model.id)}
             />

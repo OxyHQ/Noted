@@ -3,7 +3,9 @@ import { NoteSaveQueue } from '../save-queue';
 
 function deferred() {
   let resolve!: () => void;
-  const promise = new Promise<void>((done) => { resolve = done; });
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -55,7 +57,9 @@ describe('editor local save lifecycle', () => {
     });
     void queue.save('typing');
     let canClose = false;
-    const close = queue.save('final').then(() => { canClose = true; });
+    const close = queue.save('final').then(() => {
+      canClose = true;
+    });
     await Promise.resolve();
     expect(canClose).toBe(false);
     pending.resolve();
@@ -64,7 +68,6 @@ describe('editor local save lifecycle', () => {
     expect(count).toBe(2);
   });
 });
-
 
 describe('leaving an editor account', () => {
   it('cancels work waiting behind a save when the editor unmounts', async () => {

@@ -81,7 +81,10 @@ describe('runtime secrets come from SSM, and no workflow writes one', () => {
 
   it('reads no repo secret outside the CI-only allowlist', () => {
     const named = workflows.flatMap(({ executable }) => secretsReadBy(executable));
-    expect(named.length, 'no secret is read anywhere, so the matcher measures nothing').toBeGreaterThan(0);
+    expect(
+      named.length,
+      'no secret is read anywhere, so the matcher measures nothing',
+    ).toBeGreaterThan(0);
     for (const name of new Set(named)) {
       expect(CI_ONLY_SECRETS, `a workflow reads app secret ${name} from GitHub`).toContain(name);
     }

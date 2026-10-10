@@ -80,7 +80,8 @@ describe('composeNoteBody', () => {
  */
 describe('nextNoteBody', () => {
   const TYPED = 'Preguntar por el presupuesto';
-  const NEXT_GENERATED = '## Open questions\n\n- Is it reading the entire internet?\n- Who signs off?';
+  const NEXT_GENERATED =
+    '## Open questions\n\n- Is it reading the entire internet?\n- Who signs off?';
 
   /** A note mid-recording: the user has typed, and one slice has run. */
   const stored: NoteBody = {

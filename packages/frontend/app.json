@@ -17,10 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "so.oxy.noted",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "audio",
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["audio", "remote-notification"],
         "NSMicrophoneUsageDescription": "Noted uses the microphone to record meetings and voice notes. Recording only happens while you start it, and the audio is transcribed on this device."
       }
     },

@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 /** Browser-owned locks survive timer throttling and release when a tab dies. */
 export function browserLocks(): LockManager | null {
   return Platform.OS === 'web' && typeof navigator !== 'undefined'
-    ? navigator.locks ?? null
+    ? (navigator.locks ?? null)
     : null;
 }
 
@@ -23,12 +23,16 @@ export function acquireBrowserLease(name: string): Promise<(() => void) | null> 
   const locks = browserLocks();
   if (!locks) return Promise.resolve(() => undefined);
   return new Promise((resolve, reject) => {
-    void locks.request(name, { ifAvailable: true }, async lock => {
-      if (!lock) {
-        resolve(null);
-        return;
-      }
-      await new Promise<void>(release => { resolve(release); });
-    }).catch(reject);
+    void locks
+      .request(name, { ifAvailable: true }, async (lock) => {
+        if (!lock) {
+          resolve(null);
+          return;
+        }
+        await new Promise<void>((release) => {
+          resolve(release);
+        });
+      })
+      .catch(reject);
   });
 }

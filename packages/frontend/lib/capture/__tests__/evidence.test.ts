@@ -33,7 +33,13 @@ function range(startMs: number, endMs: number, ...segmentIds: string[]): SourceR
 }
 
 function item(sources: SourceRange[]): GeneratedItem {
-  return { id: 'n1', text: 'Usamos el proveedor barato', status: 'active', origin: 'transcript', sources };
+  return {
+    id: 'n1',
+    text: 'Usamos el proveedor barato',
+    status: 'active',
+    origin: 'transcript',
+    sources,
+  };
 }
 
 describe('evidenceFor', () => {
@@ -50,11 +56,10 @@ describe('evidenceFor', () => {
   });
 
   it('joins the segments of one stretch in the order they were said', () => {
-    const evidence = evidenceFor(
-      item([range(0, 10_000, 'c1#0.1', 'c1#0.0')]),
-      TRANSCRIPT,
+    const evidence = evidenceFor(item([range(0, 10_000, 'c1#0.1', 'c1#0.0')]), TRANSCRIPT);
+    expect(evidence[0].text).toBe(
+      'Empezamos con el presupuesto Al final vamos a usar el proveedor barato',
     );
-    expect(evidence[0].text).toBe('Empezamos con el presupuesto Al final vamos a usar el proveedor barato');
   });
 
   it('keeps both moments when a point was made twice', () => {

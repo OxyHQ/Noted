@@ -117,9 +117,10 @@ const QUANTITY_PATTERN =
 function itemsPart(sentence: string): string {
   const afterColon = sentence.split(':').slice(1).join(':');
   if (afterColon.trim() !== '') return afterColon;
-  const afterVerb = /\b(?:añade|añádele|agrega|agrégale|pon|ponme|apunta|apúntame|anota|incluye|add|put|include)\b(.*)/i.exec(
-    sentence,
-  );
+  const afterVerb =
+    /\b(?:añade|añádele|agrega|agrégale|pon|ponme|apunta|apúntame|anota|incluye|add|put|include)\b(.*)/i.exec(
+      sentence,
+    );
   return afterVerb?.[1] ?? '';
 }
 

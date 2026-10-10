@@ -87,7 +87,9 @@ describe('the copy gate covers the new keys', () => {
   it('lists every reason key, in both locales', () => {
     // Derived from the reason map rather than typed again, so a reason added
     // without copy fails here instead of rendering as its own key on screen.
-    const reasonKeys = CAPTURE_STATUS_KEYS.filter((key) => key.includes('basicReady') || key.includes('enhancement'));
+    const reasonKeys = CAPTURE_STATUS_KEYS.filter(
+      (key) => key.includes('basicReady') || key.includes('enhancement'),
+    );
     expect(reasonKeys.length).toBeGreaterThan(8);
     for (const locale of ['en', 'es']) {
       const bundle = read(locale);

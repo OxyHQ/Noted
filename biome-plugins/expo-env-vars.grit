@@ -2,15 +2,9 @@ language js
 
 or {
   `{ $props } = process.env` as $match where {
-    register_diagnostic(
-      span = $match,
-      message = "Do not destructure process.env in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a destructured read is undefined in the bundle (eslint-plugin-expo: no-env-var-destructuring)."
-    )
+    register_diagnostic(span=$match, message="Do not destructure process.env in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a destructured read is undefined in the bundle (eslint-plugin-expo: no-env-var-destructuring).")
   },
   `process.env[$key]` as $match where {
-    register_diagnostic(
-      span = $match,
-      message = "Do not read process.env with a computed key in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a dynamic read is undefined in the bundle (eslint-plugin-expo: no-dynamic-env-var)."
-    )
+    register_diagnostic(span=$match, message="Do not read process.env with a computed key in the Expo app. Metro only inlines EXPO_PUBLIC_* variables read as process.env.EXPO_PUBLIC_NAME; a dynamic read is undefined in the bundle (eslint-plugin-expo: no-dynamic-env-var).")
   }
 }

@@ -54,17 +54,25 @@ export function replaceLabels(labels: readonly Label[], now: string): Statement[
 }
 
 /** Apply a fresh label list. */
-export function saveLabels(labels: readonly Label[], expectedViewerId = getActiveViewerId()): Promise<number[]> {
+export function saveLabels(
+  labels: readonly Label[],
+  expectedViewerId = getActiveViewerId(),
+): Promise<number[]> {
   return executeTransaction(replaceLabels(labels, new Date().toISOString()), expectedViewerId);
 }
 
 /** Apply one server-confirmed label without replacing its siblings. */
 export function saveLabel(label: Label, expectedViewerId: string): Promise<number[]> {
-  return executeTransaction([{
-    sql: `INSERT INTO labels (id, name, color, updated_at, deleted_at, dirty)
+  return executeTransaction(
+    [
+      {
+        sql: `INSERT INTO labels (id, name, color, updated_at, deleted_at, dirty)
           VALUES (?, ?, ?, ?, NULL, 0)
           ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color,
             updated_at = excluded.updated_at, deleted_at = NULL, dirty = 0`,
-    params: [label.id, label.name, label.color, new Date().toISOString()],
-  }], expectedViewerId);
+        params: [label.id, label.name, label.color, new Date().toISOString()],
+      },
+    ],
+    expectedViewerId,
+  );
 }

@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 /** How long the undo snackbar stays before auto-dismissing. */
 const UNDO_TIMEOUT_MS = 5000;

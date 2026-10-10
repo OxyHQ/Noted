@@ -45,7 +45,10 @@ type IterableDirectory = FileSystemDirectoryHandle & {
   keys(): AsyncIterableIterator<string>;
 };
 
-type Writable = { write(data: Blob | ArrayBufferView | string): Promise<void>; close(): Promise<void> };
+type Writable = {
+  write(data: Blob | ArrayBufferView | string): Promise<void>;
+  close(): Promise<void>;
+};
 
 export function hasOpfs(): boolean {
   return typeof navigator !== 'undefined' && typeof navigator.storage?.getDirectory === 'function';
@@ -68,7 +71,9 @@ class OpfsChunkBackend implements ChunkBackend {
     name: string,
     data: Blob | ArrayBufferView | string,
   ): Promise<void> {
-    const handle = await (await this.capture(captureId, true)).getFileHandle(name, { create: true });
+    const handle = await (await this.capture(captureId, true)).getFileHandle(name, {
+      create: true,
+    });
     const writable = (await handle.createWritable()) as unknown as Writable;
     await writable.write(data);
     await writable.close();

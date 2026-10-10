@@ -4,9 +4,12 @@ import { parseBlocks, toPreviewText } from '@/lib/markdown/blocks';
 
 describe('parseBlocks', () => {
   it('reads the shape the structurer writes', () => {
-    const markdown = ['## Decisions', '', '- Congelar contrataciones', '- Revisar en septiembre'].join(
-      '\n',
-    );
+    const markdown = [
+      '## Decisions',
+      '',
+      '- Congelar contrataciones',
+      '- Revisar en septiembre',
+    ].join('\n');
     expect(parseBlocks(markdown)).toEqual([
       { kind: 'heading', level: 2, text: 'Decisions' },
       { kind: 'bullet', text: 'Congelar contrataciones' },
@@ -39,9 +42,7 @@ describe('parseBlocks', () => {
   });
 
   it('reads level three headings as their own level', () => {
-    expect(parseBlocks('### Detalle')).toEqual([
-      { kind: 'heading', level: 3, text: 'Detalle' },
-    ]);
+    expect(parseBlocks('### Detalle')).toEqual([{ kind: 'heading', level: 3, text: 'Detalle' }]);
   });
 
   it('leaves syntax it does not know as text rather than mangling it', () => {
@@ -53,9 +54,7 @@ describe('parseBlocks', () => {
   });
 
   it('does not treat a dash inside a sentence as a bullet', () => {
-    expect(parseBlocks('esto - aquello')).toEqual([
-      { kind: 'paragraph', text: 'esto - aquello' },
-    ]);
+    expect(parseBlocks('esto - aquello')).toEqual([{ kind: 'paragraph', text: 'esto - aquello' }]);
   });
 
   it('does not treat a bare dash as a bullet', () => {

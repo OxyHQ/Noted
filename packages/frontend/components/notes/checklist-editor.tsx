@@ -1,13 +1,13 @@
-import React from "react";
-import { View, TextInput } from "react-native";
-import { X, Plus } from "lucide-react-native";
-import { GlyphButton } from "@oxy.so/bloom/button";
-import { Checkbox } from "@oxy.so/bloom/checkbox";
-import { TextField, TextFieldInput } from "@oxy.so/bloom/text-field";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/hooks/useTranslation";
-import { generateUUID } from "@/lib/utils";
-import type { ChecklistItem } from "@noted/shared-types";
+import React from 'react';
+import { View, TextInput } from 'react-native';
+import { X, Plus } from 'lucide-react-native';
+import { GlyphButton } from '@oxy.so/bloom/button';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { generateUUID } from '@/lib/utils';
+import type { ChecklistItem } from '@noted/shared-types';
 
 interface ChecklistEditorProps {
   items: ChecklistItem[];
@@ -18,14 +18,12 @@ interface ChecklistEditorProps {
 export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
-  const [draft, setDraft] = React.useState("");
-  const draftRef = React.useRef("");
+  const [draft, setDraft] = React.useState('');
+  const draftRef = React.useRef('');
   const inputRef = React.useRef<TextInput>(null);
 
   const toggle = (id: string) =>
-    onChange(
-      items.map((it) => (it.id === id ? { ...it, checked: !it.checked } : it)),
-    );
+    onChange(items.map((it) => (it.id === id ? { ...it, checked: !it.checked } : it)));
 
   const editText = (id: string, text: string) =>
     onChange(items.map((it) => (it.id === id ? { ...it, text } : it)));
@@ -35,9 +33,9 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
   const addItem = () => {
     const text = draftRef.current.trim();
     if (!text) return;
-    draftRef.current = "";
+    draftRef.current = '';
     onChange([...items, { id: generateUUID(), text, checked: false }]);
-    setDraft("");
+    setDraft('');
   };
 
   return (
@@ -53,23 +51,19 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
             />
             <TextField className="flex-1">
               <TextFieldInput
-                label={item.text || t("notes.addItem")}
+                label={item.text || t('notes.addItem')}
                 value={item.text}
                 onValueChange={(text) => editText(item.id, text)}
                 placeholderTextColor={colors.mutedForeground}
                 className="flex-1 py-1 text-base text-foreground"
-                style={
-                  item.checked
-                    ? { textDecorationLine: "line-through" }
-                    : undefined
-                }
+                style={item.checked ? { textDecorationLine: 'line-through' } : undefined}
               />
             </TextField>
             <GlyphButton
               onPress={() => remove(item.id)}
               size={32}
               glyphSize={16}
-              accessibilityLabel={t("notes.removeItem")}
+              accessibilityLabel={t('notes.removeItem')}
             >
               {(foreground) => <X size={20} color={foreground} />}
             </GlyphButton>
@@ -83,7 +77,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
             addItem();
             inputRef.current?.focus();
           }}
-          accessibilityLabel={t("notes.addItem")}
+          accessibilityLabel={t('notes.addItem')}
           size={32}
           glyphSize={20}
         >
@@ -91,7 +85,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
         </GlyphButton>
         <TextField className="flex-1">
           <TextFieldInput
-            label={t("notes.addItem")}
+            label={t('notes.addItem')}
             inputRef={inputRef}
             value={draft}
             onChangeText={(text) => {
@@ -101,7 +95,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
             onBlur={addItem}
             onSubmitEditing={addItem}
             blurOnSubmit={false}
-            placeholder={t("notes.addItem")}
+            placeholder={t('notes.addItem')}
             placeholderTextColor={colors.mutedForeground}
             className="flex-1 py-1 text-base text-foreground"
             returnKeyType="done"

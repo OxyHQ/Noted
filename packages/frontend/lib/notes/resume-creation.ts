@@ -13,12 +13,18 @@ export async function resumeNoteCreation(
   const created = await createNote(id, initial, viewerId);
   const patch: NoteInput = {};
   for (const key of Object.keys(current) as Array<keyof NoteInput>) {
-    if (current[key] !== undefined && JSON.stringify(current[key]) !== JSON.stringify(initial[key])) {
+    if (
+      current[key] !== undefined &&
+      JSON.stringify(current[key]) !== JSON.stringify(initial[key])
+    ) {
       Object.assign(patch, { [key]: current[key] });
     }
   }
   if (Object.keys(patch).length === 0) return created;
   const updated = await updateNote(id, patch, viewerId);
-  if (!updated) throw new Error('This note was deleted before the edit could be saved. Your draft has been preserved.');
+  if (!updated)
+    throw new Error(
+      'This note was deleted before the edit could be saved. Your draft has been preserved.',
+    );
   return updated;
 }

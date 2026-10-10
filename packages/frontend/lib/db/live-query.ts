@@ -117,7 +117,10 @@ export function useLiveQuery<TRow extends Row, TData>(options: {
   }
   const store = storeRef.current.store;
 
-  const subscribeToStore = useCallback((listener: () => void) => store.subscribe(listener), [store]);
+  const subscribeToStore = useCallback(
+    (listener: () => void) => store.subscribe(listener),
+    [store],
+  );
   const snapshot = useSyncExternalStore(subscribeToStore, store.getSnapshot, store.getSnapshot);
 
   const data = useMemo(() => mapRows(snapshot.rows), [mapRows, snapshot.rows]);

@@ -15,7 +15,13 @@
  *   revision. Finalisation has read the whole recording; a live pass never has.
  */
 
-import { execute, executeTransaction, getActiveViewerId, type Row, type Statement } from '@/lib/db/client';
+import {
+  execute,
+  executeTransaction,
+  getActiveViewerId,
+  type Row,
+  type Statement,
+} from '@/lib/db/client';
 import { useLiveQuery } from '@/lib/db/live-query';
 import type { ArtifactStage, GeneratedNoteArtifact } from '@noted/shared-types';
 import type { UserItemOverride } from '@noted/shared-types';
@@ -119,7 +125,8 @@ export function toNoteArtifacts(artifacts: readonly GeneratedNoteArtifact[]): No
     artifacts
       .filter((artifact) => artifact.stage === stage)
       .reduce<GeneratedNoteArtifact | null>(
-        (best, artifact) => (best === null || artifact.updatedAt > best.updatedAt ? artifact : best),
+        (best, artifact) =>
+          best === null || artifact.updatedAt > best.updatedAt ? artifact : best,
         null,
       );
   return { live: newest('live'), final: newest('final') };
@@ -135,7 +142,9 @@ const ARTIFACTS_BY_CAPTURE_SQL = `SELECT ${ARTIFACT_COLUMNS} FROM note_artifacts
   WHERE capture_id = ? ORDER BY updated_at ASC`;
 
 export async function getNoteArtifacts(noteId: string): Promise<NoteArtifacts> {
-  return toNoteArtifacts(rowsToArtifacts(await execute<ArtifactRow>(ARTIFACTS_BY_NOTE_SQL, [noteId])));
+  return toNoteArtifacts(
+    rowsToArtifacts(await execute<ArtifactRow>(ARTIFACTS_BY_NOTE_SQL, [noteId])),
+  );
 }
 
 /**
@@ -146,14 +155,22 @@ export async function getNoteArtifacts(noteId: string): Promise<NoteArtifacts> {
  * twice has two final artifacts, and sending only the newer one would tell the
  * server the first recording never happened.
  */
-export async function listFinalArtifacts(noteId: string, expectedViewerId = getActiveViewerId()): Promise<GeneratedNoteArtifact[]> {
+export async function listFinalArtifacts(
+  noteId: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<GeneratedNoteArtifact[]> {
   const rows = await execute<ArtifactRow>(ARTIFACTS_BY_NOTE_SQL, [noteId], expectedViewerId);
   return rowsToArtifacts(rows).filter((artifact) => artifact.stage === 'final');
 }
 
-export async function getCaptureArtifacts(captureId: string, expectedViewerId = getActiveViewerId()): Promise<NoteArtifacts> {
+export async function getCaptureArtifacts(
+  captureId: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<NoteArtifacts> {
   return toNoteArtifacts(
-    rowsToArtifacts(await execute<ArtifactRow>(ARTIFACTS_BY_CAPTURE_SQL, [captureId], expectedViewerId)),
+    rowsToArtifacts(
+      await execute<ArtifactRow>(ARTIFACTS_BY_CAPTURE_SQL, [captureId], expectedViewerId),
+    ),
   );
 }
 
@@ -202,9 +219,16 @@ const FINAL_EXISTS_SQL = `SELECT id FROM note_artifacts
  *   newer revision or the final artifact won — and callers log it rather than
  *   retrying, because retrying is how a stale task eventually succeeds.
  */
-export async function saveArtifact(artifact: GeneratedNoteArtifact, expectedViewerId = getActiveViewerId()): Promise<boolean> {
+export async function saveArtifact(
+  artifact: GeneratedNoteArtifact,
+  expectedViewerId = getActiveViewerId(),
+): Promise<boolean> {
   if (artifact.stage === 'live') {
-    const finalRows = await execute<Row>(FINAL_EXISTS_SQL, [artifact.noteId, artifact.captureId], expectedViewerId);
+    const finalRows = await execute<Row>(
+      FINAL_EXISTS_SQL,
+      [artifact.noteId, artifact.captureId],
+      expectedViewerId,
+    );
     if (finalRows.length > 0) return false;
   }
 
@@ -301,8 +325,13 @@ export function rowsToOverrides(rows: readonly OverrideRow[]): UserItemOverride[
 const OVERRIDES_BY_NOTE_SQL = `SELECT note_id, item_id, text, checked, removed, adopted
   FROM note_item_overrides WHERE note_id = ?`;
 
-export async function getNoteOverrides(noteId: string, expectedViewerId = getActiveViewerId()): Promise<UserItemOverride[]> {
-  return rowsToOverrides(await execute<OverrideRow>(OVERRIDES_BY_NOTE_SQL, [noteId], expectedViewerId));
+export async function getNoteOverrides(
+  noteId: string,
+  expectedViewerId = getActiveViewerId(),
+): Promise<UserItemOverride[]> {
+  return rowsToOverrides(
+    await execute<OverrideRow>(OVERRIDES_BY_NOTE_SQL, [noteId], expectedViewerId),
+  );
 }
 
 /**
@@ -324,9 +353,7 @@ export async function setNoteOverride(
   const current = rowsToOverrides(stored)[0] ?? emptyOverride(patch.itemId);
   const next: UserItemOverride = { ...current, ...patch };
 
-  await executeTransaction([
-    overrideUpsertStatement(noteId, next, new Date().toISOString()),
-  ]);
+  await executeTransaction([overrideUpsertStatement(noteId, next, new Date().toISOString())]);
 }
 
 /* ── React bindings ────────────────────────────────────────────── */

@@ -63,21 +63,23 @@ export async function sweepDueReminders(): Promise<number> {
       const [claimed] = await transaction
         .update(notes)
         .set({ reminderQueuedAt: queuedAt })
-        .where(and(
-          eq(notes.id, note.id),
-          eq(notes.oxyUserId, note.oxyUserId),
-          eq(notes.reminderAt, reminderAt),
-          isNull(notes.reminderQueuedAt),
-          isNull(notes.reminderSentAt),
-          eq(notes.trashed, false),
-          isNull(notes.deletedAt),
-        ))
+        .where(
+          and(
+            eq(notes.id, note.id),
+            eq(notes.oxyUserId, note.oxyUserId),
+            eq(notes.reminderAt, reminderAt),
+            isNull(notes.reminderQueuedAt),
+            isNull(notes.reminderSentAt),
+            eq(notes.trashed, false),
+            isNull(notes.deletedAt),
+          ),
+        )
         .returning({ id: notes.id });
       if (!claimed) return false;
       await enqueueReminderEvent(transaction, {
-          accountId: note.oxyUserId,
-          noteId: note.id,
-          reminderAt,
+        accountId: note.oxyUserId,
+        noteId: note.id,
+        reminderAt,
       });
       return true;
     });

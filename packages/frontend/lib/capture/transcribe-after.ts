@@ -50,7 +50,8 @@ export interface DeferredTranscription {
  * what was understood and the work is not repeated from scratch.
  */
 export async function transcribeAfterStop(request: DeferredTranscription): Promise<void> {
-  const expectedViewerId = request.expectedViewerId === undefined ? getActiveViewerId() : request.expectedViewerId;
+  const expectedViewerId =
+    request.expectedViewerId === undefined ? getActiveViewerId() : request.expectedViewerId;
   const engine = getSttEngine();
   if (!engine.isSupported()) return;
   if (request.audioPath === '') return;
@@ -80,20 +81,39 @@ export async function transcribeAfterStop(request: DeferredTranscription): Promi
     }
 
     await upsertSegments(segments, expectedViewerId);
-    await setCaptureLifecycle(request.captureId, {
-      transcription: 'complete',
-      generation: 'finalizing',
-    }, expectedViewerId);
-    await restructureNote(request.captureId, request.noteId, request.startedAt, 0, expectedViewerId);
+    await setCaptureLifecycle(
+      request.captureId,
+      {
+        transcription: 'complete',
+        generation: 'finalizing',
+      },
+      expectedViewerId,
+    );
+    await restructureNote(
+      request.captureId,
+      request.noteId,
+      request.startedAt,
+      0,
+      expectedViewerId,
+    );
 
     // Only after the note exists: the model is the improvement, never the
     // thing standing between the user and having a note at all.
-    await enhanceNote(request.captureId, request.noteId, request.startedAt, language, 0, expectedViewerId).catch(
-      (error: unknown) => {
-        logger.error('Could not enhance the note', { error: String(error) });
-      },
+    await enhanceNote(
+      request.captureId,
+      request.noteId,
+      request.startedAt,
+      language,
+      0,
+      expectedViewerId,
+    ).catch((error: unknown) => {
+      logger.error('Could not enhance the note', { error: String(error) });
+    });
+    await setCaptureLifecycle(
+      request.captureId,
+      { generation: 'complete', errorCode: null },
+      expectedViewerId,
     );
-    await setCaptureLifecycle(request.captureId, { generation: 'complete', errorCode: null }, expectedViewerId);
   } catch (error) {
     logger.error('Could not transcribe the recording', { error: String(error) });
     // The audio is still on disk (or still in the page), so this is recoverable

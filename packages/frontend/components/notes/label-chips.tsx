@@ -1,7 +1,7 @@
-import { View } from "react-native";
-import { LabelChip } from "./label-color";
-import { Chip } from "@oxy.so/bloom/chip";
-import type { Label } from "@noted/shared-types";
+import { View } from 'react-native';
+import { LabelChip } from './label-color';
+import { Chip } from '@oxy.so/bloom/chip';
+import type { Label } from '@noted/shared-types';
 
 interface LabelChipsProps {
   /** Label ids assigned to the note. */
@@ -17,13 +17,11 @@ export function LabelChips({ labelIds, allLabels, max }: LabelChipsProps) {
   if (labelIds.length === 0) return null;
 
   const byId = new Map(allLabels.map((l) => [l.id, l]));
-  const resolved = labelIds
-    .map((id) => byId.get(id))
-    .filter((l): l is Label => Boolean(l));
+  const resolved = labelIds.map((id) => byId.get(id)).filter((l): l is Label => Boolean(l));
 
   if (resolved.length === 0) return null;
 
-  const shown = typeof max === "number" ? resolved.slice(0, max) : resolved;
+  const shown = typeof max === 'number' ? resolved.slice(0, max) : resolved;
   const overflow = resolved.length - shown.length;
 
   return (

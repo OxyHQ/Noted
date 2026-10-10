@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,9 @@ import {
   type ViewStyle,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
-} from "react-native";
-import { Image } from "expo-image";
-import { BlurView } from "expo-blur";
+} from 'react-native';
+import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -22,13 +22,9 @@ import Animated, {
   withTiming,
   runOnJS,
   Easing,
-} from "react-native-reanimated";
-import {
-  GestureHandlerRootView,
-  Gesture,
-  GestureDetector,
-} from "react-native-gesture-handler";
-import { useTheme } from "@oxy.so/bloom/theme";
+} from 'react-native-reanimated';
+import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const AnimatedImage = Animated.createAnimatedComponent(Image);
@@ -63,9 +59,7 @@ const SNAP_BACK_SPRING = { damping: 20, stiffness: 400, mass: 0.4 } as const;
 // props not present on RN 0.85's `ViewStyle`). Cast through `ViewStyle` so the
 // native build ignores them and the web build applies them.
 const webPointerStyle: ViewStyle | null =
-  Platform.OS === "web"
-    ? ({ userSelect: "none", cursor: "pointer" } as ViewStyle)
-    : null;
+  Platform.OS === 'web' ? ({ userSelect: 'none', cursor: 'pointer' } as ViewStyle) : null;
 
 // ---------------------------------------------------------------------------
 // Aspect-ratio cache. Resolving an image's intrinsic ratio is async; we memoize
@@ -92,15 +86,14 @@ function fetchAspectRatio(uri: string): Promise<number> {
     RNImage.getSize(
       uri,
       (width, height) => {
-        const ratio =
-          width > 0 && height > 0 ? width / height : DEFAULT_ASPECT_RATIO;
+        const ratio = width > 0 && height > 0 ? width / height : DEFAULT_ASPECT_RATIO;
         setCachedAspectRatio(uri, ratio);
         resolve(ratio);
       },
       () => {
         setCachedAspectRatio(uri, DEFAULT_ASPECT_RATIO);
         resolve(DEFAULT_ASPECT_RATIO);
-      }
+      },
     );
   });
 }
@@ -212,14 +205,13 @@ const ZoomableImageGalleryInner = React.forwardRef<
       width: SCREEN_WIDTH * FIT_FRACTION,
       height: SCREEN_HEIGHT * FIT_FRACTION,
     }),
-    [SCREEN_WIDTH, SCREEN_HEIGHT]
+    [SCREEN_WIDTH, SCREEN_HEIGHT],
   );
 
   // Largest width/height for `ratio` that fits inside `fitBox` (contain).
   const fitForRatio = useCallback(
     (ratio: number): FittedSize => {
-      const safeRatio =
-        ratio > 0 && Number.isFinite(ratio) ? ratio : DEFAULT_ASPECT_RATIO;
+      const safeRatio = ratio > 0 && Number.isFinite(ratio) ? ratio : DEFAULT_ASPECT_RATIO;
       let width = fitBox.width;
       let height = width / safeRatio;
       if (height > fitBox.height) {
@@ -228,28 +220,21 @@ const ZoomableImageGalleryInner = React.forwardRef<
       }
       return { width, height };
     },
-    [fitBox]
+    [fitBox],
   );
 
   // Fitted size of the single open-image for the CURRENT page.
   const activeRatio = pageRatios[activeIndex] ?? openRatio;
-  const activeFit = useMemo(
-    () => fitForRatio(activeRatio),
-    [fitForRatio, activeRatio]
-  );
+  const activeFit = useMemo(() => fitForRatio(activeRatio), [fitForRatio, activeRatio]);
 
   const ensureRatio = useCallback((index: number, uri: string) => {
     const cached = getCachedAspectRatio(uri);
     if (cached !== undefined) {
-      setPageRatios((prev) =>
-        prev[index] === cached ? prev : { ...prev, [index]: cached }
-      );
+      setPageRatios((prev) => (prev[index] === cached ? prev : { ...prev, [index]: cached }));
       return;
     }
     void fetchAspectRatio(uri).then((ratio) => {
-      setPageRatios((prev) =>
-        prev[index] === ratio ? prev : { ...prev, [index]: ratio }
-      );
+      setPageRatios((prev) => (prev[index] === ratio ? prev : { ...prev, [index]: ratio }));
     });
   }, []);
 
@@ -267,7 +252,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
   // thumbnail currently being viewed — shrinking to its footprint.
   const flyBackTo = useCallback(
     (target: { x: number; y: number; scale: number }) => {
-      if (Platform.OS === "web") {
+      if (Platform.OS === 'web') {
         const duration = CLOSE_DURATION_WEB;
         const easing = Easing.in(Easing.cubic);
         scale.value = withTiming(target.scale, { duration, easing });
@@ -283,13 +268,13 @@ const ZoomableImageGalleryInner = React.forwardRef<
         setTimeout(finalizeDismiss, CLOSE_DURATION_WEB);
       }
     },
-    [finalizeDismiss, opacity, scale, translateX, translateY]
+    [finalizeDismiss, opacity, scale, translateX, translateY],
   );
 
   // Fallback when the current thumbnail cannot be measured: a plain center
   // fade-out with a slight scale-down, then unmount.
   const fadeOutCenter = useCallback(() => {
-    if (Platform.OS === "web") {
+    if (Platform.OS === 'web') {
       const duration = CLOSE_DURATION_WEB;
       const easing = Easing.in(Easing.cubic);
       scale.value = withTiming(MIN_DRAG_SCALE, { duration, easing });
@@ -327,15 +312,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
     }
 
     fadeOutCenter();
-  }, [
-    activeFit,
-    fadeOutCenter,
-    flyBackTo,
-    images,
-    measureThumb,
-    SCREEN_HEIGHT,
-    SCREEN_WIDTH,
-  ]);
+  }, [activeFit, fadeOutCenter, flyBackTo, images, measureThumb, SCREEN_HEIGHT, SCREEN_WIDTH]);
 
   // Reveal the swipeable pager once the open animation has settled.
   const revealPager = useCallback(() => {
@@ -384,7 +361,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
       scale.value = originScale.value;
       opacity.value = 0;
 
-      if (Platform.OS === "web") {
+      if (Platform.OS === 'web') {
         requestAnimationFrame(() => {
           const duration = OPEN_DURATION_WEB;
           const easing = Easing.out(Easing.cubic);
@@ -418,7 +395,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
       setActiveIndexBoth,
       translateX,
       translateY,
-    ]
+    ],
   );
 
   React.useImperativeHandle(ref, () => ({ open }), [open]);
@@ -439,21 +416,17 @@ const ZoomableImageGalleryInner = React.forwardRef<
         .onUpdate((event) => {
           translateX.value = startX.value + event.translationX;
           translateY.value = startY.value + event.translationY;
-          const dragDistance = Math.sqrt(
-            event.translationX ** 2 + event.translationY ** 2
-          );
+          const dragDistance = Math.sqrt(event.translationX ** 2 + event.translationY ** 2);
           const maxDrag = SCREEN_HEIGHT * MAX_DRAG_FRACTION;
           opacity.value = Math.max(0, 1 - dragDistance / maxDrag);
           const scaleReduction = Math.max(
             MIN_DRAG_SCALE,
-            1 - dragDistance / (SCREEN_HEIGHT * SCALE_DRAG_FRACTION)
+            1 - dragDistance / (SCREEN_HEIGHT * SCALE_DRAG_FRACTION),
           );
           scale.value = startScale.value * scaleReduction;
         })
         .onEnd((event) => {
-          const dragDistance = Math.sqrt(
-            event.translationX ** 2 + event.translationY ** 2
-          );
+          const dragDistance = Math.sqrt(event.translationX ** 2 + event.translationY ** 2);
           if (dragDistance > SCREEN_HEIGHT * DISMISS_FRACTION) {
             runOnJS(handleDismiss)();
           } else {
@@ -474,7 +447,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
       startY,
       translateX,
       translateY,
-    ]
+    ],
   );
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
@@ -504,23 +477,20 @@ const ZoomableImageGalleryInner = React.forwardRef<
     (offsetX: number) => {
       const lastIndex = images.length - 1;
       if (lastIndex < 0) return;
-      const next = Math.min(
-        Math.max(Math.round(offsetX / SCREEN_WIDTH), 0),
-        lastIndex
-      );
+      const next = Math.min(Math.max(Math.round(offsetX / SCREEN_WIDTH), 0), lastIndex);
       if (next === activeIndexRef.current) return;
       setActiveIndexBoth(next);
       const img = images[next];
       if (img) ensureRatio(next, img.uri);
     },
-    [ensureRatio, images, setActiveIndexBoth, SCREEN_WIDTH]
+    [ensureRatio, images, setActiveIndexBoth, SCREEN_WIDTH],
   );
 
   const onPagerScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       updateIndexFromOffset(event.nativeEvent.contentOffset.x);
     },
-    [updateIndexFromOffset]
+    [updateIndexFromOffset],
   );
 
   // When the pager mounts, jump it to the open index without animation so the
@@ -543,14 +513,10 @@ const ZoomableImageGalleryInner = React.forwardRef<
       onRequestClose={handleDismiss}
     >
       <GestureHandlerRootView style={styles.modalContainer}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={handleDismiss}
-          hitSlop={0}
-        >
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss} hitSlop={0}>
           <AnimatedBlurView
             intensity={80}
-            tint={theme.isDark ? "dark" : "light"}
+            tint={theme.isDark ? 'dark' : 'light'}
             experimentalBlurMethod="dimezisBlurView"
             style={[StyleSheet.absoluteFill, backdropStyle]}
           >
@@ -569,7 +535,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
             style={[
               StyleSheet.absoluteFill,
               styles.zoomContainer,
-              { width: SCREEN_WIDTH, height: SCREEN_HEIGHT, pointerEvents: "box-none" },
+              { width: SCREEN_WIDTH, height: SCREEN_HEIGHT, pointerEvents: 'box-none' },
             ]}
           >
             {!pagerReady && (
@@ -586,15 +552,13 @@ const ZoomableImageGalleryInner = React.forwardRef<
                     openImageStyle,
                   ]}
                   transition={0}
-                  {...(Platform.OS === "web" ? { draggable: false } : {})}
+                  {...(Platform.OS === 'web' ? { draggable: false } : {})}
                 />
               </Pressable>
             )}
 
             {pagerReady && (
-              <Animated.View
-                style={[StyleSheet.absoluteFill, pagerContainerStyle]}
-              >
+              <Animated.View style={[StyleSheet.absoluteFill, pagerContainerStyle]}>
                 <ScrollView
                   ref={pagerRef}
                   horizontal
@@ -606,15 +570,13 @@ const ZoomableImageGalleryInner = React.forwardRef<
                   }}
                   onLayout={onPagerLayout}
                   onMomentumScrollEnd={onPagerScroll}
-                  {...(Platform.OS === "web" ? { onScroll: onPagerScroll } : {})}
+                  {...(Platform.OS === 'web' ? { onScroll: onPagerScroll } : {})}
                   scrollEventThrottle={16}
                   style={StyleSheet.absoluteFill}
                 >
                   {images.map((img, idx) => {
                     const ratio =
-                      pageRatios[idx] ??
-                      getCachedAspectRatio(img.uri) ??
-                      DEFAULT_ASPECT_RATIO;
+                      pageRatios[idx] ?? getCachedAspectRatio(img.uri) ?? DEFAULT_ASPECT_RATIO;
                     const fit = fitForRatio(ratio);
                     return (
                       <Pressable
@@ -635,9 +597,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
                             borderRadius: MEDIA_CARD_RADIUS,
                           }}
                           transition={0}
-                          {...(Platform.OS === "web"
-                            ? { draggable: false }
-                            : {})}
+                          {...(Platform.OS === 'web' ? { draggable: false } : {})}
                         />
                       </Pressable>
                     );
@@ -648,12 +608,10 @@ const ZoomableImageGalleryInner = React.forwardRef<
 
             {pagerReady && images.length > 1 && (
               <Animated.View
-                style={[styles.indicatorWrap, backdropStyle, { pointerEvents: "none" }]}
+                style={[styles.indicatorWrap, backdropStyle, { pointerEvents: 'none' }]}
               >
                 <View style={styles.counterPill}>
-                  <Text style={styles.counterText}>
-                    {`${activeIndex + 1} / ${images.length}`}
-                  </Text>
+                  <Text style={styles.counterText}>{`${activeIndex + 1} / ${images.length}`}</Text>
                 </View>
                 <View style={styles.dotsRow}>
                   {images.map((img, idx) => (
@@ -661,9 +619,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
                       key={`dot-${img.uri}-${idx}`}
                       style={[
                         styles.dot,
-                        idx === activeIndex
-                          ? styles.dotActive
-                          : styles.dotInactive,
+                        idx === activeIndex ? styles.dotActive : styles.dotInactive,
                       ]}
                     />
                   ))}
@@ -677,53 +633,53 @@ const ZoomableImageGalleryInner = React.forwardRef<
   );
 });
 
-ZoomableImageGalleryInner.displayName = "ZoomableImageGallery";
+ZoomableImageGalleryInner.displayName = 'ZoomableImageGallery';
 
 export const ZoomableImageGallery = ZoomableImageGalleryInner;
 
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     ...Platform.select({
-      web: { userSelect: "none" },
+      web: { userSelect: 'none' },
       default: {},
     }),
   },
   zoomContainer: {
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     ...Platform.select({
-      web: { userSelect: "none" },
+      web: { userSelect: 'none' },
       default: {},
     }),
   },
   page: {
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   indicatorWrap: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 48,
     left: 0,
     right: 0,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 10,
   },
   counterPill: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
   counterText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   dotsRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 6,
   },
   dot: {
@@ -732,10 +688,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   dotActive: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
   },
   dotInactive: {
-    backgroundColor: "rgba(255,255,255,0.4)",
+    backgroundColor: 'rgba(255,255,255,0.4)',
   },
 });
 

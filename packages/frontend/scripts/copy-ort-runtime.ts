@@ -35,10 +35,7 @@ const destination = join(here, '../public/ort');
  * produces a 404 at the moment somebody transcribes rather than at build time,
  * so the name is asserted below rather than assumed.
  */
-const FILES = [
-  'ort-wasm-simd-threaded.asyncify.mjs',
-  'ort-wasm-simd-threaded.asyncify.wasm',
-];
+const FILES = ['ort-wasm-simd-threaded.asyncify.mjs', 'ort-wasm-simd-threaded.asyncify.wasm'];
 
 function main(): void {
   if (!existsSync(source)) {

@@ -11,12 +11,12 @@
  * and TanStack Query provides all of that around any async function.
  */
 
-import { useMemo } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "@oxy.so/bloom/toast";
-import { useLiveQuery } from "@/lib/db/live-query";
-import { newNoteId } from "@/lib/db/ids";
-import { resumeNoteCreation } from "@/lib/notes/resume-creation";
+import { useMemo } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from '@oxy.so/bloom/toast';
+import { useLiveQuery } from '@/lib/db/live-query';
+import { newNoteId } from '@/lib/db/ids';
+import { resumeNoteCreation } from '@/lib/notes/resume-creation';
 import {
   deleteNote as deleteNoteLocally,
   firstRowToNote,
@@ -30,8 +30,8 @@ import {
   type LocalNote,
   type NoteInput,
   type NoteRow,
-} from "@/lib/db/notes-repo";
-import { DEFAULT_NEW_NOTE_COLOR, type Note, type NoteListParams } from "@noted/shared-types";
+} from '@/lib/db/notes-repo';
+import { DEFAULT_NEW_NOTE_COLOR, type Note, type NoteListParams } from '@noted/shared-types';
 
 /* ============================================================
    Normalization
@@ -79,7 +79,7 @@ export function useNotes(params: NoteListParams) {
 export function useNote(id: string | undefined) {
   const { data, isLoading, error } = useLiveQuery<NoteRow, LocalNote | null>({
     sql: NOTE_DETAIL_SQL,
-    params: [id ?? ""],
+    params: [id ?? ''],
     mapRows: firstRowToNote,
   });
   return { data: id ? data : null, isLoading: id ? isLoading : false, error };
@@ -93,17 +93,22 @@ export function useNote(id: string | undefined) {
 export function useCreateNote() {
   return useMutation({
     // SQLite writes must run even when the network is unavailable.
-    networkMode: "always",
+    networkMode: 'always',
     // A local write must never be replayed after switching accounts.
     retry: false,
-    mutationFn: ({ expectedViewerId, creationId, initialInput, ...input }: NoteInput & {
+    mutationFn: ({
+      expectedViewerId,
+      creationId,
+      initialInput,
+      ...input
+    }: NoteInput & {
       expectedViewerId?: string;
       creationId?: string;
       initialInput?: NoteInput;
     }): Promise<LocalNote> =>
       resumeNoteCreation(creationId ?? newNoteId(), initialInput ?? input, input, expectedViewerId),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to create note");
+      toast.error(error.message || 'Failed to create note');
     },
   });
 }
@@ -112,13 +117,20 @@ export function useCreateNote() {
 export function useUpdateNote() {
   return useMutation({
     // SQLite writes must run even when the network is unavailable.
-    networkMode: "always",
+    networkMode: 'always',
     // A local write must never be replayed after switching accounts.
     retry: false,
-    mutationFn: ({ id, patch, expectedViewerId }: { id: string; patch: NoteInput; expectedViewerId?: string }) =>
-      updateNoteLocally(id, patch, expectedViewerId),
+    mutationFn: ({
+      id,
+      patch,
+      expectedViewerId,
+    }: {
+      id: string;
+      patch: NoteInput;
+      expectedViewerId?: string;
+    }) => updateNoteLocally(id, patch, expectedViewerId),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to save note");
+      toast.error(error.message || 'Failed to save note');
     },
   });
 }
@@ -127,12 +139,12 @@ export function useUpdateNote() {
 export function useTrashNote() {
   return useMutation({
     // SQLite writes must run even when the network is unavailable.
-    networkMode: "always",
+    networkMode: 'always',
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (id: string) => trashNoteLocally(id),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete note");
+      toast.error(error.message || 'Failed to delete note');
     },
   });
 }
@@ -141,12 +153,12 @@ export function useTrashNote() {
 export function useRestoreNote() {
   return useMutation({
     // SQLite writes must run even when the network is unavailable.
-    networkMode: "always",
+    networkMode: 'always',
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (id: string) => restoreNoteLocally(id),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to restore note");
+      toast.error(error.message || 'Failed to restore note');
     },
   });
 }
@@ -155,12 +167,12 @@ export function useRestoreNote() {
 export function useDeleteNote() {
   return useMutation({
     // SQLite writes must run even when the network is unavailable.
-    networkMode: "always",
+    networkMode: 'always',
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (id: string) => deleteNoteLocally(id),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete note");
+      toast.error(error.message || 'Failed to delete note');
     },
   });
 }
@@ -169,12 +181,12 @@ export function useDeleteNote() {
 export function useReorderNotes() {
   return useMutation({
     // SQLite writes must run even when the network is unavailable.
-    networkMode: "always",
+    networkMode: 'always',
     // A local write must never be replayed after switching accounts.
     retry: false,
     mutationFn: (ids: string[]) => reorderNotesLocally(ids),
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to reorder notes");
+      toast.error(error.message || 'Failed to reorder notes');
     },
   });
 }
@@ -188,10 +200,10 @@ export function makeDraftNote(): LocalNote {
   const now = new Date().toISOString();
   return {
     id: newNoteId(),
-    kind: "note",
-    title: "",
-    body: "",
-    generatedBody: "",
+    kind: 'note',
+    title: '',
+    body: '',
+    generatedBody: '',
     checklist: [],
     color: DEFAULT_NEW_NOTE_COLOR,
     labels: [],

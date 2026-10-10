@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 interface UIState {
   sidebarCollapsed: boolean;
@@ -14,8 +14,7 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarCollapsed: false,
   shortcutsDialogOpen: false,
 
-  toggleSidebarCollapsed: () =>
-    set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setShortcutsDialogOpen: (open) => set({ shortcutsDialogOpen: open }),
   toggleShortcutsDialog: () =>

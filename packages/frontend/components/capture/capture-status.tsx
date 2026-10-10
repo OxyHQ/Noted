@@ -79,7 +79,9 @@ export function CaptureStatusLine({ noteId }: { noteId: string }) {
           nobody reads: a browser records this machine's microphone, so the other
           people in a call are not in the audio at all. Better stated than
           discovered afterwards from a note with half a meeting in it. */}
-      {!capturesSystemAudio() && <Text className="text-xs text-muted-foreground">{t('capture.microphoneOnly')}</Text>}
+      {!capturesSystemAudio() && (
+        <Text className="text-xs text-muted-foreground">{t('capture.microphoneOnly')}</Text>
+      )}
     </View>
   );
 }

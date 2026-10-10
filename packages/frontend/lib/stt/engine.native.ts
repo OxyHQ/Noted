@@ -90,22 +90,24 @@ function toSegments(
   captureId: string,
   firstSegmentIndex = 0,
 ): TranscriptSegment[] {
-  return segments
-    .map((segment, index) =>
-      makeSegment({
-        captureId,
-        // One pass over a finished file, so there is only ever one slice.
-        sliceIndex: 0,
-        segmentIndex: firstSegmentIndex + index,
-        startMs: segment.t0 * CENTISECONDS_TO_MS,
-        endMs: segment.t1 * CENTISECONDS_TO_MS,
-        text: segment.text.trim(),
-      }),
-    )
-    // whisper emits bracketed markers for non-speech ("[BLANK_AUDIO]",
-    // "[Music]"). They are not something anybody said, so they are not
-    // transcript.
-    .filter((segment) => segment.text !== '' && !/^\[.*\]$/.test(segment.text));
+  return (
+    segments
+      .map((segment, index) =>
+        makeSegment({
+          captureId,
+          // One pass over a finished file, so there is only ever one slice.
+          sliceIndex: 0,
+          segmentIndex: firstSegmentIndex + index,
+          startMs: segment.t0 * CENTISECONDS_TO_MS,
+          endMs: segment.t1 * CENTISECONDS_TO_MS,
+          text: segment.text.trim(),
+        }),
+      )
+      // whisper emits bracketed markers for non-speech ("[BLANK_AUDIO]",
+      // "[Music]"). They are not something anybody said, so they are not
+      // transcript.
+      .filter((segment) => segment.text !== '' && !/^\[.*\]$/.test(segment.text))
+  );
 }
 
 export function getSttEngine(): SttEngine {

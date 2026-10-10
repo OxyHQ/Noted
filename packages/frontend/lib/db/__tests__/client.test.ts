@@ -88,7 +88,7 @@ vi.mock('expo-sqlite', () => {
 
 vi.mock('@/lib/db/migrations', () => ({
   LOCAL_TABLES: ['notes'],
-  migrate: () => state.migrationError ? Promise.reject(state.migrationError) : Promise.resolve(),
+  migrate: () => (state.migrationError ? Promise.reject(state.migrationError) : Promise.resolve()),
 }));
 
 /** A fresh module instance, since the store keeps its connection in module state. */
@@ -170,7 +170,9 @@ describe('local store connection lifecycle', () => {
     const unsynced = [{ id: 'private', body: 'Another account transcript' }];
     state.files.set('noted-user-1.db', { owner: 'user-2', rows: unsynced });
     await client.setActiveViewer('user-1');
-    await expect(client.execute('SELECT * FROM notes')).rejects.toThrow('belongs to another account');
+    await expect(client.execute('SELECT * FROM notes')).rejects.toThrow(
+      'belongs to another account',
+    );
     expect(state.files.get('noted-user-1.db')).toEqual({ owner: 'user-2', rows: unsynced });
     expect(state.open.size).toBe(0);
   });
@@ -232,10 +234,7 @@ describe('local store connection lifecycle', () => {
     // dropped, so nothing memoised protects this: an unordered implementation
     // opens the same file again and OPFS refuses it, wedging the pool for the
     // rest of the session.
-    const during = Promise.race([
-      client.execute('SELECT id FROM notes'),
-      delay(HANG_THRESHOLD_MS),
-    ]);
+    const during = Promise.race([client.execute('SELECT id FROM notes'), delay(HANG_THRESHOLD_MS)]);
     await Promise.allSettled([clearing, during]);
 
     expect(state.collisions).toBe(0);
@@ -270,13 +269,15 @@ describe('local store connection lifecycle', () => {
   });
 });
 
-
 describe('account-bound local writes', () => {
   it('rejects a queued write when an account switch wins the lifecycle queue', async () => {
     const client = await loadClient();
     await client.setActiveViewer('user-1');
     const switching = client.setActiveViewer('user-2');
-    const write = client.executeTransaction([{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }], 'user-1');
+    const write = client.executeTransaction(
+      [{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }],
+      'user-1',
+    );
     await expect(write).rejects.toThrow('active account changed');
     await switching;
     expect(state.writes.filter(({ sql }) => sql.startsWith('INSERT INTO notes'))).toEqual([]);
@@ -284,8 +285,15 @@ describe('account-bound local writes', () => {
 
   it('does not hold a signed-out write until another person signs in', async () => {
     const client = await loadClient();
-    await expect(client.executeTransaction([{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }], null)).rejects.toThrow('active account changed');
-    await expect(client.execute('UPDATE notes SET title = ?', ['private note'], null)).rejects.toThrow('active account changed');
+    await expect(
+      client.executeTransaction(
+        [{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }],
+        null,
+      ),
+    ).rejects.toThrow('active account changed');
+    await expect(
+      client.execute('UPDATE notes SET title = ?', ['private note'], null),
+    ).rejects.toThrow('active account changed');
     await client.setActiveViewer('user-2');
     expect(state.writes.filter(({ sql }) => sql.includes('notes'))).toEqual([]);
   });
@@ -293,7 +301,12 @@ describe('account-bound local writes', () => {
   it('writes successfully to the account that owns the draft', async () => {
     const client = await loadClient();
     await client.setActiveViewer('user-1');
-    await expect(client.executeTransaction([{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }], 'user-1')).resolves.toEqual([1]);
+    await expect(
+      client.executeTransaction(
+        [{ sql: 'INSERT INTO notes VALUES (?)', params: ['private note'] }],
+        'user-1',
+      ),
+    ).resolves.toEqual([1]);
     expect(state.writes.filter(({ sql }) => sql.startsWith('INSERT INTO notes'))).toEqual([
       { name: 'noted-user-1.db', sql: 'INSERT INTO notes VALUES (?)' },
     ]);

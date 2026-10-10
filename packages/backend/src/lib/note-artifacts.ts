@@ -321,9 +321,7 @@ export async function notesWithGeneratedChangesSince(
     getDb()
       .selectDistinct({ noteId: noteItemOverrides.noteId })
       .from(noteItemOverrides)
-      .where(
-        and(eq(noteItemOverrides.oxyUserId, userId), gt(noteItemOverrides.updatedAt, since)),
-      ),
+      .where(and(eq(noteItemOverrides.oxyUserId, userId), gt(noteItemOverrides.updatedAt, since))),
   ]);
 
   return [...new Set([...artifactRows, ...overrideRows].map((row) => row.noteId))];
@@ -345,9 +343,7 @@ export async function readGeneratedHalf(
     getDb()
       .select()
       .from(noteArtifacts)
-      .where(
-        and(inArray(noteArtifacts.noteId, [...noteIds]), eq(noteArtifacts.oxyUserId, userId)),
-      ),
+      .where(and(inArray(noteArtifacts.noteId, [...noteIds]), eq(noteArtifacts.oxyUserId, userId))),
     getDb()
       .select()
       .from(noteItemOverrides)

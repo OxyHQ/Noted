@@ -32,9 +32,10 @@ const allStatements = (): string[] => MIGRATIONS.flat();
 function columnsOf(statements: readonly string[], table: string): Set<string> {
   const columns = new Set<string>();
   for (const statement of statements) {
-    const created = new RegExp(`CREATE TABLE (?:IF NOT EXISTS )?${table}\\s*\\(([\\s\\S]*?)\\)\\s*$`, 'i').exec(
-      statement.trim(),
-    );
+    const created = new RegExp(
+      `CREATE TABLE (?:IF NOT EXISTS )?${table}\\s*\\(([\\s\\S]*?)\\)\\s*$`,
+      'i',
+    ).exec(statement.trim());
     if (created) {
       for (const line of created[1].split(',')) {
         const name = line.trim().split(/\s+/)[0];

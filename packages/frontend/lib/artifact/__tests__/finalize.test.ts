@@ -191,7 +191,10 @@ describe('finalizeArtifact', () => {
         sections: [
           section(
             's',
-            [item('viernes', 'Lanzamos el viernes'), item('lunes', 'Al final se retrasa hasta el lunes')],
+            [
+              item('viernes', 'Lanzamos el viernes'),
+              item('lunes', 'Al final se retrasa hasta el lunes'),
+            ],
             { kind: 'decisions' },
           ),
         ],
@@ -298,7 +301,9 @@ describe('what the user ticked while the recording was still running', () => {
       previous: artifact({
         stage: 'live',
         checklists: [
-          checklist('checklist:cap_1:actions', [checklistItem('action:guess', 'Algo que se oyó mal')]),
+          checklist('checklist:cap_1:actions', [
+            checklistItem('action:guess', 'Algo que se oyó mal'),
+          ]),
         ],
       }),
       next: artifact({ stage: 'final', checklists: [] }),

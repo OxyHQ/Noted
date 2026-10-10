@@ -1,6 +1,6 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
-import type { RecorderPhase, StopOutcome } from "@/lib/capture/recording";
+import type { RecorderPhase, StopOutcome } from '@/lib/capture/recording';
 
 /**
  * Which recording is running, if any, and what it looks like right now.
@@ -58,10 +58,10 @@ interface CaptureState {
 }
 
 const IDLE = {
-  phase: "idle" as RecorderPhase,
+  phase: 'idle' as RecorderPhase,
   levels: null as number[] | null,
   durationMs: 0,
-  partialText: "",
+  partialText: '',
   stop: null,
 };
 

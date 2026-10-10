@@ -16,13 +16,7 @@ async function enqueue(db: DatabaseOrTransaction, event: NormalizedAppEvent): Pr
     .onConflictDoNothing({ target: normalizedAppEventOutbox.eventId });
 }
 
-export type NoteChange =
-  | 'created'
-  | 'updated'
-  | 'archived'
-  | 'trashed'
-  | 'restored'
-  | 'deleted';
+export type NoteChange = 'created' | 'updated' | 'archived' | 'trashed' | 'restored' | 'deleted';
 
 export function buildNoteChangedEvent(input: {
   accountId: string;

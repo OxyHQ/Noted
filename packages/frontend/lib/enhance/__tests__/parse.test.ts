@@ -15,7 +15,6 @@ function parseOrNull(reply: string, options: Parameters<typeof parseEnhancement>
   return result.ok ? result.value : null;
 }
 
-
 /** Six transcript lines were shown, and nothing was authorised. */
 const SHOWN: ParseOptions = { lineCount: 6, authorisedSubjects: [] };
 
@@ -61,9 +60,7 @@ describe('finding the JSON', () => {
   });
 
   it('is not confused by a brace in the prose after the JSON', () => {
-    expect(parseOrNull(`${CLEAN}\n\nHope that helps {smile}`, SHOWN)?.title).toBe(
-      'Presupuesto Q3',
-    );
+    expect(parseOrNull(`${CLEAN}\n\nHope that helps {smile}`, SHOWN)?.title).toBe('Presupuesto Q3');
   });
 
   it('is not confused by a brace inside a string', () => {
@@ -96,7 +93,13 @@ describe('finding the JSON', () => {
 
 describe('reading a sloppy reply', () => {
   function withActions(actions: unknown): string {
-    return JSON.stringify({ title: 'x', sections: [], actions, openQuestions: [], listAdditions: [] });
+    return JSON.stringify({
+      title: 'x',
+      sections: [],
+      actions,
+      openQuestions: [],
+      listAdditions: [],
+    });
   }
 
   it('accepts a bare string as an item', () => {
@@ -160,7 +163,13 @@ describe('reading a sloppy reply', () => {
 
 describe('reading the document', () => {
   function withSections(sections: unknown): string {
-    return JSON.stringify({ title: 'x', sections, actions: [], openQuestions: [], listAdditions: [] });
+    return JSON.stringify({
+      title: 'x',
+      sections,
+      actions: [],
+      openQuestions: [],
+      listAdditions: [],
+    });
   }
 
   it('keeps a paragraph and a list apart', () => {
@@ -188,7 +197,12 @@ describe('reading the document', () => {
       withSections([
         {
           blocks: [
-            { type: 'quote', text: 'I became a minister in 2023.', attribution: 'the speaker', s: [1] },
+            {
+              type: 'quote',
+              text: 'I became a minister in 2023.',
+              attribution: 'the speaker',
+              s: [1],
+            },
           ],
         },
       ]),
@@ -230,7 +244,10 @@ describe('reading the document', () => {
 
   it('drops an empty list and a section left with nothing', () => {
     expect(
-      parseOrNull(withSections([{ heading: 'Vacía', blocks: [{ type: 'bullet-list', items: [] }] }]), SHOWN),
+      parseOrNull(
+        withSections([{ heading: 'Vacía', blocks: [{ type: 'bullet-list', items: [] }] }]),
+        SHOWN,
+      ),
     ).toBeNull();
   });
 
@@ -267,9 +284,9 @@ describe('who was speaking', () => {
   }
 
   it('keeps a role the recording stated', () => {
-    expect(parseOrNull(withPeople([{ role: 'Education minister', s: [1] }]), SHOWN)?.people).toEqual([
-      { role: 'Education minister', sources: [1] },
-    ]);
+    expect(
+      parseOrNull(withPeople([{ role: 'Education minister', s: [1] }]), SHOWN)?.people,
+    ).toEqual([{ role: 'Education minister', sources: [1] }]);
   });
 
   it('drops a person with nothing known about them', () => {
@@ -349,8 +366,8 @@ describe('derived items', () => {
   });
 
   it('do not need the exact wording the user used', () => {
-    expect(parseOrNull(reply('pizza de pollo'), AUTHORISED)?.listAdditions[0].derived?.subject).toBe(
-      'una pizza de pollo',
-    );
+    expect(
+      parseOrNull(reply('pizza de pollo'), AUTHORISED)?.listAdditions[0].derived?.subject,
+    ).toBe('una pizza de pollo');
   });
 });

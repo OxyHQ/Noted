@@ -107,19 +107,11 @@ async function assertLabelsBelongToAccount(
   }
 }
 
-async function noteForAccount(
-  db: DatabaseOrTransaction,
-  accountId: string,
-  noteId: string,
-) {
+async function noteForAccount(db: DatabaseOrTransaction, accountId: string, noteId: string) {
   const [note] = await db
     .select()
     .from(notes)
-    .where(and(
-      eq(notes.id, noteId),
-      eq(notes.oxyUserId, accountId),
-      isNull(notes.deletedAt),
-    ));
+    .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, accountId), isNull(notes.deletedAt)));
   if (!note) throw new NotedCapabilityError('note_not_found', 'Note not found', 404);
   return note;
 }
@@ -181,9 +173,7 @@ async function createNote(
     request: input,
     execute: async (transaction) => {
       await assertLabelsBelongToAccount(transaction, accountId, labelsInput);
-      const reminderAt = input.reminderAt === null
-        ? null
-        : optionalString(input, 'reminderAt');
+      const reminderAt = input.reminderAt === null ? null : optionalString(input, 'reminderAt');
       const [note] = await transaction
         .insert(notes)
         .values({
@@ -236,11 +226,7 @@ async function updateNote(
       const [note] = await transaction
         .update(notes)
         .set(update)
-        .where(and(
-          eq(notes.id, noteId),
-          eq(notes.oxyUserId, accountId),
-          isNull(notes.deletedAt),
-        ))
+        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, accountId), isNull(notes.deletedAt)))
         .returning();
       if (!note) throw new NotedCapabilityError('note_not_found', 'Note not found', 404);
       const serialized = serializeNote(note);
@@ -270,17 +256,14 @@ async function setNoteState(
     idempotencyKey: idempotencyKey(input),
     request: input,
     execute: async (transaction) => {
-      const state = tool === 'archiveNote'
-        ? { archived: true, trashed: false }
-        : { archived: false, trashed: false };
+      const state =
+        tool === 'archiveNote'
+          ? { archived: true, trashed: false }
+          : { archived: false, trashed: false };
       const [note] = await transaction
         .update(notes)
         .set({ ...state, updatedAt: new Date() })
-        .where(and(
-          eq(notes.id, noteId),
-          eq(notes.oxyUserId, accountId),
-          isNull(notes.deletedAt),
-        ))
+        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, accountId), isNull(notes.deletedAt)))
         .returning();
       if (!note) throw new NotedCapabilityError('note_not_found', 'Note not found', 404);
       const serialized = serializeNote(note);
@@ -434,9 +417,8 @@ async function setReminder(
   accountId: string,
 ): Promise<{ note: NoteDTO }> {
   const noteId = requireEntityId(input, 'noteId');
-  const reminderAt = input.reminderAt === null
-    ? null
-    : new Date(requiredString(input, 'reminderAt'));
+  const reminderAt =
+    input.reminderAt === null ? null : new Date(requiredString(input, 'reminderAt'));
   const execution = await executeIdempotently({
     accountId,
     tool: 'setReminder',
@@ -446,11 +428,7 @@ async function setReminder(
       const [note] = await transaction
         .update(notes)
         .set({ reminderAt, reminderQueuedAt: null, reminderSentAt: null, updatedAt: new Date() })
-        .where(and(
-          eq(notes.id, noteId),
-          eq(notes.oxyUserId, accountId),
-          isNull(notes.deletedAt),
-        ))
+        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, accountId), isNull(notes.deletedAt)))
         .returning();
       if (!note) throw new NotedCapabilityError('note_not_found', 'Note not found', 404);
       const serialized = serializeNote(note);
@@ -485,7 +463,9 @@ const TOOL_EXECUTORS: Readonly<Record<string, ToolExecutor>> = {
 
 const catalogToolNames = NOTED_CAPABILITY_CATALOG.tools.map(({ name }) => name);
 const missingExecutors = catalogToolNames.filter((name) => !TOOL_EXECUTORS[name]);
-const extraExecutors = Object.keys(TOOL_EXECUTORS).filter((name) => !catalogToolNames.includes(name));
+const extraExecutors = Object.keys(TOOL_EXECUTORS).filter(
+  (name) => !catalogToolNames.includes(name),
+);
 if (missingExecutors.length > 0 || extraExecutors.length > 0) {
   throw new Error(
     `Noted catalog handler mismatch: missing=${missingExecutors.join(',')} extra=${extraExecutors.join(',')}`,

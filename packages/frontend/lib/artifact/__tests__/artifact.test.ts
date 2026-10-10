@@ -153,7 +153,9 @@ describe('grounding', () => {
   });
 
   it('complains about a transcript item with nothing behind it', () => {
-    const ungrounded = artifact({ sections: [section('s', [item('n', 'según nadie', { sources: [] })])] });
+    const ungrounded = artifact({
+      sections: [section('s', [item('n', 'según nadie', { sources: [] })])],
+    });
     expect(artifactProblems(ungrounded)).toEqual(['transcript item with no source: n']);
   });
 

@@ -16,11 +16,7 @@
 import { initLlama, releaseAllLlama, type LlamaContext } from 'llama.rn';
 import { createLogger } from '@oxy.so/core/logger';
 
-import type {
-  EnhanceRequest,
-  OnDeviceSummarizer,
-  EnhanceAttempt,
-} from '@/lib/enhance/contract';
+import type { EnhanceRequest, OnDeviceSummarizer, EnhanceAttempt } from '@/lib/enhance/contract';
 import { isLlmModelPresent, llmModelPath } from '@/lib/enhance/models';
 import { summarize, summariseDiagnostics } from '@/lib/enhance/summarize';
 import { DOCUMENT_SCHEMA } from '@/lib/enhance/schema';

@@ -78,7 +78,10 @@ describe('recognising an instruction', () => {
 
   it('reads an authorised expansion, and keeps what was authorised', () => {
     expect(
-      parseCommand('También pon todos los ingredientes necesarios para hacer una pizza de pollo.', 0),
+      parseCommand(
+        'También pon todos los ingredientes necesarios para hacer una pizza de pollo.',
+        0,
+      ),
     ).toMatchObject({ kind: 'expand', subject: 'una pizza de pollo' });
   });
 

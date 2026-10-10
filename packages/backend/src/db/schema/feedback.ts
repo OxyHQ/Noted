@@ -25,9 +25,7 @@ export const feedback = pgTable(
     email: text(),
     /** Platform, app version, device — whatever the client attached. */
     metadata: jsonb().$type<Record<string, string>>().notNull().default({}),
-    status: text({ enum: FEEDBACK_STATUSES })
-      .notNull()
-      .default('pending'),
+    status: text({ enum: FEEDBACK_STATUSES }).notNull().default('pending'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

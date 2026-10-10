@@ -173,7 +173,10 @@ describe('the lifecycle it emits', () => {
     for (let index = 1; index < store.history.length; index += 1) {
       const from = store.history[index - 1];
       const to = store.history[index];
-      expect(canTransitionCapture(from.capture, to.capture), `capture ${from.capture} → ${to.capture}`).toBe(true);
+      expect(
+        canTransitionCapture(from.capture, to.capture),
+        `capture ${from.capture} → ${to.capture}`,
+      ).toBe(true);
       expect(
         canTransitionTranscription(from.transcription, to.transcription),
         `transcription ${from.transcription} → ${to.transcription}`,
@@ -442,7 +445,9 @@ describe('a note that exists and an improvement that failed', () => {
 
 describe('a note that does not exist', () => {
   it('is the only thing that reports the notes as failed', async () => {
-    const enhance = vi.fn(() => Promise.resolve({ kind: 'improved', artifactRevision: 1 } as const));
+    const enhance = vi.fn(() =>
+      Promise.resolve({ kind: 'improved', artifactRevision: 1 } as const),
+    );
     const { coordinator, store } = build({
       finalize: () => Promise.reject(new NoteProcessingError('artifact_persist')),
       enhance,

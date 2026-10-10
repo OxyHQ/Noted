@@ -1,33 +1,28 @@
-import React, {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { View, Pressable, Linking } from "react-native";
-import { Image } from "expo-image";
-import { Paperclip } from "lucide-react-native";
-import { useOxy } from "@oxy.so/services";
-import { Text } from "@/components/ui/text";
-import { EmptyState } from "@/components/empty-state";
-import { toast } from "@oxy.so/bloom/toast";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useFileMetadata } from "@/lib/hooks/use-file-metadata";
-import { categorizeContentType } from "@/lib/attachments";
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Pressable, Linking } from 'react-native';
+import { Image } from 'expo-image';
+import { Paperclip } from 'lucide-react-native';
+import { useOxy } from '@oxy.so/services';
+import { Text } from '@/components/ui/text';
+import { EmptyState } from '@/components/empty-state';
+import { toast } from '@oxy.so/bloom/toast';
+import { useColorScheme } from '@/lib/useColorScheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useFileMetadata } from '@/lib/hooks/use-file-metadata';
+import { categorizeContentType } from '@/lib/attachments';
 import {
   AttachmentImage,
   AttachmentVideo,
   AttachmentFileChip,
   RemoveButton,
-} from "@/components/notes/attachments/AttachmentMedia";
+} from '@/components/notes/attachments/AttachmentMedia';
 import {
   ZoomableImageGallery,
   type ZoomableImageGalleryHandle,
   type GalleryImage,
   type MeasuredRect,
   type MeasureThumb,
-} from "@/components/notes/attachments/ZoomableImageGallery";
+} from '@/components/notes/attachments/ZoomableImageGallery';
 
 /** How many image thumbnails the compact card preview renders before collapsing. */
 const CARD_THUMB_CAP = 3;
@@ -44,7 +39,7 @@ export interface AttachmentsRowProps {
    * `card`: compact, cheap — image thumbnails + a generic count chip, no
    * per-item metadata queries.
    */
-  variant: "card" | "editor";
+  variant: 'card' | 'editor';
   /** Editor only: remove an attachment by ID. */
   onRemove?: (id: string) => void;
 }
@@ -89,7 +84,7 @@ function EditorAttachmentItem({
 
   const openFile = useCallback(() => {
     const url = oxyServices.assets.publicUrl(fileId);
-    void Linking.openURL(url).catch(() => toast.error(t("notes.openAttachmentFailed")));
+    void Linking.openURL(url).catch(() => toast.error(t('notes.openAttachmentFailed')));
   }, [oxyServices, fileId, t]);
 
   const remove = useCallback(() => onRemove?.(fileId), [onRemove, fileId]);
@@ -108,15 +103,24 @@ function EditorAttachmentItem({
     return (
       <View className="flex-row items-center gap-2">
         <View className="flex-1">
-          <EmptyState sticker="attachments" title={t("notes.loadAttachmentFailed")} action={{ label: t("common.retry"), onPress: () => { void refetch(); } }} />
+          <EmptyState
+            sticker="attachments"
+            title={t('notes.loadAttachmentFailed')}
+            action={{
+              label: t('common.retry'),
+              onPress: () => {
+                void refetch();
+              },
+            }}
+          />
         </View>
         {onRemove ? <RemoveButton onPress={remove} /> : null}
       </View>
     );
   }
 
-  if (category === "image") {
-    const src = oxyServices.assets.publicUrl(fileId, "thumb");
+  if (category === 'image') {
+    const src = oxyServices.assets.publicUrl(fileId, 'thumb');
     return (
       <View className="flex-row items-start gap-2">
         <ImageGalleryItem fileId={fileId} src={src} gallery={gallery} />
@@ -125,8 +129,8 @@ function EditorAttachmentItem({
     );
   }
 
-  if (category === "video") {
-    const poster = oxyServices.assets.publicUrl(fileId, "thumb");
+  if (category === 'video') {
+    const poster = oxyServices.assets.publicUrl(fileId, 'thumb');
     return (
       <View className="flex-row items-start gap-2">
         <AttachmentVideo src={fileId} poster={poster} onPress={openFile} />
@@ -172,17 +176,15 @@ function ImageGalleryItem({
 
   const onPress = useCallback(
     (rect?: MeasuredRect) => gallery.open(fileId, rect),
-    [gallery, fileId]
+    [gallery, fileId],
   );
 
   const registerHost = useCallback(
     (node: View | null) => gallery.setHost(fileId, node),
-    [gallery, fileId]
+    [gallery, fileId],
   );
 
-  return (
-    <AttachmentImage src={src} onPress={onPress} registerHost={registerHost} />
-  );
+  return <AttachmentImage src={src} onPress={onPress} registerHost={registerHost} />;
 }
 
 /**
@@ -204,8 +206,8 @@ function CardPreview({ attachments = [] }: { attachments?: string[] }) {
       {shown.map((id) => (
         <View key={id} className="h-14 w-14 overflow-hidden rounded-lg">
           <Image
-            source={{ uri: oxyServices.assets.publicUrl(id, "thumb") }}
-            style={{ width: "100%", height: "100%" }}
+            source={{ uri: oxyServices.assets.publicUrl(id, 'thumb') }}
+            style={{ width: '100%', height: '100%' }}
             contentFit="cover"
             transition={120}
           />
@@ -215,7 +217,7 @@ function CardPreview({ attachments = [] }: { attachments?: string[] }) {
         <View className="flex-row items-center gap-1 rounded-full bg-foreground/10 px-2 py-1">
           <Paperclip size={11} color={colors.mutedForeground} />
           <Text className="text-[11px] text-muted-foreground">
-            {`+${remaining} ${t("notes.attachments")}`}
+            {`+${remaining} ${t('notes.attachments')}`}
           </Text>
         </View>
       ) : null}
@@ -230,11 +232,7 @@ function CardPreview({ attachments = [] }: { attachments?: string[] }) {
  * chips + a remove button + the image gallery; the card variant renders a cheap
  * compact preview.
  */
-export function AttachmentsRow({
-  attachments = [],
-  variant,
-  onRemove,
-}: AttachmentsRowProps) {
+export function AttachmentsRow({ attachments = [], variant, onRemove }: AttachmentsRowProps) {
   const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
 
   // Stable order of the image-only subset for the gallery, plus per-id src/host.
@@ -278,7 +276,7 @@ export function AttachmentsRow({
         galleryRef.current?.open(images, index, rect);
       },
     }),
-    [imageOrder]
+    [imageOrder],
   );
 
   // Measure ANY image thumbnail by its images-only subset index for the gallery
@@ -300,12 +298,12 @@ export function AttachmentsRow({
         });
       });
     },
-    [imageOrder]
+    [imageOrder],
   );
 
   if (attachments.length === 0) return null;
 
-  if (variant === "card") {
+  if (variant === 'card') {
     return <CardPreview attachments={attachments} />;
   }
 
@@ -313,12 +311,7 @@ export function AttachmentsRow({
     <>
       <View className="gap-2">
         {attachments.map((id) => (
-          <EditorAttachmentItem
-            key={id}
-            fileId={id}
-            onRemove={onRemove}
-            gallery={gallery}
-          />
+          <EditorAttachmentItem key={id} fileId={id} onRemove={onRemove} gallery={gallery} />
         ))}
       </View>
       {imageCount > 0 ? (

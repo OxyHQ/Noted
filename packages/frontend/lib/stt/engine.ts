@@ -39,7 +39,6 @@ export interface SttEngine {
 export function getSttEngine(): SttEngine {
   return {
     isSupported: () => false,
-    transcribe: () =>
-      Promise.reject(new Error('speech-to-text is not available on this platform')),
+    transcribe: () => Promise.reject(new Error('speech-to-text is not available on this platform')),
   };
 }

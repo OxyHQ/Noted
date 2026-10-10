@@ -1,4 +1,8 @@
-import { startEcosystemActivity, stopEcosystemActivity, ecosystemActivityMiddleware } from './ecosystemActivity';
+import {
+  startEcosystemActivity,
+  stopEcosystemActivity,
+  ecosystemActivityMiddleware,
+} from './ecosystemActivity';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -36,17 +40,20 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '../.env') });
 
 const app = express();
-  app.use(ecosystemActivityMiddleware);
+app.use(ecosystemActivityMiddleware);
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const notedMcpHttpService = createNotedMcpHttpService();
 
 // Create HTTP server with optimized settings
-const server = http.createServer({
-  // Increase max header size for long authentication tokens
-  maxHeaderSize: 16384,
-  keepAlive: true,
-  keepAliveTimeout: 65000, // Slightly higher than default
-}, app);
+const server = http.createServer(
+  {
+    // Increase max header size for long authentication tokens
+    maxHeaderSize: 16384,
+    keepAlive: true,
+    keepAliveTimeout: 65000, // Slightly higher than default
+  },
+  app,
+);
 
 // Handle HTTP server errors (e.g. EADDRINUSE)
 server.on('error', (error: NodeJS.ErrnoException) => {
@@ -70,12 +77,9 @@ initSocket(server);
 // The MCP transport owns its raw request body, exact-host validation, OAuth
 // challenge, and origin policy. Mount it before the app-wide CORS and body
 // parser so those layers cannot weaken or consume the protocol request.
-app.all(
-  notedMcpHttpService.protectedResourceMetadataPath,
-  (request, response) => {
-    notedMcpHttpService.handleProtectedResourceMetadata(request, response);
-  },
-);
+app.all(notedMcpHttpService.protectedResourceMetadataPath, (request, response) => {
+  notedMcpHttpService.handleProtectedResourceMetadata(request, response);
+});
 app.all(notedMcpHttpService.mcpPath, (request, response) => {
   void notedMcpHttpService.handleMcp(request, response);
 });
@@ -115,7 +119,22 @@ app.use((req, res, next) => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-User-Id', 'X-Workspace-Id', 'X-Oxy-Edge-Region', 'X-Oxy-Activity-Id'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'X-Service-Name',
+      'X-Timestamp',
+      'X-Signature',
+      'X-Session-Id',
+      'X-Device-Info',
+      'X-Oxy-User-Id',
+      'X-Workspace-Id',
+      'X-Oxy-Edge-Region',
+      'X-Oxy-Activity-Id',
+    ],
     optionsSuccessStatus: 200,
   })(req, res, next);
 });
@@ -148,24 +167,19 @@ app.get('/', (_req, res) => {
   res.json({
     message: 'Noted API',
     version: '1.0.0',
-    endpoints: [
-      '/health',
-      '/auth',
-      '/notes',
-      '/labels',
-      '/feedback',
-      '/notifications',
-    ]
+    endpoints: ['/health', '/auth', '/notes', '/labels', '/feedback', '/notifications'],
   });
 });
 
 // Error handler
-app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  log.general.error({ err }, 'Unhandled Express error');
-  if (!res.headersSent) {
-    res.status(500).json({ error: 'Something went wrong!' });
-  }
-});
+app.use(
+  (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    log.general.error({ err }, 'Unhandled Express error');
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Something went wrong!' });
+    }
+  },
+);
 
 // Process-level error handlers — prevent crashes from taking down all users.
 process.on('unhandledRejection', (reason) => {
@@ -186,7 +200,10 @@ process.on('unhandledRejection', (reason) => {
   }
 
   // Everything else: log as error but keep running
-  log.general.error({ reason: reason instanceof Error ? reason : String(reason) }, '[Process] Unhandled promise rejection');
+  log.general.error(
+    { reason: reason instanceof Error ? reason : String(reason) },
+    '[Process] Unhandled promise rejection',
+  );
 });
 
 process.on('uncaughtException', (error) => {
@@ -204,15 +221,23 @@ connectPostgres()
       import('./lib/redis.js').then(({ getRedisClient }) => {
         const redis = getRedisClient();
         if (redis) {
-          redis.ping()
+          redis
+            .ping()
             .then(() => log.general.info('Redis readiness check passed'))
-            .catch((err) => log.general.warn({ err }, 'Redis readiness check failed — rate limiting will fail-open'));
+            .catch((err) =>
+              log.general.warn(
+                { err },
+                'Redis readiness check failed — rate limiting will fail-open',
+              ),
+            );
         } else {
           log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
         }
       });
       // Start the note-reminder sweep (no-op without REDIS_URL)
-      startReminderScheduler().catch((err) => log.general.error({ err }, 'Failed to start reminder scheduler'));
+      startReminderScheduler().catch((err) =>
+        log.general.error({ err }, 'Failed to start reminder scheduler'),
+      );
       startNotedEventOutboxWorker();
     });
 

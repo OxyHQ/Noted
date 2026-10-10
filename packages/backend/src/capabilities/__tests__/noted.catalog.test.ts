@@ -25,10 +25,7 @@ describe('Noted capability catalog', () => {
       ]),
     ) as CatalogToolHandlers;
 
-    const definitions = createCatalogMcpToolDefinitions(
-      NOTED_CAPABILITY_CATALOG,
-      handlers,
-    );
+    const definitions = createCatalogMcpToolDefinitions(NOTED_CAPABILITY_CATALOG, handlers);
     const publicTools = NOTED_CAPABILITY_CATALOG.tools.filter(({ exposure }) =>
       exposure.includes('mcp'),
     );

@@ -2,7 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Request, Response } from 'express';
-import { and, arrayContains, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  arrayContains,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from 'drizzle-orm';
 import { isLiveEntityId } from '@oxy.so/db';
 import { requireOxyAuth, getRequiredOxyUserId } from '@oxy.so/core/server';
 import { normalizeNoteColor } from '@noted/shared-types';
@@ -144,11 +155,7 @@ function noteChangeForPatch(input: NoteWrite): NoteChange {
  * and must not thereby erase a recording's structure. Absent means "I have
  * nothing to say about this", which is not the same as an empty array.
  */
-async function writeGeneratedHalf(
-  noteId: string,
-  userId: string,
-  input: NoteWrite,
-): Promise<void> {
+async function writeGeneratedHalf(noteId: string, userId: string, input: NoteWrite): Promise<void> {
   if (input.artifacts) await upsertArtifacts(noteId, userId, input.artifacts);
   if (input.itemOverrides) await upsertOverrides(noteId, userId, input.itemOverrides);
 }
@@ -182,9 +189,7 @@ router.get('/', readLimiter, async (req: Request, res: Response) => {
       // `plainto_tsquery` treats the input as words to match, never as query
       // syntax, so a user typing `&` or `!` searches for that character instead
       // of tripping a syntax error.
-      filters.push(
-        sql`${notes.searchVector} @@ plainto_tsquery('simple', ${req.query.q.trim()})`,
-      );
+      filters.push(sql`${notes.searchVector} @@ plainto_tsquery('simple', ${req.query.q.trim()})`);
     }
 
     const rows = await getDb()
@@ -378,11 +383,13 @@ router.post('/reorder', writeLimiter, async (req: Request, res: Response) => {
       const changed = await transaction
         .select({ id: notes.id, updatedAt: notes.updatedAt })
         .from(notes)
-        .where(and(
-          eq(notes.oxyUserId, oxyUserId),
-          inArray(notes.id, ids as string[]),
-          isNull(notes.deletedAt),
-        ));
+        .where(
+          and(
+            eq(notes.oxyUserId, oxyUserId),
+            inArray(notes.id, ids as string[]),
+            isNull(notes.deletedAt),
+          ),
+        );
       for (const note of changed) {
         await enqueueRouteNoteChange(transaction, note, oxyUserId, 'updated');
       }
@@ -407,9 +414,7 @@ router.get('/:id', readLimiter, async (req: Request, res: Response) => {
     const [note] = await getDb()
       .select()
       .from(notes)
-      .where(
-        and(eq(notes.id, noteId), eq(notes.oxyUserId, oxyUserId), isNull(notes.deletedAt)),
-      );
+      .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, oxyUserId), isNull(notes.deletedAt)));
     if (!note) return res.status(404).json({ error: 'Note not found' });
 
     const generated = await readGeneratedHalf([note.id], oxyUserId);
@@ -443,9 +448,7 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
       const updated = await transaction
         .update(notes)
         .set(touched(toColumns(parsed.data)))
-        .where(
-          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-        )
+        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)))
         .returning();
       if (updated[0]) {
         await enqueueRouteNoteChange(
@@ -483,9 +486,7 @@ router.post('/:id/trash', writeLimiter, async (req: Request, res: Response) => {
       const updated = await transaction
         .update(notes)
         .set({ trashed: true, updatedAt: new Date() })
-        .where(
-          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-        )
+        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)))
         .returning();
       if (updated[0]) await enqueueRouteNoteChange(transaction, updated[0], userId, 'trashed');
       return updated;
@@ -514,9 +515,7 @@ router.post('/:id/restore', writeLimiter, async (req: Request, res: Response) =>
       const updated = await transaction
         .update(notes)
         .set({ trashed: false, archived: false, updatedAt: new Date() })
-        .where(
-          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-        )
+        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)))
         .returning();
       if (updated[0]) await enqueueRouteNoteChange(transaction, updated[0], userId, 'restored');
       return updated;
@@ -570,9 +569,7 @@ router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
           reminderQueuedAt: null,
           reminderSentAt: null,
         })
-        .where(
-          and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)),
-        )
+        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)))
         .returning({ id: notes.id, updatedAt: notes.updatedAt });
       if (updated[0]) await enqueueRouteNoteChange(transaction, updated[0], userId, 'deleted');
       return updated;

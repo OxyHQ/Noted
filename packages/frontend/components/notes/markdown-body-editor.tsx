@@ -11,10 +11,10 @@
  * degrading to something that types is right where refusing would not be.
  */
 
-import React from "react";
-import { TextInput } from "react-native";
+import React from 'react';
+import { TextInput } from 'react-native';
 
-import { useColorScheme } from "@/lib/useColorScheme";
+import { useColorScheme } from '@/lib/useColorScheme';
 
 export interface MarkdownBodyEditorProps {
   value: string;

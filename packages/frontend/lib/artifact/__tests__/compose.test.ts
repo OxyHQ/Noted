@@ -38,10 +38,12 @@ describe('which artifact is shown', () => {
   it('prefers the settled one', () => {
     // Not a fallback relationship: the finaliser read the whole recording and a
     // live pass never did, so once it exists the provisional one is an old draft.
-    expect(preferredArtifact({ user: user(), live: LIVE, final: FINAL, fallbackTitle: FALLBACK })?.id).toBe(
-      'art_final',
+    expect(
+      preferredArtifact({ user: user(), live: LIVE, final: FINAL, fallbackTitle: FALLBACK })?.id,
+    ).toBe('art_final');
+    expect(preferredArtifact({ user: user(), live: LIVE, fallbackTitle: FALLBACK })?.id).toBe(
+      'art_1',
     );
-    expect(preferredArtifact({ user: user(), live: LIVE, fallbackTitle: FALLBACK })?.id).toBe('art_1');
     expect(preferredArtifact({ user: user(), fallbackTitle: FALLBACK })).toBeNull();
   });
 });
@@ -49,16 +51,17 @@ describe('which artifact is shown', () => {
 describe('title', () => {
   it('is the user title whenever they gave one', () => {
     expect(
-      composeNote({ user: user({ title: 'Mi título' }), final: FINAL, fallbackTitle: FALLBACK }).title,
+      composeNote({ user: user({ title: 'Mi título' }), final: FINAL, fallbackTitle: FALLBACK })
+        .title,
     ).toBe('Mi título');
   });
 
   it('prefers the settled title over the provisional one', () => {
     // The early automatic title is the one the old code could not improve later,
     // because nothing recorded that the app had written it.
-    expect(composeNote({ user: user(), live: LIVE, final: FINAL, fallbackTitle: FALLBACK }).title).toBe(
-      'Migración a PostgreSQL',
-    );
+    expect(
+      composeNote({ user: user(), live: LIVE, final: FINAL, fallbackTitle: FALLBACK }).title,
+    ).toBe('Migración a PostgreSQL');
   });
 
   it('falls back to the provisional title while the recording is still running', () => {
@@ -102,9 +105,7 @@ describe('body', () => {
       final: FINAL,
       fallbackTitle: FALLBACK,
     });
-    expect(composed.body).toBe(
-      'Mis notas\n\ncon dos párrafos\n\n- PostgreSQL será la única base',
-    );
+    expect(composed.body).toBe('Mis notas\n\ncon dos párrafos\n\n- PostgreSQL será la única base');
   });
 
   it('hands back the generated half on its own, for the store to remember', () => {
@@ -172,9 +173,9 @@ describe('checklist', () => {
         checklist('c', [checklistItem('s1', 'pollo', { quantity: '2 kg' })], { kind: 'shopping' }),
       ],
     });
-    expect(composeNote({ user: user(), final: shopping, fallbackTitle: FALLBACK }).checklist).toEqual(
-      [{ id: 's1', text: '2 kg pollo', checked: false }],
-    );
+    expect(
+      composeNote({ user: user(), final: shopping, fallbackTitle: FALLBACK }).checklist,
+    ).toEqual([{ id: 's1', text: '2 kg pollo', checked: false }]);
   });
 
   it('keeps the tick the user set through a regeneration', () => {
@@ -201,7 +202,11 @@ describe('checklist', () => {
 describe('a note nobody recorded', () => {
   it('composes to exactly what the user wrote', () => {
     const composed = composeNote({
-      user: user({ title: 'Lista', body: 'Texto', checklist: [{ id: 'u', text: 'x', checked: false }] }),
+      user: user({
+        title: 'Lista',
+        body: 'Texto',
+        checklist: [{ id: 'u', text: 'x', checked: false }],
+      }),
       fallbackTitle: FALLBACK,
     });
     expect(composed).toEqual({

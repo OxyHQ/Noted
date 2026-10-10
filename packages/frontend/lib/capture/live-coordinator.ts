@@ -45,12 +45,21 @@ export function createLiveCoordinator(input: {
       // nothing downloaded, and is what makes every failure below survivable.
       // The task's revision travels with it, because that is what the store's
       // guard compares against when it decides whether this pass may still land.
-      live: (task) => restructureNote(captureId, noteId, startedAt, task.transcriptRevision, expectedViewerId),
+      live: (task) =>
+        restructureNote(captureId, noteId, startedAt, task.transcriptRevision, expectedViewerId),
       // The note that always exists. Its failure is a real failure.
-      finalize: (task) => finalizeNote(captureId, noteId, startedAt, task.transcriptRevision, expectedViewerId),
+      finalize: (task) =>
+        finalizeNote(captureId, noteId, startedAt, task.transcriptRevision, expectedViewerId),
       // The improvement. Its failure leaves the note above standing.
       enhance: (task) =>
-        enhanceNote(captureId, noteId, startedAt, input.language, task.transcriptRevision, expectedViewerId),
+        enhanceNote(
+          captureId,
+          noteId,
+          startedAt,
+          input.language,
+          task.transcriptRevision,
+          expectedViewerId,
+        ),
     },
     onError: (stage, error) => {
       logger.error('Capture processing failed', { stage, error: String(error) });

@@ -71,13 +71,16 @@ export async function writeSetting(
   value: unknown,
   expectedViewerId: string | null = getActiveViewerId(),
 ): Promise<void> {
-  await executeTransaction([
-    {
-      sql: `INSERT INTO app_settings (key, value_json) VALUES (?, ?)
+  await executeTransaction(
+    [
+      {
+        sql: `INSERT INTO app_settings (key, value_json) VALUES (?, ?)
             ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`,
-      params: [key, JSON.stringify(value)],
-    },
-  ], expectedViewerId);
+        params: [key, JSON.stringify(value)],
+      },
+    ],
+    expectedViewerId,
+  );
 }
 
 /**

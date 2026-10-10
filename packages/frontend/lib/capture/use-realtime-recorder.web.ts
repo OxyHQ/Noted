@@ -139,9 +139,9 @@ export function useRealtimeRecorder(
         // browser reports as a `NotAllowedError` rather than a permission API.
         const denied = error instanceof DOMException && error.name === 'NotAllowedError';
         logger.error('Could not start recording', { error: String(error) });
-        await coordinatorRef.current?.markFailed(denied ? 'permission' : 'capture_start').catch(
-          () => undefined,
-        );
+        await coordinatorRef.current
+          ?.markFailed(denied ? 'permission' : 'capture_start')
+          .catch(() => undefined);
         if (active) setPhase(denied ? 'denied' : 'error');
       }
     })();

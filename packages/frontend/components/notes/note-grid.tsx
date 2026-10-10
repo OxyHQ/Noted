@@ -1,15 +1,11 @@
-import { useState } from "react";
-import { View } from "react-native";
-import Animated, {
-  LinearTransition,
-  FadeIn,
-  FadeOut,
-} from "react-native-reanimated";
-import { NoteCard } from "@/components/notes/note-card";
-import type { Label, Note } from "@noted/shared-types";
-import type { ViewMode } from "@/lib/stores/notes-ui-store";
-import { useNotesUIStore } from "@/lib/stores/notes-ui-store";
-import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import { useState } from 'react';
+import { View } from 'react-native';
+import Animated, { LinearTransition, FadeIn, FadeOut } from 'react-native-reanimated';
+import { NoteCard } from '@/components/notes/note-card';
+import type { Label, Note } from '@noted/shared-types';
+import type { ViewMode } from '@/lib/stores/notes-ui-store';
+import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
 
 interface NoteGridProps {
   notes: Note[];
@@ -45,7 +41,7 @@ const EXIT_MS = 150;
  * what a phone-width masonry is supposed to look like.
  */
 function columnsForWidth(width: number, viewMode: ViewMode): number {
-  if (viewMode === "list") return 1;
+  if (viewMode === 'list') return 1;
   const cols = Math.floor(width / GRID_COLUMN_WIDTH);
   return Math.min(6, Math.max(2, cols));
 }
@@ -106,9 +102,7 @@ export function NoteGrid({
 
   const columnCount = columnsForWidth(width, viewMode);
 
-  const layout = reduceMotion
-    ? undefined
-    : LinearTransition.duration(REFLOW_MS);
+  const layout = reduceMotion ? undefined : LinearTransition.duration(REFLOW_MS);
   const entering = reduceMotion ? undefined : FadeIn.duration(ENTER_MS);
   const exiting = reduceMotion ? undefined : FadeOut.duration(EXIT_MS);
 
@@ -124,19 +118,11 @@ export function NoteGrid({
   }
 
   const grid = (
-    <View
-      className="flex-row gap-3"
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
-    >
+    <View className="flex-row gap-3" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
       {columns.map((column, colIndex) => (
         <Animated.View key={colIndex} layout={layout} className="flex-1 gap-3">
           {column.map((note) => (
-            <Animated.View
-              key={note.id}
-              layout={layout}
-              entering={entering}
-              exiting={exiting}
-            >
+            <Animated.View key={note.id} layout={layout} entering={entering} exiting={exiting}>
               <NoteCard
                 note={note}
                 allLabels={allLabels}
@@ -160,7 +146,7 @@ export function NoteGrid({
   );
 
   // List mode is a single centered, slightly wider column.
-  if (viewMode === "list") {
+  if (viewMode === 'list') {
     return <View className="w-full max-w-[640px] self-center">{grid}</View>;
   }
 

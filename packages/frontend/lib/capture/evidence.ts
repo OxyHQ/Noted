@@ -23,7 +23,10 @@ export interface Evidence {
   segmentIds: string[];
 }
 
-function excerptOf(range: SourceRange, byId: ReadonlyMap<string, TranscriptSegment>): Evidence | null {
+function excerptOf(
+  range: SourceRange,
+  byId: ReadonlyMap<string, TranscriptSegment>,
+): Evidence | null {
   const segments = range.segmentIds
     .map((id) => byId.get(id))
     .filter((segment): segment is TranscriptSegment => segment !== undefined)
@@ -41,7 +44,10 @@ function excerptOf(range: SourceRange, byId: ReadonlyMap<string, TranscriptSegme
   return {
     startMs: Math.min(range.startMs, segments[0].startMs),
     endMs: Math.max(range.endMs, segments[segments.length - 1].endMs),
-    text: segments.map((segment) => segment.text.trim()).join(' ').trim(),
+    text: segments
+      .map((segment) => segment.text.trim())
+      .join(' ')
+      .trim(),
     segmentIds: segments.map((segment) => segment.id),
   };
 }
@@ -74,7 +80,10 @@ export function evidenceFor(
  *
  * @returns null when the item is not grounded in the recording at all.
  */
-export function playbackStartOf(item: GeneratedItem, segments: readonly TranscriptSegment[]): number | null {
+export function playbackStartOf(
+  item: GeneratedItem,
+  segments: readonly TranscriptSegment[],
+): number | null {
   const evidence = evidenceFor(item, segments);
   return evidence.length > 0 ? evidence[0].startMs : null;
 }

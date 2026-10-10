@@ -8,7 +8,14 @@ import type { GeneratedChecklistItem, SourceRange } from '@noted/shared-types';
 const CAPTURE_ID = 'c1';
 
 function sourceAt(atMs: number): SourceRange[] {
-  return [{ captureId: CAPTURE_ID, startMs: atMs, endMs: atMs + 4_000, segmentIds: [`c1#0.${String(atMs)}`] }];
+  return [
+    {
+      captureId: CAPTURE_ID,
+      startMs: atMs,
+      endMs: atMs + 4_000,
+      segmentIds: [`c1#0.${String(atMs)}`],
+    },
+  ];
 }
 
 function dictate(...lines: string[]): ReturnType<typeof buildDictatedList> {
@@ -91,7 +98,11 @@ describe('corrections', () => {
   });
 
   it('replaces a quantity rather than stacking another one', () => {
-    const built = dictate('Añade pollo.', 'Pon dos kilos de pollo.', 'Mejor pon tres kilos de pollo.');
+    const built = dictate(
+      'Añade pollo.',
+      'Pon dos kilos de pollo.',
+      'Mejor pon tres kilos de pollo.',
+    );
     expect(built.checklist?.items[0].quantity).toBe('tres kilos');
     expect(built.checklist?.items).toHaveLength(1);
   });

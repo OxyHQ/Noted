@@ -7,7 +7,15 @@
  * exactly what most of these tests are checking.
  */
 
-import type { GeneratedBlock, GeneratedChecklist, GeneratedChecklistItem, GeneratedItem, GeneratedNoteArtifact, GeneratedSection, SourceRange } from '@noted/shared-types';
+import type {
+  GeneratedBlock,
+  GeneratedChecklist,
+  GeneratedChecklistItem,
+  GeneratedItem,
+  GeneratedNoteArtifact,
+  GeneratedSection,
+  SourceRange,
+} from '@noted/shared-types';
 
 export const CAPTURE_ID = 'cap_1';
 export const NOTE_ID = 'note_1';
@@ -69,7 +77,11 @@ export function section(
 }
 
 /** A paragraph, as its own block. */
-export function paragraph(id: string, text: string, over: Partial<GeneratedBlock> = {}): GeneratedBlock {
+export function paragraph(
+  id: string,
+  text: string,
+  over: Partial<GeneratedBlock> = {},
+): GeneratedBlock {
   return {
     id,
     kind: 'paragraph',
@@ -82,7 +94,11 @@ export function paragraph(id: string, text: string, over: Partial<GeneratedBlock
 }
 
 /** A section of prose. */
-export function prose(id: string, blocks: GeneratedBlock[], over: Partial<GeneratedSection> = {}): GeneratedSection {
+export function prose(
+  id: string,
+  blocks: GeneratedBlock[],
+  over: Partial<GeneratedSection> = {},
+): GeneratedSection {
   return { id, kind: 'notes', blocks, ...over };
 }
 

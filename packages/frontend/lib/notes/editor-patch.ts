@@ -8,9 +8,22 @@ export interface EditorSaveSnapshot {
 }
 
 /** Send only the editor's changes; untouched fields may already be newer in SQLite. */
-export function editorPatch(base: LocalNote | null, draft: LocalNote, takeOverBody: boolean): NoteInput {
+export function editorPatch(
+  base: LocalNote | null,
+  draft: LocalNote,
+  takeOverBody: boolean,
+): NoteInput {
   const patch: NoteInput = {};
-  for (const field of ['title', 'checklist', 'color', 'labels', 'pinned', 'archived', 'reminderAt', 'attachments'] as const) {
+  for (const field of [
+    'title',
+    'checklist',
+    'color',
+    'labels',
+    'pinned',
+    'archived',
+    'reminderAt',
+    'attachments',
+  ] as const) {
     if (base === null || JSON.stringify(base[field]) !== JSON.stringify(draft[field])) {
       Object.assign(patch, { [field]: draft[field] });
     }

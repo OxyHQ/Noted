@@ -18,18 +18,39 @@ export interface BrokerChannel {
 export interface BrokerLocks {
   request(name: string, callback: (lock: unknown) => Promise<void>): Promise<void>;
 }
-interface Term { id: string; epoch: string; startedAt: number }
-interface Session { viewer: string | null; generation: number }
+interface Term {
+  id: string;
+  epoch: string;
+  startedAt: number;
+}
+interface Session {
+  viewer: string | null;
+  generation: number;
+}
 interface Request extends Session {
-  kind: 'request'; client: string; request: string; epoch: string;
-  viewer: string; operation: DatabaseOperation; deadline: number;
+  kind: 'request';
+  client: string;
+  request: string;
+  epoch: string;
+  viewer: string;
+  operation: DatabaseOperation;
+  deadline: number;
 }
 type Message =
   | { kind: 'hello'; client: string; discovery: string }
   | { kind: 'leader'; term: Term; client?: string; discovery?: string }
   | { kind: 'session'; client: string; session: Session }
   | Request
-  | { kind: 'response'; client: string; request: string; viewer: string; generation: number; epoch: string; result?: DatabaseResult; error?: string }
+  | {
+      kind: 'response';
+      client: string;
+      request: string;
+      viewer: string;
+      generation: number;
+      epoch: string;
+      result?: DatabaseResult;
+      error?: string;
+    }
   | { kind: 'invalidate'; viewer: string; tables: string[]; epoch: string };
 interface Pending {
   request: Request;
@@ -49,8 +70,12 @@ interface BrokerOptions {
   timeoutMs?: number;
 }
 
-const accountChanged = () => new Error('The active account changed before this write could be saved');
-const ownerChanged = () => new Error('The local notes connection changed before the operation was confirmed. Reopen the note to check it before retrying.');
+const accountChanged = () =>
+  new Error('The active account changed before this write could be saved');
+const ownerChanged = () =>
+  new Error(
+    'The local notes connection changed before the operation was confirmed. Reopen the note to check it before retrying.',
+  );
 
 function isStandaloneRead(operation: DatabaseOperation): boolean {
   if (operation.type === 'transaction') return false;
@@ -62,8 +87,15 @@ function isStandaloneRead(operation: DatabaseOperation): boolean {
 }
 
 /** All tabs, including the owner, enter the same viewer-scoped dispatcher. */
-export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidate,
-  now = Date.now, timeoutMs = DEFAULT_TIMEOUT_MS }: BrokerOptions) {
+export function createDatabaseBroker({
+  id,
+  channel,
+  locks,
+  dispatch,
+  onInvalidate,
+  now = Date.now,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+}: BrokerOptions) {
   let ownTerm: Term | null = null;
   let leader: Term | null = null;
   let current: Session = { viewer: null, generation: 0 };
@@ -103,15 +135,16 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
   function acceptLeader(term: Term) {
     const changed = leader?.epoch !== term.epoch;
     if (changed && leader) {
-      for (const [key, item] of pending) if (item.sent) {
-        // A startup SELECT may have no mounted subscription to refresh it.
-        // Retry once on confirmed owner change, within its original deadline.
-        // Writes remain uncertain and are never replayed.
-        if (item.ownerRetries === 0 && isStandaloneRead(item.request.operation)) {
-          item.sent = false;
-          item.ownerRetries++;
-        } else rejectPending(key, ownerChanged());
-      }
+      for (const [key, item] of pending)
+        if (item.sent) {
+          // A startup SELECT may have no mounted subscription to refresh it.
+          // Retry once on confirmed owner change, within its original deadline.
+          // Writes remain uncertain and are never replayed.
+          if (item.ownerRetries === 0 && isStandaloneRead(item.request.operation)) {
+            item.sent = false;
+            item.ownerRetries++;
+          } else rejectPending(key, ownerChanged());
+        }
     }
     leader = term;
     if (changed && current.viewer) onInvalidate(current.viewer, null);
@@ -123,10 +156,18 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
   }
   function assertSession(request: Request) {
     const known = sessions.get(request.client);
-    if (!request.viewer || !known || known.generation !== request.generation || known.viewer !== request.viewer) {
+    if (
+      !request.viewer ||
+      !known ||
+      known.generation !== request.generation ||
+      known.viewer !== request.viewer
+    ) {
       throw accountChanged();
     }
-    if (now() > request.deadline) throw new Error('NOTED_BROKER_TIMEOUT: The local notes request expired before it could start.');
+    if (now() > request.deadline)
+      throw new Error(
+        'NOTED_BROKER_TIMEOUT: The local notes request expired before it could start.',
+      );
   }
   function respond(message: Extract<Message, { kind: 'response' }>, deduplicate: boolean) {
     if (deduplicate) completed.set(`${message.client}:${message.request}`, message);
@@ -138,28 +179,49 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
   function enqueueRequest(request: Request) {
     const term = ownTerm;
     if (!term) return;
-    if (request.epoch !== term.epoch) { emit({ kind: 'leader', term }); return; }
+    if (request.epoch !== term.epoch) {
+      emit({ kind: 'leader', term });
+      return;
+    }
     rememberSession(request.client, request);
     const deduplicate = !isStandaloneRead(request.operation);
     const execute = async () => {
       if (stopped) return;
       const cached = completed.get(`${request.client}:${request.request}`);
-      if (cached) { emit(cached); return; }
+      if (cached) {
+        emit(cached);
+        return;
+      }
       const response = {
-        kind: 'response' as const, client: request.client, request: request.request,
-        viewer: request.viewer, generation: request.generation, epoch: term.epoch,
+        kind: 'response' as const,
+        client: request.client,
+        request: request.request,
+        viewer: request.viewer,
+        generation: request.generation,
+        epoch: term.epoch,
       };
       try {
         assertSession(request);
         const result = await dispatch(request.viewer, request.operation);
         // Failed/rolled-back operations do not publish committed invalidations.
-        const statements = request.operation.type === 'transaction'
-          ? request.operation.statements.map(({ sql }) => sql) : [request.operation.sql];
+        const statements =
+          request.operation.type === 'transaction'
+            ? request.operation.statements.map(({ sql }) => sql)
+            : [request.operation.sql];
         const changed = new Set(statements.flatMap((sql) => [...writtenTables(sql)]));
-        if (changed.size) emit({ kind: 'invalidate', viewer: request.viewer, tables: [...changed], epoch: term.epoch });
+        if (changed.size)
+          emit({
+            kind: 'invalidate',
+            viewer: request.viewer,
+            tables: [...changed],
+            epoch: term.epoch,
+          });
         respond({ ...response, result }, deduplicate);
       } catch (error) {
-        respond({ ...response, error: error instanceof Error ? error.message : String(error) }, deduplicate);
+        respond(
+          { ...response, error: error instanceof Error ? error.message : String(error) },
+          deduplicate,
+        );
       }
     };
     serial = serial.then(execute, execute);
@@ -167,7 +229,13 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
   function receive(message: Message) {
     switch (message.kind) {
       case 'hello':
-        if (ownTerm) emit({ kind: 'leader', term: ownTerm, client: message.client, discovery: message.discovery });
+        if (ownTerm)
+          emit({
+            kind: 'leader',
+            term: ownTerm,
+            client: message.client,
+            discovery: message.discovery,
+          });
         break;
       case 'session':
         rememberSession(message.client, message.session);
@@ -211,36 +279,65 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
   channel.addEventListener('message', listener);
   // No timeout ever steals this lock: a paused page still owns live OPFS
   // handles. Only document destruction permits another tab to acquire leadership.
-  void locks.request(DATABASE_LEADER_LOCK, async () => {
-    if (stopped) return;
-    ownTerm = { id, epoch: `${id}:${now()}:${++sequence}`, startedAt: now() };
-    acceptLeader(ownTerm);
-    emit({ kind: 'leader', term: ownTerm });
-    await new Promise<void>(() => undefined);
-  }).catch((error: unknown) => {
-    for (const key of pending.keys()) rejectPending(key, error instanceof Error ? error : new Error(String(error)));
-  });
+  void locks
+    .request(DATABASE_LEADER_LOCK, async () => {
+      if (stopped) return;
+      ownTerm = { id, epoch: `${id}:${now()}:${++sequence}`, startedAt: now() };
+      acceptLeader(ownTerm);
+      emit({ kind: 'leader', term: ownTerm });
+      await new Promise<void>(() => undefined);
+    })
+    .catch((error: unknown) => {
+      for (const key of pending.keys())
+        rejectPending(key, error instanceof Error ? error : new Error(String(error)));
+    });
   discover();
 
   return {
     setSession(viewer: string | null, generation: number) {
       current = { viewer, generation };
       for (const [key, item] of pending) {
-        if (item.request.viewer !== viewer || item.request.generation !== generation) rejectPending(key, accountChanged());
+        if (item.request.viewer !== viewer || item.request.generation !== generation)
+          rejectPending(key, accountChanged());
       }
       emit({ kind: 'session', client: id, session: current });
     },
-    call(viewer: string, generation: number, operation: DatabaseOperation): Promise<DatabaseResult> {
-      if (viewer !== current.viewer || generation !== current.generation) return Promise.reject(accountChanged());
+    call(
+      viewer: string,
+      generation: number,
+      operation: DatabaseOperation,
+    ): Promise<DatabaseResult> {
+      if (viewer !== current.viewer || generation !== current.generation)
+        return Promise.reject(accountChanged());
       const request = `${id}:${++sequence}`;
       const promise = new Promise<DatabaseResult>((resolve, reject) => {
-        const timer = setTimeout(() => rejectPending(request, new Error(
-          'NOTED_BROKER_TIMEOUT: Another Noted tab is paused or the local notes connection is not responding. Bring that tab to the foreground or close it, then check the note before retrying.'
-        )), timeoutMs);
-        pending.set(request, { request: {
-          kind: 'request', client: id, request, viewer, generation, operation,
-          deadline: now() + timeoutMs, epoch: '',
-        }, sent: false, ownerRetries: 0, resolve, reject, timer });
+        const timer = setTimeout(
+          () =>
+            rejectPending(
+              request,
+              new Error(
+                'NOTED_BROKER_TIMEOUT: Another Noted tab is paused or the local notes connection is not responding. Bring that tab to the foreground or close it, then check the note before retrying.',
+              ),
+            ),
+          timeoutMs,
+        );
+        pending.set(request, {
+          request: {
+            kind: 'request',
+            client: id,
+            request,
+            viewer,
+            generation,
+            operation,
+            deadline: now() + timeoutMs,
+            epoch: '',
+          },
+          sent: false,
+          ownerRetries: 0,
+          resolve,
+          reject,
+          timer,
+        });
       });
       discover();
       sendPending();
@@ -263,26 +360,56 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
 }
 function isSession(value: unknown): value is Session {
-  return isRecord(value) && (value.viewer === null || typeof value.viewer === 'string') &&
-    typeof value.generation === 'number' && Number.isInteger(value.generation) && value.generation >= 0;
+  return (
+    isRecord(value) &&
+    (value.viewer === null || typeof value.viewer === 'string') &&
+    typeof value.generation === 'number' &&
+    Number.isInteger(value.generation) &&
+    value.generation >= 0
+  );
 }
 function isMessage(value: unknown): value is Message {
   if (!isRecord(value) || value.protocol !== PROTOCOL) return false;
   const { kind } = value;
-  if (kind === 'hello') return typeof value.client === 'string' && typeof value.discovery === 'string';
-  if (kind === 'leader') return isRecord(value.term) && typeof value.term.id === 'string' &&
-    typeof value.term.epoch === 'string' && typeof value.term.startedAt === 'number';
+  if (kind === 'hello')
+    return typeof value.client === 'string' && typeof value.discovery === 'string';
+  if (kind === 'leader')
+    return (
+      isRecord(value.term) &&
+      typeof value.term.id === 'string' &&
+      typeof value.term.epoch === 'string' &&
+      typeof value.term.startedAt === 'number'
+    );
   if (kind === 'session') return typeof value.client === 'string' && isSession(value.session);
-  if (kind === 'invalidate') return typeof value.viewer === 'string' && typeof value.epoch === 'string' &&
-    Array.isArray(value.tables) && value.tables.every((table) => typeof table === 'string');
+  if (kind === 'invalidate')
+    return (
+      typeof value.viewer === 'string' &&
+      typeof value.epoch === 'string' &&
+      Array.isArray(value.tables) &&
+      value.tables.every((table) => typeof table === 'string')
+    );
   if (kind !== 'request' && kind !== 'response') return false;
-  if (typeof value.client !== 'string' || typeof value.request !== 'string' || typeof value.epoch !== 'string' ||
-    !isSession(value) || typeof value.viewer !== 'string') return false;
+  if (
+    typeof value.client !== 'string' ||
+    typeof value.request !== 'string' ||
+    typeof value.epoch !== 'string' ||
+    !isSession(value) ||
+    typeof value.viewer !== 'string'
+  )
+    return false;
   if (kind === 'response') return value.error === undefined || typeof value.error === 'string';
   if (typeof value.deadline !== 'number' || !isRecord(value.operation)) return false;
   const operation = value.operation;
-  if (operation.type === 'execute') return typeof operation.sql === 'string' &&
-    (operation.params === undefined || Array.isArray(operation.params));
-  return operation.type === 'transaction' && Array.isArray(operation.statements) &&
-    operation.statements.every((statement) => isRecord(statement) && typeof statement.sql === 'string');
+  if (operation.type === 'execute')
+    return (
+      typeof operation.sql === 'string' &&
+      (operation.params === undefined || Array.isArray(operation.params))
+    );
+  return (
+    operation.type === 'transaction' &&
+    Array.isArray(operation.statements) &&
+    operation.statements.every(
+      (statement) => isRecord(statement) && typeof statement.sql === 'string',
+    )
+  );
 }

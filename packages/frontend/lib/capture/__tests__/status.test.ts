@@ -21,9 +21,10 @@ describe('what the user is told', () => {
   });
 
   it('walks through the honest states of a recording that goes well', () => {
-    expect(captureStatus(lifecycle({ capture: 'recording', transcription: 'live', generation: 'live' })).kind).toBe(
-      'recording',
-    );
+    expect(
+      captureStatus(lifecycle({ capture: 'recording', transcription: 'live', generation: 'live' }))
+        .kind,
+    ).toBe('recording');
     expect(captureStatus(lifecycle({ transcription: 'running', generation: 'idle' })).kind).toBe(
       'transcribing',
     );

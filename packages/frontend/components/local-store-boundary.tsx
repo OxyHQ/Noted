@@ -11,27 +11,71 @@ export function LocalStoreError() {
   const { retry, error } = useLocalStoreState();
   const { t } = useTranslation();
   const kind = storageErrorKind(error);
-  return <EmptyState sticker="loadError" title={t('emptyStates.storeErrorTitle')}
-    subtitle={t(kind === 'locked' ? 'emptyStates.storeLockedSubtitle'
-      : kind === 'reload' ? 'emptyStates.storeReloadSubtitle'
-      : kind === 'paused' ? 'emptyStates.storePausedSubtitle' : 'emptyStates.storeErrorSubtitle')}
-    action={{ label: t(kind === 'locked' || kind === 'reload' ? 'emptyStates.reload' : 'emptyStates.retry'), onPress: retry }} />;
+  return (
+    <EmptyState
+      sticker="loadError"
+      title={t('emptyStates.storeErrorTitle')}
+      subtitle={t(
+        kind === 'locked'
+          ? 'emptyStates.storeLockedSubtitle'
+          : kind === 'reload'
+            ? 'emptyStates.storeReloadSubtitle'
+            : kind === 'paused'
+              ? 'emptyStates.storePausedSubtitle'
+              : 'emptyStates.storeErrorSubtitle',
+      )}
+      action={{
+        label: t(
+          kind === 'locked' || kind === 'reload' ? 'emptyStates.reload' : 'emptyStates.retry',
+        ),
+        onPress: retry,
+      }}
+    />
+  );
 }
 
 /** Children must mount only after their account's SQLite file has opened. */
-export function LocalStoreBoundary({ children, fallbackHeader, documentScroll = Platform.OS === 'web' }: { children: ReactNode; fallbackHeader?: ReactNode; documentScroll?: boolean }) {
+export function LocalStoreBoundary({
+  children,
+  fallbackHeader,
+  documentScroll = Platform.OS === 'web',
+}: {
+  children: ReactNode;
+  fallbackHeader?: ReactNode;
+  documentScroll?: boolean;
+}) {
   const { isAuthenticated } = useOxy();
   const { isReady, error, viewerId } = useLocalStoreState();
   const { t } = useTranslation();
-  if (isAuthenticated && isReady) return <View key={viewerId} style={documentScroll && Platform.OS === 'web' ? { flexGrow: 1 } : { flex: 1 }}>{children}</View>;
-  return <Screen documentScroll={documentScroll} header={fallbackHeader}>
-    <View className="flex-1 justify-center">
-    {!isAuthenticated ? <EmptyState sticker="welcome"
-      title={t('notes.signInTitle')} subtitle={t('notes.signInSubtitle')}
-      action={{ label: t('emptyStates.signIn'), onPress: () => openAccountDialog() }} />
-      : error ? <LocalStoreError />
-      : <EmptyState sticker="notes" title={t('emptyStates.loadingTitle')}
-        subtitle={t('emptyStates.loadingSubtitle')} />}
-    </View>
-  </Screen>;
+  if (isAuthenticated && isReady)
+    return (
+      <View
+        key={viewerId}
+        style={documentScroll && Platform.OS === 'web' ? { flexGrow: 1 } : { flex: 1 }}
+      >
+        {children}
+      </View>
+    );
+  return (
+    <Screen documentScroll={documentScroll} header={fallbackHeader}>
+      <View className="flex-1 justify-center">
+        {!isAuthenticated ? (
+          <EmptyState
+            sticker="welcome"
+            title={t('notes.signInTitle')}
+            subtitle={t('notes.signInSubtitle')}
+            action={{ label: t('emptyStates.signIn'), onPress: () => openAccountDialog() }}
+          />
+        ) : error ? (
+          <LocalStoreError />
+        ) : (
+          <EmptyState
+            sticker="notes"
+            title={t('emptyStates.loadingTitle')}
+            subtitle={t('emptyStates.loadingSubtitle')}
+          />
+        )}
+      </View>
+    </Screen>
+  );
 }

@@ -62,11 +62,13 @@ export async function executeIdempotently<Result extends Record<string, unknown>
         result: capabilityExecutions.result,
       })
       .from(capabilityExecutions)
-      .where(and(
-        eq(capabilityExecutions.oxyUserId, input.accountId),
-        eq(capabilityExecutions.tool, input.tool),
-        eq(capabilityExecutions.idempotencyKey, input.idempotencyKey),
-      ));
+      .where(
+        and(
+          eq(capabilityExecutions.oxyUserId, input.accountId),
+          eq(capabilityExecutions.tool, input.tool),
+          eq(capabilityExecutions.idempotencyKey, input.idempotencyKey),
+        ),
+      );
 
     if (existing) {
       if (existing.requestDigest !== requestDigest) throw new IdempotencyConflictError();

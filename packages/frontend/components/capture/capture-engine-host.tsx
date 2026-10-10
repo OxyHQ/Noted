@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
-import { useCaptureEngine } from "@/lib/capture/use-capture-engine";
-import { useCaptureStore } from "@/lib/stores/capture-store";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useCaptureEngine } from '@/lib/capture/use-capture-engine';
+import { useCaptureStore } from '@/lib/stores/capture-store';
+import { useTranslation } from '@/hooks/useTranslation';
 
 /**
  * Holds the microphone. Draws nothing.
@@ -24,15 +24,10 @@ export function CaptureEngineHost() {
   const publishLive = useCaptureStore((s) => s.publishLive);
   const { t } = useTranslation();
 
-  const recorder = useCaptureEngine(
-    captureId ?? "",
-    noteId ?? "",
-    captureId !== null,
-    {
-      title: t("capture.recording"),
-      body: t("capture.notificationBody"),
-    },
-  );
+  const recorder = useCaptureEngine(captureId ?? '', noteId ?? '', captureId !== null, {
+    title: t('capture.recording'),
+    body: t('capture.notificationBody'),
+  });
 
   const { phase, levels, durationMs, partialText, stop } = recorder;
 
