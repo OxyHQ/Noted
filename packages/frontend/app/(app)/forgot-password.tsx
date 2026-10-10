@@ -3,6 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AuthContainer, AuthLogo, AuthInput, AuthButton, AuthError } from '@/components/auth';
 import apiClient from '@/lib/api/client';
+import { responseErrorMessage } from '@/lib/api/noted-client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -32,9 +33,9 @@ export default function ForgotPasswordScreen() {
       setSent(true);
       toast.success(t('forgotPassword.checkEmailToast'));
       router.back();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Reset password error:', error);
-      const errorMessage = error.response?.data?.error || t('forgotPassword.failedToSend');
+      const errorMessage = responseErrorMessage(error) || t('forgotPassword.failedToSend');
       setError(errorMessage);
 
       toast.error(errorMessage);

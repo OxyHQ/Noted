@@ -5,6 +5,7 @@ import Head from 'expo-router/head';
 import { AuthContainer, AuthLogo } from '@/components/auth';
 import { useAuth, useOxy } from '@oxy.so/services';
 import apiClient from '@/lib/api/client';
+import { responseErrorMessage } from '@/lib/api/noted-client';
 import config from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -122,10 +123,10 @@ export default function AuthorizeScreen() {
           window.location.href = finalUrl;
         }
       }, 1000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Authorization error:', error);
       setStatus('error');
-      setMessage(error.response?.data?.error || t('authorize.failedToAuthorize'));
+      setMessage(responseErrorMessage(error) || t('authorize.failedToAuthorize'));
     }
   };
 
@@ -183,9 +184,9 @@ export default function AuthorizeScreen() {
         setStatus('error');
         setMessage(t('authorize.failedToLink'));
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Bot link error:', error);
-      const errorMessage = error.response?.data?.error || t('authorize.failedToLink');
+      const errorMessage = responseErrorMessage(error) || t('authorize.failedToLink');
       setStatus('error');
       setMessage(errorMessage);
     }

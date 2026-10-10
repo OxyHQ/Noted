@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { OxyServices } from '@oxy.so/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { defined } from '@/lib/__tests__/defined';
-import { createNotedClient } from '../noted-client';
+import { createNotedClient, responseErrorMessage } from '../noted-client';
 
 let server: Server;
 let baseURL: string;
@@ -176,6 +176,25 @@ it.each([
   } finally {
     client.dispose();
   }
+});
+it('exposes the server error string a rejected request carries, and nothing else', async () => {
+  const { oxy, client } = fixture();
+  try {
+    oxy.session.setAccessToken(jwt('A'));
+    const rejection = (path: string) =>
+      client.get(path).then(
+        () => undefined,
+        (error) => error,
+      );
+    expect(responseErrorMessage(await rejection('/denied'))).toBe('Forbidden');
+    // A non-JSON body leaves data null: there is no server message to show.
+    expect(responseErrorMessage(await rejection('/text-denied'))).toBeUndefined();
+  } finally {
+    client.dispose();
+  }
+  expect(responseErrorMessage(new Error('offline'))).toBeUndefined();
+  expect(responseErrorMessage(undefined)).toBeUndefined();
+  expect(responseErrorMessage({ response: { data: { error: 42 } } })).toBeUndefined();
 });
 it('still refuses a malformed successful JSON body', async () => {
   const { oxy, client } = fixture();
