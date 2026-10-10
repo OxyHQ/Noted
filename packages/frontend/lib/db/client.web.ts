@@ -60,6 +60,9 @@ function getBroker() {
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') broker?.refresh();
   });
+  // A frozen document can resume without changing visibility. Reconcile live
+  // reads after thawing; the broker never replays an unconfirmed write.
+  if (typeof document !== 'undefined') document.addEventListener('resume', () => broker?.refresh());
   if (typeof window !== 'undefined') window.addEventListener('pageshow', () => broker?.refresh());
   return broker;
 }
