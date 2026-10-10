@@ -2,12 +2,17 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
+
+import { createStickersClient } from '@oxy.so/stickers';
+import { StickersProvider } from '@oxy.so/stickers/react';
+import { LocalStoreProvider } from '@/components/local-store-provider';
+import { QueryProvider } from '@/lib/query-client';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { KeyboardProvider } from '@/lib/keyboard';
@@ -40,6 +45,8 @@ const AUTH_REDIRECT_URI = Linking.createURL('/');
 function AuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useOxy();
 
+  const stickersClient = useMemo(() => createStickersClient(oxyServices), [oxyServices]);
+
   // Resolve Oxy file IDs to thumbnail download URLs for any Bloom component
   // that reads useImageResolver() (e.g. Avatar with a raw file id `source`).
   const resolveImageSource = useCallback(
@@ -52,7 +59,7 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 
   return (
     <ImageResolverProvider value={resolveImageSource}>
-      {children}
+      <StickersProvider client={stickersClient}>{children}</StickersProvider>
     </ImageResolverProvider>
   );
 }
@@ -62,6 +69,8 @@ function AppContent() {
 
   return (
     <AuthSetup>
+      <QueryProvider>
+      <LocalStoreProvider>
       <KeyboardProvider>
         <Stack
           screenOptions={{
@@ -93,6 +102,8 @@ function AppContent() {
           />
         </Stack>
       </KeyboardProvider>
+      </LocalStoreProvider>
+      </QueryProvider>
     </AuthSetup>
   );
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import { EmptyState } from "@/components/empty-state";
 import { View, Pressable, TextInput, ScrollView } from "react-native";
 import { Check, Plus, Tag } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
@@ -39,10 +40,14 @@ export function LabelAssignDialog({
 
   const handleCreate = async () => {
     const name = draft.trim();
-    if (!name) return;
-    const created = await createLabel.mutateAsync({ name });
-    setDraft("");
-    onToggle(created.id);
+    if (!name || createLabel.isPending) return;
+    try {
+      const created = await createLabel.mutateAsync({ name });
+      setDraft("");
+      onToggle(created.id);
+    } catch {
+      // The mutation reports the error; preserve the name so it can be retried.
+    }
   };
 
   return (
@@ -55,6 +60,7 @@ export function LabelAssignDialog({
         <View className="flex-row items-center gap-2 rounded-lg border border-border px-3">
           <Tag size={16} color={colors.mutedForeground} />
           <TextInput
+            editable={!createLabel.isPending}
             value={draft}
             onChangeText={setDraft}
             onSubmitEditing={handleCreate}
@@ -64,7 +70,7 @@ export function LabelAssignDialog({
             returnKeyType="done"
           />
           {draft.trim().length > 0 && (
-            <Pressable onPress={handleCreate} hitSlop={6} accessibilityLabel={t("common.create")}>
+            <Pressable disabled={createLabel.isPending} onPress={handleCreate} hitSlop={6} accessibilityLabel={t("common.create")}>
               <Plus size={18} color={colors.primary} />
             </Pressable>
           )}
@@ -72,9 +78,7 @@ export function LabelAssignDialog({
 
         <ScrollView className="max-h-72">
           {allLabels.length === 0 ? (
-            <Text className="py-4 text-center text-sm text-muted-foreground">
-              {t("notes.noLabels")}
-            </Text>
+            <EmptyState sticker="labels" title={t("notes.noLabels")} />
           ) : (
             allLabels.map((label) => {
               const isAssigned = assignedSet.has(label.id);

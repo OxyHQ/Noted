@@ -16,6 +16,8 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
   const [draft, setDraft] = React.useState("");
+  const draftRef = React.useRef("");
+  const inputRef = React.useRef<TextInput>(null);
 
   const toggle = (id: string) =>
     onChange(
@@ -28,8 +30,9 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
   const remove = (id: string) => onChange(items.filter((it) => it.id !== id));
 
   const addItem = () => {
-    const text = draft.trim();
+    const text = draftRef.current.trim();
     if (!text) return;
+    draftRef.current = "";
     onChange([...items, { id: generateUUID(), text, checked: false }]);
     setDraft("");
   };
@@ -42,6 +45,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
           <View key={item.id} className="flex-row items-center gap-2">
             <Pressable
               onPress={() => toggle(item.id)}
+              accessibilityLabel={item.text}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: item.checked }}
               hitSlop={6}
@@ -55,7 +59,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
               className="flex-1 py-1 text-base text-foreground"
               style={item.checked ? { textDecorationLine: "line-through" } : undefined}
             />
-            <Pressable onPress={() => remove(item.id)} hitSlop={6} accessibilityLabel="Remove item">
+            <Pressable onPress={() => remove(item.id)} hitSlop={6} accessibilityLabel={t("notes.removeItem")}>
               <X size={16} color={colors.mutedForeground} />
             </Pressable>
           </View>
@@ -63,10 +67,14 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
       })}
 
       <View className="flex-row items-center gap-2">
-        <Plus size={20} color={colors.mutedForeground} />
+        <Pressable onPress={() => { addItem(); inputRef.current?.focus(); }} accessibilityRole="button" accessibilityLabel={t("notes.addItem")} hitSlop={8}>
+          <Plus size={20} color={colors.mutedForeground} />
+        </Pressable>
         <TextInput
+          ref={inputRef}
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={(text) => { draftRef.current = text; setDraft(text); }}
+          onBlur={addItem}
           onSubmitEditing={addItem}
           blurOnSubmit={false}
           placeholder={t("notes.addItem")}

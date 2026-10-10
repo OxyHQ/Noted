@@ -26,7 +26,7 @@ import {
 } from 'expo-sqlite';
 import { createLogger } from '@oxy.so/core/logger';
 
-import { LOCAL_TABLES, migrate } from '@/lib/db/migrations';
+import { migrate } from '@/lib/db/migrations';
 import { readTables, writtenTables } from '@/lib/db/sql-tables';
 
 const logger = createLogger('NotedDB');
@@ -159,8 +159,8 @@ function rearmViewerGate(): void {
 
 /**
  * False once opening the database has failed — a browser without OPFS (private
- * windows in some engines) is the expected case. Callers degrade to the network
- * instead of retrying an open that cannot succeed for the rest of the session.
+ * windows in some engines) is the expected case. Callers show a recoverable
+ * storage error; they must not replace local reads with network requests.
  */
 export function isDbAvailable(): boolean {
   return available;
@@ -208,82 +208,50 @@ export function clearActiveViewer(): Promise<void> {
   });
 }
 
-/* ── Browser storage recovery ──────────────────────────────────────
-   expo-sqlite's web backend keeps its databases inside a fixed pool of OPFS
-   files, and sizes that pool EXACTLY ONCE — `AccessHandlePoolVFS.isReady` calls
-   `addCapacity` only when it finds the directory empty, and nothing ever grows
-   it afterwards. A first run interrupted part-way through creating those files
-   therefore leaves a pool too small to hold a database and its journal, and
-   every open from then on fails with `cannot create file`. Permanently, with
-   nothing the user can do about it from inside the app.
-
-   Deleting the directory lets the driver size a fresh pool. It has to happen
-   before anything opens a database, because the worker holds a handle on every
-   file in the pool from its first open until the page goes away — so the repair
-   is armed by the failure and carried out on the next load. */
-
-/** Where the web driver keeps its file pool, relative to the OPFS root. */
-const WEB_POOL_DIRECTORY = 'expo-sqlite';
-
-const REBUILD_KEY = 'noted.local-store.rebuild';
-
-let webStorageChecked = false;
-
-/** The browser's OPFS, or null anywhere that is not a browser. */
-function opfs(): StorageManager | null {
-  if (typeof navigator === 'undefined' || typeof localStorage === 'undefined') return null;
-  return typeof navigator.storage?.getDirectory === 'function' ? navigator.storage : null;
-}
-
-/** Remember that this origin's pool is unusable, for the next load to repair. */
-function markPoolForRebuild(): void {
-  if (!opfs()) return;
-  localStorage.setItem(REBUILD_KEY, '1');
-}
-
-/** Discard an unusable pool, once per load, before the driver touches it. */
-async function rebuildPoolIfMarked(): Promise<void> {
-  if (webStorageChecked) return;
-  webStorageChecked = true;
-  const storage = opfs();
-  if (!storage || localStorage.getItem(REBUILD_KEY) === null) return;
-
+/* A previous release marked failed opens for destructive OPFS recovery. Retire
+   that marker without touching the pool: it contains unsynced notes for every
+   account, and an open failure does not establish that those notes are lost. */
+function retireLegacyRebuildMarker(): void {
   try {
-    const root = await storage.getDirectory();
-    await root.removeEntry(WEB_POOL_DIRECTORY, { recursive: true });
-    logger.warn('Discarded an unusable local database; it will be rebuilt from the server');
-  } catch (error) {
-    // Another tab still holding the pool is the usual reason. The open below
-    // reports the real failure.
-    logger.warn('Could not discard the local database', { error: errorMessage(error) });
+    if (typeof localStorage !== 'undefined') localStorage.removeItem('noted.local-store.rebuild');
+  } catch {
+    // Restricted browser storage must not prevent SQLite from opening.
   }
-  localStorage.removeItem(REBUILD_KEY);
 }
 
 async function openDb(viewerId: string): Promise<SQLiteDatabase> {
-  await rebuildPoolIfMarked();
+  retireLegacyRebuildMarker();
   const db = await openDatabaseAsync(databaseName(viewerId), { enableChangeListener: true });
 
-  // WAL keeps reads running during a write; NORMAL is the safe pairing for it.
-  // A PRAGMA failing is not fatal (web's VFS does not honour all of them), so
-  // each one degrades on its own rather than taking the database down.
-  for (const pragma of [
-    'PRAGMA journal_mode = WAL',
-    'PRAGMA foreign_keys = ON',
-    'PRAGMA synchronous = NORMAL',
-  ]) {
-    try {
-      await db.execAsync(pragma);
-    } catch (error) {
-      logger.warn('PRAGMA failed', { pragma, error: errorMessage(error) });
+  try {
+    // WAL keeps reads running during a write; NORMAL is the safe pairing for it.
+    // A PRAGMA failing is not fatal (web's VFS does not honour all of them), so
+    // each one degrades on its own rather than taking the database down.
+    for (const pragma of [
+      'PRAGMA journal_mode = WAL',
+      'PRAGMA foreign_keys = ON',
+      'PRAGMA synchronous = NORMAL',
+    ]) {
+      try {
+        await db.execAsync(pragma);
+      } catch (error) {
+        logger.warn('PRAGMA failed', { pragma, error: errorMessage(error) });
+      }
     }
+
+    await migrate(db);
+    await assertOwnership(db, viewerId);
+    attachChangeListener();
+
+    return db;
+  } catch (error) {
+    // A migration/ownership error occurs after OPFS has acquired its handle.
+    // Release it before retry so the same intact database can open again.
+    await db.closeAsync().catch((closeError: unknown) => {
+      logger.warn('Closing failed database initialization', { error: errorMessage(closeError) });
+    });
+    throw error;
   }
-
-  await migrate(db);
-  await assertOwnership(db, viewerId);
-  attachChangeListener();
-
-  return db;
 }
 
 /**
@@ -313,9 +281,7 @@ function attachChangeListener(): void {
  *
  * The filename already separates accounts, so a mismatch here means something
  * upstream is wrong (a renamed file, a recycled id, a bug in this module). It
- * fails closed: the contents are deleted before a single row can be rendered to
- * the wrong person, and the note whose sync was pending is worth less than
- * showing one account another's meeting transcript.
+ * fails closed without deleting the original account's unsynced notes.
  */
 async function assertOwnership(db: SQLiteDatabase, viewerId: string): Promise<void> {
   const row = await db.getFirstAsync<{ value: string }>(
@@ -325,20 +291,11 @@ async function assertOwnership(db: SQLiteDatabase, viewerId: string): Promise<vo
   if (row?.value === viewerId) return;
 
   if (row?.value) {
-    logger.error('Local database belongs to another account — wiping', {
+    logger.error('Local database belongs to another account', {
       expected: viewerId,
       found: row.value,
     });
-    await db.execAsync('BEGIN IMMEDIATE');
-    try {
-      for (const table of LOCAL_TABLES) {
-        await db.execAsync(`DELETE FROM ${table}`);
-      }
-      await db.execAsync('COMMIT');
-    } catch (error) {
-      await db.execAsync('ROLLBACK').catch(() => undefined);
-      throw error;
-    }
+    throw new Error('The local database belongs to another account; its notes have been preserved');
   }
 
   await db.runAsync('INSERT OR REPLACE INTO cache_metadata (key, value) VALUES (?, ?)', [
@@ -359,8 +316,7 @@ async function connectIfActive(): Promise<SQLiteDatabase | null> {
     connection = openDb(activeViewerId).catch((error: unknown) => {
       available = false;
       connection = null;
-      markPoolForRebuild();
-      logger.error('Local database unavailable — reload to rebuild it', {
+      logger.error('Local database unavailable — existing notes have been preserved', {
         error: errorMessage(error),
       });
       throw error;
@@ -380,6 +336,19 @@ async function getDb(): Promise<SQLiteDatabase> {
     // queue. `viewerReady` is a fresh unresolved gate by now, so this waits for
     // the next account rather than spinning.
   }
+}
+
+/** An explicit owner binds both reads and writes across asynchronous account changes. */
+async function getDbForViewer(expectedViewerId?: string | null): Promise<SQLiteDatabase> {
+  if (expectedViewerId === undefined) return getDb();
+  return serializeLifecycle(async () => {
+    if (!expectedViewerId || activeViewerId !== expectedViewerId) {
+      throw new Error('The active account changed before this write could be saved');
+    }
+    const db = await connectIfActive();
+    if (!db) throw new Error('The local account is no longer available');
+    return db;
+  });
 }
 
 /** Close the handle and drop the cached connection (account switch, tests). */
@@ -479,15 +448,16 @@ async function refresh(subscription: Subscription): Promise<void> {
 export async function execute<T extends Row = Row>(
   sql: string,
   params?: readonly unknown[],
+  expectedViewerId?: string | null,
 ): Promise<T[]> {
-  const db = await getDb();
+  const db = await getDbForViewer(expectedViewerId);
   const rows = await enqueue(() => db.getAllAsync<T>(sql, mapParams(params)));
   markWrittenTables(sql);
   return rows;
 }
 
-async function runTransaction(statements: readonly Statement[]): Promise<number[]> {
-  const db = await getDb();
+async function runTransaction(statements: readonly Statement[], expectedViewerId?: string | null): Promise<number[]> {
+  const db = await getDbForViewer(expectedViewerId);
   // IMMEDIATE takes the write lock up front, so a busy database fails here
   // rather than half-way through the statements.
   await db.execAsync('BEGIN IMMEDIATE');
@@ -522,8 +492,8 @@ async function runTransaction(statements: readonly Statement[]): Promise<number[
 }
 
 /** Run statements atomically, returning the rows affected by each. */
-export function executeTransaction(statements: readonly Statement[]): Promise<number[]> {
-  return enqueue(() => runTransaction(statements));
+export function executeTransaction(statements: readonly Statement[], expectedViewerId?: string | null): Promise<number[]> {
+  return enqueue(() => runTransaction(statements, expectedViewerId));
 }
 
 /**

@@ -5,7 +5,8 @@ import { useRouter } from "expo-router";
 import { useOxy } from "@oxy.so/services";
 import { Plus } from "lucide-react-native";
 import { Text } from "@/components/ui/text";
-import { StickyNoteIcon } from "@/components/ui/nav-icons";
+import { EmptyState } from "@/components/empty-state";
+import { LocalStoreError } from "@/components/local-store-boundary";
 import { NotesHeader } from "@/components/notes/notes-header";
 import { QuickCapture } from "@/components/notes/quick-capture";
 import { NoteGrid } from "@/components/notes/note-grid";
@@ -35,7 +36,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, user } = useOxy();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
 
@@ -57,7 +58,7 @@ export default function HomeScreen() {
     [activeLabel, searchQuery]
   );
 
-  const { data: notes, isLoading } = useNotes(listParams);
+  const { data: notes, isLoading, error } = useNotes(listParams);
   const { data: labels } = useLabels();
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
@@ -99,12 +100,12 @@ export default function HomeScreen() {
   );
 
   const handleCreate = React.useCallback(
-    (input: { title: string; body: string; color?: NoteColor }) => {
+    (input: { title: string; body: string; color?: NoteColor; archived?: boolean }) => {
       // Nothing has been recorded into a note born here, so every word of it is
       // the user's half.
-      createNote.mutate({ title: input.title, userBody: input.body, color: input.color });
+      return createNote.mutateAsync({ expectedViewerId: user?.id, title: input.title, userBody: input.body, color: input.color, archived: input.archived, labels: activeLabel ? [activeLabel] : [] });
     },
-    [createNote]
+    [createNote, activeLabel, user?.id]
   );
 
   const handleCreateChecklist = React.useCallback(() => {
@@ -258,23 +259,21 @@ export default function HomeScreen() {
           <QuickCapture
             onCreate={handleCreate}
             onCreateChecklist={handleCreateChecklist}
-            onCreateAttachment={handleCreateNote}
+            onCreateAttachment={() => router.push("/n/new?mode=attachment")}
+            onOpenNote={(id, mode) => router.push(`/n/${id}?mode=${mode}`)}
           />
         )}
 
-        {isLoading ? (
+        {error ? <LocalStoreError /> : isLoading ? (
           <View className="items-center justify-center py-16">
             <ActivityIndicator color={colors.primary} />
           </View>
-        ) : !isAuthenticated ? (
-          <EmptyState
-            title={t("notes.signInTitle")}
-            subtitle={t("notes.signInSubtitle")}
-          />
         ) : allNotes.length === 0 ? (
           <EmptyState
-            title={searchQuery ? t("notes.noResultsTitle") : t("notes.emptyTitle")}
-            subtitle={searchQuery ? t("notes.noResultsSubtitle") : t("notes.emptySubtitle")}
+            sticker={searchQuery.trim() || activeLabel ? "search" : "notes"}
+            action={{ label: searchQuery.trim() || activeLabel ? t("emptyStates.clearFilters") : t("notes.takeANote"), onPress: searchQuery.trim() || activeLabel ? () => { useNotesUIStore.getState().setSearchQuery(""); useNotesUIStore.getState().setActiveLabel(null); } : handleCreateNote }}
+            title={searchQuery.trim() || activeLabel ? t("notes.noResultsTitle") : t("notes.emptyTitle")}
+            subtitle={searchQuery.trim() || activeLabel ? t("notes.noResultsSubtitle") : t("notes.emptySubtitle")}
           />
         ) : (
           <View className="gap-4">
@@ -358,16 +357,5 @@ function SectionLabel({ children }: { children: string }) {
     <Text className="ml-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
       {children}
     </Text>
-  );
-}
-
-function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
-  const { colors } = useColorScheme();
-  return (
-    <View className="items-center justify-center py-20">
-      <StickyNoteIcon size={64} color={colors.mutedForeground} />
-      <Text className="mt-4 text-base font-semibold text-foreground">{title}</Text>
-      <Text className="mt-1 text-center text-sm text-muted-foreground">{subtitle}</Text>
-    </View>
   );
 }

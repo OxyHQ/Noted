@@ -1,23 +1,19 @@
-import { Link, Stack } from 'expo-router';
-import { View, Text } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { View } from 'react-native';
 import Head from 'expo-router/head';
+import { EmptyState } from '@/components/empty-state';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function NotFoundScreen() {
-  return (
-    <>
-      <Head>
-        <title>404 - Page Not Found | Noted</title>
-        <meta name="description" content="The page you're looking for doesn't exist. Return to Noted to continue with your notes." />
-        <meta name="robots" content="noindex, nofollow" />
-      </Head>
-      <Stack.Screen options={{ title: 'Oops!' }} />
-      <View className="flex-1 items-center justify-center p-5 bg-background">
-        <Text className="text-xl font-bold text-foreground">This screen doesn't exist.</Text>
-
-        <Link href="/" className="mt-4 py-4">
-          <Text className="text-sm text-primary">Go to home screen!</Text>
-        </Link>
-      </View>
-    </>
-  );
+  const { t } = useTranslation();
+  const router = useRouter();
+  return <>
+    <Head><title>404 | Noted</title><meta name="robots" content="noindex, nofollow" /></Head>
+    <Stack.Screen options={{ title: t('emptyStates.notFoundTitle') }} />
+    <View className="flex-1 justify-center bg-background">
+      <EmptyState sticker="notFound" title={t('emptyStates.notFoundTitle')}
+        subtitle={t('emptyStates.notFoundSubtitle')}
+        action={{ label: t('emptyStates.backToNotes'), onPress: () => router.replace('/') }} />
+    </View>
+  </>;
 }

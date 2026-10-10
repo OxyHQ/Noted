@@ -28,7 +28,9 @@
     "done": "Concluído",
     "authorize": "Authorize",
     "tryAgain": "Tentar novamente",
-    "undo": "Desfazer"
+    "undo": "Desfazer",
+    "retry": "Try again",
+    "clear": "Clear"
   },
   "login": {
     "title": "Sign in or sign up",
@@ -1151,7 +1153,25 @@
     "deleteLabel": "Delete label",
     "deleteLabelConfirm": "This label will be removed from all notes. The notes are not deleted.",
     "exportMarkdown": "Export as Markdown",
-    "exportFailed": "The note could not be exported."
+    "exportFailed": "The note could not be exported.",
+    "saveStatus": {
+      "saved": "Saved on this device",
+      "unsaved": "Unsaved changes",
+      "saving": "Saving…",
+      "error": "Could not save. Your changes are still here."
+    },
+    "notFoundTitle": "Note not found",
+    "notFoundSubtitle": "This note may have been deleted or belong to a different account.",
+    "loadFailed": "Could not open this note",
+    "loadFailedSubtitle": "Try again to read the note stored on this device.",
+    "discardDraftTitle": "Discard this draft?",
+    "discardDraftSubtitle": "Your unsaved changes will be lost.",
+    "discardDraft": "Discard draft",
+    "keepEditing": "Keep editing",
+    "quickSaveFailed": "Could not save. Your draft is still here.",
+    "removeItem": "Remove item",
+    "loadAttachmentFailed": "Could not load this attachment",
+    "openAttachmentFailed": "Could not open this attachment"
   },
   "capture": {
     "start": "Iniciar",
@@ -1268,5 +1288,22 @@
     "quotaUsage": "%{reserved} GB counted against quota; %{available} GB available for admission",
     "holds": "%{held} GB also held by trash, pending uploads or cleanup. Space remains reserved until Oxy releases it.",
     "reservationsUnknown": "Reserved quota is unavailable. Available upload space cannot be calculated."
+  },
+  "emptyStates": {
+    "storeErrorTitle": "Your notes could not be opened",
+    "storeErrorSubtitle": "Noted needs device storage to open your notes. Try again, or check that storage is available in your browser or device settings.",
+    "retry": "Try again",
+    "signIn": "Sign in with Oxy",
+    "loadingTitle": "Getting your notes ready",
+    "loadingSubtitle": "Opening your private workspace on this device.",
+    "backToNotes": "Back to notes",
+    "clearFilters": "Clear filters",
+    "labelsSubtitle": "Create a label to keep related notes together.",
+    "notificationsTitle": "You’re all caught up",
+    "notificationsSubtitle": "Set reminders on your notes to see notifications here.",
+    "notificationsError": "Notifications could not be loaded",
+    "notificationsErrorSubtitle": "Check your connection and try again.",
+    "notFoundTitle": "This page could not be found",
+    "notFoundSubtitle": "The link may be outdated. Your notes are still on the home screen."
   }
 }

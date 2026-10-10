@@ -19,6 +19,8 @@
  *   recording can only ever be started by the user, in the foreground.
  */
 
+import { getActiveViewerId } from '@/lib/db/client';
+
 import {
   getRecordingPermissionsAsync,
   RecordingPresets,
@@ -106,6 +108,7 @@ export function useRecorder(
   // When the recording began, which is what names an untitled note and anchors
   // every transcript timestamp.
   const startedAtRef = useRef<Date | null>(null);
+  const viewerRef = useRef<string | null>(null);
 
   // Read through a ref so re-rendering with a new string (a language change)
   // does not re-run the effect that owns the microphone.
@@ -114,6 +117,8 @@ export function useRecorder(
 
   useEffect(() => {
     if (!enabled) return;
+    const expectedViewerId = getActiveViewerId();
+    viewerRef.current = expectedViewerId;
 
     let active = true;
     setPhase('starting');
@@ -149,7 +154,7 @@ export function useRecorder(
         // moment later, this is the only record that the recording existed. The
         // path is filled in on stop, since on web it is whatever URL the
         // recorder mints.
-        await beginCapture({ id: captureId, noteId, audioPath: '' });
+        await beginCapture({ id: captureId, noteId, audioPath: '' }, expectedViewerId);
 
         await recorder.prepareToRecordAsync();
         if (!active) return;
@@ -164,7 +169,7 @@ export function useRecorder(
       } catch (error) {
         stopBackgroundCapture();
         logger.error('Could not start recording', { error: String(error) });
-        await failCapture(captureId, 'capture_start').catch(() => undefined);
+        await failCapture(captureId, 'capture_start', expectedViewerId).catch(() => undefined);
         if (active) setPhase('error');
       }
     })();
@@ -215,7 +220,7 @@ export function useRecorder(
         audioPath = `captures/${captureId}/audio.${extension}`;
       }
 
-      await finishCapture(captureId, durationRef.current, audioPath);
+      await finishCapture(captureId, durationRef.current, audioPath, viewerRef.current);
       setPhase('saved');
 
       // Deliberately NOT awaited: transcribing an hour-long meeting takes
@@ -223,6 +228,7 @@ export function useRecorder(
       // row carries the state, so the work is visible without holding up the
       // person who pressed stop.
       void transcribeAfterStop({
+        expectedViewerId: viewerRef.current,
         captureId,
         noteId,
         audioPath,
@@ -233,7 +239,7 @@ export function useRecorder(
     } catch (error) {
       stopBackgroundCapture();
       logger.error('Could not save the recording', { error: String(error) });
-      await failCapture(captureId, 'persist_audio').catch(() => undefined);
+      await failCapture(captureId, 'persist_audio', viewerRef.current).catch(() => undefined);
       setPhase('error');
       return 'failed';
     }

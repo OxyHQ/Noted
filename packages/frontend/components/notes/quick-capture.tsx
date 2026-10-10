@@ -18,7 +18,8 @@ import { DEFAULT_NEW_NOTE_COLOR, type NoteColor } from "@noted/shared-types";
 
 interface QuickCaptureProps {
   /** Create a plain note from the composed title/body/color. */
-  onCreate: (input: { title: string; body: string; color?: NoteColor }) => void;
+  onCreate: (input: { title: string; body: string; color?: NoteColor; archived?: boolean }) => Promise<{ id: string }>;
+  onOpenNote: (id: string, mode: "checklist" | "attachment") => void;
   /** Open the full editor in checklist mode for a new note. */
   onCreateChecklist: () => void;
   /** Open the full editor for a new note with an attachment. */
@@ -33,6 +34,7 @@ function ToolButton({
   onPress,
   active,
   activeColor,
+  disabled,
 }: {
   icon: typeof Palette;
   label: string;
@@ -40,10 +42,13 @@ function ToolButton({
   onPress: () => void;
   active?: boolean;
   activeColor?: string;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       accessibilityLabel={label}
       className="h-9 w-9 items-center justify-center rounded-full web:transition active:bg-foreground/10 web:hover:bg-foreground/10"
     >
@@ -60,6 +65,7 @@ function ToolButton({
  */
 export function QuickCapture({
   onCreate,
+  onOpenNote,
   onCreateChecklist,
   onCreateAttachment,
 }: QuickCaptureProps) {
@@ -71,6 +77,10 @@ export function QuickCapture({
   const [body, setBody] = React.useState("");
   const [color, setColor] = React.useState<NoteColor>(DEFAULT_NEW_NOTE_COLOR);
   const [colorOpen, setColorOpen] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [saveFailed, setSaveFailed] = React.useState(false);
+  const [discardOpen, setDiscardOpen] = React.useState(false);
+  const savingRef = React.useRef(false);
   const bodyRef = React.useRef<TextInput>(null);
 
   const tint = getNoteColorTint(color, colorScheme);
@@ -81,29 +91,41 @@ export function QuickCapture({
     setColor(DEFAULT_NEW_NOTE_COLOR);
     setColorOpen(false);
     setExpanded(false);
+    setSaveFailed(false);
+    setDiscardOpen(false);
   }, []);
 
-  const commit = React.useCallback(() => {
+  const commit = React.useCallback(async (archived = false, mode?: "checklist" | "attachment") => {
+    if (savingRef.current) return;
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
-    if (trimmedTitle || trimmedBody) {
-      // `color` is always a real color now (default is yellow), so always send it.
-      onCreate({ title: trimmedTitle, body: trimmedBody, color });
+    if (!trimmedTitle && !trimmedBody) {
+      reset();
+      if (mode === "checklist") onCreateChecklist();
+      if (mode === "attachment") onCreateAttachment();
+      return;
     }
-    reset();
-  }, [title, body, color, onCreate, reset]);
+    savingRef.current = true;
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      const created = await onCreate({ title: trimmedTitle, body: trimmedBody, color, archived });
+      reset();
+      if (mode) onOpenNote(created.id, mode);
+    } catch {
+      // The mutation reports its error; keep the complete draft available to retry.
+      setSaveFailed(true);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }, [title, body, color, onCreate, onOpenNote, onCreateChecklist, onCreateAttachment, reset]);
 
   const expand = React.useCallback(() => {
     setExpanded(true);
     // Focus the body after the layout expands.
     requestAnimationFrame(() => bodyRef.current?.focus());
   }, []);
-
-  const handleArchive = React.useCallback(() => {
-    // Saving from the composer archive shortcut just commits the note for now;
-    // a full create-and-archive flow lives in the editor.
-    commit();
-  }, [commit]);
 
   const layout = reduceMotion ? undefined : LinearTransition.duration(200);
   const fadeIn = reduceMotion ? undefined : FadeIn.duration(180);
@@ -149,6 +171,8 @@ export function QuickCapture({
       }}
     >
       <TextInput
+        editable={!saving}
+        accessibilityLabel={t("notes.titlePlaceholder")}
         value={title}
         onChangeText={setTitle}
         placeholder={t("notes.titlePlaceholder")}
@@ -158,6 +182,8 @@ export function QuickCapture({
         onSubmitEditing={() => bodyRef.current?.focus()}
       />
       <TextInput
+        editable={!saving}
+        accessibilityLabel={t("notes.takeANote")}
         ref={bodyRef}
         value={body}
         onChangeText={setBody}
@@ -166,18 +192,21 @@ export function QuickCapture({
         className="min-h-[44px] py-1 text-base text-foreground"
         multiline
       />
+      {saveFailed && <Text accessibilityRole="alert" className="py-2 text-sm text-destructive">{t("notes.quickSaveFailed")}</Text>}
       <View className="mt-1 flex-row items-center justify-between">
         <View className="flex-row items-center gap-0.5">
           <ToolButton
             icon={CheckSquare}
             label={t("notes.newChecklist")}
             color={colors.mutedForeground}
-            onPress={onCreateChecklist}
+            disabled={saving}
+            onPress={() => { void commit(false, "checklist"); }}
           />
           <ToolButton
             icon={Palette}
             label={t("notes.color")}
             color={colors.mutedForeground}
+            disabled={saving}
             onPress={() => setColorOpen(true)}
             active={color !== DEFAULT_NEW_NOTE_COLOR}
             activeColor={colors.foreground}
@@ -186,32 +215,46 @@ export function QuickCapture({
             icon={Paperclip}
             label={t("notes.attachFile")}
             color={colors.mutedForeground}
-            onPress={onCreateAttachment}
+            disabled={saving}
+            onPress={() => { void commit(false, "attachment"); }}
           />
           <ToolButton
             icon={Archive}
             label={t("notes.archive")}
             color={colors.mutedForeground}
-            onPress={handleArchive}
+            disabled={saving}
+            onPress={() => { void commit(true); }}
           />
         </View>
         <Pressable
-          onPress={commit}
+          disabled={saving}
+          onPress={() => { void commit(); }}
           className="h-9 items-center justify-center rounded-lg px-4 web:transition active:bg-foreground/10 web:hover:bg-foreground/10"
         >
           <Text className="text-sm font-semibold text-foreground">
-            {t("common.close")}
+            {t(saving ? "notes.saveStatus.saving" : "common.close")}
           </Text>
         </Pressable>
       </View>
       <Pressable
-        onPress={reset}
+        disabled={saving}
+        onPress={() => title.trim() || body.trim() ? setDiscardOpen(true) : reset()}
         accessibilityLabel={t("common.cancel")}
         className="absolute right-2 top-2 h-7 w-7 items-center justify-center rounded-full web:transition active:bg-foreground/10 web:hover:bg-foreground/10"
       >
         <X size={14} color={colors.mutedForeground} />
       </Pressable>
 
+      <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t("notes.discardDraftTitle")}</DialogTitle></DialogHeader>
+          <Text className="text-sm text-muted-foreground">{t("notes.discardDraftSubtitle")}</Text>
+          <View className="flex-row justify-end gap-4">
+            <Pressable onPress={() => setDiscardOpen(false)}><Text>{t("notes.keepEditing")}</Text></Pressable>
+            <Pressable onPress={reset}><Text className="text-destructive">{t("notes.discardDraft")}</Text></Pressable>
+          </View>
+        </DialogContent>
+      </Dialog>
       <Dialog open={colorOpen} onOpenChange={setColorOpen}>
         <DialogContent className="max-w-xs">
           <DialogHeader>

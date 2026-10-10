@@ -1,26 +1,17 @@
-# Noted by Oxy - Robots.txt
-# Updated: 2026-06-21
-
-# Google, Bing, and major search engines
-User-agent: Googlebot
-User-agent: Bingbot
-User-agent: Slurp
-User-agent: DuckDuckBot
+# Noted's welcome page is public. Account content is not a search destination.
+User-agent: *
 Allow: /
-Disallow: /settings/
 Disallow: /n/
+Disallow: /settings
 Disallow: /archive
 Disallow: /trash
+Disallow: /labels
+Disallow: /reminders
+Disallow: /notifications
+Disallow: /authorize
+Disallow: /forgot-password
 Disallow: /reset-password
-Disallow: /telegram-auth
-Crawl-delay: 0
 
-# Public, indexable entry points
-Allow: /
-Allow: /login
-Allow: /register
-
-# Block aggressive scraping bots
 User-agent: AhrefsBot
 User-agent: SemrushBot
 User-agent: MJ12bot
@@ -28,17 +19,4 @@ User-agent: DotBot
 User-agent: BLEXBot
 Disallow: /
 
-# All other bots
-User-agent: *
-Allow: /
-Disallow: /settings/
-Disallow: /n/
-Disallow: /archive
-Disallow: /trash
-Disallow: /reset-password
-Disallow: /telegram-auth
-
-# Sitemaps
 Sitemap: https://noted.oxy.so/sitemap.xml
-
-# Host: https://noted.oxy.so

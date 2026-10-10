@@ -28,6 +28,13 @@ describe('the editor', () => {
     expect(EDITOR).toContain('export default function NoteEditorScreen');
   });
 
+  it('uses the removal guard from the same navigation context as Expo Router', () => {
+    // SDK 56 owns its navigation context. The upstream hook typechecks but
+    // throws "Could not find a navigation object" when opening a real editor.
+    expect(EDITOR).toContain('import { usePreventRemove } from "expo-router/react-navigation"');
+    expect(EDITOR).not.toContain('from "@react-navigation/native"');
+  });
+
   it('asks one question about emptiness, in both places', () => {
     // Two copies of "is this empty" drift, and the drift shows up as a note that
     // could be created but not kept — or worse, kept but not created.
@@ -35,14 +42,14 @@ describe('the editor', () => {
   });
 
   it('throws the note away when it is left empty', () => {
-    expect(EDITOR).toContain('deleteNote.mutate(id)');
+    expect(EDITOR).toContain('await deleteNote.mutateAsync(id)');
   });
 
   it('will not delete a note it has not loaded yet', () => {
     // `base` is null until the note arrives and the draft starts blank, so
     // without this, opening an existing note and closing it before it loads
     // reads as "the user emptied this".
-    expect(EDITOR).toMatch(/if \(!id \|\| !base\) return;/);
+    expect(EDITOR).toContain("usePreventRemove(isNew || base !== null");
   });
 
   it('compares the user half of the body, not the composed one', () => {

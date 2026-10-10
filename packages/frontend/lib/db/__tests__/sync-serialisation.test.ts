@@ -23,6 +23,7 @@ vi.mock('@/lib/db/client', () => ({
   execute: (...args: unknown[]) => execute(...args),
   executeTransaction: (...args: unknown[]) => executeTransaction(...args),
   isDbAvailable: () => true,
+  getActiveViewerId: () => 'alice',
   // Sync reads the artifacts repo, which also exposes React bindings built on
   // the store's change signal. Nothing here subscribes; the export has to exist
   // for the module to load at all.
@@ -31,7 +32,7 @@ vi.mock('@/lib/db/client', () => ({
 
 const get = vi.fn();
 vi.mock('@/lib/api/client', () => ({
-  default: { get: (...args: unknown[]) => get(...args), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  default: { isAccountActive: () => true, get: (...args: unknown[]) => get(...args), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
 vi.mock('@/lib/db/labels-repo', () => ({ saveLabels: vi.fn(() => Promise.resolve()) }));

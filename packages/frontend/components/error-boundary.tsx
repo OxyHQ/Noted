@@ -15,7 +15,7 @@ interface ErrorBoundaryState {
 
 /**
  * A reusable error boundary that catches JavaScript errors in its child
- * component tree, reports them to Sentry, and displays a user-friendly
+ * component tree, reports them when Sentry is configured, and displays a
  * recovery screen.
  */
 export class AppErrorBoundary extends React.Component<
@@ -150,8 +150,8 @@ function ErrorFallback({
             marginBottom: 24,
           }}
         >
-          An unexpected error occurred. You can try again, and if the problem
-          persists, our team has been notified.
+          An unexpected error occurred. Try again. If the problem continues,
+          close and reopen Noted.
         </Text>
 
         {/* Error details (collapsible in dev) */}

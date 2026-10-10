@@ -9,6 +9,8 @@ import { Image } from "expo-image";
 import { Paperclip } from "lucide-react-native";
 import { useOxy } from "@oxy.so/services";
 import { Text } from "@/components/ui/text";
+import { EmptyState } from "@/components/empty-state";
+import { toast } from "@oxy.so/bloom/toast";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useFileMetadata } from "@/lib/hooks/use-file-metadata";
@@ -81,13 +83,14 @@ function EditorAttachmentItem({
   gallery: GalleryController;
 }) {
   const { oxyServices } = useOxy();
-  const { data, isLoading } = useFileMetadata(fileId);
+  const { t } = useTranslation();
+  const { data, isLoading, isError, refetch } = useFileMetadata(fileId);
   const category = categorizeContentType(data?.contentType);
 
   const openFile = useCallback(() => {
     const url = oxyServices.assets.publicUrl(fileId);
-    void Linking.openURL(url);
-  }, [oxyServices, fileId]);
+    void Linking.openURL(url).catch(() => toast.error(t("notes.openAttachmentFailed")));
+  }, [oxyServices, fileId, t]);
 
   const remove = useCallback(() => onRemove?.(fileId), [onRemove, fileId]);
 
@@ -97,6 +100,17 @@ function EditorAttachmentItem({
       <View className="flex-row items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-2.5">
         <View className="h-9 w-9 rounded-lg bg-foreground/5" />
         <View className="h-3 flex-1 rounded bg-foreground/10" />
+      </View>
+    );
+  }
+
+  if (isError && !data) {
+    return (
+      <View className="flex-row items-center gap-2">
+        <View className="flex-1">
+          <EmptyState sticker="attachments" title={t("notes.loadAttachmentFailed")} action={{ label: t("common.retry"), onPress: () => { void refetch(); } }} />
+        </View>
+        {onRemove ? <RemoveButton onPress={remove} /> : null}
       </View>
     );
   }

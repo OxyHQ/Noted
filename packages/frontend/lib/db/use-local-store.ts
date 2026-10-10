@@ -2,21 +2,26 @@
  * The local store's lifecycle: which account it belongs to, and when it talks to
  * the server.
  *
- * Mounted once in the authenticated layout. Everything below is a side effect on
+ * Mounted once above the root navigator. Everything below is a side effect on
  * an external system (a database file, a network) rather than rendered state, so
  * it lives in effects rather than being derived.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useOxy } from '@oxy.so/services';
 import { createLogger } from '@oxy.so/core/logger';
 
 import { recoverInterruptedCaptures } from '@/lib/capture/captures-repo';
-import { clearActiveViewer, getActiveViewerId, setActiveViewer } from '@/lib/db/client';
+import { clearActiveViewer, setActiveViewer } from '@/lib/db/client';
 import { newNoteId } from '@/lib/db/ids';
 import { syncNotes } from '@/lib/db/sync';
+
+import type { LocalStoreState } from '@/lib/db/local-store-context';
+import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
+import { useUndoStore } from '@/lib/stores/undo-store';
+import { useCaptureStore } from '@/lib/stores/capture-store';
 
 const logger = createLogger('NotedStore');
 
@@ -32,42 +37,60 @@ const SYNC_DEBOUNCE_MS = 750;
  * @returns whether the store is ready to be read. Screens must not query before
  *   it is: a query with no active account has no database file to open.
  */
-export function useLocalStore(): { isReady: boolean } {
+export function useLocalStore(): LocalStoreState {
   const { user, isAuthenticated } = useOxy();
   const viewerId = isAuthenticated ? user?.id : undefined;
-  const [isReady, setIsReady] = useState(false);
+  const [openedViewer, setOpenedViewer] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ viewerId: string; message: string } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => { setOpenedViewer(null); setAttempt(n => n + 1); }, []);
+  // Hide outgoing rows during render, before the account-switch effect runs.
+  const isReady = Boolean(viewerId && openedViewer === viewerId);
+  const error = failure && failure.viewerId === viewerId ? failure.message : null;
 
   useEffect(() => {
+    if (sharedSyncTimer !== null) { clearTimeout(sharedSyncTimer); sharedSyncTimer = null; }
+    useNotesUIStore.getState().clearSelection();
+    useNotesUIStore.getState().setActiveLabel(null);
+    useNotesUIStore.getState().setSearchQuery('');
+    useUndoStore.getState().dismissUndo();
+    useCaptureStore.getState().clearCapture();
+    setFailure(null);
     if (!viewerId) {
-      setIsReady(false);
-      // Only a real sign-out closes the store. This effect also runs once on
-      // every cold start, before the session has restored, and clearing there
-      // would install a fresh gate over the one the restore is about to open —
-      // leaving every query waiting on a promise nobody resolves.
-      if (getActiveViewerId() !== null) void clearActiveViewer();
+      setOpenedViewer(null);
+      // Queue the clear even when an outgoing open has not yet set its ID.
+      // The client preserves an unsettled viewer gate on a cold start.
+      void clearActiveViewer().catch(error => {
+        logger.error('Could not close the local store', { error: String(error) });
+      });
       return;
     }
 
     let active = true;
-    setIsReady(false);
-    void setActiveViewer(viewerId)
+    setOpenedViewer(null);
+    void (async () => {
+      if (attempt > 0) await clearActiveViewer();
+      if (active) await setActiveViewer(viewerId);
+    })()
       .then(async () => {
         // A capture still marked `recording` belongs to a process that no longer
         // exists — nothing else will ever move it forward, so it would sit there
         // claiming to be recording. Its audio is untouched on disk, which is what
         // makes transcribing it after the fact possible.
+        if (!active) return;
         const recovered = await recoverInterruptedCaptures();
         if (recovered > 0) logger.info('Recovered interrupted captures', { recovered });
-        if (active) setIsReady(true);
+        if (active) setOpenedViewer(viewerId);
       })
       .catch((error: unknown) => {
         logger.error('Could not open the local store', { error: String(error) });
+        if (active) setFailure({ viewerId, message: String(error) });
       });
 
     return () => {
       active = false;
     };
-  }, [viewerId]);
+  }, [viewerId, attempt]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -90,12 +113,13 @@ export function useLocalStore(): { isReady: boolean } {
     });
 
     return () => {
+      if (sharedSyncTimer !== null) { clearTimeout(sharedSyncTimer); sharedSyncTimer = null; }
       appStateSubscription.remove();
       netInfoUnsubscribe();
     };
   }, [isReady]);
 
-  return { isReady };
+  return { isReady, viewerId: viewerId ?? null, error, retry };
 }
 
 /**

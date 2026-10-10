@@ -43,6 +43,8 @@
  * the provisional one.
  */
 
+import { getActiveViewerId } from '@/lib/db/client';
+
 import { createLogger } from '@oxy.so/core/logger';
 
 import { audioRef } from '@/lib/audio/artifact-store';
@@ -112,6 +114,7 @@ function levelToDb(level: number): number {
 export async function startRealtimeTranscription(
   options: RealtimeOptions,
 ): Promise<RealtimeSession> {
+  const expectedViewerId = options.expectedViewerId === undefined ? getActiveViewerId() : options.expectedViewerId;
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
   });
@@ -220,7 +223,7 @@ export async function startRealtimeTranscription(
       if (segments.length === 0) return;
       // Persisted as they stabilise: a tab closed mid-meeting keeps everything
       // understood up to that point.
-      await upsertSegments(segments);
+      await upsertSegments(segments, expectedViewerId);
       options.onTranscriptChanged?.();
     });
   }

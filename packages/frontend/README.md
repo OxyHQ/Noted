@@ -40,3 +40,22 @@ must never use an `EXPO_PUBLIC_` variable.
 - **Unit tests do not catch layout, hover or animation bugs.** Verify those in a real, foregrounded browser tab.
 
 `AGENTS.md` at the repository root carries the standards that apply to every change here.
+
+## Editing and recovery
+
+The editor saves to SQLite before leaving a note. Its status describes the local
+save, not server sync: when a write fails, the draft stays open with a retry
+action. New-note creation and subsequent edits run in order, including edits made
+while the initial write is pending. Refreshing a browser with unsaved edits asks
+before leaving. Pending editor writes are cancelled when the editor unmounts,
+and writes carry the original account identity across asynchronous work.
+
+Quick capture keeps its title, body and color until creation succeeds. Its archive
+action creates an archived note, and checklist/file shortcuts continue editing the
+same saved note. Discarding a nonempty quick draft asks for confirmation. Checklist
+items can be added with Enter or the plus button; leaving the new-item field also
+commits its text.
+
+A browser storage failure offers recovery instructions without automatically
+clearing OPFS or deleting another account's data. A mismatched database owner is
+rejected rather than wiped. Attachment loading failures offer a retry action.
