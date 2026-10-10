@@ -11,19 +11,24 @@ import { FloatingBottomStack } from "@/components/floating-bottom-stack";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useNotificationSetup } from "@/lib/hooks/use-notification-setup";
 import { useNotesRealtime } from "@/lib/hooks/use-notes-realtime";
-import { useColorScheme } from "@/lib/useColorScheme";
+import { useSurfaceFill } from "@oxy.so/bloom/styles";
 
 /** Keep each routed screen behind account-scoped SQLite readiness. */
 function Scene({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const surfaceFill = useSurfaceFill();
   const { t } = useTranslation();
   const publicRoute = pathname.startsWith("/settings") || pathname.startsWith("/authorize") ||
     pathname === "/forgot-password" || pathname === "/reset-password";
-  if (publicRoute) return <View style={{ flex: 1 }}>{children}</View>;
-  return (
+  const content = publicRoute ? children : (
     <LocalStoreBoundary fallbackHeader={<NotesHeader title={t("notes.title")} />}>
       {children}
     </LocalStoreBoundary>
+  );
+  // Native retains stack scenes; each must cover the previous scene with the
+  // shell panel’s actual fill. Web routes stay in the document flow.
+  return Platform.OS === "web" ? content : (
+    <View style={{ flex: 1, backgroundColor: surfaceFill }}>{content}</View>
   );
 }
 const renderScene = ({ children }: { children: React.ReactNode }) => <Scene>{children}</Scene>;
@@ -33,7 +38,6 @@ export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const sidebar = useNotedSidebar(closeDrawer);
-  const { colors } = useColorScheme();
 
   useNotificationSetup();
   useNotesRealtime();
@@ -60,7 +64,7 @@ export default function AppLayout() {
           testID="noted-app-shell"
         >
           {Platform.OS === "web" ? <Scene><Slot /></Scene> : <Stack
-            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
+            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}
             screenLayout={renderScene}
           />}
         </AppShell>
