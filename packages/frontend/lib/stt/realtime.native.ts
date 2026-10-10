@@ -15,6 +15,8 @@
  * which is all it is asked for here.
  */
 
+import { getActiveViewerId } from '@/lib/db/client';
+
 import { initWhisper, type WhisperContext } from 'whisper.rn/index';
 // The `/index` suffix is required: whisper.rn's exports map declares `./*` and
 // `./*/`, and the bare directory specifier matches neither.
@@ -111,6 +113,7 @@ class MeteredAudioStream implements AudioStreamInterface {
 }
 
 export interface RealtimeOptions {
+  expectedViewerId?: string | null;
   captureId: string;
   model: SttModelId;
   /** BCP-47 code, or `auto`. */
@@ -208,6 +211,7 @@ function toSegments(
 export async function startRealtimeTranscription(
   options: RealtimeOptions,
 ): Promise<RealtimeSession> {
+  const expectedViewerId = options.expectedViewerId === undefined ? getActiveViewerId() : options.expectedViewerId;
   const whisperContext = await getContext(options.model);
   const onLevel = options.onLevel;
   const audioStream = onLevel
@@ -240,7 +244,7 @@ export async function startRealtimeTranscription(
         if (segments.length === 0) return;
         // Persisted as they stabilise rather than at the end: a meeting that
         // ends in a crash keeps everything understood up to that point.
-        void upsertSegments(segments)
+        void upsertSegments(segments, expectedViewerId)
           .then(() => options.onTranscriptChanged?.())
           .catch((error: unknown) => {
             logger.error('Could not store transcript segments', { error: String(error) });

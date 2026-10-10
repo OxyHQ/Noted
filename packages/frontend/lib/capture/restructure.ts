@@ -19,7 +19,7 @@
 import type { ChecklistItem } from '@noted/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
 
-import { execute } from '@/lib/db/client';
+import { execute, getActiveViewerId } from '@/lib/db/client';
 import {
   rowsToSegments,
   SEGMENTS_BY_CAPTURE_SQL,
@@ -84,6 +84,7 @@ function userChecklist(checklist: readonly ChecklistItem[]): ChecklistItem[] {
 }
 
 interface CaptureContext {
+  viewerId: string | null;
   note: LocalNote;
   segments: TranscriptSegment[];
   artifacts: NoteArtifacts;
@@ -103,13 +104,14 @@ async function readContext(
   captureId: string,
   noteId: string,
   startedAt: Date,
+  viewerId: string | null,
 ): Promise<CaptureContext | null> {
   const segments = rowsToSegments(
-    await execute<TranscriptSegmentRow>(SEGMENTS_BY_CAPTURE_SQL, [captureId]),
+    await execute<TranscriptSegmentRow>(SEGMENTS_BY_CAPTURE_SQL, [captureId], viewerId),
   );
   if (segments.length === 0) return null;
 
-  const note = await getNote(noteId);
+  const note = await getNote(noteId, viewerId);
   if (!note) {
     logger.debug('Skipped structuring a note that no longer exists', { noteId });
     return null;
@@ -117,10 +119,11 @@ async function readContext(
 
   const authored = userAuthoredPart(note, startedAt);
   return {
+    viewerId,
     note,
     segments,
-    artifacts: await getCaptureArtifacts(captureId),
-    overrides: overridesById(await getNoteOverrides(noteId)),
+    artifacts: await getCaptureArtifacts(captureId, viewerId),
+    overrides: overridesById(await getNoteOverrides(noteId, viewerId)),
     // What the app wrote last time comes out before anything is rebuilt.
     // Without this the note keeps its own previous output as if the user had
     // typed it, and every slice appends another copy of the same sections.
@@ -136,7 +139,7 @@ async function commit(
   artifact: Parameters<typeof saveArtifact>[0],
   startedAt: Date,
 ): Promise<boolean> {
-  const landed = await saveArtifact(artifact);
+  const landed = await saveArtifact(artifact, context.viewerId);
   if (!landed) {
     // An ordinary outcome: a newer revision, or the settled artifact, got there
     // first. Retrying is how a stale pass eventually wins, so it does not.
@@ -159,7 +162,7 @@ async function commit(
     checklist: composed.checklist,
     userBody: context.userBody,
     generatedBody: composed.generatedBody,
-  });
+  }, context.viewerId);
   return true;
 }
 
@@ -177,8 +180,9 @@ export async function restructureNote(
   noteId: string,
   startedAt: Date,
   transcriptRevision = 0,
+  expectedViewerId = getActiveViewerId(),
 ): Promise<void> {
-  const context = await readContext(captureId, noteId, startedAt);
+  const context = await readContext(captureId, noteId, startedAt, expectedViewerId);
   if (!context) return;
 
   const built = buildDeterministicArtifact({
@@ -212,8 +216,9 @@ export async function finalizeNote(
   noteId: string,
   startedAt: Date,
   transcriptRevision = 0,
+  expectedViewerId = getActiveViewerId(),
 ): Promise<void> {
-  const context = await readContext(captureId, noteId, startedAt);
+  const context = await readContext(captureId, noteId, startedAt, expectedViewerId);
   if (!context) return;
 
   const now = new Date().toISOString();
@@ -256,8 +261,9 @@ export async function enhanceNote(
   startedAt: Date,
   language: string,
   transcriptRevision = 0,
+  expectedViewerId = getActiveViewerId(),
 ): Promise<EnhancementOutcome> {
-  const context = await readContext(captureId, noteId, startedAt);
+  const context = await readContext(captureId, noteId, startedAt, expectedViewerId);
   // No capture and no settled artifact are both "there is nothing to improve",
   // which is a state of the WORK rather than of the device — reporting them as
   // unsupported hardware is what this whole outcome type exists to stop.

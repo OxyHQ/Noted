@@ -8,6 +8,8 @@
  * with a path the session hands back rather than one chosen up front.
  */
 
+import { getActiveViewerId } from '@/lib/db/client';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createLogger } from '@oxy.so/core/logger';
 
@@ -75,6 +77,7 @@ export function useRealtimeRecorder(
 
   useEffect(() => {
     if (!enabled) return;
+    const expectedViewerId = getActiveViewerId();
 
     let active = true;
     setPhase('starting');
@@ -86,9 +89,10 @@ export function useRealtimeRecorder(
         // Written before the microphone opens, as on the phone: if the tab dies
         // a moment later, this row is the only record the recording existed.
         // The path is empty because a blob has no URL until it is finished.
-        await beginCapture({ id: captureId, noteId, audioPath: '' });
+        await beginCapture({ id: captureId, noteId, audioPath: '' }, expectedViewerId);
 
         const coordinator = createLiveCoordinator({
+          expectedViewerId,
           captureId,
           noteId,
           startedAt,
@@ -97,6 +101,7 @@ export function useRealtimeRecorder(
         coordinatorRef.current = coordinator;
 
         const session = await startRealtimeTranscription({
+          expectedViewerId,
           captureId,
           model: optionsRef.current.model,
           language: optionsRef.current.language,
@@ -127,6 +132,8 @@ export function useRealtimeRecorder(
         await coordinator.markRecording();
         setPhase('recording');
       } catch (error) {
+        await sessionRef.current?.stop().catch(() => undefined);
+        sessionRef.current = null;
         // The usual cause is the user declining the microphone, which the
         // browser reports as a `NotAllowedError` rather than a permission API.
         const denied = error instanceof DOMException && error.name === 'NotAllowedError';
@@ -168,7 +175,7 @@ export function useRealtimeRecorder(
     setPhase('saving');
     try {
       const coordinator = coordinatorRef.current;
-      await coordinator?.markStopping();
+      await coordinator?.markStopping().catch(() => undefined);
 
       // The session finishes its last slice before returning, so the audio and
       // the transcript end at the same moment.

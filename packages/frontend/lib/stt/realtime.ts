@@ -26,6 +26,7 @@ export interface RealtimeSession {
 }
 
 export interface RealtimeOptions {
+  expectedViewerId?: string | null;
   captureId: string;
   model: SttModelId;
   /** BCP-47 code, or `auto`. */

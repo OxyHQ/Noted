@@ -13,6 +13,8 @@
  * blocking the person who pressed stop.
  */
 
+import { getActiveViewerId } from '@/lib/db/client';
+
 import { createLogger } from '@oxy.so/core/logger';
 
 import {
@@ -33,6 +35,7 @@ function isLanguage(value: unknown): value is string {
 }
 
 export interface DeferredTranscription {
+  expectedViewerId?: string | null;
   captureId: string;
   noteId: string;
   audioPath: string;
@@ -47,6 +50,7 @@ export interface DeferredTranscription {
  * what was understood and the work is not repeated from scratch.
  */
 export async function transcribeAfterStop(request: DeferredTranscription): Promise<void> {
+  const expectedViewerId = request.expectedViewerId === undefined ? getActiveViewerId() : request.expectedViewerId;
   const engine = getSttEngine();
   if (!engine.isSupported()) return;
   if (request.audioPath === '') return;
@@ -59,7 +63,7 @@ export async function transcribeAfterStop(request: DeferredTranscription): Promi
     // Said out loud before the work starts, so a process that dies half-way
     // leaves a row describing what it was doing rather than one that still looks
     // untouched.
-    await setCaptureLifecycle(request.captureId, { transcription: 'running' });
+    await setCaptureLifecycle(request.captureId, { transcription: 'running' }, expectedViewerId);
 
     const segments = await engine.transcribe({
       audioPath: request.audioPath,
@@ -71,30 +75,30 @@ export async function transcribeAfterStop(request: DeferredTranscription): Promi
     if (segments.length === 0) {
       // A recording of silence is not a failure, but it is not a note either.
       // Marked complete so nothing retries it forever.
-      await completeCapture(request.captureId);
+      await completeCapture(request.captureId, expectedViewerId);
       return;
     }
 
-    await upsertSegments(segments);
+    await upsertSegments(segments, expectedViewerId);
     await setCaptureLifecycle(request.captureId, {
       transcription: 'complete',
       generation: 'finalizing',
-    });
-    await restructureNote(request.captureId, request.noteId, request.startedAt);
+    }, expectedViewerId);
+    await restructureNote(request.captureId, request.noteId, request.startedAt, 0, expectedViewerId);
 
     // Only after the note exists: the model is the improvement, never the
     // thing standing between the user and having a note at all.
-    await enhanceNote(request.captureId, request.noteId, request.startedAt, language).catch(
+    await enhanceNote(request.captureId, request.noteId, request.startedAt, language, 0, expectedViewerId).catch(
       (error: unknown) => {
         logger.error('Could not enhance the note', { error: String(error) });
       },
     );
-    await setCaptureLifecycle(request.captureId, { generation: 'complete', errorCode: null });
+    await setCaptureLifecycle(request.captureId, { generation: 'complete', errorCode: null }, expectedViewerId);
   } catch (error) {
     logger.error('Could not transcribe the recording', { error: String(error) });
     // The audio is still on disk (or still in the page), so this is recoverable
     // rather than lost — which is why the capture is marked failed rather than
     // deleted.
-    await failCapture(request.captureId, 'transcribe').catch(() => undefined);
+    await failCapture(request.captureId, 'transcribe', expectedViewerId).catch(() => undefined);
   }
 }

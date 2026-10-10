@@ -12,6 +12,8 @@
  * both satisfy the same `Recorder` contract so no screen has to know.
  */
 
+import { getActiveViewerId } from '@/lib/db/client';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getRecordingPermissionsAsync,
@@ -79,6 +81,7 @@ export function useRealtimeRecorder(
 
   useEffect(() => {
     if (!enabled) return;
+    const expectedViewerId = getActiveViewerId();
 
     let active = true;
     setPhase('starting');
@@ -113,9 +116,10 @@ export function useRealtimeRecorder(
         // later this row is the only record that the recording existed. The path
         // is known up front here, unlike the compressed engine, because the
         // transcriber is told where to write.
-        await beginCapture({ id: captureId, noteId, audioPath });
+        await beginCapture({ id: captureId, noteId, audioPath }, expectedViewerId);
 
         const coordinator = createLiveCoordinator({
+          expectedViewerId,
           captureId,
           noteId,
           startedAt,
@@ -132,6 +136,7 @@ export function useRealtimeRecorder(
         );
 
         const session = await startRealtimeTranscription({
+          expectedViewerId,
           captureId,
           model: optionsRef.current.model,
           language: optionsRef.current.language,
@@ -163,6 +168,8 @@ export function useRealtimeRecorder(
         await coordinator.markRecording();
         setPhase('recording');
       } catch (error) {
+        await sessionRef.current?.stop().catch(() => undefined);
+        sessionRef.current = null;
         stopBackgroundCapture();
         logger.error('Could not start recording', { error: String(error) });
         await coordinatorRef.current?.markFailed('capture_start').catch(() => undefined);
@@ -202,7 +209,7 @@ export function useRealtimeRecorder(
     setPhase('saving');
     try {
       const coordinator = coordinatorRef.current;
-      await coordinator?.markStopping();
+      await coordinator?.markStopping().catch(() => undefined);
 
       // The session finishes its last slice before returning, so the tail — the
       // part carrying whatever was agreed at the end — is in the transcript

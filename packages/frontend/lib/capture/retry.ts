@@ -13,6 +13,9 @@
  * what it was doing.
  */
 
+import { getActiveViewerId } from '@/lib/db/client';
+import { lifecycleFor } from '@/lib/capture/coordinator';
+
 import { createLogger } from '@oxy.so/core/logger';
 
 import { setCaptureLifecycle, type Capture } from '@/lib/capture/captures-repo';
@@ -44,9 +47,10 @@ function isLanguage(value: unknown): value is string {
 export async function regenerateWithProfile(
   capture: Capture,
   profile: CaptureProfile,
+  expectedViewerId = getActiveViewerId(),
 ): Promise<void> {
-  await setCaptureLifecycle(capture.id, { profile });
-  await retryCapture({ ...capture, profile }, 'notes');
+  await setCaptureLifecycle(capture.id, { profile }, expectedViewerId);
+  await retryCapture({ ...capture, profile }, 'notes', expectedViewerId);
 }
 
 /**
@@ -55,14 +59,14 @@ export async function regenerateWithProfile(
  * @returns whether anything was attempted. `false` means there was nothing to
  *   retry, which is what a stale button press looks like.
  */
-export async function retryCapture(capture: Capture, what: CaptureRetry): Promise<boolean> {
+export async function retryCapture(capture: Capture, what: CaptureRetry, expectedViewerId = getActiveViewerId()): Promise<boolean> {
   if (what === null) return false;
   const startedAt = new Date(capture.startedAt);
 
   if (what === 'enhancement') {
     // Only the improvement. The note is already written, and re-running the
     // rule-based pass that wrote it costs time and changes nothing.
-    await setCaptureLifecycle(capture.id, { enhancement: 'running', errorCode: null });
+    await setCaptureLifecycle(capture.id, { enhancement: 'running', errorCode: null }, expectedViewerId);
     const language = await loadSetting(SETTING_KEYS.sttLanguage, isLanguage, 'auto');
     try {
       const improved = await enhanceNote(
@@ -71,17 +75,15 @@ export async function retryCapture(capture: Capture, what: CaptureRetry): Promis
         startedAt,
         language,
         capture.transcriptRevision,
+        expectedViewerId,
       );
-      await setCaptureLifecycle(capture.id, {
-        enhancement: improved ? 'complete' : 'unsupported',
-        errorCode: null,
-      });
+      await setCaptureLifecycle(capture.id, lifecycleFor(improved), expectedViewerId);
     } catch (error) {
       logger.error('The model could not improve the note on retry', { error: String(error) });
       await setCaptureLifecycle(capture.id, {
         enhancement: 'failed',
         errorCode: errorCodeOf(error, 'model_inference'),
-      });
+      }, expectedViewerId);
     }
     return true;
   }
@@ -93,8 +95,9 @@ export async function retryCapture(capture: Capture, what: CaptureRetry): Promis
       logger.warn('Cannot retry a transcript without audio', { captureId: capture.id });
       return false;
     }
-    await setCaptureLifecycle(capture.id, { transcription: 'pending', errorCode: null });
+    await setCaptureLifecycle(capture.id, { transcription: 'pending', errorCode: null }, expectedViewerId);
     await transcribeAfterStop({
+      expectedViewerId,
       captureId: capture.id,
       noteId: capture.noteId,
       audioPath: capture.audioPath,
@@ -105,16 +108,16 @@ export async function retryCapture(capture: Capture, what: CaptureRetry): Promis
 
   // `notes` means there is no note at all — the rule-based pass is what has to
   // run again, and it is the one that must always work.
-  await setCaptureLifecycle(capture.id, { generation: 'finalizing', errorCode: null });
+  await setCaptureLifecycle(capture.id, { generation: 'finalizing', errorCode: null }, expectedViewerId);
   try {
-    await finalizeNote(capture.id, capture.noteId, startedAt, capture.transcriptRevision);
-    await setCaptureLifecycle(capture.id, { generation: 'complete', errorCode: null });
+    await finalizeNote(capture.id, capture.noteId, startedAt, capture.transcriptRevision, expectedViewerId);
+    await setCaptureLifecycle(capture.id, { generation: 'complete', errorCode: null }, expectedViewerId);
   } catch (error) {
     logger.error('Could not write the notes on retry', { error: String(error) });
     await setCaptureLifecycle(capture.id, {
       generation: 'failed',
       errorCode: errorCodeOf(error, 'deterministic_generate'),
-    });
+    }, expectedViewerId);
   }
   return true;
 }
