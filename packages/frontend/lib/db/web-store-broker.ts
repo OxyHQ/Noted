@@ -51,6 +51,15 @@ interface BrokerOptions {
 const accountChanged = () => new Error('The active account changed before this write could be saved');
 const ownerChanged = () => new Error('The local notes connection changed before the operation was confirmed. Reopen the note to check it before retrying.');
 
+function needsDeduplication(operation: DatabaseOperation): boolean {
+  if (operation.type === 'transaction') return true;
+  // Ordinary live SELECTs can return entire notebooks. Do not retain hundreds
+  // of those snapshots just to deduplicate harmless duplicate reads. Treat
+  // unfamiliar or compound SQL conservatively rather than guessing it is safe.
+  const sql = operation.sql.trim().replace(/;$/, '');
+  return !/^SELECT\b/i.test(sql) || sql.includes(';') || writtenTables(sql).size > 0;
+}
+
 /** All tabs, including the owner, enter the same viewer-scoped dispatcher. */
 export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidate,
   now = Date.now, timeoutMs = DEFAULT_TIMEOUT_MS }: BrokerOptions) {
@@ -110,8 +119,8 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
     }
     if (now() > request.deadline) throw new Error('NOTED_BROKER_TIMEOUT: The local notes request expired before it could start.');
   }
-  function respond(message: Extract<Message, { kind: 'response' }>) {
-    completed.set(`${message.client}:${message.request}`, message);
+  function respond(message: Extract<Message, { kind: 'response' }>, deduplicate: boolean) {
+    if (deduplicate) completed.set(`${message.client}:${message.request}`, message);
     // Only duplicate delivery within one owner's lifetime is deduplicated.
     // An unanswered write is never replayed across an owner change.
     if (completed.size > 512) completed.delete(completed.keys().next().value!);
@@ -122,6 +131,7 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
     if (!term) return;
     if (request.epoch !== term.epoch) { emit({ kind: 'leader', term }); return; }
     rememberSession(request.client, request);
+    const deduplicate = needsDeduplication(request.operation);
     const execute = async () => {
       if (stopped) return;
       const cached = completed.get(`${request.client}:${request.request}`);
@@ -138,9 +148,9 @@ export function createDatabaseBroker({ id, channel, locks, dispatch, onInvalidat
           ? request.operation.statements.map(({ sql }) => sql) : [request.operation.sql];
         const changed = new Set(statements.flatMap((sql) => [...writtenTables(sql)]));
         if (changed.size) emit({ kind: 'invalidate', viewer: request.viewer, tables: [...changed], epoch: term.epoch });
-        respond({ ...response, result });
+        respond({ ...response, result }, deduplicate);
       } catch (error) {
-        respond({ ...response, error: error instanceof Error ? error.message : String(error) });
+        respond({ ...response, error: error instanceof Error ? error.message : String(error) }, deduplicate);
       }
     };
     serial = serial.then(execute, execute);

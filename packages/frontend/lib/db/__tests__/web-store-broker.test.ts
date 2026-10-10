@@ -55,6 +55,35 @@ function makeBroker(id: string, browser: ReturnType<typeof platform>, dispatch: 
 const read = { type: 'execute', sql: 'SELECT title FROM notes' } as const;
 const write = { type: 'transaction', statements: [{ sql: 'UPDATE notes SET title = ?', params: ['Changed'], expectedRowsAffected: 1 }] } as const;
 
+it('does not retain completed SELECT snapshots when the transport delivers a duplicate read', async () => {
+  const browser = platform();
+  const dispatch = vi.fn().mockResolvedValueOnce([{ title: 'Before' }]).mockResolvedValueOnce([{ title: 'After' }]);
+  const owner = makeBroker('owner', browser, dispatch);
+  owner.broker.setSession('alice', 1);
+  expect(await owner.broker.call('alice', 1, read)).toEqual([{ title: 'Before' }]);
+  const request = browser.calls.find(({ message }) => (message as { kind: string }).kind === 'request')!.message;
+  browser.channel('duplicate-delivery').postMessage(request);
+  await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2));
+  const responses = browser.calls.filter(({ message }) => (message as { kind: string }).kind === 'response');
+  expect(responses.at(-1)?.message).toMatchObject({ result: [{ title: 'After' }] });
+});
+
+it.each([
+  { name: 'transaction', operation: write },
+  { name: 'execute mutation', operation: { type: 'execute', sql: 'UPDATE notes SET title = ?', params: ['Changed'] } as const },
+  { name: 'unfamiliar SQL', operation: { type: 'execute', sql: 'PRAGMA user_version = 1' } as const },
+])('keeps same-request $name deduplicated', async ({ operation }) => {
+  const browser = platform();
+  const dispatch = vi.fn(async () => [1]);
+  const owner = makeBroker('owner', browser, dispatch);
+  owner.broker.setSession('alice', 1);
+  await owner.broker.call('alice', 1, operation);
+  const request = browser.calls.find(({ message }) => (message as { kind: string }).kind === 'request')!.message;
+  browser.channel('duplicate-delivery').postMessage(request);
+  await vi.waitFor(() => expect(browser.calls.filter(({ message }) => (message as { kind: string }).kind === 'response')).toHaveLength(2));
+  expect(dispatch).toHaveBeenCalledOnce();
+});
+
 it('serves simultaneous owner and follower operations through one atomic dispatcher', async () => {
   const browser = platform();
   let running = 0, maximum = 0;
