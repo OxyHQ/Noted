@@ -86,7 +86,7 @@ function AppContent() {
           }}
         >
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          {/* Editor presented as a transparent modal ABOVE the (app) drawer so
+          {/* Editor presented as a transparent modal ABOVE the (app) shell so
               the masonry grid + sidebar stay mounted and visible behind it —
               Keep-style overlay, not a page change. */}
           <Stack.Screen

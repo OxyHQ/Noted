@@ -60,3 +60,20 @@ commits its text.
 A browser storage failure offers recovery instructions without automatically
 clearing OPFS or deleting another account's data. A mismatched database owner is
 rejected rather than wiped. Attachment loading failures offer a retry action.
+
+## Settings ownership
+
+`NotedSettingsProvider` lives at the root, but loads Bloom's `SettingsModal` only
+when `useNotedSettings().open(section?)` is called. Settings own their controls;
+Bloom owns the navigation, responsive layout, scrolling, focus and dismissal.
+Account and language controls close settings before opening the Oxy-owned dialog.
+
+Existing `/settings` and `/settings/{general,storage,transcription,feedback}` links
+open the corresponding section over the notes route. They do not create a second
+settings sidebar or a separate settings screen. Appearance uses Bloom's preset
+catalogue names and gates; adding a Bloom preset must not require a Noted locale
+key before the settings dialog can open.
+
+Transcription controls mount inside `LocalStoreBoundary` only after the current
+account's SQLite store is ready. Signed-out users see the sign-in empty state;
+model downloads remain on the device, without an audio or transcript upload.
