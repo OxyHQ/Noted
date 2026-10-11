@@ -182,10 +182,6 @@ jobs:
             exit 1
           fi
 
-          for parameter in OXY_APPLICATION_KEY OXY_APPLICATION_SECRET; do
-            aws ssm get-parameter --name "/oxy/$APP/$parameter" --query 'Parameter.Name' --output text >/dev/null
-          done
-
           current_task_definition=$(jq -r '.services[0].taskDefinition' <<<"$service_json")
           echo "previous_task_definition=$current_task_definition" >>"$GITHUB_OUTPUT"
           source_file=$(mktemp)
@@ -197,8 +193,6 @@ jobs:
           jq \
             --arg app "$APP" \
             --arg image "$IMAGE_URI" \
-            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_APPLICATION_KEY" \
-            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_APPLICATION_SECRET" \
             --arg alia_api_url "$ALIA_API_URL" \
             --arg event_worker_enabled "$NOTED_EVENT_OUTBOX_WORKER_ENABLED" \
             '
@@ -214,14 +208,15 @@ jobs:
                         {name: "NOTED_EVENT_OUTBOX_WORKER_ENABLED", value: $event_worker_enabled}
                       ]
                     )
+                  # Noted authenticates to Oxy as its task role (oxy-noted-task,
+                  # bound to the Noted application; oxy ADR 0026), so a release
+                  # carries no application key pair and removes one an earlier
+                  # revision still names.
                   | .secrets = (
-                      ((.secrets // []) | map(select(
+                      (.secrets // []) | map(select(
                         .name != "OXY_APPLICATION_KEY" and
                         .name != "OXY_APPLICATION_SECRET"
-                      ))) + [
-                        {name: "OXY_APPLICATION_KEY", valueFrom: $key},
-                        {name: "OXY_APPLICATION_SECRET", valueFrom: $secret}
-                      ]
+                      ))
                     )
                 else . end
               )
