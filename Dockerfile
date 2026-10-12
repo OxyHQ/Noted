@@ -1,4 +1,11 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#
+# Every image this file pulls (the `# syntax` frontend on line 1, both base images
+# and the Bun binary below) is pinned by its multi-arch INDEX digest; the tag
+# beside it is for readers. The digest is what the build uses, so a re-pushed tag
+# changes nothing. Bumping one means resolving the new tag's index digest,
+# confirming it lists linux/arm64, and an owner re-review and re-pin of
+# .github/scripts/reviewed-images.json (`reviewed-image.py pin`).
 #
 # Production image for the @noted/backend service.
 #
@@ -34,12 +41,12 @@
 # ---------------------------------------------------------------------------
 # Stage 1: builder — install the full dependency graph and bundle the API.
 # ---------------------------------------------------------------------------
-FROM node:24.20-alpine AS builder
+FROM node:24.20-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS builder
 
 # Bun is the package manager / script runner at build time (and, from the runner
 # stage below, the runtime). The musl build from the matching alpine image works
 # on amd64 and arm64; it is the exact binary the runner stage ships.
-COPY --from=oven/bun:1.4.3-alpine /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
 
@@ -118,8 +125,8 @@ RUN rm -rf node_modules \
 # Stage 2: runner — minimal runtime with production deps and the bundle.
 # ---------------------------------------------------------------------------
 # The tag is the root package.json `packageManager` pin, like the builder's
-# COPY --from above; a Bun bump moves all three together.
-FROM oven/bun:1.4.3-alpine AS runner
+# COPY --from above; a Bun bump moves all three together, digests included.
+FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS runner
 
 ENV NODE_ENV=production \
     PORT=3001
