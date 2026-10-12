@@ -24,7 +24,7 @@ FROM node:24.20-alpine AS builder
 
 # Bun is the package manager / script runner at build time; the runtime stays
 # Node. The musl build from the matching alpine image works on amd64 and arm64.
-COPY --from=oven/bun:1.3.14-alpine /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=oven/bun:1.4.3-alpine /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
 
