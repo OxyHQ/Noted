@@ -19,11 +19,14 @@ bun run dev:frontend
 bun run dev:backend
 bun run lint            # Biome (lint + format check); bun run lint:fix to apply
 bun run build
-bun run --filter @noted/backend test
+bun run --filter @noted/backend test   # bun test; *.realdb need TEST_DATABASE_URL
+bun scripts/check-backend-entrypoints.ts  # built dist under bun; needs NOTED_ENTRYPOINTS_ADMIN_DATABASE_URL
 bun run db:migrate --target-database=noted_dev
 ```
 
-Use Bun only. Package order is `shared-types` before frontend/backend.
+Use Bun only. Package order is `shared-types` before frontend/backend. The API
+runs on Bun in production (`oven/bun` runner stage); every ECS command override
+in `deploy-aws.yml` names `bun` and moves together with the Dockerfile.
 
 ## Hard boundaries
 

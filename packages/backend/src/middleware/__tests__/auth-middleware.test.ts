@@ -1,19 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response, NextFunction } from 'express';
+import { beforeEach, describe, expect, it, type Mock, mock } from 'bun:test';
+import * as coreServer from '@oxy.so/core/server';
+import type { NextFunction, Request, Response } from 'express';
 
-vi.mock('../../lib/logger.js', () => ({
+// `mock.module` is not hoisted, so the module under test is imported after
+// these: `../auth.js` builds its Oxy client when it loads.
+mock.module('../../lib/logger.js', () => ({
   log: {
-    auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    auth: { info: mock(), warn: mock(), error: mock() },
   },
 }));
 
-vi.mock('../../lib/net-utils.js', () => ({
-  getClientIp: vi.fn(() => '127.0.0.1'),
+mock.module('../../lib/net-utils.js', () => ({
+  getClientIp: mock(() => '127.0.0.1'),
 }));
 
-vi.mock('@oxy.so/core/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@oxy.so/core/server')>();
-
+mock.module('@oxy.so/core/server', () => {
   interface MockAuthRequest extends Request {
     userId?: string;
     user?: { id: string };
@@ -28,18 +29,20 @@ vi.mock('@oxy.so/core/server', async (importOriginal) => {
 
   class MockOxyServer {
     middleware = {
-      auth: () => vi.fn(passThroughMiddleware),
-      service: () => vi.fn(passThroughMiddleware),
-      socket: () => vi.fn(),
+      auth: () => mock(passThroughMiddleware),
+      service: () => mock(passThroughMiddleware),
+      socket: () => mock(),
     };
   }
 
-  return { ...actual, OxyServer: MockOxyServer };
+  return { ...coreServer, OxyServer: MockOxyServer };
 });
 
-import { authenticateTelegramBot, authenticateTokenOrApiKey, requireScope } from '../auth.js';
+const { authenticateTelegramBot, authenticateTokenOrApiKey, requireScope } = await import(
+  '../auth.js'
+);
 
-type MockFn = ReturnType<typeof vi.fn>;
+type MockFn = Mock<(...args: unknown[]) => unknown>;
 
 function mockReq(overrides: Partial<Request> = {}): Request {
   return {
@@ -57,8 +60,8 @@ type MockResponse = Response & {
 
 function mockRes(): MockResponse {
   const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
+    status: mock().mockReturnThis(),
+    json: mock().mockReturnThis(),
     statusCode: 200,
   };
   return res as unknown as MockResponse;
@@ -66,7 +69,7 @@ function mockRes(): MockResponse {
 
 describe('auth middleware', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.clearAllMocks();
     delete process.env.TELEGRAM_BOT_SECRET;
     delete process.env.SERVICE_SECRET;
   });
@@ -75,7 +78,7 @@ describe('auth middleware', () => {
     it('rejects when TELEGRAM_BOT_SECRET is not configured', async () => {
       const req = mockReq({ headers: { 'x-telegram-bot-secret': 'some-secret' } });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       await authenticateTelegramBot(req, res, next);
 
@@ -88,7 +91,7 @@ describe('auth middleware', () => {
 
       const req = mockReq({ headers: {} });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       await authenticateTelegramBot(req, res, next);
 
@@ -100,7 +103,7 @@ describe('auth middleware', () => {
 
       const req = mockReq({ headers: { 'x-telegram-bot-secret': 'short' } });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       await authenticateTelegramBot(req, res, next);
 
@@ -117,7 +120,7 @@ describe('auth middleware', () => {
         },
       });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       await authenticateTelegramBot(req, res, next);
 
@@ -133,7 +136,7 @@ describe('auth middleware', () => {
         },
       });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       await authenticateTelegramBot(req, res, next);
 
@@ -151,7 +154,7 @@ describe('auth middleware', () => {
         },
       });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       await authenticateTelegramBot(req, res, next);
 
@@ -166,7 +169,7 @@ describe('auth middleware', () => {
       const req = mockReq();
       req.user = { id: 'user-1' };
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       authenticateTokenOrApiKey(req, res, next);
 
@@ -176,7 +179,7 @@ describe('auth middleware', () => {
     it('rejects when no auth is provided', () => {
       const req = mockReq();
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       authenticateTokenOrApiKey(req, res, next);
 
@@ -189,7 +192,7 @@ describe('auth middleware', () => {
 
       const req = mockReq({ headers: { authorization: 'Bearer my-service-secret' } });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       authenticateTokenOrApiKey(req, res, next);
 
@@ -202,7 +205,7 @@ describe('auth middleware', () => {
     it('delegates bearer tokens to Oxy auth', () => {
       const req = mockReq({ headers: { authorization: 'Bearer oxy-session-token' } });
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       authenticateTokenOrApiKey(req, res, next);
 
@@ -215,7 +218,7 @@ describe('auth middleware', () => {
       const req = mockReq();
       req.user = { id: 'user-1' };
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       requireScope('chat')(req, res, next);
 
@@ -227,7 +230,7 @@ describe('auth middleware', () => {
       req.user = { id: 'user-1' };
       req.apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['chat', 'memory'] };
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       requireScope('chat')(req, res, next);
 
@@ -239,7 +242,7 @@ describe('auth middleware', () => {
       req.user = { id: 'user-1' };
       req.apiKey = { id: 'key-1', appId: 'app-1', userId: 'user-1', scopes: ['memory'] };
       const res = mockRes();
-      const next = vi.fn();
+      const next = mock();
 
       requireScope('chat')(req, res, next);
 

@@ -14,7 +14,7 @@
     "rootDir": "./src",
     "declaration": false,
     "sourceMap": false,
-    "types": ["node"],
+    "types": ["node", "bun-types"],
     "incremental": true,
     "isolatedModules": true
   },

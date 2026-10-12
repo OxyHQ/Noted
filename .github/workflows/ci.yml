@@ -87,7 +87,7 @@ jobs:
 
       - name: Verify production deployment gate fixtures
         run: |
-          bash -n scripts/*.sh
+          bash -n scripts/*.sh .github/scripts/*.sh
           bash scripts/test-smoke-mcp.sh
           bash scripts/test-wait-for-ecs-deployment.sh
 
@@ -104,6 +104,8 @@ jobs:
       - name: Lint & format check (Biome)
         run: bunx biome ci .
 
+      # `bun test`, the runner AND the runtime production uses (the image runs
+      # the API on Bun). Includes the *.realdb suites against the service above.
       - name: Run API tests
         run: bun run --filter @noted/backend test
         env:
@@ -133,6 +135,21 @@ jobs:
     timeout-minutes: 10
     needs: [changes, lint-and-test]
     if: needs.changes.outputs.backend == 'true'
+    # A disposable server for the entrypoint check below; nothing else uses it.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v7
@@ -150,6 +167,67 @@ jobs:
 
       - name: Build API
         run: bun run build:backend
+
+      # EXECUTES the built server, migrator and catalog one-shot under bun (the
+      # image's runtime and commands): each failure must exit non-zero after
+      # reaching it, and each positive control (migrations, a real boot answering
+      # /health/ready then SIGTERM to exit 0, a catalog registered through the
+      # task-role attestation) must exit 0.
+      - name: Check the built entrypoints under Bun
+        env:
+          NOTED_ENTRYPOINTS_ADMIN_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+        run: bun scripts/check-backend-entrypoints.ts
+
+  # The production image as ECS runs it, built for linux/arm64 on an arm64
+  # runner exactly as deploy-aws.yml builds it: both migrator phases, Bun as the
+  # server under dumb-init, /health/ready 200, the HEALTHCHECK, a graceful exit 0
+  # on SIGTERM and the catalog one-shot. The deploy's buildkit cache is read,
+  # never written.
+  api-image:
+    name: Smoke API image
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    needs: [changes, lint-and-test]
+    if: needs.changes.outputs.backend == 'true'
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: noted
+          POSTGRES_PASSWORD: noted
+          POSTGRES_DB: noted
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U noted -d noted"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build the production image (linux/arm64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          push: false
+          load: true
+          provenance: false
+          tags: noted-backend:ci
+          cache-from: type=gha,scope=noted-backend
+
+      - name: Smoke the API image under its Bun runtime
+        env:
+          IMAGE: noted-backend:ci
+          DATABASE_URL: postgres://noted:noted@127.0.0.1:5439/noted
+          PORT: '3001'
+        run: bash .github/scripts/smoke-api-image.sh
 
   build-app:
     name: Build App
