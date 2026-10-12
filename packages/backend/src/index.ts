@@ -6,9 +6,6 @@ import {
 import express from 'express';
 import http from 'node:http';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { connectPostgres, closePostgres } from './db/postgres.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
@@ -32,12 +29,9 @@ import {
 } from './lib/normalized-event-outbox.js';
 import { makeRateLimiter } from './lib/rate-limit.js';
 
-// Fix for ES Modules __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load .env from the api directory (not the monorepo root)
-dotenv.config({ path: join(__dirname, '../.env') });
+// Bun loads `.env` from the working directory before any module runs, and every
+// script that starts this server (`dev`, `start`) runs in packages/backend, so it
+// reads packages/backend/.env. Variables already in the environment win.
 
 const app = express();
 app.use(ecosystemActivityMiddleware);

@@ -1,40 +1,48 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { stubEnv, unstubAllEnvs } from './stubs';
 
-const publisher = vi.hoisted(() => ({
-  observeHttp: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
-  installFetch: vi.fn(),
-  observeSocket: vi.fn(),
-  stop: vi.fn(async () => undefined),
+const publisher = {
+  observeHttp: mock((_req: unknown, _res: unknown, next: () => void) => next()),
+  installFetch: mock(),
+  observeSocket: mock(),
+  stop: mock(async () => undefined),
+};
+const create = mock((_options: unknown) => publisher);
+// `mock.module` is not hoisted, so the modules under test are imported after it.
+mock.module('@oxy.so/core/server', () => ({
+  createEcosystemTraffic: create,
+  canAttestWorkloadIdentity: () => false,
+  OxyServer: class {},
 }));
-const create = vi.hoisted(() => vi.fn((_options: unknown) => publisher));
-vi.mock('@oxy.so/core/server', () => ({ createEcosystemTraffic: create }));
-import {
+const { resetOxyServiceClientForTests } = await import('../capabilities/oxy-service-client');
+const {
   ecosystemActivityMiddleware,
   observeEcosystemSocket,
   startEcosystemActivity,
   stopEcosystemActivity,
-} from '../ecosystemActivity';
+} = await import('../ecosystemActivity');
 
 describe('ecosystem activity lifecycle', () => {
   beforeEach(() => {
-    vi.stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'true');
-    vi.stubEnv('OXY_APPLICATION_KEY', 'test-key');
-    vi.stubEnv('OXY_APPLICATION_SECRET', 'test-secret');
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.clearAllMocks();
+    stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'true');
+    stubEnv('OXY_APPLICATION_KEY', 'test-key');
+    stubEnv('OXY_APPLICATION_SECRET', 'test-secret');
+    spyOn(console, 'warn').mockImplementation(() => undefined);
+    mock.clearAllMocks();
+    resetOxyServiceClientForTests();
   });
   afterEach(async () => {
     await stopEcosystemActivity();
-    vi.unstubAllEnvs();
-    vi.restoreAllMocks();
+    unstubAllEnvs();
+    mock.restore();
   });
 
   it('does not start or publish when explicitly disabled', () => {
-    vi.stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'false');
+    stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'false');
     startEcosystemActivity(() => true);
     expect(create).not.toHaveBeenCalled();
     expect(console.warn).toHaveBeenCalled();
-    const next = vi.fn();
+    const next = mock();
     ecosystemActivityMiddleware({} as never, {} as never, next);
     observeEcosystemSocket({} as never);
     expect(next).toHaveBeenCalledTimes(1);
@@ -42,14 +50,14 @@ describe('ecosystem activity lifecycle', () => {
   });
 
   it('makes missing activation visible without starting a publisher', () => {
-    vi.stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', undefined);
+    stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', undefined);
     startEcosystemActivity(() => true);
     expect(create).not.toHaveBeenCalled();
     expect(console.warn).toHaveBeenCalled();
   });
 
   it('rejects a misspelled activation instead of silently losing coverage', () => {
-    vi.stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'tru');
+    stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'tru');
     expect(() => startEcosystemActivity(() => true)).toThrow('must be true or false');
   });
 
@@ -62,7 +70,7 @@ describe('ecosystem activity lifecycle', () => {
   });
 
   it('refuses a partially provisioned publishing credential', () => {
-    vi.stubEnv('OXY_APPLICATION_SECRET', '');
+    stubEnv('OXY_APPLICATION_SECRET', '');
     expect(() => startEcosystemActivity(() => true)).toThrow('OXY_APPLICATION_SECRET');
     expect(create).not.toHaveBeenCalled();
   });
@@ -81,7 +89,7 @@ describe('ecosystem activity lifecycle', () => {
     expect(options.ready()).toBe(false);
     ready = true;
     expect(options.ready()).toBe(true);
-    const next = vi.fn();
+    const next = mock();
     ecosystemActivityMiddleware({} as never, {} as never, next);
     expect(publisher.observeHttp).toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);

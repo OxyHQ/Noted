@@ -1,5 +1,3 @@
-import { observeEdgeRequest } from '@oxy.so/telemetry/edge';
-
 /**
  * Noted web Worker -- SPA routing with proper MIME-type handling.
  *
@@ -16,7 +14,6 @@ import { observeEdgeRequest } from '@oxy.so/telemetry/edge';
  * stale hashed `.js` and was handed `text/html` rejects it, so this returns a
  * real 404 for asset extensions instead.
  *
- * Every request now passes through telemetry before delegating to ASSETS.
  * Cache headers remain owned by public/_headers in the asset pipeline.
  */
 
@@ -55,7 +52,7 @@ function getExtension(pathname) {
   return lastDot === -1 ? '' : pathname.slice(lastDot).toLowerCase();
 }
 
-const assetWorker = {
+export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -76,17 +73,5 @@ const assetWorker = {
     // For non-asset paths (SPA navigation routes), the platform's index.html
     // fallback is correct behavior. Return the response as-is.
     return assetResponse;
-  },
-};
-
-export default {
-  fetch(request, env, ctx) {
-    return observeEdgeRequest({
-      service: 'noted',
-      request,
-      env,
-      ctx,
-      next: () => assetWorker.fetch(request, env, ctx),
-    });
   },
 };

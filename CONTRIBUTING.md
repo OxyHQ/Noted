@@ -11,7 +11,7 @@ Noted was started from the Clarity codebase, a different product. The READMEs an
 ## Prerequisites
 
 - **Bun.** The package manager for every Oxy repository, never npm or yarn. The pinned version is `packageManager` in the root `package.json`, and CI installs that exact version.
-- **Node.js 24.20.0 or newer.** The runtime the backend is built and deployed on. CI pins the minimum alongside Bun.
+- **Node.js 24.20.0 or newer**, for the Expo frontend tooling. The backend runs on Bun, in development and in production (the image's runtime is `oven/bun`), and its tests run under `bun test`.
 - **PostgreSQL 17**, to run the backend — `docker compose -f docker-compose.postgres.yml up -d postgres`, then `bun run db:migrate --target-database=noted_dev`. The test suite does not need one.
 - **Redis**, optional. Caching and Socket.IO scaling fall back gracefully without it.
 
@@ -51,7 +51,9 @@ A bun workspaces monorepo on the standard Oxy three package shape:
 bun run --filter @noted/backend test
 ```
 
-Vitest. Place test files next to the source as `*.test.ts`. `packages/backend` is the only package with a suite today, and it mocks its data layer, so nothing needs to be running.
+`bun test` (`bun:test`), on the runtime production uses. Place test files next to the source as `*.test.ts`. Files run isolated from each other (`--parallel`), and `mock.module` is not hoisted, so a test that mocks a module imports the module under test dynamically after the mock. The `*.realdb.test.ts` suites need `TEST_DATABASE_URL` (a disposable Postgres server; each creates and drops its own database); everything else needs nothing running.
+
+`bun run build:backend && NOTED_ENTRYPOINTS_ADMIN_DATABASE_URL=… bun scripts/check-backend-entrypoints.ts` executes the built server, migrator and catalog one-shot under Bun and checks every failure exits non-zero.
 
 CI runs the following on every pull request, and each line runs locally as written:
 

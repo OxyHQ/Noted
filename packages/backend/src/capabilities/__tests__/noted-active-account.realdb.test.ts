@@ -1,18 +1,23 @@
 import { spawn } from 'node:child_process';
 import { createServer, request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
 import { createTestDatabase, dropTestDatabase } from '@oxy.so/db/testing';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import * as mcp from '@oxy.so/mcp';
+import { stubEnv, stubGlobal, unstubAllEnvs, unstubAllGlobals } from '../../__tests__/stubs';
 
 // Only the central introspection boundary is synthetic. The product factory,
 // published MCP transport, token validation and SQL handlers run unchanged.
-const authority = vi.hoisted(() => ({ active: true }));
-vi.mock('@oxy.so/mcp', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@oxy.so/mcp')>();
+const authority = { active: true };
+// `mock.module` rewrites the live bindings of `@oxy.so/mcp`, including this
+// namespace's, so the real factory is captured before it runs: calling it
+// through `mcp.` afterwards would call the mock itself.
+const realCreateCatalogMcpHttpService = mcp.createCatalogMcpHttpService;
+mock.module('@oxy.so/mcp', () => {
   return {
-    ...actual,
+    ...mcp,
     createCatalogMcpHttpService: (
-      options: Parameters<typeof actual.createCatalogMcpHttpService>[0],
+      options: Parameters<typeof realCreateCatalogMcpHttpService>[0],
     ) => {
       const {
         getServiceToken,
@@ -25,7 +30,7 @@ vi.mock('@oxy.so/mcp', async (importOriginal) => {
       void invalidateServiceToken;
       void introspectionEndpoint;
       void introspectToken;
-      return actual.createCatalogMcpHttpService({
+      return realCreateCatalogMcpHttpService({
         ...transport,
         introspectToken: async () => {
           if (!authority.active) return null;
@@ -60,11 +65,12 @@ vi.mock('@oxy.so/mcp', async (importOriginal) => {
   };
 });
 
-import { closePostgres, connectPostgres, getDb } from '../../db/postgres.js';
-import { labels } from '../../db/schema/labels.js';
-import { notes } from '../../db/schema/notes.js';
-import { createNotedMcpHttpService } from '../noted-mcp-http.js';
-import { NOTED_CAPABILITY_CATALOG } from '../noted.catalog.js';
+// `mock.module` is not hoisted, so the modules under test are imported after it.
+const { closePostgres, connectPostgres, getDb } = await import('../../db/postgres.js');
+const { labels } = await import('../../db/schema/labels.js');
+const { notes } = await import('../../db/schema/notes.js');
+const { createNotedMcpHttpService } = await import('../noted-mcp-http.js');
+const { NOTED_CAPABILITY_CATALOG } = await import('../noted.catalog.js');
 
 let databaseUrl: string | undefined;
 let server: Server | undefined;
@@ -72,12 +78,12 @@ let origin: string;
 let noteA: typeof notes.$inferSelect;
 let noteB: typeof notes.$inferSelect;
 let labelB: typeof labels.$inferSelect;
-const unexpectedFetch = vi.fn(async () => {
+const unexpectedFetch = mock(async () => {
   throw new Error('Unexpected outbound fetch in isolated fixture');
 });
 
 beforeAll(async () => {
-  vi.stubGlobal('fetch', unexpectedFetch);
+  stubGlobal('fetch', unexpectedFetch);
   const adminUrl = process.env.TEST_DATABASE_URL;
   if (!adminUrl)
     throw new Error('TEST_DATABASE_URL is required for the disposable PostgreSQL fixture');
@@ -109,8 +115,8 @@ beforeAll(async () => {
       });
     },
   });
-  vi.stubEnv('DATABASE_URL', databaseUrl);
-  vi.stubEnv('OXY_API_URL', 'https://api.oxy.so');
+  stubEnv('DATABASE_URL', databaseUrl);
+  stubEnv('OXY_API_URL', 'https://api.oxy.so');
   const db = await connectPostgres();
   [noteA, noteB] = await db
     .insert(notes)
@@ -144,8 +150,8 @@ afterAll(async () => {
     );
   await closePostgres();
   if (databaseUrl) await dropTestDatabase(databaseUrl);
-  vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
+  unstubAllEnvs();
+  unstubAllGlobals();
   expect(unexpectedFetch).not.toHaveBeenCalled();
 });
 
