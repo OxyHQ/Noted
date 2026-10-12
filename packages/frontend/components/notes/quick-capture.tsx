@@ -2,7 +2,7 @@ import { Button, GlyphButton } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import React from 'react';
-import { View, TextInput } from 'react-native';
+import { View, type TextInput } from 'react-native';
 import Animated, { LinearTransition, FadeIn } from 'react-native-reanimated';
 import { CheckSquare, X, Palette, Paperclip, Archive } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';

@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({
   download: vi.fn(),
   unsubscribe: vi.fn(),
   transactionGate: undefined as Promise<void> | undefined,
-  writes: [] as { viewer: string; sql: string; params: unknown[] }[],
+  writes: [] as { viewer: string | null; sql: string; params: unknown[] }[],
 }));
 
 vi.mock('@/lib/db/client', () => ({
@@ -21,7 +21,7 @@ vi.mock('@/lib/db/client', () => ({
     if (expected !== undefined && (!expected || expected !== state.viewer)) {
       throw new Error('The active account changed before this write could be saved');
     }
-    for (const statement of statements) state.writes.push({ viewer: state.viewer!, ...statement });
+    for (const statement of statements) state.writes.push({ viewer: state.viewer, ...statement });
     return statements.map(() => 1);
   },
 }));

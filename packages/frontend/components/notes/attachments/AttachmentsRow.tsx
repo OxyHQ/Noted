@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Pressable, Linking } from 'react-native';
+import { View, Linking } from 'react-native';
 import { Image } from 'expo-image';
 import { Paperclip } from 'lucide-react-native';
 import { useOxy } from '@oxy.so/services';
@@ -133,7 +133,7 @@ function EditorAttachmentItem({
     const poster = oxyServices.assets.publicUrl(fileId, 'thumb');
     return (
       <View className="flex-row items-start gap-2">
-        <AttachmentVideo src={fileId} poster={poster} onPress={openFile} />
+        <AttachmentVideo poster={poster} onPress={openFile} />
         {onRemove ? <RemoveButton onPress={remove} /> : null}
       </View>
     );

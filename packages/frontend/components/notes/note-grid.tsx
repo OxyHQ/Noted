@@ -120,6 +120,7 @@ export function NoteGrid({
   const grid = (
     <View className="flex-row gap-3" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
       {columns.map((column, colIndex) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a masonry column has no identity beyond its position
         <Animated.View key={colIndex} layout={layout} className="flex-1 gap-3">
           {column.map((note) => (
             <Animated.View key={note.id} layout={layout} entering={entering} exiting={exiting}>

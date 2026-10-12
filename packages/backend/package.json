@@ -13,6 +13,7 @@
     "build": "bun build.ts",
     "start": "bun dist/index.js",
     "lint": "biome check .",
+    "typecheck": "tsc --noEmit -p .",
     "test": "bun test --parallel --no-env-file --timeout 10000 src",
     "test:watch": "bun test --watch --no-env-file --timeout 10000 src",
     "test:coverage": "bun test --coverage --no-env-file --timeout 10000 src",

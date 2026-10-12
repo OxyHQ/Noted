@@ -60,13 +60,11 @@ function formatReminder(iso: string): string {
 function HoverIconButton({
   icon: Icon,
   label,
-  color,
   onPress,
   focusable,
 }: {
   icon: typeof Pin;
   label: string;
-  color: string;
   onPress: () => void;
   /** False while the row is invisible, so it is not a blind tab stop. */
   focusable: boolean;
@@ -300,7 +298,6 @@ export const NoteCard = React.memo(function NoteCard({
               <HoverIconButton
                 icon={Bell}
                 label="Reminder"
-                color={colors.mutedForeground}
                 onPress={() => onReminder(note)}
                 focusable={hovered}
               />
@@ -309,7 +306,6 @@ export const NoteCard = React.memo(function NoteCard({
               <HoverIconButton
                 icon={Palette}
                 label="Color"
-                color={colors.mutedForeground}
                 onPress={() => onColor(note)}
                 focusable={hovered}
               />
@@ -318,7 +314,6 @@ export const NoteCard = React.memo(function NoteCard({
               <HoverIconButton
                 icon={Paperclip}
                 label="Attach file"
-                color={colors.mutedForeground}
                 onPress={() => onAttach(note)}
                 focusable={hovered}
               />
@@ -327,7 +322,6 @@ export const NoteCard = React.memo(function NoteCard({
               <HoverIconButton
                 icon={Archive}
                 label="Archive"
-                color={colors.mutedForeground}
                 onPress={() => onArchive(note)}
                 focusable={hovered}
               />
@@ -336,7 +330,6 @@ export const NoteCard = React.memo(function NoteCard({
               <HoverIconButton
                 icon={Trash2}
                 label="Delete"
-                color={colors.mutedForeground}
                 onPress={() => onDelete(note)}
                 focusable={hovered}
               />

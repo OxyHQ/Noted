@@ -5,7 +5,7 @@ const publisher = {
   observeHttp: mock((_req: unknown, _res: unknown, next: () => void) => next()),
   installFetch: mock(),
   observeSocket: mock(),
-  stop: mock(async () => {}),
+  stop: mock(async () => undefined),
 };
 const create = mock((_options: unknown) => publisher);
 // `mock.module` is not hoisted, so the modules under test are imported after it.
@@ -27,7 +27,7 @@ describe('ecosystem activity lifecycle', () => {
     stubEnv('OXY_ECOSYSTEM_ACTIVITY_ENABLED', 'true');
     stubEnv('OXY_APPLICATION_KEY', 'test-key');
     stubEnv('OXY_APPLICATION_SECRET', 'test-secret');
-    spyOn(console, 'warn').mockImplementation(() => {});
+    spyOn(console, 'warn').mockImplementation(() => undefined);
     mock.clearAllMocks();
     resetOxyServiceClientForTests();
   });

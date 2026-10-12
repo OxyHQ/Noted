@@ -1,0 +1,31 @@
+language js
+
+// ESLint's no-unexpected-multiline, which Biome does not have. A line that
+// starts with `(`, `` ` `` or `[` continues the expression on the line above
+// when nothing ends it, so
+//
+//     const a = b
+//     (c || d).run()
+//
+// calls b. Biome's formatter joins such lines (`b(c || d)`), so the merged
+// source shows the call, but the author only sees it if they read the
+// formatting diff; this reports it while the source still looks like two
+// statements. Scoped to a bare name or dotted path before the break, which is
+// the shape the hazard takes and one the formatter never produces itself.
+or {
+  JsCallExpression(callee=$callee) as $match where {
+    $callee <: r"^[\w$.]+$",
+    $match <: r"^[\w$.]+(?:[ \t]|//[^\n]*)*\n(?:\s|//[^\n]*)*\([\s\S]*",
+    register_diagnostic(span=$match, message="This line break does not end the statement: the parenthesis on the next line calls the expression before it. End the previous statement with a semicolon, or join the lines if a call is meant (eslint: no-unexpected-multiline).")
+  },
+  JsTemplateExpression(tag=$tag) as $match where {
+    $tag <: r"^[\w$.]+$",
+    $match <: r"^[\w$.]+(?:[ \t]|//[^\n]*)*\n(?:\s|//[^\n]*)*`[\s\S]*",
+    register_diagnostic(span=$match, message="This line break does not end the statement: the template literal on the next line is a tagged template of the expression before it. End the previous statement with a semicolon, or join the lines if a tag is meant (eslint: no-unexpected-multiline).")
+  },
+  JsComputedMemberExpression(object=$object) as $match where {
+    $object <: r"^[\w$.]+$",
+    $match <: r"^[\w$.]+(?:[ \t]|//[^\n]*)*\n(?:\s|//[^\n]*)*\[[\s\S]*",
+    register_diagnostic(span=$match, message="This line break does not end the statement: the bracket on the next line indexes the expression before it. End the previous statement with a semicolon, or join the lines if an index is meant (eslint: no-unexpected-multiline).")
+  }
+}

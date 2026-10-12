@@ -8,9 +8,14 @@ export function createLockManager() {
       callback?: (lock: { name: string } | null) => T,
     ): Promise<Awaited<T>> {
       const options = typeof optionsOrWork === 'function' ? {} : optionsOrWork;
-      const work = (typeof optionsOrWork === 'function' ? optionsOrWork : callback)!;
+      // The browser hands an unavailable `ifAvailable` request a null lock, so
+      // whichever callback was given is called with the lock or null.
+      const work = (typeof optionsOrWork === 'function' ? optionsOrWork : callback) as
+        | ((lock: { name: string } | null) => T)
+        | undefined;
+      if (!work) throw new Error(`Lock request for ${name} has no callback`);
       const prior = tails.get(name);
-      if (options.ifAvailable && prior) return await work(null!);
+      if (options.ifAvailable && prior) return await work(null);
       let release!: () => void;
       const held = new Promise<void>((resolve) => {
         release = resolve;

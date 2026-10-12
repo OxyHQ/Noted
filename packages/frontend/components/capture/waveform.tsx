@@ -33,6 +33,7 @@ export function Waveform({ levels, height = 28 }: WaveformProps) {
     >
       {bars.map((level, index) => (
         <View
+          // biome-ignore lint/suspicious/noArrayIndexKey: a bar is its position in a fixed-length rolling window; levels slide through positions
           key={index}
           className="flex-1 rounded-full"
           style={{

@@ -11,14 +11,22 @@ const state = vi.hoisted(() => ({
   rollbacks: 0,
 }));
 
+/** The fixture database. `beforeEach` opens it before any test or mocked write reads it. */
+function liveDb(): DatabaseSync {
+  if (!state.db) throw new Error('The fixture database is not open');
+  return state.db;
+}
+
 vi.mock('@/lib/db/client', () => ({
   getActiveViewerId: () => 'viewer',
   execute: async (sql: string, params: SQLInputValue[] = []) =>
-    state.db!.prepare(sql).all(...params),
+    liveDb()
+      .prepare(sql)
+      .all(...params),
   executeTransaction: async (statements: Statement[]) => {
     state.writes += 1;
     state.beforeWrite?.();
-    const db = state.db!;
+    const db = liveDb();
     db.exec('BEGIN IMMEDIATE');
     const counts: number[] = [];
     try {
@@ -74,7 +82,7 @@ describe('manual creation retries after an uncertain response', () => {
       'Owner disappeared',
     );
     await updateNote('stable-id', { title: 'Other tab renamed it', labels: ['peer'] });
-    const outbox = state.db!.prepare('SELECT * FROM outbox WHERE entity_id = ?').all('stable-id');
+    const outbox = liveDb().prepare('SELECT * FROM outbox WHERE entity_id = ?').all('stable-id');
     const recovered = await resumeNoteCreation('stable-id', input, input, 'viewer');
     expect(recovered).toMatchObject({
       id: 'stable-id',
@@ -82,8 +90,8 @@ describe('manual creation retries after an uncertain response', () => {
       labels: ['peer'],
       body: 'Original body',
     });
-    expect(state.db!.prepare('SELECT id FROM notes WHERE id = ?').all('stable-id')).toHaveLength(1);
-    expect(state.db!.prepare('SELECT * FROM outbox WHERE entity_id = ?').all('stable-id')).toEqual(
+    expect(liveDb().prepare('SELECT id FROM notes WHERE id = ?').all('stable-id')).toHaveLength(1);
+    expect(liveDb().prepare('SELECT * FROM outbox WHERE entity_id = ?').all('stable-id')).toEqual(
       outbox,
     );
   });
@@ -125,26 +133,26 @@ describe('manual creation retries after an uncertain response', () => {
       'viewer',
     );
     expect(recovered).toMatchObject({ id: 'stable-id', title: 'More typing' });
-    expect(state.db!.prepare('SELECT id FROM notes WHERE id = ?').all('stable-id')).toHaveLength(1);
+    expect(liveDb().prepare('SELECT id FROM notes WHERE id = ?').all('stable-id')).toHaveLength(1);
   });
 
   it('does not resurrect a creation that another tab deleted before confirmation', async () => {
     const input = { title: 'First draft', userBody: 'Original body' };
     await createNote('stable-id', input);
-    state.db!.prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run('deleted', 'stable-id');
-    const outbox = state.db!.prepare('SELECT * FROM outbox').all();
+    liveDb().prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run('deleted', 'stable-id');
+    const outbox = liveDb().prepare('SELECT * FROM outbox').all();
     await expect(resumeNoteCreation('stable-id', input, input, 'viewer')).rejects.toThrow(
       'deleted before creation',
     );
     expect(await getNote('stable-id')).toBeNull();
-    expect(state.db!.prepare('SELECT * FROM outbox').all()).toEqual(outbox);
+    expect(liveDb().prepare('SELECT * FROM outbox').all()).toEqual(outbox);
   });
 });
 afterEach(() => state.db?.close());
 
 describe('concurrent local note patches', () => {
   it('preserves disjoint edits and explicit labels when both writers read the old note', async () => {
-    state.db!.exec("INSERT INTO labels (id, name, updated_at) VALUES ('label', 'Label', '')");
+    liveDb().exec("INSERT INTO labels (id, name, updated_at) VALUES ('label', 'Label', '')");
     await Promise.all([
       updateNote('note', { title: 'Renamed', labels: ['label'] }),
       updateNote('note', { pinned: true, reminderAt: '2026-10-10T12:00:00.000Z' }),
@@ -155,7 +163,7 @@ describe('concurrent local note patches', () => {
       pinned: true,
       reminderAt: '2026-10-10T12:00:00.000Z',
     });
-    expect(state.db!.prepare('SELECT * FROM outbox').all()).toHaveLength(1);
+    expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(1);
   });
 
   it('recomposes user and generated halves after a competing write rolls back the stale snapshot', async () => {
@@ -168,20 +176,20 @@ describe('concurrent local note patches', () => {
       generatedBody: 'New generated',
     });
     expect(state.rollbacks).toBe(1);
-    expect(state.db!.prepare('SELECT * FROM outbox').all()).toHaveLength(1);
+    expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(1);
   });
 
   it('does not resurrect a concurrently deleted note or queue an upsert', async () => {
     state.beforeWrite = () => {
       state.beforeWrite = null;
-      state.db!.exec("UPDATE notes SET deleted_at = 'deleted' WHERE id = 'note'");
+      liveDb().exec("UPDATE notes SET deleted_at = 'deleted' WHERE id = 'note'");
     };
     expect(await updateNote('note', { title: 'Late edit', labels: [] })).toBeNull();
-    expect(state.db!.prepare('SELECT title, deleted_at FROM notes').get()).toMatchObject({
+    expect(liveDb().prepare('SELECT title, deleted_at FROM notes').get()).toMatchObject({
       title: 'Original',
       deleted_at: 'deleted',
     });
-    expect(state.db!.prepare('SELECT * FROM outbox').all()).toHaveLength(0);
+    expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(0);
   });
 
   it('does not retry an unacknowledged commit', async () => {
@@ -196,7 +204,7 @@ describe('concurrent local note patches', () => {
   });
 
   it('rolls back the note and outbox when a label write fails', async () => {
-    state.db!.exec(
+    liveDb().exec(
       "CREATE TRIGGER fail_label BEFORE INSERT ON note_labels BEGIN SELECT RAISE(ABORT, 'label unavailable'); END",
     );
     await expect(
@@ -204,17 +212,17 @@ describe('concurrent local note patches', () => {
     ).rejects.toThrow();
     expect(state.writes).toBe(1);
     expect(await getNote('note')).toMatchObject({ title: 'Original', labels: [] });
-    expect(state.db!.prepare('SELECT * FROM outbox').all()).toHaveLength(0);
+    expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(0);
   });
 
   it('bounds contention retries while keeping the unsaved patch out of SQLite', async () => {
     state.beforeWrite = () =>
-      state.db!.prepare('UPDATE notes SET body = ?').run(`Competing ${state.writes}`);
+      liveDb().prepare('UPDATE notes SET body = ?').run(`Competing ${state.writes}`);
     await expect(updateNote('note', { userBody: 'Unsaved draft', labels: [] })).rejects.toThrow(
       'Your draft has been preserved',
     );
     expect(state.writes).toBe(8);
     expect(state.rollbacks).toBe(8);
-    expect(state.db!.prepare('SELECT * FROM outbox').all()).toHaveLength(0);
+    expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(0);
   });
 });

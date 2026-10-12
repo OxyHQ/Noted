@@ -4,7 +4,7 @@ import {
   ecosystemActivityMiddleware,
 } from './ecosystemActivity';
 import express from 'express';
-import http from 'http';
+import http from 'node:http';
 import cors from 'cors';
 import { connectPostgres, closePostgres } from './db/postgres.js';
 import { log } from './lib/logger.js';

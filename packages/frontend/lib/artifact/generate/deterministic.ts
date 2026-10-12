@@ -23,7 +23,6 @@ import { itemId } from '@/lib/artifact/item-id';
 import { parseListCommands } from '@/lib/artifact/dictation/instructions';
 import { buildDictatedList } from '@/lib/artifact/dictation/list';
 import { classifyProfile, resolveProfile, spokenProfile } from '@/lib/artifact/profile';
-import {} from '@noted/shared-types';
 import { type ArtifactLabels, DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
 import type {
   ArtifactStage,

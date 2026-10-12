@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput } from 'react-native';
+import { View, type TextInput } from 'react-native';
 import { X, Plus } from 'lucide-react-native';
 import { GlyphButton } from '@oxy.so/bloom/button';
 import { Checkbox } from '@oxy.so/bloom/checkbox';

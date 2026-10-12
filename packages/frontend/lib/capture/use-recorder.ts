@@ -245,7 +245,7 @@ export function useRecorder(
       setPhase('error');
       return 'failed';
     }
-  }, [captureId, recorder]);
+  }, [captureId, noteId, recorder]);
 
   // A gesture or the hardware back button unmounts the screen without reaching
   // its own handler, so the recorder tears itself down — otherwise the

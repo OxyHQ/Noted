@@ -21,6 +21,7 @@
     "start:frontend": "bun run --filter @noted/frontend start",
     "start:backend": "bun run --filter @noted/backend start",
     "lint": "biome check .",
+    "typecheck": "bun run --filter @noted/backend typecheck && bun run --filter @noted/frontend typecheck",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "android": "bun run --filter @noted/frontend android",

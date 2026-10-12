@@ -91,3 +91,17 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
     dispose: linked.dispose,
   };
 }
+
+/**
+ * The server's `error` string on a failed request, if it sent one. Requests
+ * reject with `response.data` attached (see createNotedClient); anything else
+ * thrown — a network failure, a timeout, a non-Error — has none.
+ */
+export function responseErrorMessage(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('response' in error)) return undefined;
+  const { response } = error;
+  if (typeof response !== 'object' || response === null || !('data' in response)) return undefined;
+  const { data } = response;
+  if (typeof data !== 'object' || data === null || !('error' in data)) return undefined;
+  return typeof data.error === 'string' && data.error ? data.error : undefined;
+}

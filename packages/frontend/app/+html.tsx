@@ -1,4 +1,4 @@
-import { type PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 
 /**
  * Root HTML component for static rendering
@@ -74,6 +74,7 @@ export default function Root({ children }: PropsWithChildren) {
         {/* JSON-LD Structured Data for SEO */}
         <script
           type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: a JSON.stringify of a constant object; no user input reaches it
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               '@context': 'https://schema.org',

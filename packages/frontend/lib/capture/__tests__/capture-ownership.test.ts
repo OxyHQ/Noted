@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { defined } from '@/lib/__tests__/defined';
 import { createLockManager, deferred } from '@/lib/db/__tests__/browser-lock-fixture';
 import { accountLockName } from '@/lib/db/web-locks';
 
@@ -47,7 +48,7 @@ describe('cross-tab recording ownership', () => {
     first.ownership.releaseCapture('alice', 'capture');
     await Promise.resolve();
     expect(await second.repo.recoverInterruptedCaptures('alice')).toBe(1);
-    const [[statement], viewer] = db.transaction.mock.calls.at(-1)!;
+    const [[statement], viewer] = defined(db.transaction.mock.calls.at(-1), 'a transaction call');
     expect(viewer).toBe('alice');
     expect(statement.sql).toContain('WHERE id = ? AND capture_status IN');
     expect(statement.params.at(-1)).toBe('capture');

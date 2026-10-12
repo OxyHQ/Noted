@@ -1,4 +1,4 @@
-const path = require('path');
+const path = require('node:path');
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
@@ -14,7 +14,7 @@ const onnxWebGpuBuild = path.resolve(
   __dirname,
   '../../node_modules/onnxruntime-web/dist/ort.webgpu.mjs',
 );
-if (!require('fs').existsSync(onnxWebGpuBuild)) {
+if (!require('node:fs').existsSync(onnxWebGpuBuild)) {
   throw new Error(
     `onnxruntime-web's unminified WebGPU build is missing at ${onnxWebGpuBuild}. ` +
       'Web transcription cannot be bundled without it — see the resolver below.',

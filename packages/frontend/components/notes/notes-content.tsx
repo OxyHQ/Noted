@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { ScrollView } from 'react-native';
+import type { ScrollView } from 'react-native';
 import { ScreenScrollView } from '@oxy.so/bloom/screen';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { notesContentStyle, type NotesContentProps } from './notes-content.types';

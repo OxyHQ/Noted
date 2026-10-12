@@ -12,7 +12,9 @@ import {
 function pcm(samples: readonly number[], byteOffset = 0): Uint8Array {
   const buffer = new ArrayBuffer(byteOffset + samples.length * 2);
   const view = new DataView(buffer);
-  samples.forEach((sample, index) => view.setInt16(byteOffset + index * 2, sample, true));
+  for (const [index, sample] of samples.entries()) {
+    view.setInt16(byteOffset + index * 2, sample, true);
+  }
   return new Uint8Array(buffer, byteOffset, samples.length * 2);
 }
 

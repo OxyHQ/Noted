@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defined } from '@/lib/__tests__/defined';
 
 const state = vi.hoisted(() => ({
   viewer: 'account-a' as string | null,
-  writes: [] as { viewer: string; sql: string }[],
+  writes: [] as { viewer: string | null; sql: string }[],
   transcribe: vi.fn(),
   deleteAudio: vi.fn(),
 }));
@@ -17,7 +18,7 @@ vi.mock('@/lib/db/client', () => {
     getActiveViewerId: () => state.viewer,
     executeTransaction: async (statements: { sql: string }[], expected?: string | null) => {
       check(expected);
-      for (const { sql } of statements) state.writes.push({ viewer: state.viewer!, sql });
+      for (const { sql } of statements) state.writes.push({ viewer: state.viewer, sql });
       return statements.map(() => 1);
     },
     execute: async (_sql: string, _params: unknown[], expected?: string | null) => {
@@ -125,7 +126,7 @@ describe('capture account ownership', () => {
           finish = resolve;
         }),
     );
-    const pending = deleteRecordingAudio(capture!);
+    const pending = deleteRecordingAudio(defined(capture, 'capture-a'));
     state.viewer = 'account-b';
     finish();
     await expect(pending).rejects.toThrow('active account changed');

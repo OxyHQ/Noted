@@ -173,7 +173,10 @@ export function createDatabaseBroker({
     if (deduplicate) completed.set(`${message.client}:${message.request}`, message);
     // Only duplicate delivery within one owner's lifetime is deduplicated.
     // An unanswered write is never replayed across an owner change.
-    if (completed.size > 512) completed.delete(completed.keys().next().value!);
+    if (completed.size > 512) {
+      const oldest = completed.keys().next();
+      if (!oldest.done) completed.delete(oldest.value);
+    }
     emit(message);
   }
   function enqueueRequest(request: Request) {
