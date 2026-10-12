@@ -284,8 +284,8 @@ async function scenarios(databaseUrl: string, database: string): Promise<void> {
     },
     ['Failed to connect to PostgreSQL'],
   );
-  // Set EMPTY rather than unset, so dotenv cannot fill it from a developer's
-  // packages/backend/.env.
+  // Set EMPTY rather than unset, so Bun's own .env loading cannot fill it from a
+  // developer's .env in the working directory (the repo root, see `start`).
   await expectFailure(
     'server: DATABASE_URL missing',
     [SERVER],
