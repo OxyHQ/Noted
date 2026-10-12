@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const mocks = vi.hoisted(() => ({
-  serviceToken: vi.fn(),
-  invalidateServiceToken: vi.fn(),
-  constructed: vi.fn(),
-  canAttest: vi.fn(() => false),
-}));
+const mocks = {
+  serviceToken: mock(),
+  invalidateServiceToken: mock(),
+  constructed: mock(),
+  canAttest: mock(() => false),
+};
 
-vi.mock('@oxy.so/core/server', () => ({
+// `mock.module` is not hoisted, so the module under test is imported after it.
+mock.module('@oxy.so/core/server', () => ({
   canAttestWorkloadIdentity: () => mocks.canAttest(),
   OxyServer: class {
     constructor(options: unknown) {
@@ -24,12 +25,12 @@ vi.mock('@oxy.so/core/server', () => ({
   },
 }));
 
-import {
+const {
   invalidateOxyServiceToken,
   oxyServiceClient,
   requiredOxyServiceToken,
   resetOxyServiceClientForTests,
-} from '../oxy-service-client.js';
+} = await import('../oxy-service-client.js');
 
 beforeEach(() => {
   delete process.env.OXY_APPLICATION_KEY;

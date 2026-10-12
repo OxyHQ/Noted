@@ -6,6 +6,20 @@
 # manifests, so this image builds natively on AWS Graviton (linux/arm64) as well
 # as x86_64 — Docker selects the right base layer per target platform.
 #
+# The API RUNS ON BUN. The runner stage is `oven/bun:1.4.3-alpine`: the same Bun
+# that installs and bundles below, and the same musl libc the production
+# dependency tree is installed against. The API ran on Node until 2026-10; Bun
+# serves the same esbuild bundle (ESM, platform=node) unchanged. Measured on the
+# built dist against a local Postgres 17 and Redis: both migrator phases apply,
+# /health, /health/ready and the socket.io handshake answer as on Node, the
+# BullMQ reminder worker starts and sweeps, SIGTERM runs the graceful shutdown
+# to exit 0, and idle RSS was ~105 MB under Bun against ~285 MB under Node.
+#
+# Every one-shot that overrides the CMD (the migrator and the capability-catalog
+# registration in .github/workflows/deploy-aws.yml) names `bun` too. Rolling
+# back to Node is reverting the change that made this switch: it moves this
+# stage and those commands together, and they must stay together.
+#
 # Build context is the monorepo ROOT (bun workspaces):
 #   docker build -t noted-backend:test .
 #
@@ -15,15 +29,16 @@
 #                                               esbuild bundle -> packages/backend/dist/index.js;
 #                                               shared-types is INLINED into the bundle)
 #          && reinstall production-only deps
-#   run:   node packages/backend/dist/index.js
+#   run:   bun packages/backend/dist/index.js     (oven/bun alpine, Bun as the runtime)
 
 # ---------------------------------------------------------------------------
 # Stage 1: builder — install the full dependency graph and bundle the API.
 # ---------------------------------------------------------------------------
 FROM node:24.20-alpine AS builder
 
-# Bun is the package manager / script runner at build time; the runtime stays
-# Node. The musl build from the matching alpine image works on amd64 and arm64.
+# Bun is the package manager / script runner at build time (and, from the runner
+# stage below, the runtime). The musl build from the matching alpine image works
+# on amd64 and arm64; it is the exact binary the runner stage ships.
 COPY --from=oven/bun:1.4.3-alpine /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
@@ -102,29 +117,33 @@ RUN rm -rf node_modules \
 # ---------------------------------------------------------------------------
 # Stage 2: runner — minimal runtime with production deps and the bundle.
 # ---------------------------------------------------------------------------
-FROM node:24.20-alpine AS runner
+# The tag is the root package.json `packageManager` pin, like the builder's
+# COPY --from above; a Bun bump moves all three together.
+FROM oven/bun:1.4.3-alpine AS runner
 
 ENV NODE_ENV=production \
     PORT=3001
 
 # libc6-compat: glibc shim some prebuilt native binaries expect on Alpine/musl.
-# dumb-init: proper PID 1 so SIGTERM/SIGINT reach Node for graceful shutdown.
+# dumb-init: PID 1 that forwards SIGTERM/SIGINT to Bun (which registers the
+# graceful-shutdown handler) and reaps children, exactly as it did for Node.
 RUN apk add --no-cache libc6-compat dumb-init
 
 WORKDIR /app
 
-# Run as the unprivileged `node` user provided by the base image.
-USER node
+# Run as the unprivileged `bun` user provided by the base image: uid/gid 1000,
+# the same ids as the Node image's `node` user it replaces.
+USER bun
 
 # Bring over the pruned (production-only) dependency tree and the workspace
-# manifests so Node's workspace resolution stays valid.
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/package.json ./package.json
-COPY --from=builder --chown=node:node /app/packages/backend/package.json ./packages/backend/package.json
+# manifests so the runtime's workspace resolution stays valid.
+COPY --from=builder --chown=bun:bun /app/node_modules ./node_modules
+COPY --from=builder --chown=bun:bun /app/package.json ./package.json
+COPY --from=builder --chown=bun:bun /app/packages/backend/package.json ./packages/backend/package.json
 
 # The bundled backend (shared-types is inlined into this bundle, so its dist is
 # intentionally NOT carried into the runtime image).
-COPY --from=builder --chown=node:node /app/packages/backend/dist ./packages/backend/dist
+COPY --from=builder --chown=bun:bun /app/packages/backend/dist ./packages/backend/dist
 
 # The SQL migrations, beside packages/backend/package.json because that is what
 # `src/db/migrationsFolder.ts` walks up to find.
@@ -133,13 +152,20 @@ COPY --from=builder --chown=node:node /app/packages/backend/dist ./packages/back
 # reads this folder's journal to decide whether a task may take traffic, and
 # `readJournal` runs at module load — so without this the container does not
 # merely fail its probe, it fails to boot.
-COPY --from=builder --chown=node:node /app/packages/backend/drizzle ./packages/backend/drizzle
+COPY --from=builder --chown=bun:bun /app/packages/backend/drizzle ./packages/backend/drizzle
 
 EXPOSE 3001
 
-# Container-level health check hitting the app's /health endpoint.
+# Container-level health check hitting the app's /health endpoint (ECS does not
+# read it; its target group probes /health itself). Same contract as before:
+# healthy on any status below 500, unhealthy on an error or after 4 s.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "require('http').get({host:'127.0.0.1',port:process.env.PORT||3001,path:'/health',timeout:4000},r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/health',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.status<500?0:1),()=>process.exit(1))"]
 
+# dumb-init is PID 1 and execs Bun as its only child, forwarding SIGTERM (ECS's
+# stop signal) to it. The base image puts a `node` on PATH, but it is a symlink
+# to bun (/usr/local/bun-node-fallback-bin/node): there is no Node in this
+# image, so every command names `bun` rather than a `node` that would run Bun
+# while claiming otherwise.
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "packages/backend/dist/index.js"]
+CMD ["bun", "packages/backend/dist/index.js"]

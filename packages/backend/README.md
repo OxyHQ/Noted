@@ -10,7 +10,8 @@ bun run dev:backend
 
 # from this package
 bun run dev            # bun --watch
-bun run test           # vitest
+bun run test           # bun test (*.realdb suites need TEST_DATABASE_URL)
+bun run start          # bun dist/index.js, the production command
 bun run db:generate    # drizzle-kit, after changing the schema
 bun run db:migrate --target-database=noted_dev
 ```

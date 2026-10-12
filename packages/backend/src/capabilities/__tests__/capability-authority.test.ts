@@ -1,23 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { stubGlobal, unstubAllGlobals } from '../../__tests__/stubs';
 
-const mocks = vi.hoisted(() => ({ requiredOxyServiceToken: vi.fn() }));
+const mocks = { requiredOxyServiceToken: mock() };
 
-vi.mock('../oxy-service-client.js', () => ({
+// `mock.module` is not hoisted, so the module under test is imported after it.
+mock.module('../oxy-service-client.js', () => ({
   requiredOxyServiceToken: mocks.requiredOxyServiceToken,
 }));
 
-import { auditNotedCapabilityTicket } from '../capability-authority.js';
+const { auditNotedCapabilityTicket } = await import('../capability-authority.js');
 
 beforeEach(() => {
-  vi.unstubAllGlobals();
+  unstubAllGlobals();
   mocks.requiredOxyServiceToken.mockReset();
   mocks.requiredOxyServiceToken.mockResolvedValue('service-token');
 });
 
 describe('Noted capability authority client', () => {
   it('sends a pre-hashed idempotency key as a hash, never as plaintext', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = mock().mockResolvedValue(new Response('{}', { status: 200 }));
+    stubGlobal('fetch', fetchMock);
 
     await auditNotedCapabilityTicket({
       ticket: 'signed-ticket',
