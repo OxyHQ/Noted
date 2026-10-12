@@ -5,9 +5,13 @@
 **/dist
 **/.expo
 **/coverage
-.env
-.env.*
-*.log
+# Any workspace's local env file, not only the root one: `COPY packages/backend`
+# would otherwise carry packages/backend/.env into a builder layer, and the
+# deploy exports builder layers to the Actions cache (mode=max). No build step
+# reads a .env.example, so those stay out too.
+**/.env
+**/.env.*
+**/*.log
 .git
 .github
 .vscode
