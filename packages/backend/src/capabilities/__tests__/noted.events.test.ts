@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import type { NoteRow } from '../../db/schema/notes.js';
 import {
@@ -40,10 +40,10 @@ function reminderNote(): NoteRow {
 
 function dependencies(overrides: Partial<ClaimedNotedEventDependencies> = {}) {
   const defaults: ClaimedNotedEventDependencies = {
-    loadReminder: vi.fn().mockResolvedValue(reminderNote()),
-    deliver: vi.fn().mockResolvedValue(undefined),
-    notifyReminder: vi.fn().mockResolvedValue(undefined),
-    acknowledge: vi.fn().mockResolvedValue(true),
+    loadReminder: mock().mockResolvedValue(reminderNote()),
+    deliver: mock().mockResolvedValue(undefined),
+    notifyReminder: mock().mockResolvedValue(undefined),
+    acknowledge: mock().mockResolvedValue(true),
   };
   return { ...defaults, ...overrides };
 }
@@ -78,7 +78,7 @@ describe('Noted normalized events', () => {
   });
 
   it('does not acknowledge or notify when normalized delivery fails', async () => {
-    const deps = dependencies({ deliver: vi.fn().mockRejectedValue(new Error('offline')) });
+    const deps = dependencies({ deliver: mock().mockRejectedValue(new Error('offline')) });
     await expect(processClaimedNotedEvent(reminderEvent(), deps)).rejects.toThrow('offline');
     expect(deps.notifyReminder).not.toHaveBeenCalled();
     expect(deps.acknowledge).not.toHaveBeenCalled();
@@ -86,25 +86,25 @@ describe('Noted normalized events', () => {
 
   it('does not acknowledge when reminder notification delivery fails', async () => {
     const deps = dependencies({
-      notifyReminder: vi.fn().mockRejectedValue(new Error('notification unavailable')),
+      notifyReminder: mock().mockRejectedValue(new Error('notification unavailable')),
     });
     await expect(processClaimedNotedEvent(reminderEvent(), deps)).rejects.toThrow(
       'notification unavailable',
     );
-    expect(deps.deliver).toHaveBeenCalledOnce();
+    expect(deps.deliver).toHaveBeenCalledTimes(1);
     expect(deps.acknowledge).not.toHaveBeenCalled();
   });
 
   it('acknowledges only after both reminder deliveries succeed', async () => {
     const order: string[] = [];
     const deps = dependencies({
-      deliver: vi.fn(async () => {
+      deliver: mock(async () => {
         order.push('event');
       }),
-      notifyReminder: vi.fn(async () => {
+      notifyReminder: mock(async () => {
         order.push('notification');
       }),
-      acknowledge: vi.fn(async () => {
+      acknowledge: mock(async () => {
         order.push('acknowledge');
         return true;
       }),
@@ -115,11 +115,11 @@ describe('Noted normalized events', () => {
   });
 
   it('acknowledges a stale reminder without delivering it', async () => {
-    const deps = dependencies({ loadReminder: vi.fn().mockResolvedValue(null) });
+    const deps = dependencies({ loadReminder: mock().mockResolvedValue(null) });
     await expect(processClaimedNotedEvent(reminderEvent(), deps)).resolves.toBe(true);
     expect(deps.deliver).not.toHaveBeenCalled();
     expect(deps.notifyReminder).not.toHaveBeenCalled();
-    expect(deps.acknowledge).toHaveBeenCalledOnce();
+    expect(deps.acknowledge).toHaveBeenCalledTimes(1);
     expect(deps.acknowledge).toHaveBeenCalledWith(null);
   });
 });
