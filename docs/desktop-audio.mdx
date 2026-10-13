@@ -185,7 +185,11 @@ Interrupted model downloads resume: the partial file is kept, the manager asks f
 the final sha256 over the stitched file is what proves it. Checked in the real shell
 with a local server that honours Range. There is no automatic retry yet.
 
-Still open: `.dmg` and `.msi` installers, signing and notarisation (they need
+CI also produces a `.dmg` (macOS) and an `.msi` (Windows) and requires them to exist;
+the `.msi` needed `icons/icon.ico` listed in `bundle.icon`, which only that bundle
+format demanded. Their contents are not opened.
+
+Still open: signing and notarisation (they need
 Apple and Windows certificates), and running transcription from an INSTALLED app;
 a resident sidecar for live text; speed on a real laptop and on
 long audio; audio from a real microphone rather than a file.
