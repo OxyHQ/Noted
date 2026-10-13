@@ -137,3 +137,66 @@ jobs:
 
       - name: Probe the webview
         run: dbus-run-session -- xvfb-run -a node desktop/e2e/probe.mjs "$PWD/desktop/src-tauri/target/debug/noted-desktop"
+
+  # The real web app inside the real shell. The probe above uses a minimal page; this
+  # embeds the Expo web export, so it answers "does Noted's own bundle start in this
+  # webview?" and leaves a screenshot as evidence. It cannot say more: the screens
+  # that use the local store are behind an Oxy sign-in that CI does not have.
+  app-in-shell:
+    name: Noted web app inside the shell (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build the web app
+        run: bun run build:frontend
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          NODE_ENV: production
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev build-essential curl wget file xvfb dbus-x11 \
+            webkit2gtk-driver
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: app
+
+      - name: Install tauri-driver
+        run: cargo install tauri-driver --locked
+
+      # The shell embeds `frontendDist` (the web export built above) at compile time.
+      - name: Build the shell around the web app
+        run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+
+      - name: Load the app in the shell
+        run: dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" node desktop/e2e/app.mjs "$PWD/desktop/src-tauri/target/debug/noted-desktop" "$RUNNER_TEMP/noted-in-shell.png"
+
+      - name: Keep the screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noted-in-shell-screenshot
+          path: ${{ runner.temp }}/noted-in-shell.png
+          if-no-files-found: warn
