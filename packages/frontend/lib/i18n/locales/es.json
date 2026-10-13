@@ -1218,7 +1218,12 @@
     "linkNote": "Enlazar a una nota",
     "linkSearchPlaceholder": "Buscar notas",
     "linkNoResults": "No se encontraron notas",
-    "linkUntitled": "Nota sin título"
+    "linkUntitled": "Nota sin título",
+    "pickDateTime": "Elige fecha y hora",
+    "reminderTime": "Hora del recordatorio",
+    "reminderInPast": "Elige una hora en el futuro",
+    "setReminder": "Poner recordatorio",
+    "customReminder": "Elegir hora…"
   },
   "capture": {
     "start": "Tomar apuntes",

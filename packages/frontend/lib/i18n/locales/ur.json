@@ -1218,7 +1218,12 @@
     "linkNote": "Link to a note",
     "linkSearchPlaceholder": "Search notes",
     "linkNoResults": "No notes found",
-    "linkUntitled": "Untitled note"
+    "linkUntitled": "Untitled note",
+    "pickDateTime": "Pick date and time",
+    "reminderTime": "Reminder time",
+    "reminderInPast": "Choose a time in the future",
+    "setReminder": "Set reminder",
+    "customReminder": "Pick a time…"
   },
   "capture": {
     "start": "شروع",
