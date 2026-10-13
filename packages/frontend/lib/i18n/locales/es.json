@@ -219,6 +219,17 @@
       "description": "Descarga todas tus notas, etiquetas y contenido generado en un archivo JSON",
       "button": "Exportar",
       "failed": "No se pudieron exportar tus notas"
+    },
+    "eraseData": {
+      "title": "Borrar mis datos de Noted",
+      "description": "Elimina para siempre todas tus notas, etiquetas, carpetas y grabaciones de Noted y de este dispositivo. Tu cuenta de Oxy no se ve afectada.",
+      "button": "Borrar…",
+      "confirmTitle": "¿Borrar todos los datos de Noted?",
+      "confirmBody": "No se puede deshacer. Exporta tus datos antes si quieres una copia.",
+      "confirm": "Borrar todo",
+      "done": "Se borraron tus datos de Noted",
+      "failed": "No se pudieron borrar tus datos",
+      "deviceFailed": "Tus datos se borraron del servidor, pero no se pudo limpiar este dispositivo. Cierra sesión y vuelve a entrar."
     }
   },
   "nav": {

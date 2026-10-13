@@ -219,6 +219,17 @@
       "description": "Download all your notes, labels and generated content as one JSON file",
       "button": "Export",
       "failed": "Could not export your notes"
+    },
+    "eraseData": {
+      "title": "Erase my Noted data",
+      "description": "Permanently delete all your notes, labels, folders and recordings from Noted and from this device. Your Oxy account is not affected.",
+      "button": "Erase…",
+      "confirmTitle": "Erase all Noted data?",
+      "confirmBody": "This cannot be undone. Export your data first if you want a copy.",
+      "confirm": "Erase everything",
+      "done": "Your Noted data was erased",
+      "failed": "Could not erase your data",
+      "deviceFailed": "Your data was erased from the server, but this device could not be cleared. Sign out and back in."
     }
   },
   "nav": {

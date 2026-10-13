@@ -27,9 +27,14 @@ router.get('/export', async (req: Request, res: Response) => {
 
 const deleteSchema = z.object({ confirm: z.literal('DELETE') });
 
-// DELETE /account — erase Noted's data for this user. The Oxy account itself is
-// Oxy's to delete. Irreversible, hence the explicit confirmation in the body.
-router.delete('/', async (req: Request, res: Response) => {
+// Erase Noted's data for this user. The Oxy account itself is Oxy's to delete.
+// Irreversible, hence the explicit confirmation in the body.
+//
+// Offered twice: `DELETE /account` is the natural verb, but a request body on a
+// DELETE is dropped by some proxies and load balancers, which would turn the
+// confirmation into a 400 for no reason the user could see. `POST /account/erase`
+// carries the same body on a verb every hop forwards intact.
+async function erase(req: Request, res: Response) {
   try {
     const oxyUserId = getRequiredOxyUserId(req);
     if (!deleteSchema.safeParse(req.body).success) {
@@ -42,6 +47,9 @@ router.delete('/', async (req: Request, res: Response) => {
     log.notes.error({ err: error }, 'Error erasing account data');
     res.status(500).json({ error: 'Failed to erase account data' });
   }
-});
+}
+
+router.delete('/', erase);
+router.post('/erase', erase);
 
 export default router;

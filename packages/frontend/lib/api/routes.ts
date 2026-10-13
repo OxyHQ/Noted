@@ -23,6 +23,7 @@ export const API_ROUTES = {
   // The caller's whole Noted account
   account: {
     export: '/account/export',
+    erase: '/account/erase',
   },
 
   // Folders

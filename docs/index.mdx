@@ -141,6 +141,15 @@ overrides, labels, notifications and feedback. `DELETE /account` with
 `{"confirm":"DELETE"}` erases every row Noted holds for the caller in a single
 transaction; the Oxy account itself is Oxy's to delete. Both live in
 `lib/account-data.ts` so the rows they touch are tested against PostgreSQL.
+`POST /account/erase` does the same as `DELETE /account`: a body on a DELETE is
+dropped by some proxies, which would turn the confirmation into a `400`, so the
+app uses the POST form.
+
+Settings → Account → "Erase my Noted data" calls it, then clears this device
+(`lib/db/erase-local.ts`): recordings' audio first, then every account table
+including the outbox — left behind, pending uploads would re-create the erased
+notes. Device preferences and downloaded models stay. The server goes first so a
+failed request changes nothing.
 
 ## Identity and sharing boundary
 
