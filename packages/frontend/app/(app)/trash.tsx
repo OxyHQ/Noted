@@ -4,13 +4,14 @@ import React from 'react';
 import { useRouter } from 'expo-router';
 import { EmptyState } from '@/components/empty-state';
 import { LocalStoreError } from '@/components/local-store-boundary';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { RiArrowGoBackLine } from '@oxy.so/bloom/icons/RiArrowGoBackLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { Card } from '@oxy.so/bloom/card';
 import { Text } from '@/components/ui/text';
 import { Button } from '@oxy.so/bloom/button';
 import { NotesHeader } from '@/components/notes/notes-header';
+import { NotesSkeleton } from '@/components/notes/notes-skeleton';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { getNoteColorTint } from '@/lib/note-colors';
 import { useNotes, useRestoreNote, useDeleteNote } from '@/lib/hooks/use-notes';
@@ -67,9 +68,7 @@ export default function TrashScreen() {
         {error ? (
           <LocalStoreError />
         ) : isLoading ? (
-          <View className="items-center justify-center py-16">
-            <ActivityIndicator color={colors.primary} />
-          </View>
+          <NotesSkeleton />
         ) : allNotes.length === 0 ? (
           <EmptyState
             sticker="trash"
