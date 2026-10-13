@@ -8,9 +8,6 @@ import { buildPaletteEntries, type PaletteCommand } from '@/lib/command-palette'
 import { useNotes } from '@/lib/hooks/use-notes';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 
-const MODIFIER =
-  Platform.OS === 'web' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
-
 /**
  * Search notes and run commands from the keyboard (⌘K / Ctrl+K).
  *
