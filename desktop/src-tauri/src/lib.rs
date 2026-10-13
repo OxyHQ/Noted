@@ -89,6 +89,7 @@ pub fn run() {
             models::model_write,
             models::model_commit,
             models::model_status,
+            models::model_partial,
             models::model_remove
         ])
         .setup(|app| {
