@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres.js';
 import { capabilityExecutions } from '../db/schema/capability-executions.js';
 import { feedback } from '../db/schema/feedback.js';
+import { folders } from '../db/schema/folders.js';
 import { labels } from '../db/schema/labels.js';
 import { noteArtifacts, noteItemOverrides } from '../db/schema/note-artifacts.js';
 import { noteRevisions } from '../db/schema/note-revisions.js';
@@ -10,7 +11,7 @@ import { notes } from '../db/schema/notes.js';
 import { notifications } from '../db/schema/notifications.js';
 import { pushTokens, webPushSubscriptions } from '../db/schema/pushTokens.js';
 import { readGeneratedHalf } from './note-artifacts.js';
-import { serializeLabel, serializeNote } from './serializers.js';
+import { serializeFolder, serializeLabel, serializeNote } from './serializers.js';
 
 export const EXPORT_FORMAT = 'noted-export-v1';
 
@@ -33,8 +34,9 @@ export async function exportAccountData(oxyUserId: string) {
     live.map((row) => row.id),
     oxyUserId,
   );
-  const [labelRows, notificationRows, feedbackRows] = await Promise.all([
+  const [labelRows, folderRows, notificationRows, feedbackRows] = await Promise.all([
     db.select().from(labels).where(eq(labels.oxyUserId, oxyUserId)).orderBy(asc(labels.name)),
+    db.select().from(folders).where(eq(folders.oxyUserId, oxyUserId)).orderBy(asc(folders.name)),
     db.select().from(notifications).where(eq(notifications.oxyUserId, oxyUserId)),
     db.select().from(feedback).where(eq(feedback.oxyUserId, oxyUserId)),
   ]);
@@ -48,6 +50,7 @@ export async function exportAccountData(oxyUserId: string) {
       }),
     ),
     labels: labelRows.map(serializeLabel),
+    folders: folderRows.map(serializeFolder),
     notifications: notificationRows,
     feedback: feedbackRows,
   };
@@ -65,6 +68,7 @@ export async function eraseAccountData(oxyUserId: string): Promise<void> {
     await transaction.delete(noteArtifacts).where(eq(noteArtifacts.oxyUserId, oxyUserId));
     await transaction.delete(notes).where(eq(notes.oxyUserId, oxyUserId));
     await transaction.delete(labels).where(eq(labels.oxyUserId, oxyUserId));
+    await transaction.delete(folders).where(eq(folders.oxyUserId, oxyUserId));
     await transaction.delete(notifications).where(eq(notifications.oxyUserId, oxyUserId));
     await transaction.delete(pushTokens).where(eq(pushTokens.oxyUserId, oxyUserId));
     await transaction

@@ -7,6 +7,7 @@ const { closePostgres, connectPostgres } = await import('../../db/postgres.js');
 const { labels } = await import('../../db/schema/labels.js');
 const { notes } = await import('../../db/schema/notes.js');
 const { feedback } = await import('../../db/schema/feedback.js');
+const { folders } = await import('../../db/schema/folders.js');
 const { eraseAccountData, exportAccountData, EXPORT_FORMAT } = await import('../account-data.js');
 
 let databaseUrl: string | undefined;
@@ -44,6 +45,10 @@ beforeAll(async () => {
     { oxyUserId: 'user-A', name: 'A label' },
     { oxyUserId: 'user-B', name: 'B label' },
   ]);
+  await db.insert(folders).values([
+    { oxyUserId: 'user-A', name: 'A folder' },
+    { oxyUserId: 'user-B', name: 'B folder' },
+  ]);
   await db.insert(feedback).values([
     { oxyUserId: 'user-A', type: 'other', message: 'from A' },
     { oxyUserId: 'user-B', type: 'other', message: 'from B' },
@@ -62,6 +67,7 @@ describe('account data', () => {
     expect(data.format).toBe(EXPORT_FORMAT);
     expect(data.notes.map((n) => n.title).sort()).toEqual(['A live', 'A trashed']);
     expect(data.labels.map((l) => l.name)).toEqual(['A label']);
+    expect(data.folders.map((f) => f.name)).toEqual(['A folder']);
   });
 
   it("erases one user's rows and leaves everyone else's untouched", async () => {
@@ -70,11 +76,13 @@ describe('account data', () => {
     const erased = await exportAccountData('user-A');
     expect(erased.notes).toEqual([]);
     expect(erased.labels).toEqual([]);
+    expect(erased.folders).toEqual([]);
     expect(erased.feedback).toEqual([]);
 
     const kept = await exportAccountData('user-B');
     expect(kept.notes.map((n) => n.title)).toEqual(['B live']);
     expect(kept.labels.map((l) => l.name)).toEqual(['B label']);
+    expect(kept.folders.map((f) => f.name)).toEqual(['B folder']);
     expect(kept.feedback).toHaveLength(1);
   });
 });

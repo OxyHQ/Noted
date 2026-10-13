@@ -7,6 +7,7 @@
  */
 
 import type {
+  FolderDTO,
   GeneratedNoteArtifact,
   LabelDTO,
   NoteDTO,
@@ -15,6 +16,7 @@ import type {
 import { normalizeNoteColor } from '@noted/shared-types';
 
 import type { NoteRow } from '../db/schema/notes.js';
+import type { FolderRow } from '../db/schema/folders.js';
 import type { LabelRow } from '../db/schema/labels.js';
 
 /**
@@ -52,6 +54,7 @@ export function serializeNote(note: NoteRow, generated?: GeneratedHalf): NoteDTO
     attachments: note.attachments,
     reminderAt: note.reminderAt ? note.reminderAt.toISOString() : null,
     order: note.sortOrder,
+    folderId: note.folderId,
     ...(generated ? { artifacts: generated.artifacts, itemOverrides: generated.overrides } : {}),
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
@@ -65,4 +68,8 @@ export function serializeLabel(label: LabelRow): LabelDTO {
     // A label with no color stays null; a legacy color is coerced to a valid one.
     color: label.color === null ? null : normalizeNoteColor(label.color),
   };
+}
+
+export function serializeFolder(folder: FolderRow): FolderDTO {
+  return { id: folder.id, name: folder.name };
 }

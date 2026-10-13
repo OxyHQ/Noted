@@ -24,7 +24,8 @@ export type RateLimitScope =
   | 'notes:write'
   | 'labels'
   | 'feedback'
-  | 'account';
+  | 'account'
+  | 'folders';
 
 /**
  * Build a rate-limit middleware for a scope. The scope drives a unique
