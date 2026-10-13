@@ -20,6 +20,8 @@ export const SETTING_KEYS = {
   liveNotes: 'stt.live',
   /** The first-run welcome has been shown (or was never needed). */
   onboardingSeen: 'onboarding.seen',
+  /** Ask for Face ID / a fingerprint to open the app. Off unless the person turns it on. */
+  appLock: 'lock.enabled',
 } as const;
 
 interface SettingRow extends Row {

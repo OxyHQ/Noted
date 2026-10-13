@@ -1491,5 +1491,16 @@
         "prompt": "I will paste some rough notes. Rewrite them clearly, keeping every point."
       }
     }
+  },
+  "lock": {
+    "title": "Noted is locked",
+    "unlock": "Unlock",
+    "prompt": "Unlock Noted",
+    "failed": "Could not unlock. Try again.",
+    "settingTitle": "Lock with Face ID / fingerprint",
+    "settingDescription": "Ask to unlock Noted when you open it or come back after 30 seconds away. Your device passcode works too.",
+    "settingUnavailable": "Set up Face ID, a fingerprint or a passcode on this device to use this.",
+    "enablePrompt": "Confirm to turn on the lock",
+    "section": "Security"
   }
 }

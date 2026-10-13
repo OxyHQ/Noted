@@ -14,6 +14,7 @@ import { getNativeLanguageName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { AppLockSection } from './app-lock-section';
 import { useExportAll } from '@/lib/hooks/use-export-all';
 import { useImportNotes } from '@/lib/hooks/use-import-notes';
 import { useNotedSettings } from './settings-provider';
@@ -93,6 +94,7 @@ export function GeneralSection() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+      <AppLockSection />
       <SettingsSection label={t('settings.import.title')}>
         <SettingsCard>
           <SettingsRow

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppShell } from '@oxy.so/bloom/app-shell';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { AliaChatHost } from '@/components/alia-chat';
+import { AppLockGate } from '@/components/app-lock-gate';
 import { CommandPalette } from '@/components/command-palette';
 import { useNotedSidebar } from '@/components/sidebar';
 import { LocalStoreBoundary } from '@/components/local-store-boundary';
@@ -53,43 +54,45 @@ export default function AppLayout() {
 
   return (
     <AppErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <AppShell
-          variant="feed"
-          scroll={Platform.OS === 'web' ? 'document' : 'fixed'}
-          safeArea
-          panel
-          sidebar={sidebar}
-          drawer="reveal"
-          drawerOpen={drawerOpen}
-          onDrawerOpenChange={setDrawerOpen}
-          navFrom={768}
-          contentWidth={1800}
-          navigationAlign="content"
-          navigationGap={8}
-          gutter={8}
-          header={null}
-          bottomBar={<FloatingBottomStack />}
-          bottomBarVisibility="always"
-          testID="noted-app-shell"
-        >
-          {Platform.OS === 'web' ? (
-            <Scene>
-              <Slot />
-            </Scene>
-          ) : (
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: 'transparent' },
-              }}
-              screenLayout={renderScene}
-            />
-          )}
-        </AppShell>
-        <CommandPalette />
-        <AliaChatHost />
-      </GestureHandlerRootView>
+      <AppLockGate>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <AppShell
+            variant="feed"
+            scroll={Platform.OS === 'web' ? 'document' : 'fixed'}
+            safeArea
+            panel
+            sidebar={sidebar}
+            drawer="reveal"
+            drawerOpen={drawerOpen}
+            onDrawerOpenChange={setDrawerOpen}
+            navFrom={768}
+            contentWidth={1800}
+            navigationAlign="content"
+            navigationGap={8}
+            gutter={8}
+            header={null}
+            bottomBar={<FloatingBottomStack />}
+            bottomBarVisibility="always"
+            testID="noted-app-shell"
+          >
+            {Platform.OS === 'web' ? (
+              <Scene>
+                <Slot />
+              </Scene>
+            ) : (
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
+                screenLayout={renderScene}
+              />
+            )}
+          </AppShell>
+          <CommandPalette />
+          <AliaChatHost />
+        </GestureHandlerRootView>
+      </AppLockGate>
     </AppErrorBoundary>
   );
 }
