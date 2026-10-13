@@ -31,6 +31,7 @@ import {
   Type,
   Download,
   History,
+  Link2,
 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { toast } from '@oxy.so/bloom/toast';
@@ -46,7 +47,10 @@ import { recordChecklistOverrides } from '@/lib/artifact/record-checklist';
 import { MarkdownBodyEditor } from '@/components/notes/markdown-body-editor';
 import { LabelChips } from '@/components/notes/label-chips';
 import { LabelAssignDialog } from '@/components/notes/label-assign-dialog';
+import { LinkedMentions } from '@/components/notes/linked-mentions';
+import { LinkNoteDialog } from '@/components/notes/link-note-dialog';
 import { RevisionsDialog } from '@/components/notes/revisions-dialog';
+import { appendLink, linkTo } from '@/lib/notes/links';
 import { AttachmentsRow } from '@/components/notes/attachments/AttachmentsRow';
 import type { FileMetadata } from '@oxy.so/core';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -185,6 +189,7 @@ function NoteEditor() {
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [linkOpen, setLinkOpen] = React.useState(false);
   const [showReminders, setShowReminders] = React.useState(false);
 
   const setDraft = React.useCallback((next: LocalNote) => {
@@ -697,6 +702,8 @@ function NoteEditor() {
 
         {draft.labels.length > 0 && <LabelChips labelIds={draft.labels} allLabels={allLabels} />}
 
+        {!isNew && <LinkedMentions noteId={params.id} title={draft.title} />}
+
         {/* What was actually said, for when the note is not enough. Collapsed by
             default: a note is the handful of things worth reading again, and
             opening the transcript unasked puts the work the app exists to save
@@ -747,6 +754,13 @@ function NoteEditor() {
             onPress={handleToggleChecklist}
           />
           <IconButton icon={Download} label={t('notes.exportMarkdown')} onPress={handleExport} />
+          {!showChecklist && (
+            <IconButton
+              icon={Link2}
+              label={t('notes.linkNote')}
+              onPress={() => setLinkOpen(true)}
+            />
+          )}
           {!isNew && (
             <IconButton
               icon={History}
@@ -768,6 +782,18 @@ function NoteEditor() {
     />
   );
 
+  const linkDialog = (
+    <LinkNoteDialog
+      open={linkOpen}
+      onOpenChange={setLinkOpen}
+      currentId={isNew ? '' : params.id}
+      onPick={(title) => {
+        const link = linkTo(title);
+        if (link) update({ body: appendLink(draftRef.current.body, link) });
+      }}
+    />
+  );
+
   const historyDialog = isNew ? null : (
     <RevisionsDialog
       open={historyOpen}
@@ -785,6 +811,7 @@ function NoteEditor() {
     <View className="flex-1" style={{ backgroundColor }}>
       {editorContent}
       {labelDialog}
+      {linkDialog}
       {historyDialog}
       <FloatingBottomStack />
     </View>
