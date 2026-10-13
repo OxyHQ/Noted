@@ -1352,5 +1352,34 @@
     "storeReloadSubtitle": "La conexión con tus notas locales necesita reiniciarse. Cierra las otras pestañas de Noted y recarga esta página. Tus notas guardadas se han conservado.",
     "reload": "Recargar página",
     "storePausedSubtitle": "Otra pestaña de Noted está en pausa. Ábrela o ciérrala y vuelve a intentarlo. Tus notas se han conservado."
+  },
+  "templates": {
+    "meeting": {
+      "name": "Notas de reunión",
+      "title": "Reunión — {{date}}",
+      "body": "## Asistentes\n\n## Agenda\n\n## Notas\n\n## Decisiones\n\n## Tareas\n- [ ] "
+    },
+    "lecture": {
+      "name": "Apuntes de clase",
+      "title": "Clase — {{date}}",
+      "body": "## Tema\n\n## Ideas clave\n\n## Preguntas\n\n## Repaso"
+    },
+    "journal": {
+      "name": "Diario",
+      "title": "{{date}}",
+      "body": "## Hoy\n\n## Agradezco\n\n## Mañana"
+    },
+    "weekly": {
+      "name": "Plan semanal",
+      "title": "Semana del {{date}}",
+      "body": "## Objetivos\n- [ ] \n\n## Agenda\n\n## Repaso"
+    },
+    "project": {
+      "name": "Resumen de proyecto",
+      "title": "Proyecto: ",
+      "body": "## Objetivo\n\n## Alcance\n\n## Hitos\n\n## Riesgos"
+    },
+    "open": "Usar una plantilla",
+    "pick": "Elige una plantilla"
   }
 }
