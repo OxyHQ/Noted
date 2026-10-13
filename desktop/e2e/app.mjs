@@ -6,7 +6,7 @@
 // export. This says the bundle starts in this webview without taking the page down;
 // it cannot say the app is usable, because the interesting screens sit behind an
 // Oxy sign-in that CI does not have. The screenshot is the evidence.
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { sleep, withSession } from './driver.mjs';
 
 const application = process.argv[2];
@@ -25,6 +25,24 @@ const SNAPSHOT = `
     origin: location.origin,
   };
 `;
+
+/** A 16-bit PCM WAV as base64 of little-endian float32, which is what the app's engine takes. */
+function wavAsFloat32Base64(path) {
+  const wav = readFileSync(path);
+  for (let at = 12; at + 8 <= wav.length; ) {
+    const size = wav.readUInt32LE(at + 4);
+    if (wav.toString('ascii', at, at + 4) === 'data') {
+      const count = Math.floor(size / 2);
+      const floats = new Float32Array(count);
+      for (let index = 0; index < count; index += 1) {
+        floats[index] = wav.readInt16LE(at + 8 + index * 2) / 32768;
+      }
+      return Buffer.from(floats.buffer).toString('base64');
+    }
+    at += 8 + size + (size % 2);
+  }
+  throw new Error(`no data chunk in ${path}`);
+}
 
 await withSession(application, async ({ run, runAsync, screenshot }) => {
   let state = null;
@@ -72,6 +90,42 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
       store.userVersion > 0;
     if (!ok) {
       console.error('::error::the local store did not work end to end inside the shell');
+      process.exitCode = 1;
+    }
+  }
+
+  // Speech to text, end to end, with the REAL sidecar: the web app's own engine →
+  // the desktop adapter → Tauri IPC → the Rust command → whisper-cli → the app's
+  // model (placed where Rust looks for it) → segments. Needs the job to have built
+  // the sidecar and fetched the model, and the e2e build for the hook.
+  if (process.env.E2E_STT === '1') {
+    const audio = wavAsFloat32Base64(process.env.E2E_SAMPLE);
+    const outcome = await runAsync(
+      `const done = arguments[arguments.length - 1];
+       const hook = window.__NOTED_E2E_HOOK__;
+       if (!hook) { done({ error: 'the e2e hook is not installed' }); return; }
+       hook.transcribe(arguments[0]).then((segments) => done({ segments }), (error) => done({ error: String(error) }));`,
+      [audio],
+    );
+    console.log(JSON.stringify({ transcription: outcome }, null, 2));
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(
+        process.env.GITHUB_STEP_SUMMARY,
+        `\n### Speech to text inside the shell (web engine → adapter → Rust → whisper.cpp)\n\n\`\`\`json\n${JSON.stringify(outcome, null, 2)}\n\`\`\`\n`,
+      );
+    }
+    const segments = outcome?.segments ?? [];
+    const text = segments
+      .map((segment) => segment.text)
+      .join(' ')
+      .toLowerCase();
+    const end = segments.at(-1)?.endMs ?? 0;
+    if (
+      outcome?.error ||
+      !text.includes('ask not what your country can do for you') ||
+      !(end >= 9000 && end <= 13000)
+    ) {
+      console.error('::error::speech to text did not work end to end inside the shell');
       process.exitCode = 1;
     }
   }

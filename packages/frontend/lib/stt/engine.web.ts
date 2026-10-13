@@ -25,6 +25,9 @@ import { createLogger } from '@oxy.so/core/logger';
 
 import { createPlaybackUrl, releasePlaybackUrl } from '@/lib/audio/store';
 import { makeSegment, type TranscriptSegment } from '@/lib/capture/captures-repo';
+import { loadTauriInvoke } from '@/lib/db/desktop-driver';
+import { isDesktop } from '@/lib/desktop/bridge';
+import { createDesktopTranscriber } from '@/lib/stt/desktop-transcriber';
 import type { SttEngine, TranscribeRequest } from '@/lib/stt/engine';
 
 const logger = createLogger('NotedSTT');
@@ -34,6 +37,22 @@ const logger = createLogger('NotedSTT');
  * resampled somewhere; doing it here, once, is the cheap place.
  */
 export const SAMPLE_RATE = 16_000;
+
+/**
+ * In the Noted Desktop shell the webview has no WebGPU or threads, so transcription
+ * runs in the whisper.cpp sidecar instead of in this page (`desktop-transcriber.ts`).
+ * Decided once; every path below checks it.
+ */
+const desktop = isDesktop() ? createDesktopTranscriber(loadTauriInvoke) : null;
+
+/**
+ * Whether the live recorder may ask for provisional text.
+ *
+ * That loop re-reads the recent audio again and again for the whole meeting. In the
+ * browser the model stays loaded, so it is cheap; the sidecar is a process that loads
+ * the model on every call, so doing it continuously would pin the CPU. On desktop
+ * there is no provisional text, only settled slices, until the sidecar can stay
+ * resident.
 
 /**
  * The ONNX build of whisper-base.
@@ -285,6 +304,8 @@ function toSegments(
  * same slice transcribed again — a correction, a retry — lands on the rows it
  * already wrote rather than beside them.
  */
+export const PARTIAL_TRANSCRIPTION = desktop === null;
+
 export async function transcribeSamples(
   samples: Float32Array,
   captureId: string,
@@ -292,6 +313,9 @@ export async function transcribeSamples(
   offsetMs: number,
   sliceIndex: number,
 ): Promise<TranscriptSegment[]> {
+  if (desktop) {
+    return desktop.transcribe(samples, { captureId, language, offsetMs, sliceIndex });
+  }
   const transcribe = await getTranscriber();
   const output = await transcribe(samples, {
     chunk_length_s: CHUNK_SECONDS,
@@ -309,6 +333,15 @@ export function getSttEngine(): SttEngine {
 
     async transcribe(request: TranscribeRequest): Promise<TranscriptSegment[]> {
       const samples = await decodeToSamples(request.audioPath);
+      if (desktop) {
+        const segments = await desktop.transcribeRecording(
+          samples,
+          { captureId: request.captureId, language: request.language, model: request.model },
+          request.onSegments,
+        );
+        logger.info('Desktop transcription finished', { segments: segments.length });
+        return segments;
+      }
       const transcribe = await getTranscriber();
 
       const language = resolveLanguage(request.language);

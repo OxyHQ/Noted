@@ -17,6 +17,7 @@
 import { execute, setActiveViewer } from '@/lib/db/client';
 import { newNoteId } from '@/lib/db/ids';
 import { createNote, getNote } from '@/lib/db/notes-repo';
+import { transcribeSamples } from '@/lib/stt/engine.web';
 
 export interface DesktopStoreReport {
   title: string | undefined;
@@ -54,13 +55,26 @@ async function count(viewer: string): Promise<number> {
   return Number(rows[0]?.n ?? 0);
 }
 
+/**
+ * Transcribe audio through the web app's REAL engine (`transcribeSamples`), which in
+ * the desktop shell hands it to the whisper.cpp sidecar. `samples` is base64 of
+ * little-endian float32 PCM at 16 kHz, mono.
+ */
+async function transcribe(samples: string) {
+  const bytes = Uint8Array.from(atob(samples), (character) => character.charCodeAt(0));
+  const pcm = new Float32Array(bytes.buffer);
+  const segments = await transcribeSamples(pcm, 'e2e-capture', 'en', 0, 0);
+  return segments.map(({ text, startMs, endMs }) => ({ text, startMs, endMs }));
+}
+
 declare global {
   interface Window {
     __NOTED_E2E_HOOK__?: {
       run: (viewer: string) => Promise<DesktopStoreReport>;
       count: (viewer: string) => Promise<number>;
+      transcribe: (samples: string) => ReturnType<typeof transcribe>;
     };
   }
 }
 
-if (typeof window !== 'undefined') window.__NOTED_E2E_HOOK__ = { run, count };
+if (typeof window !== 'undefined') window.__NOTED_E2E_HOOK__ = { run, count, transcribe };

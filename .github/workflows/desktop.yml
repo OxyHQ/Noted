@@ -14,6 +14,10 @@ on:
       - 'desktop/**'
       - '.github/workflows/desktop.yml'
 
+env:
+  # Same pin as .github/workflows/whisper-sidecar.yml.
+  WHISPER_CPP_TAG: v1.9.5
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -189,6 +193,31 @@ jobs:
       - name: Install tauri-driver
         run: cargo install tauri-driver --locked
 
+      # The speech-to-text check needs the real sidecar and the app's own model, placed
+      # where the Rust command looks for it (the app data directory's `models/`).
+      - name: Cache the whisper.cpp build
+        id: whisper-cache
+        uses: actions/cache@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-${{ env.WHISPER_CPP_TAG }}-linux
+
+      - name: Build whisper-cli
+        if: steps.whisper-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$WHISPER_CPP_TAG" https://github.com/ggml-org/whisper.cpp
+          cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF
+          cmake --build whisper.cpp/build -j --target whisper-cli
+
+      - name: Cache the model
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/so.oxy.noted.desktop/models
+          key: desktop-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+
+      - name: Put the app's default model where the shell looks for it
+        run: node desktop/sidecar/fetch-model.mjs base "$HOME/.local/share/so.oxy.noted.desktop/models"
+
       # The shell embeds `frontendDist` (the web export built above) at compile time.
       - name: Build the shell around the web app
         run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
@@ -196,6 +225,9 @@ jobs:
       - name: Load the app in the shell
         env:
           E2E_STORE: '1'
+          E2E_STT: '1'
+          E2E_SAMPLE: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
+          NOTED_WHISPER_CLI: ${{ github.workspace }}/whisper.cpp/build/bin/whisper-cli
         run: dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" node desktop/e2e/app.mjs "$PWD/desktop/src-tauri/target/debug/noted-desktop" "$RUNNER_TEMP/noted-in-shell.png"
 
       - name: Keep the screenshot
