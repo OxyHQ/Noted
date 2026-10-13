@@ -81,6 +81,14 @@ const noteWriteSchema = z
     reminderAt: z.string().datetime().nullable(),
     order: z.number(),
     /**
+     * The server `updatedAt` this edit was made on top of. When present, a PATCH
+     * only applies if the note is still at that version; otherwise it is
+     * answered with 409 and the current note, so a stale device cannot silently
+     * overwrite what another one wrote. Absent means "last write wins", which
+     * is what writers without a base (capabilities, older clients) get.
+     */
+    baseUpdatedAt: z.string().datetime().optional(),
+    /**
      * The generated half, sent with the note rather than on endpoints of its
      * own — a note that arrived without its overrides would render generated
      * text the user had already edited away.
@@ -444,11 +452,23 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid note payload' });
     }
 
+    const base = parsed.data.baseUpdatedAt ? new Date(parsed.data.baseUpdatedAt) : null;
+
     const [note] = await getDb().transaction(async (transaction) => {
       const updated = await transaction
         .update(notes)
         .set(touched(toColumns(parsed.data)))
-        .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)))
+        .where(
+          and(
+            eq(notes.id, noteId),
+            eq(notes.oxyUserId, userId),
+            isNull(notes.deletedAt),
+            // The check lives in the UPDATE itself, so two devices racing on the
+            // same base cannot both pass it. Milliseconds, because the wire
+            // format has no more and a database default can.
+            base ? sql`date_trunc('milliseconds', ${notes.updatedAt}) = ${base}` : undefined,
+          ),
+        )
         .returning();
       if (updated[0]) {
         await enqueueRouteNoteChange(
@@ -460,7 +480,25 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
       }
       return updated;
     });
-    if (!note) return res.status(404).json({ error: 'Note not found' });
+    if (!note) {
+      if (base) {
+        const [current] = await getDb()
+          .select()
+          .from(notes)
+          .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)));
+        if (current) {
+          const generated = await readGeneratedHalf([current.id], userId);
+          return res.status(409).json({
+            error: 'Note changed since the version this edit was based on',
+            current: serializeNote(current, {
+              artifacts: generated.artifacts.get(current.id) ?? [],
+              overrides: generated.overrides.get(current.id) ?? [],
+            }),
+          });
+        }
+      }
+      return res.status(404).json({ error: 'Note not found' });
+    }
 
     await writeGeneratedHalf(note.id, userId, parsed.data);
 
