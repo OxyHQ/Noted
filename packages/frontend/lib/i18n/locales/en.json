@@ -1442,5 +1442,13 @@
       "link": "Link",
       "linkPrompt": "Link address"
     }
+  },
+  "palette": {
+    "placeholder": "Search notes or run a command…",
+    "empty": "Nothing found",
+    "groupActions": "Actions",
+    "groupGo": "Go to",
+    "groupNotes": "Notes",
+    "toggleView": "Switch between grid and list"
   }
 }

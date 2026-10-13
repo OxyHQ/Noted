@@ -1442,5 +1442,13 @@
       "link": "Enlace",
       "linkPrompt": "Dirección del enlace"
     }
+  },
+  "palette": {
+    "placeholder": "Busca notas o ejecuta un comando…",
+    "empty": "No se encontró nada",
+    "groupActions": "Acciones",
+    "groupGo": "Ir a",
+    "groupNotes": "Notas",
+    "toggleView": "Cambiar entre cuadrícula y lista"
   }
 }
