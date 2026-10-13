@@ -11,15 +11,18 @@ import {
   SquareCode,
   Strikethrough,
   Table,
+  ArrowDown,
+  ArrowUp,
   type LucideIcon,
 } from 'lucide-react-native';
-import type React from 'react';
+import React from 'react';
 
 import { useTranslation } from '@/hooks/useTranslation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
   insertLink,
   insertTable,
+  moveLines,
   toggleCodeBlock,
   toggleHeading,
   toggleLinePrefix,
@@ -76,6 +79,32 @@ interface MarkdownFormatBarProps {
 export function MarkdownFormatBar({ fieldId, value, onChangeMarkdown }: MarkdownFormatBarProps) {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
+
+  // Alt+↑ / Alt+↓ move the lines under the caret. Registered once on the field and
+  // reading its text straight from the DOM, so it never acts on a stale `value`.
+  const onChange = React.useRef(onChangeMarkdown);
+  onChange.current = onChangeMarkdown;
+  React.useEffect(() => {
+    const field = document.getElementById(fieldId);
+    if (!(field instanceof HTMLTextAreaElement)) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      const edit = moveLines(
+        field.value,
+        { start: field.selectionStart, end: field.selectionEnd },
+        event.key === 'ArrowUp' ? 'up' : 'down',
+      );
+      if (edit.text === field.value) return;
+      onChange.current(edit.text);
+      requestAnimationFrame(() =>
+        field.setSelectionRange(edit.selection.start, edit.selection.end),
+      );
+    };
+    field.addEventListener('keydown', onKeyDown);
+    return () => field.removeEventListener('keydown', onKeyDown);
+  }, [fieldId]);
 
   const apply = (run: Command['run']) => {
     const field = document.getElementById(fieldId);
@@ -142,6 +171,12 @@ export function MarkdownFormatBar({ fieldId, value, onChangeMarkdown }: Markdown
         ),
       )}
       {button('link', Link2, t('editor.format.link'), link)}
+      {button('up', ArrowUp, t('editor.format.moveUp'), () =>
+        apply((text, selection) => moveLines(text, selection, 'up')),
+      )}
+      {button('down', ArrowDown, t('editor.format.moveDown'), () =>
+        apply((text, selection) => moveLines(text, selection, 'down')),
+      )}
     </div>
   );
 }

@@ -1447,7 +1447,9 @@
       "block": "Code block",
       "link": "Link",
       "linkPrompt": "Link address",
-      "table": "Table"
+      "table": "Table",
+      "moveUp": "Move line up (Alt+↑)",
+      "moveDown": "Move line down (Alt+↓)"
     },
     "slash": {
       "title": "Insert a block",
