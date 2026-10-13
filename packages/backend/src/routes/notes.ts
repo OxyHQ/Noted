@@ -64,21 +64,30 @@ const clientNoteIdSchema = z
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
   .optional();
 
-const noteWriteSchema = z
+/** Per-note ceilings on the list fields. Generous on purpose: a limit a real note
+ * could hit would 400 the same outbox entry forever, so these only stop abuse. */
+export const NOTE_LIMITS = {
+  checklist: 5_000,
+  labels: 100,
+  attachments: 100,
+  idLength: 200,
+} as const;
+
+export const noteWriteSchema = z
   .object({
     title: z.string().max(1000),
     body: z.string().max(100_000),
-    checklist: z.array(checklistItemSchema),
+    checklist: z.array(checklistItemSchema).max(NOTE_LIMITS.checklist),
     // Tolerant of legacy palette values: any string is coerced to a valid
     // NoteColor (darkblue→blue, amber→pumpkin, gray/unknown→default) instead of
     // being rejected, so a client echoing an old color in a PATCH never 400s.
     color: z.string().transform(normalizeNoteColor),
-    labels: z.array(z.string()),
+    labels: z.array(z.string().max(NOTE_LIMITS.idLength)).max(NOTE_LIMITS.labels),
     pinned: z.boolean(),
     archived: z.boolean(),
     trashed: z.boolean(),
     // Oxy file-manager file IDs (any file type).
-    attachments: z.array(z.string()),
+    attachments: z.array(z.string().max(NOTE_LIMITS.idLength)).max(NOTE_LIMITS.attachments),
     reminderAt: z.string().datetime().nullable(),
     order: z.number(),
     /**
