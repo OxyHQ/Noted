@@ -165,7 +165,12 @@ local language model, which do not exist there. Verified in the real shell on Li
 with a local HTTP server: the real `tiny` model is accepted, a same-sized corrupt
 copy is refused and leaves nothing behind, and removal works.
 
-Still open: real binaries for macOS and Windows, signing and notarisation, an
+`whisper-cli` is also built and run on macOS and Windows in CI (`Whisper sidecar`):
+it transcribes the sample with the app's model there, and the Rust `stt::` tests
+pass against the real binary on both. The in-shell end-to-end check is still
+Linux only, and the shipped app does not bundle those binaries yet.
+
+Still open: bundling the macOS and Windows binaries, signing and notarisation, an
 installer (`tauri build` with a bundle); resumable downloads; the recorder does not
 wait for a model on desktop (a missing one surfaces as `model_missing`); a resident
 sidecar for live text; speed on a real laptop and on long audio; audio from a real
