@@ -205,6 +205,14 @@
       "sky": "Sky",
       "orange": "Orange",
       "mint": "Mint"
+    },
+    "import": {
+      "title": "Importar notas",
+      "description": "Trae archivos Markdown, Obsidian o Google Keep (JSON)",
+      "button": "Elegir archivos",
+      "done": "Se importaron {{count}} notas",
+      "skipped": "Se omitieron {{count}} archivos. Primero: {{first}}",
+      "failed": "No se pudieron importar esos archivos"
     }
   },
   "nav": {
