@@ -1,9 +1,15 @@
 /** Browser tabs share one SQLite worker through the origin-wide database broker. */
 import * as engine from './client-engine';
+import { isDesktop } from '../desktop/bridge';
+import { createDesktopDriver, loadTauriInvoke } from './desktop-driver';
 import { createDatabaseBroker, DATABASE_CHANNEL, type DatabaseOperation } from './web-store-broker';
 import { readTables } from './sql-tables';
 import type { Row, Statement, Unsubscribe } from './client-engine';
 export type { Row, Statement, Unsubscribe } from './client-engine';
+
+// The desktop shell's webview has no OPFS, so there the same engine runs on SQLite
+// held by Rust. Decided once, before any account opens a database.
+if (isDesktop()) engine.setDatabaseDriver(createDesktopDriver(loadTauriInvoke));
 
 let activeViewerId: string | null = null;
 let generation = 0;

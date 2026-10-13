@@ -78,10 +78,13 @@ jobs:
       # `--locked`: the committed Cargo.lock is the build. A dependency change has to
       # be a deliberate commit to that file, not something CI quietly resolves.
       - name: cargo check
-        run: cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --all-targets
+
+      - name: Unit tests
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
 
       - name: Build the shell
-        run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+        run: cargo build --manifest-path desktop/src-tauri/Cargo.toml
 
       # Compiling proves the Rust is valid; this proves the shell STARTS. See
       # desktop/smoke.sh for what "starts" means and what it does not cover.
@@ -127,7 +130,7 @@ jobs:
         run: cargo install tauri-driver --locked
 
       - name: Build the shell
-        run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+        run: cargo build --manifest-path desktop/src-tauri/Cargo.toml
 
       - name: Which WebKitGTK is this
         run: dpkg -l | grep -E 'libwebkit2gtk-4.1-0|webkit2gtk-driver' | awk '{print $2, $3}'
