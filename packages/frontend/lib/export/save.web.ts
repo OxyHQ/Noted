@@ -6,11 +6,18 @@
  * never leaves the machine — which for a meeting transcript is the whole point.
  */
 
-/** Markdown, told to save rather than to render. */
-const MIME_TYPE = 'text/markdown;charset=utf-8';
+/** Told to save rather than to render. */
+const MIME_TYPES = {
+  markdown: 'text/markdown;charset=utf-8',
+  json: 'application/json;charset=utf-8',
+} as const;
 
-export function saveTextFile(filename: string, contents: string): Promise<void> {
-  const url = URL.createObjectURL(new Blob([contents], { type: MIME_TYPE }));
+export function saveTextFile(
+  filename: string,
+  contents: string,
+  kind: 'markdown' | 'json' = 'markdown',
+): Promise<void> {
+  const url = URL.createObjectURL(new Blob([contents], { type: MIME_TYPES[kind] }));
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;

@@ -213,6 +213,12 @@
       "done": "Imported {{count}} notes",
       "skipped": "Skipped {{count}} files. First: {{first}}",
       "failed": "Could not import those files"
+    },
+    "export": {
+      "title": "Export everything",
+      "description": "Download all your notes, labels and generated content as one JSON file",
+      "button": "Export",
+      "failed": "Could not export your notes"
     }
   },
   "nav": {

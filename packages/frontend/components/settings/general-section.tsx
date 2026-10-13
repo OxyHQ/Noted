@@ -14,6 +14,7 @@ import { getNativeLanguageName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useExportAll } from '@/lib/hooks/use-export-all';
 import { useImportNotes } from '@/lib/hooks/use-import-notes';
 import { useNotedSettings } from './settings-provider';
 
@@ -24,6 +25,7 @@ export function GeneralSection() {
   const { currentLanguage, currentLanguages, showBottomSheet } = useOxy();
   const { afterClose } = useNotedSettings();
   const { pickAndImport, importing } = useImportNotes();
+  const { exportAll, exporting } = useExportAll();
   const modes = (['system', 'light', 'dark'] as const).map((value) => ({
     value,
     label: t(`settings.appearance.${value}`),
@@ -106,6 +108,21 @@ export function GeneralSection() {
               }}
             >
               {t('settings.import.button')}
+            </Button>
+          </SettingsRow>
+          <SettingsRow
+            label={t('settings.export.title')}
+            description={t('settings.export.description')}
+          >
+            <Button
+              appearance="outline"
+              size="sm"
+              disabled={exporting}
+              onPress={() => {
+                void exportAll();
+              }}
+            >
+              {t('settings.export.button')}
             </Button>
           </SettingsRow>
         </SettingsCard>
