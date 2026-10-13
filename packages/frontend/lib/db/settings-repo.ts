@@ -18,6 +18,8 @@ export const SETTING_KEYS = {
   sttLanguage: 'stt.language',
   /** Whether to transcribe while recording rather than afterwards. */
   liveNotes: 'stt.live',
+  /** The first-run welcome has been shown (or was never needed). */
+  onboardingSeen: 'onboarding.seen',
 } as const;
 
 interface SettingRow extends Row {

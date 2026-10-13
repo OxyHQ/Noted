@@ -1386,5 +1386,21 @@
     },
     "open": "Use a template",
     "pick": "Choose a template"
+  },
+  "onboarding": {
+    "title": "Welcome to Noted",
+    "start": "Get started",
+    "local": {
+      "title": "Your notes live on your device",
+      "body": "Noted works offline and syncs to your account whenever it can."
+    },
+    "private": {
+      "title": "Your voice stays private",
+      "body": "Recordings are transcribed on your device. Audio is never uploaded."
+    },
+    "import": {
+      "title": "Bring your notes with you",
+      "body": "Import Markdown, Obsidian or Google Keep files from Settings."
+    }
   }
 }
