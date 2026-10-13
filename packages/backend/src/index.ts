@@ -18,6 +18,7 @@ import labelsRouter from './routes/labels.js';
 import feedbackRouter from './routes/feedback.js';
 import notificationsRouter from './routes/notifications.js';
 import capabilitiesRouter from './routes/capabilities.js';
+import accountRouter from './routes/account.js';
 import { createNotedMcpHttpService } from './capabilities/noted-mcp-http.js';
 
 // Socket.io
@@ -154,6 +155,7 @@ app.use('/notes', notesRouter);
 app.use('/labels', labelsRouter);
 app.use('/feedback', feedbackRouter);
 app.use('/notifications', notificationsRouter);
+app.use('/account', accountRouter);
 app.use('/_oxy/capabilities', capabilitiesRouter);
 
 // Root route

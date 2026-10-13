@@ -103,6 +103,15 @@ Four invariants are load-bearing:
   each page's rows and cursor in one transaction; only the last page stores the
   server clock.
 
+## Account data
+
+`GET /account/export` returns everything Noted stores for the caller as one JSON
+file (`noted-export-v1`): live and trashed notes with their artifacts and item
+overrides, labels, notifications and feedback. `DELETE /account` with
+`{"confirm":"DELETE"}` erases every row Noted holds for the caller in a single
+transaction; the Oxy account itself is Oxy's to delete. Both live in
+`lib/account-data.ts` so the rows they touch are tested against PostgreSQL.
+
 ## Identity and sharing boundary
 
 Every note query is filtered by the server-verified `oxyUserId`. Socket rooms
