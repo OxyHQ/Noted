@@ -97,10 +97,14 @@ On WebKitGTK on an Ubuntu runner:
 What follows from it, for the web app as it stands:
 
 - **The local store would not open.** The web build keeps notes in SQLite on OPFS
-  and must never fall back to memory (`AGENTS.md`). Desktop needs its own storage
-  engine behind the existing store seam (`lib/db/client.web.ts` vs `client.ts`) —
-  native SQLite through Tauri, which is what issue #91 already proposed — or it
-  cannot be the local-first app. This is a prerequisite, ahead of the audio work.
+  and must never fall back to memory (`AGENTS.md`). **Resolved (chosen 2026-10-13):
+  native SQLite through Tauri.** `desktop/src-tauri/src/db.rs` holds the SQLite
+  (`rusqlite`, one connection per database behind a lock, because the engine's
+  `BEGIN IMMEDIATE` transactions span separate calls) and
+  `lib/db/desktop-driver.ts` plugs it into the SAME local store engine, so the
+  schema, migrations and queries are unchanged. Verified in CI: Rust unit tests on
+  all three OSes, and the commands exercised inside the real Linux shell. **Not
+  yet verified:** the full web app opening its store in the shell.
 - **Transcription falls back to single-threaded WASM** (no WebGPU, no threads):
   slow, and a reason to plan the `whisper.cpp` sidecar rather than treat it as a
   last resort.
@@ -169,9 +173,10 @@ and with Tauri it is also the line the Rust crate is written against.
    visible tray, or with a microphone. **The first adapter exists**: a tray menu (New note / Show Noted /
    Quit) and a global shortcut (Ctrl+Shift+N, Cmd+Shift+N on macOS) that show the
    window and emit `desktop://new-note`; the web app turns that into a route
-   through `lib/desktop/bridge.ts`. Still to do: verifying the microphone and
-   transcription in each webview before anything else, then window placement and
-   Desktop Notes.
+   through `lib/desktop/bridge.ts`. The local store now runs on native SQLite
+   (see the measurements below). Still to do: loading the full web app in the
+   shell, verifying the microphone and transcription in each webview, then window
+   placement and Desktop Notes.
 3. The Rust capture crate, one platform at a time, behind the trait from the
    mitigation table.
 4. Desktop Notes and quick capture (issue #91), which need the shell but not the
