@@ -20,25 +20,51 @@ concurrency:
 
 jobs:
   check:
-    name: Desktop (cargo check)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    name: Desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     permissions:
       contents: read
+    strategy:
+      # One platform failing is information about that platform, not a reason to
+      # hide what the others do.
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+            binary: desktop/src-tauri/target/debug/noted-desktop
+            # No display on a CI runner: give the shell a virtual one and a session bus.
+            wrap: dbus-run-session -- xvfb-run -a
+          - name: macos
+            os: macos-latest
+            binary: desktop/src-tauri/target/debug/noted-desktop
+            wrap: ''
+          - name: windows
+            os: windows-latest
+            binary: desktop/src-tauri/target/debug/noted-desktop.exe
+            wrap: ''
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
-      # Tauri's Linux dependencies: the webview, tray support and the build tools.
-      - name: Install system dependencies
+      # Tauri's Linux dependencies: the webview, tray support and the build tools,
+      # plus the virtual display the smoke run needs. macOS and Windows ship their
+      # webviews and toolchains.
+      - name: Install system dependencies (Linux)
+        if: matrix.name == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
-            libxdo-dev libssl-dev build-essential curl wget file
+            libxdo-dev libssl-dev build-essential curl wget file xvfb dbus-x11
 
       # `tauri::generate_context!` reads `frontendDist` at compile time and fails if
       # the directory is missing, so give it an empty one: this job checks that the
-      # Rust compiles, not that the web app builds (the main CI does that).
+      # Rust compiles and the shell starts, not that the web app builds (the main CI
+      # does that).
       - name: Provide a frontendDist placeholder
         run: mkdir -p packages/frontend/dist
 
@@ -47,32 +73,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop/src-tauri
+          key: ${{ matrix.name }}
 
       # `--locked`: the committed Cargo.lock is the build. A dependency change has to
       # be a deliberate commit to that file, not something CI quietly resolves.
       - name: cargo check
         run: cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
 
-      # Compiling proves the Rust is valid; this proves the shell STARTS. It builds
-      # the app and runs it under a virtual display for a few seconds: a process that
-      # is still alive when the timeout kills it (exit 124) opened its window and
-      # kept running, and anything else is a crash on startup. The window is empty
-      # (frontendDist is a placeholder), so this says nothing about the web app, the
-      # microphone or the webview's engine — only that the shell does not die.
-      - name: Install a virtual display
-        run: sudo apt-get install -y --no-install-recommends xvfb dbus-x11
-
       - name: Build the shell
         run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
 
+      # Compiling proves the Rust is valid; this proves the shell STARTS. See
+      # desktop/smoke.sh for what "starts" means and what it does not cover.
       - name: Run the shell for a few seconds
-        run: |
-          set +e
-          dbus-run-session -- xvfb-run -a timeout 20 desktop/src-tauri/target/debug/noted-desktop
-          code=$?
-          if [ "$code" -eq 124 ]; then
-            echo "the shell started and was still running after 20s"
-            exit 0
-          fi
-          echo "::error::the shell exited early with code $code"
-          exit 1
+        run: ${{ matrix.wrap }} bash desktop/smoke.sh "${{ matrix.binary }}" 20
