@@ -1427,7 +1427,10 @@
     "pick": "Archivar esta nota en…",
     "addSubfolder": "Añadir subcarpeta",
     "newIn": "Nueva carpeta en {{parent}}",
-    "clearParent": "Crear en el nivel superior"
+    "clearParent": "Crear en el nivel superior",
+    "moveAction": "Mover",
+    "moveTo": "Mover «{{name}}» a…",
+    "topLevel": "Nivel superior"
   },
   "editor": {
     "format": {
@@ -1443,7 +1446,8 @@
       "quote": "Cita",
       "block": "Bloque de código",
       "link": "Enlace",
-      "linkPrompt": "Dirección del enlace"
+      "linkPrompt": "Dirección del enlace",
+      "table": "Tabla"
     },
     "slash": {
       "title": "Insertar un bloque",
@@ -1455,7 +1459,8 @@
       "tasks": "Lista de tareas",
       "quote": "Cita",
       "code": "Bloque de código",
-      "divider": "Separador"
+      "divider": "Separador",
+      "table": "Tabla"
     }
   },
   "palette": {

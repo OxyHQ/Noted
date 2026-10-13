@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Folder } from '@noted/shared-types';
-import { canHaveSubfolder, folderEntries } from '@/lib/folders/tree';
+import { canHaveSubfolder, folderEntries, validParents } from '@/lib/folders/tree';
 
 const f = (id: string, name: string, parentId: string | null = null): Folder => ({
   id,
@@ -54,5 +54,40 @@ describe('canHaveSubfolder', () => {
   it('stops at the third level', () => {
     const entries = folderEntries([f('w', 'W'), f('r', 'R', 'w'), f('q', 'Q', 'r')]);
     expect(entries.map(canHaveSubfolder)).toEqual([true, true, false]);
+  });
+});
+
+describe('validParents', () => {
+  // work ─ reports ─ q4
+  // home
+  // archive ─ old
+  const folders = [
+    f('work', 'Work'),
+    f('reports', 'Reports', 'work'),
+    f('q4', 'Q4', 'reports'),
+    f('home', 'Home'),
+    f('archive', 'Archive'),
+    f('old', 'Old', 'archive'),
+  ];
+  const ids = (id: string) => validParents(folders, id).map((e) => e.folder.id);
+
+  it('never offers the folder itself or anything inside it', () => {
+    expect(ids('work')).not.toContain('work');
+    expect(ids('work')).not.toContain('reports');
+    expect(ids('work')).not.toContain('q4');
+  });
+
+  it('offers every folder a leaf may sit in, up to the depth limit', () => {
+    // A leaf (1 level) can sit in a top-level folder (depth 1) or a second-level one.
+    expect(ids('q4')).toEqual(['archive', 'old', 'home', 'work', 'reports']);
+  });
+
+  it('counts the branch it carries', () => {
+    // `reports` spans 2 levels (reports, q4): it fits under a top-level folder
+    // but not under a second-level one, which would put q4 on a fourth level.
+    expect(ids('reports')).toContain('home');
+    expect(ids('reports')).not.toContain('old');
+    // `work` spans 3 levels: it fits nowhere but the top.
+    expect(ids('work')).toEqual([]);
   });
 });

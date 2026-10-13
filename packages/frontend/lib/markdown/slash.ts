@@ -7,7 +7,7 @@
  * without a browser. The web editor renders the list and forwards the keys.
  */
 
-import { BLOCK_PREFIX, type Edit, toggleCodeBlock } from './commands';
+import { BLOCK_PREFIX, type Edit, insertTable, toggleCodeBlock } from './commands';
 
 export interface SlashContext {
   /** Offset of the `/` itself. */
@@ -49,6 +49,7 @@ export const SLASH_COMMAND_IDS = [
   'tasks',
   'quote',
   'code',
+  'table',
   'divider',
 ] as const;
 export type SlashCommandId = (typeof SLASH_COMMAND_IDS)[number];
@@ -120,6 +121,11 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
     id: 'code',
     keywords: ['snippet', 'fence', 'block'],
     apply: emptyCodeBlock,
+  },
+  {
+    id: 'table',
+    keywords: ['grid', 'columns', 'rows', 'spreadsheet'],
+    apply: (text, caret) => insertTable(text, at(caret)),
   },
   {
     id: 'divider',

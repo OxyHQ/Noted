@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   insertLink,
+  insertTable,
   toggleCodeBlock,
   toggleHeading,
   toggleLinePrefix,
@@ -154,5 +155,37 @@ describe('toggleCodeBlock', () => {
 
     const block = toggleCodeBlock('```\nlet x = 1\n```', sel(0, 17));
     expect(block.text).toBe('let x = 1');
+  });
+});
+
+describe('insertTable', () => {
+  const TABLE = '| A | B | C |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |';
+
+  it('takes the place of an empty line and selects the first header', () => {
+    const edit = insertTable('', sel(0));
+    expect(edit.text).toBe(TABLE);
+    expect(picked(edit)).toBe('A');
+  });
+
+  it('goes below a line with text, after a blank line', () => {
+    const edit = insertTable('intro', sel(5));
+    expect(edit.text).toBe(`intro\n\n${TABLE}`);
+    expect(picked(edit)).toBe('A');
+  });
+
+  it('keeps following text apart from the table', () => {
+    const edit = insertTable('top\n\nafter', sel(0));
+    expect(edit.text).toBe(`top\n\n${TABLE}\n\nafter`);
+  });
+
+  it('replaces only the empty line the caret is on', () => {
+    const edit = insertTable('one\n\ntwo', sel(4));
+    expect(edit.text).toBe(`one\n${TABLE}\n\ntwo`);
+  });
+
+  it('takes custom headers and row count', () => {
+    const edit = insertTable('', sel(0), { headers: ['Name', 'Qty'], rows: 1 });
+    expect(edit.text).toBe('| Name | Qty |\n| --- | --- |\n|  |  |');
+    expect(picked(edit)).toBe('Name');
   });
 });

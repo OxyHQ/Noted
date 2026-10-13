@@ -16,6 +16,7 @@ const labels = {
   tasks: 'Task list',
   quote: 'Quote',
   code: 'Code block',
+  table: 'Table',
   divider: 'Divider',
 } as const;
 
