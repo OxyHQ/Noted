@@ -1205,7 +1205,15 @@
       "mint": "Menta",
       "pumpkin": "Carbassa",
       "brown": "Marró"
-    }
+    },
+    "history": "Version history",
+    "historyEmpty": "No earlier versions yet. They appear as you edit.",
+    "historyOffline": "Version history needs a connection.",
+    "historyRestore": "Restore",
+    "historyRestored": "Version restored",
+    "historyFailed": "Could not load that version",
+    "historyItems": "{{count}} list items",
+    "untitledVersion": "Untitled"
   },
   "capture": {
     "start": "Inicia",

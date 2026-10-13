@@ -6,6 +6,8 @@
 export const API_ROUTES = {
   // Notes
   notes: {
+    revisions: (id: string) => `/notes/${id}/revisions`,
+    revision: (id: string, revisionId: string) => `/notes/${id}/revisions/${revisionId}`,
     list: '/notes',
     create: '/notes',
     get: (id: string) => `/notes/${id}`,

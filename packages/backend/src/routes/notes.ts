@@ -34,6 +34,7 @@ import {
 import {
   changesText,
   deleteRevisionsOf,
+  getRevision,
   listRevisions,
   restoreRevision,
   snapshotBeforeEdit,
@@ -585,6 +586,30 @@ router.get('/:id/revisions', readLimiter, async (req: Request, res: Response) =>
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error listing note revisions');
     res.status(500).json({ error: 'Failed to list revisions' });
+  }
+});
+
+// GET /notes/:id/revisions/:revisionId — one version's full text. The client
+// restores by applying it as an ordinary local edit, which then syncs like any
+// other (and snapshots the text it replaces on the server).
+router.get('/:id/revisions/:revisionId', readLimiter, async (req: Request, res: Response) => {
+  try {
+    const userId = getRequiredOxyUserId(req);
+    const { id: noteId, revisionId } = req.params;
+    if (
+      typeof noteId !== 'string' ||
+      !isLiveEntityId(noteId) ||
+      typeof revisionId !== 'string' ||
+      !isLiveEntityId(revisionId)
+    ) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const revision = await getRevision(noteId, revisionId, userId);
+    if (!revision) return res.status(404).json({ error: 'Revision not found' });
+    res.json(revision);
+  } catch (error: unknown) {
+    log.notes.error({ err: error }, 'Error reading note revision');
+    res.status(500).json({ error: 'Failed to read revision' });
   }
 });
 

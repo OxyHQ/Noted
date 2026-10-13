@@ -30,6 +30,7 @@ import {
   CheckSquare,
   Type,
   Download,
+  History,
 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { toast } from '@oxy.so/bloom/toast';
@@ -45,6 +46,7 @@ import { recordChecklistOverrides } from '@/lib/artifact/record-checklist';
 import { MarkdownBodyEditor } from '@/components/notes/markdown-body-editor';
 import { LabelChips } from '@/components/notes/label-chips';
 import { LabelAssignDialog } from '@/components/notes/label-assign-dialog';
+import { RevisionsDialog } from '@/components/notes/revisions-dialog';
 import { AttachmentsRow } from '@/components/notes/attachments/AttachmentsRow';
 import type { FileMetadata } from '@oxy.so/core';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -182,6 +184,7 @@ function NoteEditor() {
   const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const [showReminders, setShowReminders] = React.useState(false);
 
   const setDraft = React.useCallback((next: LocalNote) => {
@@ -744,6 +747,13 @@ function NoteEditor() {
             onPress={handleToggleChecklist}
           />
           <IconButton icon={Download} label={t('notes.exportMarkdown')} onPress={handleExport} />
+          {!isNew && (
+            <IconButton
+              icon={History}
+              label={t('notes.history')}
+              onPress={() => setHistoryOpen(true)}
+            />
+          )}
         </View>
       </View>
     </>
@@ -758,11 +768,24 @@ function NoteEditor() {
     />
   );
 
+  const historyDialog = isNew ? null : (
+    <RevisionsDialog
+      open={historyOpen}
+      onOpenChange={setHistoryOpen}
+      noteId={params.id}
+      onRestore={(patch) => {
+        setShowChecklist(patch.checklist.length > 0);
+        updateNow(patch);
+      }}
+    />
+  );
+
   // The route fills its native scene or Bloom dialog with the note tint.
   return (
     <View className="flex-1" style={{ backgroundColor }}>
       {editorContent}
       {labelDialog}
+      {historyDialog}
       <FloatingBottomStack />
     </View>
   );

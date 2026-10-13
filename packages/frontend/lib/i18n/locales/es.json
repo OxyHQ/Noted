@@ -1205,7 +1205,15 @@
       "mint": "Menta",
       "pumpkin": "Calabaza",
       "brown": "Marrón"
-    }
+    },
+    "history": "Historial de versiones",
+    "historyEmpty": "Aún no hay versiones anteriores. Aparecen a medida que editas.",
+    "historyOffline": "El historial de versiones necesita conexión.",
+    "historyRestore": "Restaurar",
+    "historyRestored": "Versión restaurada",
+    "historyFailed": "No se pudo cargar esa versión",
+    "historyItems": "{{count}} elementos de lista",
+    "untitledVersion": "Sin título"
   },
   "capture": {
     "start": "Tomar apuntes",
