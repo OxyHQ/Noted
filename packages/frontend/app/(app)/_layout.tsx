@@ -12,6 +12,7 @@ import { LocalStoreBoundary } from '@/components/local-store-boundary';
 import { NotesHeader } from '@/components/notes/notes-header';
 import { FloatingBottomStack } from '@/components/floating-bottom-stack';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useDesktopCommands } from '@/lib/hooks/use-desktop-commands';
 import { useLocalReminders } from '@/lib/hooks/use-local-reminders';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 import { useNotesRealtime } from '@/lib/hooks/use-notes-realtime';
@@ -52,6 +53,7 @@ export default function AppLayout() {
 
   useNotificationSetup();
   useLocalReminders();
+  useDesktopCommands();
   useNotesRealtime();
 
   return (
