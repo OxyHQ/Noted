@@ -156,11 +156,20 @@ where Tauri expects it, and Tauri copies it next to the executable); the e2e job
 runs that packaged path, with no environment override, and asserts the file is
 there. Only the Linux binary is real: the other jobs stage a placeholder.
 
+Models are downloaded in the shell too (`lib/stt/desktop-models.ts`,
+`desktop/src-tauri/src/models.rs`): the webview fetches and streams 4 MB chunks to
+Rust, which writes `<name>.part` and renames it only after checking size and sha256
+against `lib/stt/models.ts` (a truncated model makes whisper.cpp crash instead of
+fail). Settings lists the models in the shell, without the live-mode switch or the
+local language model, which do not exist there. Verified in the real shell on Linux
+with a local HTTP server: the real `tiny` model is accepted, a same-sized corrupt
+copy is refused and leaves nothing behind, and removal works.
+
 Still open: real binaries for macOS and Windows, signing and notarisation, an
-installer (`tauri build` with a bundle); downloading models from the
-desktop UI (CI places the file by hand); a resident sidecar for live text; speed on
-a real laptop and on long audio; macOS and Windows; audio from a real microphone
-rather than a file.
+installer (`tauri build` with a bundle); resumable downloads; the recorder does not
+wait for a model on desktop (a missing one surfaces as `model_missing`); a resident
+sidecar for live text; speed on a real laptop and on long audio; audio from a real
+microphone rather than a file.
 
 If the second risk cannot be met on a platform, that platform ships without
 system audio rather than with a different recorder.
