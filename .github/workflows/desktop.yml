@@ -231,6 +231,17 @@ jobs:
           path: ~/.local/share/so.oxy.noted.desktop/models
           key: desktop-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
 
+      # A second model, served to the shell by a local HTTP server so the download path
+      # is exercised without hammering the real host.
+      - name: Cache the model served to the download test
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/served-model
+          key: served-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+
+      - name: Fetch the model the download test serves
+        run: node desktop/sidecar/fetch-model.mjs tiny "$RUNNER_TEMP/served-model"
+
       - name: Put the app's default model where the shell looks for it
         run: node desktop/sidecar/fetch-model.mjs base "$HOME/.local/share/so.oxy.noted.desktop/models"
 
@@ -242,6 +253,8 @@ jobs:
         env:
           E2E_STORE: '1'
           E2E_STT: '1'
+          E2E_MODELS: '1'
+          E2E_MODEL_FILE: ${{ runner.temp }}/served-model/ggml-tiny-q5_1.bin
           E2E_SAMPLE: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
         run: dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" node desktop/e2e/app.mjs "$PWD/desktop/src-tauri/target/debug/noted-desktop" "$RUNNER_TEMP/noted-in-shell.png"
 

@@ -17,7 +17,10 @@
 import { execute, setActiveViewer } from '@/lib/db/client';
 import { newNoteId } from '@/lib/db/ids';
 import { createNote, getNote } from '@/lib/db/notes-repo';
+import { loadTauriInvoke } from '@/lib/db/desktop-driver';
+import { createDesktopModels } from '@/lib/stt/desktop-models';
 import { transcribeSamples } from '@/lib/stt/engine.web';
+import { STT_MODELS, type SttModelId } from '@/lib/stt/models';
 
 export interface DesktopStoreReport {
   title: string | undefined;
@@ -67,14 +70,46 @@ async function transcribe(samples: string) {
   return segments.map(({ text, startMs, endMs }) => ({ text, startMs, endMs }));
 }
 
+/**
+ * Download a speech model through the app's REAL desktop manager, from `url` (a local
+ * test server, since the catalogue's host rate-limits CI), and report what Rust says.
+ */
+async function downloadModel(id: SttModelId, url: string) {
+  const model = { ...STT_MODELS[id], url };
+  const models = createDesktopModels(loadTauriInvoke);
+  const before = await models.stateOf(model);
+  const progress: number[] = [];
+  let error: string | null = null;
+  try {
+    await models.download(model, (fraction) => progress.push(fraction));
+  } catch (caught) {
+    error = String(caught);
+  }
+  return {
+    before,
+    after: await models.stateOf(model),
+    error,
+    lastProgress: progress.at(-1) ?? null,
+  };
+}
+
+async function removeModel(id: SttModelId) {
+  const models = createDesktopModels(loadTauriInvoke);
+  await models.remove(STT_MODELS[id]);
+  return models.stateOf(STT_MODELS[id]);
+}
+
 declare global {
   interface Window {
     __NOTED_E2E_HOOK__?: {
       run: (viewer: string) => Promise<DesktopStoreReport>;
       count: (viewer: string) => Promise<number>;
       transcribe: (samples: string) => ReturnType<typeof transcribe>;
+      downloadModel: (id: SttModelId, url: string) => ReturnType<typeof downloadModel>;
+      removeModel: (id: SttModelId) => ReturnType<typeof removeModel>;
     };
   }
 }
 
-if (typeof window !== 'undefined') window.__NOTED_E2E_HOOK__ = { run, count, transcribe };
+if (typeof window !== 'undefined')
+  window.__NOTED_E2E_HOOK__ = { run, count, transcribe, downloadModel, removeModel };
