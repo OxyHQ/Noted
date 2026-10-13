@@ -26,7 +26,8 @@ async function request(method, path, body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`${method} ${path} -> ${response.status} ${JSON.stringify(json)}`);
+  if (!response.ok)
+    throw new Error(`${method} ${path} -> ${response.status} ${JSON.stringify(json)}`);
   return json.value;
 }
 

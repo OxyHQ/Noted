@@ -39,7 +39,7 @@
         try {
           const adapter = result.webgpu === 'object' ? await nav.gpu.requestAdapter() : null;
           result.webgpuAdapter = adapter !== null;
-        } catch (error) {
+        } catch {
           result.webgpuAdapter = false;
         }
         document.body.setAttribute('data-probe', JSON.stringify(result));
