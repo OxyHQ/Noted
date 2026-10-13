@@ -142,6 +142,21 @@ export interface NoteListQuery {
   params: unknown[];
 }
 
+/** More terms than this are noise, and each one adds six scans to the query. */
+const MAX_SEARCH_TERMS = 8;
+
+/** The lowercased, de-duplicated words of a search box. */
+export function searchTerms(query: string | undefined): string[] {
+  if (!query) return [];
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return [...new Set(words)].slice(0, MAX_SEARCH_TERMS);
+}
+
+/** `%` and `_` in what the user typed are text, not wildcards. */
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
 /**
  * Build the SQL for a filtered note list.
  *
@@ -173,15 +188,35 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
     values.push(params.pinned ? 1 : 0);
   }
 
-  const search = params.q?.trim();
-  if (search) {
+  for (const term of searchTerms(params.q)) {
     // LIKE rather than FTS5: the virtual table is not guaranteed to be compiled
     // into every platform's SQLite build, and a failed CREATE VIRTUAL TABLE
-    // would take the whole schema down. At personal-notes volume a scan over
-    // two columns is not the bottleneck; revisit if a real corpus says otherwise.
-    where.push('(lower(notes.title) LIKE ? OR lower(notes.body) LIKE ?)');
-    const pattern = `%${search.toLowerCase()}%`;
-    values.push(pattern, pattern);
+    // would take the whole schema down. At personal-notes volume a scan is not
+    // the bottleneck; revisit if a real corpus says otherwise.
+    //
+    // Every term must match somewhere in the note (AND across terms, OR across
+    // the places a term can live), so "budget friday" finds a note that says
+    // "budget" in its title and "friday" in a transcript line.
+    const pattern = `%${escapeLike(term)}%`;
+    where.push(`(
+      lower(notes.title) LIKE ? ESCAPE '\\'
+      OR lower(notes.body) LIKE ? ESCAPE '\\'
+      OR lower(notes.generated_body) LIKE ? ESCAPE '\\'
+      OR EXISTS (
+        SELECT 1 FROM json_each(notes.checklist_json)
+        WHERE lower(json_extract(json_each.value, '$.text')) LIKE ? ESCAPE '\\'
+      )
+      OR EXISTS (
+        SELECT 1 FROM note_labels JOIN labels ON labels.id = note_labels.label_id
+        WHERE note_labels.note_id = notes.id AND labels.deleted_at IS NULL
+          AND lower(labels.name) LIKE ? ESCAPE '\\'
+      )
+      OR EXISTS (
+        SELECT 1 FROM captures JOIN transcript_segments ON transcript_segments.capture_id = captures.id
+        WHERE captures.note_id = notes.id AND lower(transcript_segments.text) LIKE ? ESCAPE '\\'
+      )
+    )`);
+    values.push(pattern, pattern, pattern, pattern, pattern, pattern);
   }
 
   return {
