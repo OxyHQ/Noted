@@ -23,7 +23,7 @@ packages/
 
 ## Stack
 
-- **Frontend** — Expo SDK 56 (React Native 0.85), expo-router, NativeWind 5, Reanimated, Zustand, TanStack Query, expo-sqlite
+- **Frontend** — Expo SDK 57 (React Native 0.86), expo-router, NativeWind 5, Reanimated, Zustand, TanStack Query, expo-sqlite
 - **Backend** — Express, PostgreSQL (drizzle over postgres.js, via `@oxy.so/db`), Socket.IO, Redis
 - **Auth** — Oxy (`@oxy.so/core`, `@oxy.so/services`); no app-local session handling
 - **UI** — Bloom (`@oxy.so/bloom`) for dialogs, toasts and theming
