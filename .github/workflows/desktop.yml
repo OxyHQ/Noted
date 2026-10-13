@@ -265,3 +265,56 @@ jobs:
           name: noted-in-shell-screenshot
           path: ${{ runner.temp }}/noted-in-shell.png
           if-no-files-found: warn
+
+  # The Linux installer, built with Tauri's own CLI, and opened to check what ships.
+  # Tauri puts an `externalBin` next to the app's executable inside the package; the
+  # Rust command looks for it there, so a package without it would transcribe nothing.
+  # A placeholder is staged (this checks packaging, not transcription), unsigned.
+  installer:
+    name: Linux installer carries the sidecar
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev build-essential curl wget file
+
+      - name: Provide a frontendDist placeholder
+        run: |
+          mkdir -p packages/frontend/dist
+          echo '<!doctype html><title>Noted</title>' > packages/frontend/dist/index.html
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Stage a sidecar placeholder
+        run: node desktop/sidecar/stage.mjs --placeholder
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: installer
+
+      - name: Build the .deb
+        working-directory: desktop/src-tauri
+        run: npx --yes @tauri-apps/cli@2.12.2 build --bundles deb --ci -- --locked
+
+      - name: Look inside the package
+        run: |
+          deb=$(find desktop/src-tauri/target -name '*.deb' | head -1)
+          test -n "$deb" || { echo "::error::no .deb was produced"; exit 1; }
+          echo "package: $deb"
+          dpkg-deb -c "$deb" | tee contents.txt
+          grep -E ' (\./)?usr/bin/noted-desktop$' contents.txt || { echo "::error::the app executable is not in the package"; exit 1; }
+          grep -E ' (\./)?usr/bin/whisper-cli$' contents.txt || { echo "::error::the sidecar is not in the package"; exit 1; }
+          { echo '### Linux installer contents'; echo; echo '```'; cat contents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
