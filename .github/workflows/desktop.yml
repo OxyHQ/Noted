@@ -52,3 +52,27 @@ jobs:
       # be a deliberate commit to that file, not something CI quietly resolves.
       - name: cargo check
         run: cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
+
+      # Compiling proves the Rust is valid; this proves the shell STARTS. It builds
+      # the app and runs it under a virtual display for a few seconds: a process that
+      # is still alive when the timeout kills it (exit 124) opened its window and
+      # kept running, and anything else is a crash on startup. The window is empty
+      # (frontendDist is a placeholder), so this says nothing about the web app, the
+      # microphone or the webview's engine — only that the shell does not die.
+      - name: Install a virtual display
+        run: sudo apt-get install -y --no-install-recommends xvfb dbus-x11
+
+      - name: Build the shell
+        run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+
+      - name: Run the shell for a few seconds
+        run: |
+          set +e
+          dbus-run-session -- xvfb-run -a timeout 20 desktop/src-tauri/target/debug/noted-desktop
+          code=$?
+          if [ "$code" -eq 124 ]; then
+            echo "the shell started and was still running after 20s"
+            exit 0
+          fi
+          echo "::error::the shell exited early with code $code"
+          exit 1
