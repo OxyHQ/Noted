@@ -175,11 +175,15 @@ opens it to check that `usr/bin/whisper-cli` ships beside `usr/bin/noted-desktop
 which is where the Rust command looks. It stages a placeholder, so this proves
 packaging, not transcription from the installed app.
 
-Still open: bundling the real macOS and Windows binaries and building their
-installers, signing and notarisation; resumable downloads; the recorder does not
-wait for a model on desktop (a missing one surfaces as `model_missing`); a resident
-sidecar for live text; speed on a real laptop and on long audio; audio from a real
-microphone rather than a file.
+On macOS and Windows CI also builds the app (`Noted.app`, an NSIS installer) with the
+real `whisper-cli` built on that OS, and opens each: the sidecar sits beside the
+executable (a Mach-O arm64 binary on macOS; `whisper-cli.exe` inside the installer on
+Windows). Nothing is signed or notarised.
+
+Still open: `.dmg` and `.msi` installers, signing and notarisation (they need
+Apple and Windows certificates), and running transcription from an INSTALLED app;
+resumable downloads; a resident sidecar for live text; speed on a real laptop and on
+long audio; audio from a real microphone rather than a file.
 
 If the second risk cannot be met on a platform, that platform ships without
 system audio rather than with a different recorder.
