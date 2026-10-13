@@ -13,14 +13,15 @@ import type { Folder } from '@noted/shared-types';
 export interface FolderRow extends Row {
   id: string;
   name: string;
+  parent_id: string | null;
 }
 
 export const FOLDER_LIST_SQL = `
-SELECT id, name FROM folders ORDER BY name COLLATE NOCASE ASC
+SELECT id, name, parent_id FROM folders ORDER BY name COLLATE NOCASE ASC
 `;
 
 export function rowsToFolders(rows: readonly FolderRow[]): Folder[] {
-  return rows.map((row) => ({ id: row.id, name: row.name }));
+  return rows.map((row) => ({ id: row.id, name: row.name, parentId: row.parent_id }));
 }
 
 /**
@@ -37,8 +38,8 @@ export function replaceFolders(folders: readonly Folder[], now: string): Stateme
   return [
     { sql: 'DELETE FROM folders', params: [] },
     ...folders.map((folder) => ({
-      sql: 'INSERT INTO folders (id, name, updated_at) VALUES (?, ?, ?)',
-      params: [folder.id, folder.name, now],
+      sql: 'INSERT INTO folders (id, name, parent_id, updated_at) VALUES (?, ?, ?, ?)',
+      params: [folder.id, folder.name, folder.parentId ?? null, now],
     })),
     {
       sql: `UPDATE notes SET folder_id = NULL
@@ -61,9 +62,10 @@ export function saveFolder(folder: Folder, expectedViewerId: string): Promise<nu
   return executeTransaction(
     [
       {
-        sql: `INSERT INTO folders (id, name, updated_at) VALUES (?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`,
-        params: [folder.id, folder.name, new Date().toISOString()],
+        sql: `INSERT INTO folders (id, name, parent_id, updated_at) VALUES (?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET name = excluded.name, parent_id = excluded.parent_id,
+                updated_at = excluded.updated_at`,
+        params: [folder.id, folder.name, folder.parentId ?? null, new Date().toISOString()],
       },
     ],
     expectedViewerId,

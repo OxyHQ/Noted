@@ -7,7 +7,7 @@ vi.mock('@/lib/db/client', () => ({
 }));
 vi.mock('@/lib/capture/captures-repo', () => ({ deleteNoteRecordings: vi.fn() }));
 
-import { replaceFolders } from '@/lib/db/folders-repo';
+import { FOLDER_LIST_SQL, replaceFolders, rowsToFolders } from '@/lib/db/folders-repo';
 import { LOCAL_TABLES, MIGRATIONS } from '@/lib/db/migrations';
 import { noteListQuery } from '@/lib/db/notes-repo';
 
@@ -35,7 +35,7 @@ describe('folders on the local store', () => {
       .run(id, folder, dirty, now, now);
   const folderOf = (id: string) =>
     (db.prepare('SELECT folder_id AS f FROM notes WHERE id = ?').get(id) as { f: string | null }).f;
-  const apply = (folders: { id: string; name: string }[]) => {
+  const apply = (folders: { id: string; name: string; parentId?: string | null }[]) => {
     for (const { sql, params } of replaceFolders(folders, now)) {
       db.prepare(sql).run(...((params ?? []) as string[]));
     }
@@ -59,6 +59,20 @@ describe('folders on the local store', () => {
     apply([{ id: 'work', name: 'Work 2' }]);
     const rows = db.prepare('SELECT id, name FROM folders').all();
     expect(rows).toEqual([{ id: 'work', name: 'Work 2' }]);
+  });
+
+  it("keeps a folder's parent through a replace and reads it back", () => {
+    apply([
+      { id: 'work', name: 'Work', parentId: null },
+      { id: 'reports', name: 'Reports', parentId: 'work' },
+    ]);
+    const rows = db.prepare(FOLDER_LIST_SQL).all() as unknown as Parameters<
+      typeof rowsToFolders
+    >[0];
+    expect(rowsToFolders(rows)).toEqual([
+      { id: 'reports', name: 'Reports', parentId: 'work' },
+      { id: 'work', name: 'Work', parentId: null },
+    ]);
   });
 
   it('unfiles only notes with unsent edits whose folder is gone', () => {
