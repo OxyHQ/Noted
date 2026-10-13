@@ -56,9 +56,12 @@ describe('folders', () => {
   it('keeps one folder name per user, but not across users', async () => {
     await getDb().insert(folders).values({ oxyUserId: 'f-C', name: 'Same' });
     await getDb().insert(folders).values({ oxyUserId: 'f-D', name: 'Same' });
-    await expect(
-      getDb().insert(folders).values({ oxyUserId: 'f-C', name: 'Same' }),
-    ).rejects.toThrow();
+    // Awaited inside a function: drizzle's insert builder is thenable but not a
+    // Promise, so `rejects` cannot be handed the builder itself.
+    const duplicate = async () => {
+      await getDb().insert(folders).values({ oxyUserId: 'f-C', name: 'Same' });
+    };
+    await expect(duplicate()).rejects.toThrow();
   });
 
   it('unfiles the notes in a deleted folder and moves their updatedAt', async () => {
