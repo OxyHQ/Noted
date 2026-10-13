@@ -85,3 +85,34 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
     process.exitCode = 1;
   }
 });
+
+// Local-first means the notes outlive the app. Open the shell AGAIN, as a new
+// process, and ask the same account's database how many notes it holds: the one
+// written above must still be there, read from the file Rust saved.
+if (process.env.E2E_STORE === '1' && process.exitCode !== 1) {
+  await withSession(application, async ({ runAsync }) => {
+    // Let the page load and the hook install before calling it.
+    let persisted = null;
+    for (let attempt = 0; attempt < 60 && persisted === null; attempt += 1) {
+      const answer = await runAsync(
+        `const done = arguments[arguments.length - 1];
+         const hook = window.__NOTED_E2E_HOOK__;
+         if (!hook) { done(null); return; }
+         hook.count('e2e-user').then(done, (error) => done({ error: String(error) }));`,
+      );
+      if (answer !== null) persisted = answer;
+      else await sleep(1000);
+    }
+    console.log(JSON.stringify({ persistedNoteCount: persisted }, null, 2));
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(
+        process.env.GITHUB_STEP_SUMMARY,
+        `\n- after restarting the shell, the account's database still holds \`${JSON.stringify(persisted)}\` note(s)\n`,
+      );
+    }
+    if (typeof persisted !== 'number' || persisted < 1) {
+      console.error('::error::the note did not survive restarting the shell');
+      process.exitCode = 1;
+    }
+  });
+}

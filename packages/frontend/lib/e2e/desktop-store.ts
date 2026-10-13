@@ -23,7 +23,6 @@ export interface DesktopStoreReport {
   body: string | undefined;
   noteCount: number;
   userVersion: number;
-  reopenedNoteCount: number;
 }
 
 async function run(viewer: string): Promise<DesktopStoreReport> {
@@ -45,14 +44,23 @@ async function run(viewer: string): Promise<DesktopStoreReport> {
     body: note?.body,
     noteCount: Number(count[0]?.n ?? 0),
     userVersion: Number(version[0]?.user_version ?? 0),
-    reopenedNoteCount: 0,
   };
+}
+
+/** How many notes the account's database holds, opened fresh: the persistence check. */
+async function count(viewer: string): Promise<number> {
+  await setActiveViewer(viewer);
+  const rows = await execute<{ n: number }>('SELECT COUNT(*) AS n FROM notes', [], viewer);
+  return Number(rows[0]?.n ?? 0);
 }
 
 declare global {
   interface Window {
-    __NOTED_E2E_HOOK__?: { run: (viewer: string) => Promise<DesktopStoreReport> };
+    __NOTED_E2E_HOOK__?: {
+      run: (viewer: string) => Promise<DesktopStoreReport>;
+      count: (viewer: string) => Promise<number>;
+    };
   }
 }
 
-if (typeof window !== 'undefined') window.__NOTED_E2E_HOOK__ = { run };
+if (typeof window !== 'undefined') window.__NOTED_E2E_HOOK__ = { run, count };
