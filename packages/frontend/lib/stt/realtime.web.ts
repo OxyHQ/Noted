@@ -51,7 +51,7 @@ import { audioRef } from '@/lib/audio/artifact-store';
 import { getAudioStore } from '@/lib/audio/store';
 import { microphoneSource } from '@/lib/capture/audio-source';
 import { upsertSegments } from '@/lib/capture/captures-repo';
-import { SAMPLE_RATE, transcribeSamples } from '@/lib/stt/engine.web';
+import { PARTIAL_TRANSCRIPTION, SAMPLE_RATE, transcribeSamples } from '@/lib/stt/engine.web';
 import type { RealtimeOptions, RealtimeSession } from '@/lib/stt/realtime';
 
 const logger = createLogger('NotedSTT');
@@ -238,6 +238,8 @@ export async function startRealtimeTranscription(
    * matter: the segments are read for their text and thrown away.
    */
   function refreshPartial(samples: Float32Array): void {
+    // Not on desktop: see `PARTIAL_TRANSCRIPTION`.
+    if (!PARTIAL_TRANSCRIPTION) return;
     run(async () => {
       const segments = await transcribeSamples(
         samples,

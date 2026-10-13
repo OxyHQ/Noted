@@ -11,55 +11,15 @@
 // It says the sidecar approach WORKS. It does not say the shell can run it (that is a
 // separate step) or how fast it is on a real laptop.
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fetchModel, readModelRecord } from './models.mjs';
 
 const [binary, sample, workdir] = process.argv.slice(2);
 if (!binary || !sample || !workdir) throw new Error('usage: verify.mjs <binary> <wav> <workdir>');
-mkdirSync(workdir, { recursive: true });
 
-// ── The app's own record of the model ──────────────────────────────
-const source = readFileSync('packages/frontend/lib/stt/models.ts', 'utf8');
-const baseUrl = /const MODEL_BASE_URL = '([^']+)'/.exec(source)?.[1];
-const block = source.slice(source.indexOf('tiny: {'), source.indexOf('base: {'));
-const filename = /filename: '([^']+)'/.exec(block)?.[1];
-const sha256 = /sha256: '([0-9a-f]{64})'/.exec(block)?.[1];
-const bytes = Number(/bytes: ([\d_]+)/.exec(block)?.[1]?.replaceAll('_', ''));
-if (!baseUrl || !filename || !sha256 || !bytes)
-  throw new Error('could not read the tiny model from models.ts');
-
-// ── Fetch and verify the weights, exactly as the app does ──────────
-const modelPath = join(workdir, filename);
-
-// The host rate-limits shared CI addresses (HTTP 429), so ask again, politely.
-async function download(url) {
-  let lastStatus = 0;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const response = await fetch(url);
-    if (response.ok) return Buffer.from(await response.arrayBuffer());
-    lastStatus = response.status;
-    if (response.status !== 429 && response.status < 500) break;
-    const retryAfter = Number(response.headers.get('retry-after'));
-    const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5 * 2 ** attempt;
-    console.log(`download answered ${response.status}; waiting ${wait}s`);
-    await new Promise((resolve) => setTimeout(resolve, wait * 1000));
-  }
-  throw new Error(`download failed: ${lastStatus}`);
-}
-
-if (!existsSync(modelPath)) {
-  console.log(`downloading ${filename} (${bytes} bytes)`);
-  writeFileSync(modelPath, await download(`${baseUrl}/${filename}`));
-} else {
-  console.log(`using the cached ${filename}; it is still verified below`);
-}
-const weights = readFileSync(modelPath);
-const digest = createHash('sha256').update(weights).digest('hex');
-console.log(`model: ${filename}  ${weights.length} bytes  sha256 ${digest}`);
-if (weights.length !== bytes)
-  throw new Error(`size ${weights.length} != ${bytes} recorded in models.ts`);
-if (digest !== sha256) throw new Error(`sha256 ${digest} != ${sha256} recorded in models.ts`);
+// The app's own `tiny` model: fetched and verified against models.ts.
+const modelPath = await fetchModel(readModelRecord('tiny'), workdir);
 
 // ── Transcribe ─────────────────────────────────────────────────────
 const outBase = join(workdir, 'result');
