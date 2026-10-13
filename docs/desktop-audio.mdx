@@ -118,8 +118,11 @@ and with Tauri it is also the line the Rust crate is written against.
 
 ## Order of work
 
-1. The audio-source abstraction in TypeScript, with the microphone as its first
-   and only implementation (no desktop code yet; the web build keeps working).
+1. ~~The audio-source abstraction in TypeScript~~ — **done** (`lib/capture/audio-source.ts`):
+   an `AudioSource` hands the recorder a `MediaStream`; `microphoneSource()` is the
+   only one the app uses today, and `mixedSource()` combines several into one
+   stream (all-or-nothing). The browser recorder takes `options.audioSource`,
+   defaulting to the microphone, so the web build behaves exactly as before.
 2. A Tauri shell that loads the existing web build, plus the desktop adapter
    (window, tray, shortcuts). Verify the microphone and transcription in each
    webview before anything else.

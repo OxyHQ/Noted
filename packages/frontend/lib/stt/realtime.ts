@@ -12,6 +12,7 @@
  * turn that mistake into a recording with no transcript and no explanation.
  */
 
+import type { AudioSource } from '@/lib/capture/audio-source';
 import type { SttModelId } from '@/lib/stt/models';
 
 export interface RealtimeSession {
@@ -47,6 +48,11 @@ export interface RealtimeOptions {
    * apart; a partial can be replaced as often as the machine can produce one.
    */
   onPartial?: (text: string) => void;
+  /**
+   * Where the audio comes from. Absent means the microphone. Only the browser
+   * recorder reads it; a phone's recorder owns its microphone and ignores it.
+   */
+  audioSource?: AudioSource;
   /** Loudness in dBFS, for the waveform. Called on the audio stream's schedule. */
   onLevel?: (db: number) => void;
   onError?: (message: string) => void;
