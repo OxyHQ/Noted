@@ -333,8 +333,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macos, os: macos-latest, bundles: app }
-          - { name: windows, os: windows-latest, bundles: nsis }
+          - { name: macos, os: macos-latest, bundles: 'app,dmg' }
+          - { name: windows, os: windows-latest, bundles: 'nsis,msi' }
     defaults:
       run:
         shell: bash
@@ -391,6 +391,9 @@ jobs:
           test -x "$app/Contents/MacOS/noted-desktop" || { echo "::error::the app executable is missing"; exit 1; }
           file "$app/Contents/MacOS/whisper-cli" | tee -a contents.txt
           file "$app/Contents/MacOS/whisper-cli" | grep -q "Mach-O" || { echo "::error::the staged sidecar is not a real binary"; exit 1; }
+          dmg=$(find desktop/src-tauri/target -name '*.dmg' | head -1)
+          test -n "$dmg" || { echo "::error::no .dmg was produced"; exit 1; }
+          ls -la "$dmg" | tee -a contents.txt
           { echo '### macOS package contents'; echo; echo '```'; cat contents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Look inside the package (Windows)
@@ -402,4 +405,7 @@ jobs:
           7z l "$setup" | tee contents.txt
           grep -qi 'whisper-cli.exe' contents.txt || { echo "::error::the sidecar is not in the installer"; exit 1; }
           grep -qi 'noted-desktop.exe' contents.txt || { echo "::error::the app executable is not in the installer"; exit 1; }
+          msi=$(find desktop/src-tauri/target -name '*.msi' | head -1)
+          test -n "$msi" || { echo "::error::no .msi was produced"; exit 1; }
+          ls -la "$msi" | tee -a contents.txt
           { echo '### Windows installer contents'; echo; echo '```'; cat contents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
