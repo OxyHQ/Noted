@@ -265,3 +265,45 @@ export function insertTable(
     selection: { start: cellStart, end: cellStart + headers[0].length },
   };
 }
+
+/* ── Reordering ────────────────────────────────────────────────── */
+
+/**
+ * Move the selected lines one line up or down, swapping them with the line they
+ * pass. The selection travels with the text, so pressing the key again keeps
+ * moving the same lines.
+ *
+ * This is the keyboard form of dragging a block: in a plain text field there is
+ * nothing to grab, but the lines are what a person wants to reorder.
+ */
+export function moveLines(text: string, rawSelection: Selection, direction: 'up' | 'down'): Edit {
+  const selection = clamp(text, rawSelection);
+  const { from, to } = selectedLines(text, selection);
+
+  if (direction === 'up') {
+    if (from === 0) return { text, selection };
+    const previousStart = text.lastIndexOf('\n', from - 2) + 1;
+    const previous = text.slice(previousStart, from - 1);
+    const block = text.slice(from, to);
+    return {
+      text: `${text.slice(0, previousStart)}${block}\n${previous}${text.slice(to)}`,
+      selection: {
+        start: selection.start - (previous.length + 1),
+        end: selection.end - (previous.length + 1),
+      },
+    };
+  }
+
+  if (to >= text.length) return { text, selection };
+  const nextEndBreak = text.indexOf('\n', to + 1);
+  const nextEnd = nextEndBreak === -1 ? text.length : nextEndBreak;
+  const next = text.slice(to + 1, nextEnd);
+  const block = text.slice(from, to);
+  return {
+    text: `${text.slice(0, from)}${next}\n${block}${text.slice(nextEnd)}`,
+    selection: {
+      start: selection.start + next.length + 1,
+      end: selection.end + next.length + 1,
+    },
+  };
+}

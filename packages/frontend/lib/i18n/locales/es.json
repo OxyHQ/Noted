@@ -1447,7 +1447,9 @@
       "block": "Bloque de código",
       "link": "Enlace",
       "linkPrompt": "Dirección del enlace",
-      "table": "Tabla"
+      "table": "Tabla",
+      "moveUp": "Subir línea (Alt+↑)",
+      "moveDown": "Bajar línea (Alt+↓)"
     },
     "slash": {
       "title": "Insertar un bloque",

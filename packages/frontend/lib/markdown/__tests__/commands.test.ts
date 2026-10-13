@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   insertLink,
   insertTable,
+  moveLines,
   toggleCodeBlock,
   toggleHeading,
   toggleLinePrefix,
@@ -187,5 +188,46 @@ describe('insertTable', () => {
     const edit = insertTable('', sel(0), { headers: ['Name', 'Qty'], rows: 1 });
     expect(edit.text).toBe('| Name | Qty |\n| --- | --- |\n|  |  |');
     expect(picked(edit)).toBe('Name');
+  });
+});
+
+describe('moveLines', () => {
+  it('swaps the line with the one above and keeps the caret on it', () => {
+    const edit = moveLines('one\ntwo\nthree', sel(5), 'up');
+    expect(edit.text).toBe('two\none\nthree');
+    expect(edit.selection).toEqual({ start: 1, end: 1 });
+  });
+
+  it('swaps the line with the one below and keeps the caret on it', () => {
+    const edit = moveLines('one\ntwo\nthree', sel(1), 'down');
+    expect(edit.text).toBe('two\none\nthree');
+    expect(edit.selection).toEqual({ start: 5, end: 5 });
+  });
+
+  it('moves every selected line together and keeps them selected', () => {
+    const edit = moveLines('a\nb\nc\nd', sel(2, 5), 'up');
+    expect(edit.text).toBe('b\nc\na\nd');
+    expect(picked(edit)).toBe('b\nc');
+  });
+
+  it('can be repeated to travel across the whole text', () => {
+    let edit = moveLines('a\nb\nc', sel(0), 'down');
+    edit = moveLines(edit.text, edit.selection, 'down');
+    expect(edit.text).toBe('b\nc\na');
+  });
+
+  it('does nothing at the top or the bottom', () => {
+    expect(moveLines('a\nb', sel(0), 'up').text).toBe('a\nb');
+    expect(moveLines('a\nb', sel(3), 'down').text).toBe('a\nb');
+    expect(moveLines('only', sel(2), 'down').text).toBe('only');
+  });
+
+  it('moves past a blank line like any other', () => {
+    expect(moveLines('a\n\nb', sel(0), 'down').text).toBe('\na\nb');
+  });
+
+  it('is its own inverse', () => {
+    const down = moveLines('x\ny\nz', sel(0), 'down');
+    expect(moveLines(down.text, down.selection, 'up').text).toBe('x\ny\nz');
   });
 });
