@@ -13,7 +13,7 @@ This records the runtime decision **before** the implementation, because the
 decision is the part that is expensive to reverse. Nothing described here is
 built yet.
 
-**Status: decided, not built.** Tauri v2 was chosen on 2026-10-13 by the project
+**Status: decided; the audio-source seam and a window-only shell exist, nothing else is built.** Tauri v2 was chosen on 2026-10-13 by the project
 owner (issue #91). This replaces an earlier version of this document that chose
 Electron; the reasoning that favoured Electron is kept below because the decision
 that replaced it has to answer it, not ignore it.
@@ -124,8 +124,10 @@ and with Tauri it is also the line the Rust crate is written against.
    stream (all-or-nothing). The browser recorder takes `options.audioSource`,
    defaulting to the microphone, so the web build behaves exactly as before.
 2. A Tauri shell that loads the existing web build, plus the desktop adapter
-   (window, tray, shortcuts). Verify the microphone and transcription in each
-   webview before anything else.
+   (window, tray, shortcuts). **The shell skeleton exists** (`desktop/`, compiled
+   by `.github/workflows/desktop.yml` with `cargo check --locked`); it has no
+   native capability yet and has never been run. Still to do: the adapter, and
+   verifying the microphone and transcription in each webview before anything else.
 3. The Rust capture crate, one platform at a time, behind the trait from the
    mitigation table.
 4. Desktop Notes and quick capture (issue #91), which need the shell but not the
