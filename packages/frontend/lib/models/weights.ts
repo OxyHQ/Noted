@@ -99,7 +99,12 @@ export async function statesOf(
   return states;
 }
 
-async function recordState(
+/**
+ * Record a model's state in `model_files`, which the capture engine watches. Exported
+ * for the desktop shell, whose files are kept by Rust rather than expo-file-system but
+ * which must tell the rest of the app the same thing.
+ */
+export async function recordState(
   weights: Weights,
   state: WeightsState,
   expectedViewerId: string | null,

@@ -23,6 +23,7 @@ import {
 } from '@/lib/capture/use-realtime-recorder';
 import type { Recorder } from '@/lib/capture/recording';
 import { hasDownloadableModels } from '@/lib/capture/support';
+import { isDesktop } from '@/lib/desktop/bridge';
 import type { Row } from '@/lib/db/client';
 import { useLiveQuery } from '@/lib/db/live-query';
 import { DEFAULT_STT_MODEL, type SttModelId } from '@/lib/stt/models';
@@ -83,7 +84,8 @@ export function useCaptureEngine(
   // The model gate applies only where the app downloads models. A browser's
   // model is fetched and cached by transformers.js, so there is no row to wait
   // for — requiring one would disable live capture on web permanently.
-  const hasModel = hasDownloadableModels() ? readyModels.has(model) : true;
+  // The desktop shell downloads its models too, and says so in the same rows.
+  const hasModel = hasDownloadableModels() || isDesktop() ? readyModels.has(model) : true;
   const canRecordLive = isRealtimeCaptureSupported() && wantsLive && hasModel;
 
   const live = useRealtimeRecorder(captureId, noteId, enabled && canRecordLive, {

@@ -32,3 +32,22 @@ describe('desktop transcription wiring', () => {
     expect(realtime).toMatch(/if \(!PARTIAL_TRANSCRIPTION\) return;\s*run\(/);
   });
 });
+
+describe('desktop model bookkeeping', () => {
+  const root = join(__dirname, '..', '..');
+  const models = readFileSync(join(root, 'stt', 'models.ts'), 'utf8');
+
+  it('records the same model_files states as the phone, so the recorder can see the model', () => {
+    expect(models).toContain("recordState(model, 'downloading', viewer)");
+    expect(models).toContain("recordState(model, 'ready', viewer)");
+    expect(models).toContain("recordState(model, 'failed', viewer)");
+    expect(models).toContain("recordState(model, 'absent', viewer)");
+  });
+
+  it('makes the capture engine wait for a downloaded model on desktop as on a phone', () => {
+    const engine = readFileSync(join(root, 'capture', 'use-capture-engine.ts'), 'utf8');
+    expect(engine).toContain(
+      'hasDownloadableModels() || isDesktop() ? readyModels.has(model) : true',
+    );
+  });
+});
