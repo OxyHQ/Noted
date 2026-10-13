@@ -67,7 +67,14 @@ interface SyncResponse {
   data: Note[];
   deleted: string[];
   serverTime: string;
+  /** Present on a paged request: another page follows, from `nextCursor`. */
+  hasMore?: boolean;
+  nextCursor?: string | null;
 }
+
+const PULL_PAGE_SIZE = 500;
+/** A backstop against a server that keeps answering `hasMore` without moving. */
+const PULL_MAX_PAGES = 1_000;
 
 interface LocalStateRow extends Row {
   id: string;
@@ -230,14 +237,33 @@ export async function pullNotes(
   if (!viewerId || !isDbAvailable()) return { applied: 0, conflicts: 0 };
   assertCurrentViewer(viewerId);
 
-  const cursor = await readCursor(viewerId);
-  assertCurrentViewer(viewerId);
+  // One page per round trip. Each page commits its rows and its cursor together,
+  // so a failure part-way resumes from the last page instead of starting over.
+  const total = { applied: 0, conflicts: 0 };
+  let cursor = await readCursor(viewerId);
+  for (let page = 0; page < PULL_MAX_PAGES; page += 1) {
+    assertCurrentViewer(viewerId);
+    const next = await pullNotesPage(cursor, makeConflictId, viewerId);
+    total.applied += next.applied;
+    total.conflicts += next.conflicts;
+    if (next.nextCursor === null || next.nextCursor === cursor) break;
+    cursor = next.nextCursor;
+  }
+  return total;
+}
+
+async function pullNotesPage(
+  cursor: string | null,
+  makeConflictId: () => string,
+  viewerId: string,
+): Promise<{ applied: number; conflicts: number; nextCursor: string | null }> {
   const response = await apiClient.get<SyncResponse>(API_ROUTES.notes.sync, {
-    params: cursor ? { since: cursor } : {},
+    params: cursor ? { since: cursor, limit: PULL_PAGE_SIZE } : { limit: PULL_PAGE_SIZE },
     expectedViewerId: viewerId,
   });
   assertCurrentViewer(viewerId);
   const { data, deleted, serverTime } = response.data;
+  const nextCursor = response.data.hasMore ? (response.data.nextCursor ?? null) : null;
 
   const states = await readLocalStates(
     data.map((note) => note.id),
@@ -275,14 +301,14 @@ export async function pullNotes(
   // failure re-fetches rather than skips.
   statements.push({
     sql: 'INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
-    params: [CURSOR_KEY, serverTime],
+    params: [CURSOR_KEY, nextCursor ?? serverTime],
   });
 
   await executeTransaction(statements, viewerId);
   if (applied > 0 || conflicts > 0 || deleted.length > 0) {
     logger.info('Pulled changes', { applied, conflicts, deleted: deleted.length });
   }
-  return { applied, conflicts };
+  return { applied, conflicts, nextCursor };
 }
 
 /* ── Push ──────────────────────────────────────────────────────── */

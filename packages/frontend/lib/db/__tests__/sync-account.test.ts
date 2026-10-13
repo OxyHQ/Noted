@@ -64,7 +64,7 @@ describe('account-bound sync', () => {
     const pending = pullNotes(() => 'copy');
     await started.promise;
     expect(state.get).toHaveBeenCalledWith(expect.any(String), {
-      params: {},
+      params: { limit: 500 },
       expectedViewerId: 'alice',
     });
     state.viewer = 'bob';
