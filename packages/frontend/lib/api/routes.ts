@@ -25,6 +25,14 @@ export const API_ROUTES = {
     export: '/account/export',
   },
 
+  // Folders
+  folders: {
+    list: '/folders',
+    create: '/folders',
+    update: (id: string) => `/folders/${id}`,
+    delete: (id: string) => `/folders/${id}`,
+  },
+
   // Labels
   labels: {
     list: '/labels',

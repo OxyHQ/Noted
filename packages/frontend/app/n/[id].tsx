@@ -30,6 +30,7 @@ import {
   CheckSquare,
   Type,
   Download,
+  FolderInput,
   History,
   Link2,
 } from 'lucide-react-native';
@@ -48,6 +49,7 @@ import { recordChecklistOverrides } from '@/lib/artifact/record-checklist';
 import { MarkdownBodyEditor } from '@/components/notes/markdown-body-editor';
 import { LabelChips } from '@/components/notes/label-chips';
 import { LabelAssignDialog } from '@/components/notes/label-assign-dialog';
+import { FolderPickerDialog } from '@/components/notes/folder-picker-dialog';
 import { LinkedMentions } from '@/components/notes/linked-mentions';
 import { LinkNoteDialog } from '@/components/notes/link-note-dialog';
 import { ReminderPickerDialog } from '@/components/notes/reminder-picker-dialog';
@@ -131,6 +133,7 @@ function NoteEditor() {
     id: string;
     mode?: string;
     label?: string;
+    folder?: string;
   }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -181,6 +184,7 @@ function NoteEditor() {
   const [draft, setDraftState] = React.useState<LocalNote>(() => ({
     ...makeDraftNote(),
     labels: isNew && params.label ? [params.label] : [],
+    folderId: isNew && params.folder ? params.folder : null,
   }));
   const draftRef = React.useRef(draft);
   const [base, setBase] = React.useState<LocalNote | null>(null);
@@ -193,6 +197,7 @@ function NoteEditor() {
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [linkOpen, setLinkOpen] = React.useState(false);
+  const [folderOpen, setFolderOpen] = React.useState(false);
   const [reminderPickerOpen, setReminderPickerOpen] = React.useState(false);
   const [showReminders, setShowReminders] = React.useState(false);
 
@@ -773,6 +778,12 @@ function NoteEditor() {
             onPress={() => setLabelDialogOpen(true)}
           />
           <IconButton
+            icon={FolderInput}
+            label={t('folders.move')}
+            onPress={() => setFolderOpen(true)}
+            active={Boolean(draft.folderId)}
+          />
+          <IconButton
             icon={showChecklist ? Type : CheckSquare}
             label={showChecklist ? t('notes.convertToText') : t('notes.convertToChecklist')}
             onPress={handleToggleChecklist}
@@ -815,6 +826,15 @@ function NoteEditor() {
     />
   );
 
+  const folderDialog = (
+    <FolderPickerDialog
+      open={folderOpen}
+      onOpenChange={setFolderOpen}
+      current={draft.folderId ?? null}
+      onPick={(folderId) => updateNow({ folderId })}
+    />
+  );
+
   const linkDialog = (
     <LinkNoteDialog
       open={linkOpen}
@@ -844,6 +864,7 @@ function NoteEditor() {
     <View className="flex-1" style={{ backgroundColor }}>
       {editorContent}
       {labelDialog}
+      {folderDialog}
       {reminderPickerDialog}
       {linkDialog}
       {historyDialog}

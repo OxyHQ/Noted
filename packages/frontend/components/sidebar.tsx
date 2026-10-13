@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { Folder as FolderGlyph, FolderCog } from 'lucide-react-native';
 import { LabelIcon } from '@/components/notes/label-color';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
@@ -14,6 +15,7 @@ import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { NotedMark } from '@/components/ui/noted-mark';
 import { useNotedSettings } from '@/components/settings/settings-provider';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useFolders } from '@/lib/hooks/use-folders';
 import { useLabels } from '@/lib/hooks/use-labels';
 import { useLocalStoreState } from '@/lib/db/local-store-context';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -29,10 +31,13 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
   const settings = useNotedSettings();
   const { isReady } = useLocalStoreState();
   const { data: labels } = useLabels();
+  const { data: folders } = useFolders();
   const collapsed = useUIStore((state) => state.sidebarCollapsed);
   const setCollapsed = useUIStore((state) => state.setSidebarCollapsed);
   const activeLabel = useNotesUIStore((state) => state.activeLabel);
   const setActiveLabel = useNotesUIStore((state) => state.setActiveLabel);
+  const activeFolder = useNotesUIStore((state) => state.activeFolder);
+  const setActiveFolder = useNotesUIStore((state) => state.setActiveFolder);
   const setSearchQuery = useNotesUIStore((state) => state.setSearchQuery);
 
   const navigate = useCallback(
@@ -44,9 +49,10 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
   );
   const goHome = useCallback(() => {
     setActiveLabel(null);
+    setActiveFolder(null);
     setSearchQuery('');
     navigate('/(app)');
-  }, [navigate, setActiveLabel, setSearchQuery]);
+  }, [navigate, setActiveLabel, setActiveFolder, setSearchQuery]);
   const openSettings = useCallback(() => {
     closeDrawer();
     settings.open();
@@ -76,11 +82,30 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
         ),
         onPress: () => {
           setActiveLabel(label.id);
+          setActiveFolder(null);
           setSearchQuery('');
           navigate('/(app)');
         },
       })),
-    [labels, navigate, setActiveLabel, setSearchQuery, pathname, activeLabel],
+    [labels, navigate, setActiveLabel, setActiveFolder, setSearchQuery, pathname, activeLabel],
+  );
+
+  const folderItems = useMemo(
+    () =>
+      folders.map((folder) => ({
+        key: `folder:${folder.id}`,
+        label: folder.name,
+        icon: ({ width, height, fill }: { width?: number; height?: number; fill?: string }) => (
+          <FolderGlyph size={width ?? height ?? 20} color={fill} />
+        ),
+        onPress: () => {
+          setActiveFolder(folder.id);
+          setActiveLabel(null);
+          setSearchQuery('');
+          navigate('/(app)');
+        },
+      })),
+    [folders, navigate, setActiveFolder, setActiveLabel, setSearchQuery],
   );
 
   return {
@@ -97,7 +122,12 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
       href: '/',
       onPress: goHome,
     },
-    selected: pathname === '/' && activeLabel ? `label:${activeLabel}` : pathname,
+    selected:
+      pathname === '/' && activeFolder
+        ? `folder:${activeFolder}`
+        : pathname === '/' && activeLabel
+          ? `label:${activeLabel}`
+          : pathname,
     items: [
       { key: '/', label: t('notes.title'), icon: RiFileTextLine, href: '/', onPress: goHome },
       {
@@ -128,6 +158,16 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
         href: '/labels',
         onPress: () => navigate('/(app)/labels'),
       },
+      {
+        key: '/folders',
+        label: t('folders.manage'),
+        icon: ({ width, height, fill }: { width?: number; height?: number; fill?: string }) => (
+          <FolderCog size={width ?? height ?? 20} color={fill} />
+        ),
+        href: '/folders',
+        onPress: () => navigate('/(app)/folders'),
+      },
+      ...folderItems,
       ...labelItems,
     ],
     secondaryItems: [
@@ -147,7 +187,11 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
       onPress: () => {
         navigate({
           pathname: '/n/[id]',
-          params: { id: 'new', ...(pathname === '/' && activeLabel ? { label: activeLabel } : {}) },
+          params: {
+            id: 'new',
+            ...(pathname === '/' && activeLabel ? { label: activeLabel } : {}),
+            ...(pathname === '/' && activeFolder ? { folder: activeFolder } : {}),
+          },
         });
       },
     },

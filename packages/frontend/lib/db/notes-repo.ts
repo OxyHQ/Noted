@@ -59,6 +59,7 @@ export interface NoteRow extends Row {
   attachments_json: string;
   reminder_at: string | null;
   sort_order: number;
+  folder_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +107,7 @@ export function rowToNote(row: NoteRow): LocalNote {
     attachments: parseJsonArray(row.attachments_json, isString),
     reminderAt: row.reminder_at,
     order: row.sort_order,
+    folderId: row.folder_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -129,7 +131,7 @@ export function firstRowToNote(rows: readonly NoteRow[]): LocalNote | null {
 const NOTE_COLUMNS = `
   notes.id, notes.kind, notes.title, notes.body, notes.generated_body, notes.body_format,
   notes.checklist_json, notes.color, notes.pinned, notes.archived, notes.trashed,
-  notes.attachments_json, notes.reminder_at, notes.sort_order,
+  notes.attachments_json, notes.reminder_at, notes.sort_order, notes.folder_id,
   notes.created_at, notes.updated_at,
   COALESCE((
     SELECT json_group_array(note_labels.label_id)
@@ -181,6 +183,11 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
       'EXISTS (SELECT 1 FROM note_labels WHERE note_labels.note_id = notes.id AND note_labels.label_id = ?)',
     );
     values.push(params.label);
+  }
+
+  if (params.folder) {
+    where.push('notes.folder_id = ?');
+    values.push(params.folder);
   }
 
   if (typeof params.pinned === 'boolean') {
@@ -303,9 +310,9 @@ function labelStatements(noteId: string, labels: readonly string[]): Statement[]
 const NOTE_INSERT_SQL = `
 INSERT INTO notes (
   id, kind, title, body, generated_body, body_format, checklist_json, color,
-  pinned, archived, trashed, attachments_json, reminder_at, sort_order,
+  pinned, archived, trashed, attachments_json, reminder_at, sort_order, folder_id,
   created_at, updated_at, deleted_at, dirty, server_updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
 ON CONFLICT (id) DO NOTHING
 `;
 
@@ -332,6 +339,7 @@ export type NoteInput = Partial<
     | 'attachments'
     | 'reminderAt'
     | 'order'
+    | 'folderId'
   >
 > & {
   kind?: 'note' | 'voice';
@@ -361,6 +369,7 @@ function creationStatements(note: LocalNote, now: string): Statement[] {
         JSON.stringify(note.attachments),
         note.reminderAt,
         note.order,
+        note.folderId ?? null,
         note.createdAt,
         now,
         DIRTY,
@@ -399,6 +408,7 @@ export async function createNote(
     attachments: input.attachments ?? [],
     reminderAt: input.reminderAt ?? null,
     order: input.order ?? 0,
+    folderId: input.folderId ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -463,6 +473,7 @@ export async function updateNote(
     );
     set('reminder_at', patch.reminderAt);
     set('sort_order', patch.order);
+    set('folder_id', patch.folderId);
 
     const changesBody = patch.userBody !== undefined || patch.generatedBody !== undefined;
     if (changesBody) {

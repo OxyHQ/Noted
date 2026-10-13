@@ -282,6 +282,21 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
   // with `no such column: enhancement_reason` — on the FIRST WRITE, which is
   // starting a recording.
   [`ALTER TABLE captures ADD COLUMN enhancement_reason TEXT`],
+
+  // Folders: a place to file a note. Like labels they are read offline and
+  // written online (a rename is rare and its failure is visible), so the table
+  // is a copy of the server's list, replaced wholesale on sync.
+  //
+  // ITS OWN MIGRATION, appended — see the lesson above about editing a shipped one.
+  [
+    `ALTER TABLE notes ADD COLUMN folder_id TEXT`,
+    `CREATE INDEX IF NOT EXISTS notes_by_folder ON notes (folder_id)`,
+    `CREATE TABLE IF NOT EXISTS folders (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    )`,
+  ],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
@@ -293,6 +308,7 @@ export const LOCAL_TABLES: readonly string[] = [
   'note_labels',
   'notes',
   'labels',
+  'folders',
   'outbox',
   'sync_state',
   'app_settings',
