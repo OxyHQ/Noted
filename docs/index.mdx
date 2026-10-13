@@ -114,7 +114,7 @@ nothing), at most once every ten minutes per note and keeping the newest 50.
 `POST /notes/:id/revisions/:revisionId/restore` puts one back, snapshotting the
 text it replaces first so a restore can itself be undone. Versions expire after
 90 days (`db/expiry.ts`), vanish with the note on "delete forever", and are
-erased with the account. There is no client UI yet.
+erased with the account. The editor's toolbar opens the history; restoring applies the version as an ordinary local edit, so it syncs like any other.
 
 ## Account data
 

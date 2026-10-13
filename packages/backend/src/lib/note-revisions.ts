@@ -125,6 +125,37 @@ export async function listRevisions(noteId: string, userId: string): Promise<Rev
   }));
 }
 
+export interface RevisionDetail extends NoteText {
+  id: string;
+  createdAt: string;
+}
+
+/** One version's full text, or null when it is not the user's. */
+export async function getRevision(
+  noteId: string,
+  revisionId: string,
+  userId: string,
+): Promise<RevisionDetail | null> {
+  const [row] = await getDb()
+    .select()
+    .from(noteRevisions)
+    .where(
+      and(
+        eq(noteRevisions.id, revisionId),
+        eq(noteRevisions.noteId, noteId),
+        eq(noteRevisions.oxyUserId, userId),
+      ),
+    );
+  if (!row) return null;
+  return {
+    id: row.id,
+    createdAt: row.createdAt.toISOString(),
+    title: row.title,
+    body: row.body,
+    checklist: row.checklist,
+  };
+}
+
 /**
  * Put an earlier version's text back.
  *

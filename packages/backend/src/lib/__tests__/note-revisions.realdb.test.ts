@@ -11,6 +11,7 @@ const {
   REVISION_KEEP,
   REVISION_MIN_INTERVAL_MS,
   deleteRevisionsOf,
+  getRevision,
   listRevisions,
   restoreRevision,
   snapshotBeforeEdit,
@@ -130,6 +131,21 @@ describe('note revisions', () => {
     expect(await restoreRevision(note.id, revision.id, 'someone-else')).toBeNull();
     const [row] = await getDb().select().from(notes).where(eq(notes.id, note.id));
     expect(row.body).toBe('secret');
+  });
+
+  it("returns a version's full text to its owner only", async () => {
+    const note = await newNote('rev-F', 'Title', 'the full body');
+    await snapshot(note.id, 'rev-F', { title: 'Title', body: 'the full body' }, new Date());
+    const [summary] = await listRevisions(note.id, 'rev-F');
+
+    expect(await getRevision(note.id, summary.id, 'rev-F')).toMatchObject({
+      id: summary.id,
+      title: 'Title',
+      body: 'the full body',
+      checklist: [],
+    });
+    expect(await getRevision(note.id, summary.id, 'someone-else')).toBeNull();
+    expect(await getRevision('not-the-note', summary.id, 'rev-F')).toBeNull();
   });
 
   it('removes every version when a note is deleted', async () => {
