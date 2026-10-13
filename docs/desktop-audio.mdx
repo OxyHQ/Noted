@@ -1,6 +1,6 @@
 ---
 title: Desktop system audio — the runtime decision
-description: Which runtime a desktop build of Noted would use, and why the choice is recorded before any of it is written.
+description: Noted Desktop is built on Tauri v2, with system audio captured in Rust and delivered to the existing TypeScript pipeline as one more audio source.
 ---
 
 # Desktop system audio — the runtime decision
@@ -10,51 +10,86 @@ what the machine is *playing* — the other half of a video call — and on a la
 that is most of the meeting.
 
 This records the runtime decision **before** the implementation, because the
-decision is the part that is expensive to reverse: the capture pipeline is
-shared, and a wrong host means rewriting the shell around it rather than the
-pipeline inside it. Nothing described here is built yet.
+decision is the part that is expensive to reverse. Nothing described here is
+built yet.
 
-## The constraint that decides it
+**Status: decided, not built.** Tauri v2 was chosen on 2026-10-13 by the project
+owner (issue #91). This replaces an earlier version of this document that chose
+Electron; the reasoning that favoured Electron is kept below because the decision
+that replaced it has to answer it, not ignore it.
+
+## The constraint that decides how
 
 A desktop build must reuse the existing `CaptureCoordinator`, the transcript
 repository, the live reducer, the finaliser and the `GeneratedNoteArtifact`
-model **unchanged**. Noted has three note-taking paths already (native, web,
-and the deterministic floor beneath both); a fourth would be the end of any
-claim that a note means the same thing wherever it was recorded.
+model **unchanged**. Noted has three note-taking paths already (native, web, and
+the deterministic floor beneath both); a fourth would be the end of any claim
+that a note means the same thing wherever it was recorded.
 
-That rules out anything that cannot run the app's own TypeScript. The question
-is only which host does.
+Both Electron and Tauri can run the app's own TypeScript in a webview, so that
+constraint does not pick between them. What it constrains is **where the line
+between Rust and TypeScript falls**.
 
-## The decision: Electron, with system audio behind a native addon
+## The decision: Tauri v2, with a Rust audio source behind the same interface
 
-| Runtime | Why not |
-|---|---|
-| **Tauri** | The webview is the OS's own, so audio capture is Safari's on macOS and WebView2's on Windows — two engines with different `getDisplayMedia` behaviour, neither offering system audio reliably. The Rust side could capture it, but then the recorder is Rust and the web recorder is TypeScript, which is the fourth pipeline this is meant to avoid. |
-| **PWA / browser** | `getDisplayMedia({ audio: true })` is tab audio on Chromium, nothing on Firefox and Safari, and requires a screen-share prompt to record sound. Browser capture stays **microphone-only**, deliberately, and that is not a limitation to work around — it is what the platform offers. |
-| **Expo for macOS / Windows** | Would share the most code, and there is no supported system-audio path at all. |
-| **Electron** | One Chromium on every platform, so the renderer runs the same code the web build runs today; and a native addon can reach the OS APIs the web cannot. |
+Tauri hosts the existing Expo web build in the OS webview and provides what a
+browser cannot: native windows, tray, global shortcuts, notifications, the
+filesystem and system audio. Electron's case was one Chromium on every platform;
+Tauri's is a far smaller download and a Rust side that can talk to the OS audio
+APIs directly, without a native Node addon to build and sign per platform.
 
-Electron is chosen for the second half of that sentence more than the first. It
-is not the lightest option and is not pretended to be: the trade is a larger
-download against one audio implementation instead of three.
+### How this answers the objection to Tauri
 
-## What the addon has to do, per platform
+The earlier document rejected Tauri because "the Rust side could capture [system
+audio], but then the recorder is Rust and the web recorder is TypeScript, which
+is the fourth pipeline this is meant to avoid." That objection is right about a
+Rust *recorder* and does not apply to a Rust *source*:
 
-- **macOS** — ScreenCaptureKit (`SCStream` with audio, macOS 13+). It is the only
-  supported route since the kernel-extension era ended, and it prompts with the
-  system's own screen-recording consent dialog, which is the correct place for
-  that decision to be made.
+```text
+Rust (Tauri side)                      TypeScript (unchanged pipeline)
+─────────────────                      ───────────────────────────────
+OS audio capture  ──PCM chunks──▶  SystemAudioSource ─┐
+                                                      ├─▶ mixer ─▶ CaptureCoordinator
+getUserMedia mic  ─────────────▶  MicrophoneSource  ──┘            ─▶ transcript, finaliser, artifact
+```
+
+Rust's whole job is to hand PCM slices to the webview (a Tauri event channel).
+Everything from the mixer onward is the TypeScript that already runs on the web
+build. There is still exactly one recorder, one transcript and one timeline.
+
+### What the Rust side has to do, per platform
+
+- **macOS** — ScreenCaptureKit (`SCStream` with audio, macOS 13+). The only
+  supported route since the kernel-extension era ended, and it shows the system's
+  own screen-recording consent dialog, which is the correct place for that
+  decision to be made.
 - **Windows** — WASAPI loopback on the default render endpoint.
 - **Linux** — PipeWire's monitor source, falling back to PulseAudio's. Neither is
   guaranteed present, so this platform must be able to report "system audio is
   not available here" rather than fail.
+
+## Risks the choice accepts, and what to do about each
+
+These are the reasons Electron was preferred. They are real and unresolved, so
+they are listed rather than waved away.
+
+| Risk | Why it matters | Mitigation to build in |
+|---|---|---|
+| **Two web engines.** The webview is WebKit on macOS/Linux and Chromium (WebView2) on Windows. | Microphone capture and `getDisplayMedia` differ; the app has only been exercised in browsers, not these webviews. | The microphone path is already `getUserMedia`, which all three support. Test the web build in each webview early, before building desktop features on top. |
+| **On-device transcription in the webview.** The web build runs Whisper through ONNX/WebGPU. | WebKitGTK (Linux) has weak or no WebGPU; WebKit on macOS is uneven. A desktop app whose transcription silently does not run breaks the core promise. | Make the transcription engine an adapter. If a webview lacks WebGPU, fall back to the WASM backend, and if that is too slow, run `whisper.cpp` as a **Tauri sidecar** behind the same engine interface — never a hosted fallback, which the privacy rules forbid. |
+| **Rust audio work is new code.** | Three platform back ends, each with its own failure modes, none shared with mobile. | Keep the Rust crate to capture + PCM delivery only, behind a trait with a null implementation, so the TypeScript side is testable without it. |
+| **Fewer people know Tauri than Electron.** | Maintenance. | Keep the Rust surface small; no business logic in Rust. |
+
+If the second risk cannot be met on a platform, that platform ships without
+system audio rather than with a different recorder.
 
 ## What must NOT happen
 
 - **No OS-specific code in the web recorder.** `use-realtime-recorder.web.ts`
   stays microphone-only. The desktop path is a separate source implementation
   behind the same interface, and the browser build must not carry a branch for a
-  platform it never runs on.
+  platform it never runs on. Desktop-only code is reached through one adapter,
+  not through `isTauri` checks scattered across the frontend.
 - **No second timeline.** Microphone and system audio are mixed into one stream
   before they reach the recorder, so there is one recording, one transcript and
   one set of `SourceRange` offsets. Two streams reaching the transcript
@@ -65,6 +100,8 @@ download against one audio implementation instead of three.
   has to be visible while it is in use — not only in a settings screen — and the
   platform's own consent prompt is a feature of ScreenCaptureKit rather than an
   obstacle to route around.
+- **No audio leaves the device.** Capture, mixing and transcription are local.
+  The Rust side never opens a network connection with audio in it.
 
 ## What is already in place, and what is missing
 
@@ -76,4 +113,17 @@ resolution (`.native.ts` / `.web.ts`), which cannot express "web, but with syste
 audio". A desktop build needs an explicit audio-source abstraction with
 microphone, system and mixed implementations, chosen at runtime rather than at
 bundle time. That abstraction is the first piece of work, and it is worth adding
-before the desktop host exists, because it is the piece the pipeline depends on.
+before the desktop host exists, because it is the piece the pipeline depends on —
+and with Tauri it is also the line the Rust crate is written against.
+
+## Order of work
+
+1. The audio-source abstraction in TypeScript, with the microphone as its first
+   and only implementation (no desktop code yet; the web build keeps working).
+2. A Tauri shell that loads the existing web build, plus the desktop adapter
+   (window, tray, shortcuts). Verify the microphone and transcription in each
+   webview before anything else.
+3. The Rust capture crate, one platform at a time, behind the trait from the
+   mitigation table.
+4. Desktop Notes and quick capture (issue #91), which need the shell but not the
+   system audio.
