@@ -1429,5 +1429,22 @@
     "move": "Move to folder",
     "none": "No folder",
     "pick": "File this note in…"
+  },
+  "editor": {
+    "format": {
+      "toolbar": "Formatting",
+      "bold": "Bold",
+      "italic": "Italic",
+      "strike": "Strikethrough",
+      "code": "Code",
+      "heading": "Heading",
+      "bullets": "Bulleted list",
+      "numbers": "Numbered list",
+      "tasks": "Task list",
+      "quote": "Quote",
+      "block": "Code block",
+      "link": "Link",
+      "linkPrompt": "Link address"
+    }
   }
 }

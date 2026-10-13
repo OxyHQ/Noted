@@ -6,6 +6,7 @@ import { EnrichedMarkdownText, type MarkdownStyle } from 'react-native-enriched-
 import { useColorScheme } from '@/lib/useColorScheme';
 import { markdownOffsetForRenderedPrefix } from '@/lib/markdown/caret';
 import type { MarkdownBodyEditorProps } from '@/components/notes/markdown-body-editor';
+import { MarkdownFormatBar } from '@/components/notes/markdown-format-bar.web';
 
 /** An empty note still needs somewhere inviting to start writing. */
 const MIN_BODY_HEIGHT = 160;
@@ -182,23 +183,26 @@ export function MarkdownBodyEditor({
   }
 
   return (
-    <TextInput
-      id={fieldId}
-      value={value}
-      onChangeText={onChangeMarkdown}
-      onBlur={() => setEditing(false)}
-      placeholder={placeholder}
-      placeholderTextColor={colors.mutedForeground}
-      className="py-1 text-base text-foreground"
-      multiline
-      textAlignVertical="top"
-      scrollEnabled={false}
-      onContentSizeChange={(event) => setHeight(event.nativeEvent.contentSize.height)}
-      // The page scrolls, not the field: a box that scrolls inside a half-empty
-      // note is the thing this replaced. The one value that cannot be a class,
-      // because it is measured.
-      style={{ height: Math.max(MIN_BODY_HEIGHT, height) }}
-    />
+    <View>
+      <MarkdownFormatBar fieldId={fieldId} value={value} onChangeMarkdown={onChangeMarkdown} />
+      <TextInput
+        id={fieldId}
+        value={value}
+        onChangeText={onChangeMarkdown}
+        onBlur={() => setEditing(false)}
+        placeholder={placeholder}
+        placeholderTextColor={colors.mutedForeground}
+        className="py-1 text-base text-foreground"
+        multiline
+        textAlignVertical="top"
+        scrollEnabled={false}
+        onContentSizeChange={(event) => setHeight(event.nativeEvent.contentSize.height)}
+        // The page scrolls, not the field: a box that scrolls inside a half-empty
+        // note is the thing this replaced. The one value that cannot be a class,
+        // because it is measured.
+        style={{ height: Math.max(MIN_BODY_HEIGHT, height) }}
+      />
+    </View>
   );
 }
 
