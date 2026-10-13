@@ -4,6 +4,7 @@ import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppShell } from '@oxy.so/bloom/app-shell';
 import { AppErrorBoundary } from '@/components/error-boundary';
+import { CommandPalette } from '@/components/command-palette';
 import { useNotedSidebar } from '@/components/sidebar';
 import { LocalStoreBoundary } from '@/components/local-store-boundary';
 import { NotesHeader } from '@/components/notes/notes-header';
@@ -85,6 +86,7 @@ export default function AppLayout() {
             />
           )}
         </AppShell>
+        <CommandPalette />
       </GestureHandlerRootView>
     </AppErrorBoundary>
   );
