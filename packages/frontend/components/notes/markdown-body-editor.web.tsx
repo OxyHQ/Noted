@@ -7,6 +7,7 @@ import { useColorScheme } from '@/lib/useColorScheme';
 import { markdownOffsetForRenderedPrefix } from '@/lib/markdown/caret';
 import type { MarkdownBodyEditorProps } from '@/components/notes/markdown-body-editor';
 import { MarkdownFormatBar } from '@/components/notes/markdown-format-bar.web';
+import { MarkdownSlashMenu } from '@/components/notes/markdown-slash-menu.web';
 
 /** An empty note still needs somewhere inviting to start writing. */
 const MIN_BODY_HEIGHT = 160;
@@ -185,6 +186,7 @@ export function MarkdownBodyEditor({
   return (
     <View>
       <MarkdownFormatBar fieldId={fieldId} value={value} onChangeMarkdown={onChangeMarkdown} />
+      <MarkdownSlashMenu fieldId={fieldId} onChangeMarkdown={onChangeMarkdown} />
       <TextInput
         id={fieldId}
         value={value}

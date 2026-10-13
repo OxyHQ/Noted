@@ -1441,6 +1441,18 @@
       "block": "Bloque de código",
       "link": "Enlace",
       "linkPrompt": "Dirección del enlace"
+    },
+    "slash": {
+      "title": "Insertar un bloque",
+      "h1": "Encabezado 1",
+      "h2": "Encabezado 2",
+      "h3": "Encabezado 3",
+      "bullets": "Lista con viñetas",
+      "numbers": "Lista numerada",
+      "tasks": "Lista de tareas",
+      "quote": "Cita",
+      "code": "Bloque de código",
+      "divider": "Separador"
     }
   },
   "palette": {

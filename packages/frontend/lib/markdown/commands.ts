@@ -130,7 +130,7 @@ function selectedLines(text: string, { start, end }: Selection): { from: number;
   return { from, to: nextBreak === -1 ? text.length : nextBreak };
 }
 
-const BLOCK_PREFIX = /^(#{1,6} |> |- \[[ xX]\] |- |\* |\+ |\d+\. )/;
+export const BLOCK_PREFIX = /^(#{1,6} |> |- \[[ xX]\] |- |\* |\+ |\d+\. )/;
 
 /** Apply `change` to each selected line and keep the selection on the same text. */
 function mapLines(
