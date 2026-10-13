@@ -22,6 +22,8 @@ export const SETTING_KEYS = {
   onboardingSeen: 'onboarding.seen',
   /** Ask for Face ID / a fingerprint to open the app. Off unless the person turns it on. */
   appLock: 'lock.enabled',
+  /** Also schedule reminders on this device, so they fire without a connection. */
+  localReminders: 'reminders.local',
 } as const;
 
 interface SettingRow extends Row {

@@ -12,6 +12,7 @@ import { LocalStoreBoundary } from '@/components/local-store-boundary';
 import { NotesHeader } from '@/components/notes/notes-header';
 import { FloatingBottomStack } from '@/components/floating-bottom-stack';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useLocalReminders } from '@/lib/hooks/use-local-reminders';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 import { useNotesRealtime } from '@/lib/hooks/use-notes-realtime';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
@@ -50,6 +51,7 @@ export default function AppLayout() {
   const sidebar = useNotedSidebar(closeDrawer);
 
   useNotificationSetup();
+  useLocalReminders();
   useNotesRealtime();
 
   return (

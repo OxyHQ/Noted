@@ -230,6 +230,11 @@
       "done": "Your Noted data was erased",
       "failed": "Could not erase your data",
       "deviceFailed": "Your data was erased from the server, but this device could not be cleared. Sign out and back in."
+    },
+    "localReminders": {
+      "title": "Remind me on this device too",
+      "description": "Schedules reminders here so they fire without a connection. The server also sends them, so with both on you may see a reminder twice.",
+      "denied": "Notifications are turned off for Noted in your device settings."
     }
   },
   "nav": {
