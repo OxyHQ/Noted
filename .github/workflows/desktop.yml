@@ -315,6 +315,6 @@ jobs:
           test -n "$deb" || { echo "::error::no .deb was produced"; exit 1; }
           echo "package: $deb"
           dpkg-deb -c "$deb" | tee contents.txt
-          grep -E ' \./usr/bin/noted-desktop$' contents.txt || { echo "::error::the app executable is not in the package"; exit 1; }
-          grep -E ' \./usr/bin/whisper-cli$' contents.txt || { echo "::error::the sidecar is not in the package"; exit 1; }
+          grep -E ' (\./)?usr/bin/noted-desktop$' contents.txt || { echo "::error::the app executable is not in the package"; exit 1; }
+          grep -E ' (\./)?usr/bin/whisper-cli$' contents.txt || { echo "::error::the sidecar is not in the package"; exit 1; }
           { echo '### Linux installer contents'; echo; echo '```'; cat contents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
