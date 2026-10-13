@@ -219,3 +219,49 @@ export function toggleCodeBlock(text: string, rawSelection: Selection): Edit {
     selection: { start: from + 4, end: from + 4 + block.length },
   };
 }
+
+/* ── Tables ────────────────────────────────────────────────────── */
+
+const TABLE_HEADERS = ['A', 'B', 'C'];
+
+/**
+ * Insert a small Markdown table and select its first header cell, ready to be
+ * typed over.
+ *
+ * On an empty line the table takes the line's place; on a line with text it goes
+ * below, after a blank line, because a table glued to a paragraph is rendered as
+ * part of the paragraph. Headers are letters rather than words so the same
+ * table is right in every language the app is translated into.
+ */
+export function insertTable(
+  text: string,
+  rawSelection: Selection,
+  options: { headers?: readonly string[]; rows?: number } = {},
+): Edit {
+  const headers = options.headers ?? TABLE_HEADERS;
+  const rows = options.rows ?? 2;
+  const { start } = clamp(text, rawSelection);
+
+  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+  const nextBreak = text.indexOf('\n', start);
+  const lineEnd = nextBreak === -1 ? text.length : nextBreak;
+  const blankLine = text.slice(lineStart, lineEnd).trim() === '';
+
+  const row = (cells: readonly string[]) => `| ${cells.join(' | ')} |`;
+  const table = [
+    row(headers),
+    row(headers.map(() => '---')),
+    ...Array.from({ length: rows }, () => row(headers.map(() => ''))),
+  ].join('\n');
+
+  const before = blankLine ? text.slice(0, lineStart) : `${text.slice(0, lineEnd)}\n\n`;
+  const rest = text.slice(lineEnd);
+  // A blank line after the table, unless the text ends or one is already there.
+  const after = rest === '' || rest.startsWith('\n\n') ? rest : `\n${rest}`;
+
+  const cellStart = before.length + 2;
+  return {
+    text: before + table + after,
+    selection: { start: cellStart, end: cellStart + headers[0].length },
+  };
+}

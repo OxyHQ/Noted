@@ -1431,7 +1431,10 @@
     "pick": "File this note in…",
     "addSubfolder": "Add subfolder",
     "newIn": "New folder in {{parent}}",
-    "clearParent": "Create at the top level instead"
+    "clearParent": "Create at the top level instead",
+    "moveAction": "Move",
+    "moveTo": "Move “{{name}}” to…",
+    "topLevel": "Top level"
   },
   "editor": {
     "format": {
@@ -1447,7 +1450,8 @@
       "quote": "Quote",
       "block": "Code block",
       "link": "Link",
-      "linkPrompt": "Link address"
+      "linkPrompt": "Link address",
+      "table": "Table"
     },
     "slash": {
       "title": "Insert a block",
@@ -1459,7 +1463,8 @@
       "tasks": "Task list",
       "quote": "Quote",
       "code": "Code block",
-      "divider": "Divider"
+      "divider": "Divider",
+      "table": "Table"
     }
   },
   "palette": {

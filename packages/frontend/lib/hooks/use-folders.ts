@@ -70,6 +70,34 @@ export function useRenameFolder() {
   });
 }
 
+/** Move a folder under another, or to the top level with `parentId: null`. */
+export function useMoveFolder() {
+  return useMutation({
+    networkMode: 'always',
+    retry: false,
+    mutationFn: async ({
+      id,
+      parentId,
+    }: {
+      id: string;
+      parentId: string | null;
+    }): Promise<Folder> => {
+      const viewerId = requireViewer();
+      const response = await apiClient.patch<Folder>(
+        API_ROUTES.folders.update(id),
+        { parentId },
+        { expectedViewerId: viewerId },
+      );
+      await saveFolder(response.data, viewerId);
+      return response.data;
+    },
+    onSuccess: () => requestSync(),
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to move folder');
+    },
+  });
+}
+
 export function useDeleteFolder() {
   return useMutation({
     networkMode: 'always',

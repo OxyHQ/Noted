@@ -58,3 +58,40 @@ export function folderEntries(folders: readonly Folder[]): FolderEntry[] {
 export function canHaveSubfolder(entry: FolderEntry): boolean {
   return entry.depth + 1 < MAX_FOLDER_DEPTH;
 }
+
+/** How many levels a folder and everything below it span (1 for a folder with no subfolders). */
+function subtreeHeight(id: string, folders: readonly Folder[], seen = new Set<string>()): number {
+  if (seen.has(id)) return Number.POSITIVE_INFINITY;
+  const next = new Set(seen).add(id);
+  const below = folders
+    .filter((folder) => folder.parentId === id)
+    .map((folder) => subtreeHeight(folder.id, folders, next));
+  return 1 + (below.length === 0 ? 0 : Math.max(...below));
+}
+
+/**
+ * Where a folder can be moved to: the folders it may sit directly inside.
+ *
+ * The same rules the server enforces (`lib/folder-tree.ts` there), applied here
+ * so the picker only offers moves that will be accepted: not itself, not
+ * anything below it (a folder inside its own branch has no way back to the
+ * top), and not so deep that the branch it carries would pass the depth limit.
+ * Going to the top level is always possible and is offered separately.
+ */
+export function validParents(folders: readonly Folder[], folderId: string): FolderEntry[] {
+  const height = subtreeHeight(folderId, folders);
+  const below = new Set<string>([folderId]);
+  // Collect the branch: every folder reachable by following children downward.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const folder of folders) {
+      if (folder.parentId && below.has(folder.parentId) && !below.has(folder.id)) {
+        below.add(folder.id);
+        grew = true;
+      }
+    }
+  }
+  return folderEntries(folders).filter(
+    (entry) => !below.has(entry.folder.id) && entry.depth + 1 + height <= MAX_FOLDER_DEPTH,
+  );
+}

@@ -13,6 +13,7 @@ import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { EmptyState } from '@/components/empty-state';
 import { LocalStoreError } from '@/components/local-store-boundary';
+import { MoveFolderDialog } from '@/components/notes/move-folder-dialog';
 import { NotesContent } from '@/components/notes/notes-content';
 import { NotesHeader } from '@/components/notes/notes-header';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -42,6 +43,7 @@ export default function FoldersScreen() {
   const [draft, setDraft] = React.useState('');
   // Where the next folder goes: inside this one, or at the top when null.
   const [parent, setParent] = React.useState<FolderEntry | null>(null);
+  const [moving, setMoving] = React.useState<Folder | null>(null);
   const entries = React.useMemo(() => folderEntries(folders), [folders]);
 
   const handleCreate = React.useCallback(() => {
@@ -143,6 +145,7 @@ export default function FoldersScreen() {
                 depth={entry.depth}
                 onOpen={() => open(entry.folder)}
                 onDelete={() => askDelete(entry.folder)}
+                onMove={() => setMoving(entry.folder)}
                 onAddSubfolder={
                   canHaveSubfolder(entry)
                     ? () => {
@@ -156,6 +159,7 @@ export default function FoldersScreen() {
           </View>
         )}
       </NotesContent>
+      <MoveFolderDialog folder={moving} onClose={() => setMoving(null)} />
     </Screen>
   );
 }
@@ -165,12 +169,14 @@ function FolderRow({
   depth,
   onOpen,
   onDelete,
+  onMove,
   onAddSubfolder,
 }: {
   folder: Folder;
   depth: number;
   onOpen: () => void;
   onDelete: () => void;
+  onMove: () => void;
   /** Absent at the deepest level, where a folder cannot hold another. */
   onAddSubfolder?: () => void;
 }) {
@@ -246,6 +252,9 @@ function FolderRow({
       )}
       <Button appearance="plain" tone="neutral" onPress={() => setEditing(true)}>
         {t('folders.rename')}
+      </Button>
+      <Button appearance="plain" tone="neutral" onPress={onMove}>
+        {t('folders.moveAction')}
       </Button>
       <Button
         iconOnly

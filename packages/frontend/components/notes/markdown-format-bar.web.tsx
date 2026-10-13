@@ -10,6 +10,7 @@ import {
   Quote,
   SquareCode,
   Strikethrough,
+  Table,
   type LucideIcon,
 } from 'lucide-react-native';
 import type React from 'react';
@@ -18,6 +19,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
   insertLink,
+  insertTable,
   toggleCodeBlock,
   toggleHeading,
   toggleLinePrefix,
@@ -51,6 +53,7 @@ const COMMANDS: readonly Command[] = [
   },
   { key: 'quote', icon: Quote, label: 'quote', run: (t, s) => toggleLinePrefix(t, s, '> ') },
   { key: 'block', icon: SquareCode, label: 'block', run: (t, s) => toggleCodeBlock(t, s) },
+  { key: 'table', icon: Table, label: 'table', run: (t, s) => insertTable(t, s) },
 ];
 
 interface MarkdownFormatBarProps {
