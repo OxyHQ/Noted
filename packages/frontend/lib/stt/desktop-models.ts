@@ -65,14 +65,25 @@ export function createDesktopModels(
       const invoke = await getInvoke();
       const name = DESKTOP_MODEL_FILES[model.id];
 
-      const response = await fetchImpl(model.url);
+      // A partial file from an interrupted attempt is resumed, not discarded: the
+      // models are hundreds of megabytes. Whether the stitched file is right is not
+      // trusted to the network, only to Rust's sha256 at the end.
+      const have = (await invoke<number>('model_partial', { name })) ?? 0;
+      const resume = have > 0 && have < model.bytes;
+      const response = await fetchImpl(
+        model.url,
+        resume ? { headers: { Range: `bytes=${have}-` } } : undefined,
+      );
       if (!response.ok || !response.body) {
         throw new Error(`model download failed: HTTP ${response.status}`);
       }
+      // 206 continues where we stopped; a server that ignores Range sends the whole
+      // file with 200, and then the partial must be overwritten, not appended to.
+      const continuing = resume && response.status === 206;
       const reader = response.body.getReader();
 
-      let received = 0;
-      let first = true;
+      let received = continuing ? have : 0;
+      let first = !continuing;
       let pending: Uint8Array[] = [];
       let pendingBytes = 0;
 
@@ -105,7 +116,8 @@ export function createDesktopModels(
         await invoke('model_commit', { name, bytes: model.bytes, sha256: model.sha256 });
       } catch (error) {
         await reader.cancel().catch(() => undefined);
-        await invoke('model_remove', { name }).catch(() => undefined);
+        // The partial file stays: a dropped connection resumes from it. A bad file
+        // never survives, because Rust deletes it when verification fails.
         throw error;
       }
       onProgress?.(1);

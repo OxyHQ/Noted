@@ -93,6 +93,13 @@ async function downloadModel(id: SttModelId, url: string) {
   };
 }
 
+/** Leave the first `count` bytes of `base64` as an interrupted download would. */
+async function seedPartial(id: SttModelId, base64: string) {
+  const invoke = await loadTauriInvoke();
+  await invoke('model_write', { name: STT_MODELS[id].filename, chunk: base64, reset: true });
+  return invoke<number>('model_partial', { name: STT_MODELS[id].filename });
+}
+
 async function removeModel(id: SttModelId) {
   const models = createDesktopModels(loadTauriInvoke);
   await models.remove(STT_MODELS[id]);
@@ -107,9 +114,10 @@ declare global {
       transcribe: (samples: string) => ReturnType<typeof transcribe>;
       downloadModel: (id: SttModelId, url: string) => ReturnType<typeof downloadModel>;
       removeModel: (id: SttModelId) => ReturnType<typeof removeModel>;
+      seedPartial: (id: SttModelId, base64: string) => ReturnType<typeof seedPartial>;
     };
   }
 }
 
 if (typeof window !== 'undefined')
-  window.__NOTED_E2E_HOOK__ = { run, count, transcribe, downloadModel, removeModel };
+  window.__NOTED_E2E_HOOK__ = { run, count, transcribe, downloadModel, removeModel, seedPartial };

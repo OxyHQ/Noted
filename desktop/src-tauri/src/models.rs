@@ -83,6 +83,12 @@ pub fn commit(dir: &Path, name: &str, bytes: u64, sha256: &str) -> Result<(), St
     outcome
 }
 
+/// How much of a download is already on disk, so it can resume instead of restarting.
+pub fn partial_size(dir: &Path, name: &str) -> Result<u64, String> {
+    checked(name)?;
+    Ok(fs::metadata(part_path(dir, name)).map(|m| m.len()).unwrap_or(0))
+}
+
 /// Size of a finished model, if there is one.
 pub fn size_of(dir: &Path, name: &str) -> Result<Option<u64>, String> {
     checked(name)?;
@@ -128,6 +134,11 @@ pub async fn model_commit(
 #[tauri::command]
 pub fn model_status(app: AppHandle, name: String) -> Result<Option<u64>, String> {
     size_of(&models_dir(&app)?, &name)
+}
+
+#[tauri::command]
+pub fn model_partial(app: AppHandle, name: String) -> Result<u64, String> {
+    partial_size(&models_dir(&app)?, &name)
 }
 
 #[tauri::command]
@@ -181,6 +192,20 @@ mod tests {
         assert!(!part_path(&dir, "m.bin").exists());
         assert_eq!(size_of(&dir, "m.bin").unwrap(), None);
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_partial_download_reports_its_size_so_it_can_resume() {
+        let dir = scratch("partial");
+        assert_eq!(partial_size(&dir, "m.bin").unwrap(), 0);
+        write_part(&dir, "m.bin", b"hello ", true).unwrap();
+        assert_eq!(partial_size(&dir, "m.bin").unwrap(), 6);
+        write_part(&dir, "m.bin", b"world", false).unwrap();
+        assert_eq!(partial_size(&dir, "m.bin").unwrap(), 11);
+        // Resuming stitches the halves into the same file a full download would make.
+        commit(&dir, "m.bin", 11, HELLO).unwrap();
+        assert_eq!(partial_size(&dir, "m.bin").unwrap(), 0);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

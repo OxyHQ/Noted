@@ -13,12 +13,13 @@ const MODEL: DesktopModelInfo = {
 
 type Call = { command: string; args: Record<string, unknown> };
 
-function fakeRust(initial: number | null = null, onCommit?: () => Error | undefined) {
+function fakeRust(initial: number | null = null, onCommit?: () => Error | undefined, partial = 0) {
   const calls: Call[] = [];
   let size = initial;
   const invoke: Invoke = async <T>(command: string, args: Record<string, unknown> = {}) => {
     calls.push({ command, args });
     if (command === 'model_status') return size as T;
+    if (command === 'model_partial') return partial as T;
     if (command === 'model_commit') {
       const error = onCommit?.();
       if (error) throw error;
@@ -70,9 +71,7 @@ describe('desktop model downloads', () => {
     await models.download(MODEL, (fraction) => progress.push(fraction));
 
     const commands = rust.calls.map((c) => c.command);
-    expect(commands).toEqual(
-      ['model_status', 'model_write', 'model_commit', 'model_status'].slice(0, 3),
-    );
+    expect(commands).toEqual(['model_status', 'model_partial', 'model_write', 'model_commit']);
     const write = rust.calls.find((c) => c.command === 'model_write');
     expect(write?.args.reset).toBe(true);
     expect(decodeLen(write?.args.chunk)).toBe(10);
@@ -114,17 +113,63 @@ describe('desktop model downloads', () => {
     expect(rust.calls.map((c) => c.command)).toEqual(['model_status']);
   });
 
-  it('removes the partial file and rethrows when Rust rejects the hash', async () => {
+  it('rethrows when Rust rejects the hash; Rust has already deleted the bad file', async () => {
     const rust = fakeRust(null, () => new Error('sha256 mismatch'));
     const models = createDesktopModels(
       async () => rust.invoke,
       async () => streamOf(new Uint8Array(10)),
     );
     await expect(models.download(MODEL)).rejects.toThrow('sha256 mismatch');
-    expect(rust.calls.at(-1)).toEqual({
-      command: 'model_remove',
-      args: { name: DESKTOP_MODEL_FILES.tiny },
-    });
+    expect(rust.calls.at(-1)?.command).toBe('model_commit');
+  });
+
+  it('keeps the partial file when the connection drops, so the next try resumes', async () => {
+    const rust = fakeRust();
+    const dropped = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(4));
+        },
+        pull() {
+          throw new Error('connection reset');
+        },
+      }),
+    );
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () => dropped,
+    );
+    await expect(models.download(MODEL)).rejects.toThrow('connection reset');
+    expect(rust.calls.some((c) => c.command === 'model_remove')).toBe(false);
+  });
+
+  it('resumes from the partial size with a Range request and appends on a 206', async () => {
+    const rust = fakeRust(null, undefined, 4);
+    const seen: Array<RequestInit | undefined> = [];
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async (_url, init) => {
+        seen.push(init);
+        return new Response(streamOf(new Uint8Array(6)).body, { status: 206 });
+      },
+    );
+    await models.download(MODEL);
+    expect(seen[0]?.headers).toEqual({ Range: 'bytes=4-' });
+    const write = rust.calls.find((c) => c.command === 'model_write');
+    expect(write?.args.reset).toBe(false);
+    expect(decodeLen(write?.args.chunk)).toBe(6);
+  });
+
+  it('starts over when the server ignores Range and sends the whole file', async () => {
+    const rust = fakeRust(null, undefined, 4);
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () => streamOf(new Uint8Array(10)),
+    );
+    await models.download(MODEL);
+    const write = rust.calls.find((c) => c.command === 'model_write');
+    expect(write?.args.reset).toBe(true);
+    expect(decodeLen(write?.args.chunk)).toBe(10);
   });
 
   it('fails on an HTTP error without writing anything', async () => {

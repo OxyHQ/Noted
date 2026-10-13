@@ -144,11 +144,28 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
   if (process.env.E2E_MODELS === '1') {
     const good = readFileSync(process.env.E2E_MODEL_FILE);
     const corrupt = Buffer.alloc(good.length);
+    const ranges = [];
     const server = createServer((request, response) => {
       response.setHeader('Access-Control-Allow-Origin', '*');
+      response.setHeader('Access-Control-Allow-Headers', 'Range');
+      if (request.method === 'OPTIONS') {
+        response.writeHead(204).end();
+        return;
+      }
       const body = request.url === '/good' ? good : request.url === '/corrupt' ? corrupt : null;
       if (!body) {
         response.writeHead(404).end();
+        return;
+      }
+      const range = /^bytes=(\d+)-$/.exec(request.headers.range ?? '');
+      if (range) {
+        ranges.push(request.headers.range);
+        const from = Number(range[1]);
+        response.writeHead(206, {
+          'Content-Length': body.length - from,
+          'Content-Range': `bytes ${from}-${body.length - 1}/${body.length}`,
+        });
+        response.end(body.subarray(from));
         return;
       }
       response.writeHead(200, { 'Content-Length': body.length });
@@ -169,8 +186,24 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
        window.__NOTED_E2E_HOOK__.removeModel('tiny').then(done, (e) => done({ hookError: String(e) }));`,
       [],
     );
+
+    // An interrupted download: the first part of the file is already on disk. The
+    // manager must ask for the rest, and Rust's sha256 over the stitched file is what
+    // proves the halves joined correctly.
+    const half = Math.floor(good.length / 2);
+    const seeded = await runAsync(
+      `const done = arguments[arguments.length - 1];
+       window.__NOTED_E2E_HOOK__.seedPartial('tiny', arguments[0]).then(done, (e) => done({ hookError: String(e) }));`,
+      [good.subarray(0, half).toString('base64')],
+    );
+    const resumed = await download('/good');
+    await runAsync(
+      `const done = arguments[arguments.length - 1];
+       window.__NOTED_E2E_HOOK__.removeModel('tiny').then(done, () => done(null));`,
+      [],
+    );
     server.close();
-    const report = { refused, accepted, removed };
+    const report = { refused, accepted, removed, resume: { seeded, half, resumed, ranges } };
     console.log(JSON.stringify({ modelDownload: report }, null, 2));
     if (process.env.GITHUB_STEP_SUMMARY) {
       appendFileSync(
@@ -184,7 +217,12 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
       !refused?.error ||
       accepted?.after !== 'ready' ||
       accepted?.error ||
-      removed !== 'absent'
+      removed !== 'absent' ||
+      seeded !== half ||
+      resumed?.after !== 'ready' ||
+      resumed?.error ||
+      ranges.length !== 1 ||
+      ranges[0] !== `bytes=${half}-`
     ) {
       console.error('::error::model download did not behave end to end inside the shell');
       process.exitCode = 1;
