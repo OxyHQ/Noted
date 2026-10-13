@@ -49,6 +49,7 @@ import { LabelChips } from '@/components/notes/label-chips';
 import { LabelAssignDialog } from '@/components/notes/label-assign-dialog';
 import { LinkedMentions } from '@/components/notes/linked-mentions';
 import { LinkNoteDialog } from '@/components/notes/link-note-dialog';
+import { ReminderPickerDialog } from '@/components/notes/reminder-picker-dialog';
 import { RevisionsDialog } from '@/components/notes/revisions-dialog';
 import { appendLink, linkTo } from '@/lib/notes/links';
 import { AttachmentsRow } from '@/components/notes/attachments/AttachmentsRow';
@@ -190,6 +191,7 @@ function NoteEditor() {
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [linkOpen, setLinkOpen] = React.useState(false);
+  const [reminderPickerOpen, setReminderPickerOpen] = React.useState(false);
   const [showReminders, setShowReminders] = React.useState(false);
 
   const setDraft = React.useCallback((next: LocalNote) => {
@@ -635,6 +637,13 @@ function NoteEditor() {
           />
           <ReminderChip label={t('notes.tomorrow')} onPress={() => handleSetReminder('tomorrow')} />
           <ReminderChip label={t('notes.nextWeek')} onPress={() => handleSetReminder('nextWeek')} />
+          <ReminderChip
+            label={t('notes.customReminder')}
+            onPress={() => {
+              setShowReminders(false);
+              setReminderPickerOpen(true);
+            }}
+          />
           {draft.reminderAt && (
             <ReminderChip
               label={t('notes.clearReminder')}
@@ -782,6 +791,15 @@ function NoteEditor() {
     />
   );
 
+  const reminderPickerDialog = (
+    <ReminderPickerDialog
+      open={reminderPickerOpen}
+      onOpenChange={setReminderPickerOpen}
+      current={draft.reminderAt}
+      onPick={(when) => updateNow({ reminderAt: when.toISOString() })}
+    />
+  );
+
   const linkDialog = (
     <LinkNoteDialog
       open={linkOpen}
@@ -811,6 +829,7 @@ function NoteEditor() {
     <View className="flex-1" style={{ backgroundColor }}>
       {editorContent}
       {labelDialog}
+      {reminderPickerDialog}
       {linkDialog}
       {historyDialog}
       <FloatingBottomStack />
