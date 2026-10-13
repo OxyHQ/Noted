@@ -53,6 +53,10 @@ export async function withSession(application, work) {
     return await work({
       run: (script, args = []) =>
         request('POST', `/session/${sessionId}/execute/sync`, { script, args }),
+      // For scripts that return a promise: WebDriver hands them a callback as the
+      // last argument and waits for it.
+      runAsync: (script, args = []) =>
+        request('POST', `/session/${sessionId}/execute/async`, { script, args }),
       screenshot: () => request('GET', `/session/${sessionId}/screenshot`),
     });
   } finally {
