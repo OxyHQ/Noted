@@ -49,6 +49,7 @@ import { createLogger } from '@oxy.so/core/logger';
 
 import { audioRef } from '@/lib/audio/artifact-store';
 import { getAudioStore } from '@/lib/audio/store';
+import { microphoneSource } from '@/lib/capture/audio-source';
 import { upsertSegments } from '@/lib/capture/captures-repo';
 import { SAMPLE_RATE, transcribeSamples } from '@/lib/stt/engine.web';
 import type { RealtimeOptions, RealtimeSession } from '@/lib/stt/realtime';
@@ -116,9 +117,10 @@ export async function startRealtimeTranscription(
 ): Promise<RealtimeSession> {
   const expectedViewerId =
     options.expectedViewerId === undefined ? getActiveViewerId() : options.expectedViewerId;
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-  });
+  // Where the audio comes from is the caller's choice (the microphone unless a
+  // desktop build says otherwise); what is done with the stream is not.
+  const opened = await (options.audioSource ?? microphoneSource()).open();
+  const stream = opened.stream;
 
   // Asking for whisper's rate up front means the browser resamples once, in
   // native code, instead of this module doing it per slice in JavaScript.
@@ -321,7 +323,7 @@ export async function startRealtimeTranscription(
       await context.close();
       // Released explicitly, or the browser keeps showing a recording indicator
       // for a meeting that ended.
-      for (const track of stream.getTracks()) track.stop();
+      opened.close();
 
       await inFlight;
       logger.info('Live browser transcription stopped');
