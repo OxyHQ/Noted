@@ -1,0 +1,52 @@
+name: Desktop
+
+# Noted Desktop is a Rust crate (desktop/), outside the Bun workspace, so the main
+# CI does not build it. This compiles it, and only when it or this file changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Desktop (cargo check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # Tauri's Linux dependencies: the webview, tray support and the build tools.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev build-essential curl wget file
+
+      # `tauri::generate_context!` reads `frontendDist` at compile time and fails if
+      # the directory is missing, so give it an empty one: this job checks that the
+      # Rust compiles, not that the web app builds (the main CI does that).
+      - name: Provide a frontendDist placeholder
+        run: mkdir -p packages/frontend/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: cargo check
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --all-targets
