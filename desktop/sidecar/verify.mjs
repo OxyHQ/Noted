@@ -31,11 +31,28 @@ if (!baseUrl || !filename || !sha256 || !bytes)
 
 // ── Fetch and verify the weights, exactly as the app does ──────────
 const modelPath = join(workdir, filename);
+
+// The host rate-limits shared CI addresses (HTTP 429), so ask again, politely.
+async function download(url) {
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const response = await fetch(url);
+    if (response.ok) return Buffer.from(await response.arrayBuffer());
+    lastStatus = response.status;
+    if (response.status !== 429 && response.status < 500) break;
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5 * 2 ** attempt;
+    console.log(`download answered ${response.status}; waiting ${wait}s`);
+    await new Promise((resolve) => setTimeout(resolve, wait * 1000));
+  }
+  throw new Error(`download failed: ${lastStatus}`);
+}
+
 if (!existsSync(modelPath)) {
   console.log(`downloading ${filename} (${bytes} bytes)`);
-  const response = await fetch(`${baseUrl}/${filename}`);
-  if (!response.ok) throw new Error(`download failed: ${response.status}`);
-  writeFileSync(modelPath, Buffer.from(await response.arrayBuffer()));
+  writeFileSync(modelPath, await download(`${baseUrl}/${filename}`));
+} else {
+  console.log(`using the cached ${filename}; it is still verified below`);
 }
 const weights = readFileSync(modelPath);
 const digest = createHash('sha256').update(weights).digest('hex');

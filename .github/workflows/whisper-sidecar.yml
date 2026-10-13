@@ -56,5 +56,13 @@ jobs:
           cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF
           cmake --build whisper.cpp/build -j --target whisper-cli
 
+      # The weights are fetched from a host that rate-limits CI addresses. Cached by
+      # the catalogue's content, and verified against its sha256 on every run anyway.
+      - name: Cache the model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/whisper
+          key: whisper-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+
       - name: Transcribe the sample with the app's own model
         run: node desktop/sidecar/verify.mjs whisper.cpp/build/bin/whisper-cli whisper.cpp/samples/jfk.wav "$RUNNER_TEMP/whisper"
