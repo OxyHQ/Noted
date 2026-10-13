@@ -1,7 +1,8 @@
 # Noted Desktop
 
 A [Tauri v2](https://tauri.app) shell around the Noted web build. **Early skeleton:**
-it opens a window on the app and does nothing else yet. The decision and the plan
+it opens a window on the app, a tray menu (New note / Show Noted / Quit) and a
+global *New note* shortcut (Ctrl+Shift+N; Cmd+Shift+N on macOS). That is all. The decision and the plan
 are in [`docs/desktop-audio.mdx`](../docs/desktop-audio.mdx) (issue #91).
 
 Not part of the Bun workspace on purpose: it is a Rust crate that only needs the
@@ -26,6 +27,8 @@ cargo run                           # or: cargo tauri build  (needs tauri-cli)
 - The icons in `src-tauri/icons/` are **placeholders**: flat squares, not the Noted mark.
 - `app.security.csp` is `null`. A shipped build needs a policy listing exactly the
   origins the app talks to (the Noted API, Oxy auth, the model hosts).
-- No native capability is exposed yet. Each one added (tray, global shortcuts,
-  system audio) gets its own entry in `capabilities/default.json`, and none of
-  them carries note logic.
+- The tray labels are English; localising them means passing the app's language to
+  the shell. The shortcut is fixed and may clash with another app's: if so it is
+  logged and skipped, and the tray still works.
+- No JS-callable native capability exists. Each one added (e.g. system audio) gets
+  its own entry in `capabilities/default.json`, and none of them carries note logic.
