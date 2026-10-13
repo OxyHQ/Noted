@@ -87,3 +87,47 @@ jobs:
       # desktop/smoke.sh for what "starts" means and what it does not cover.
       - name: Run the shell for a few seconds
         run: ${{ matrix.wrap }} bash desktop/smoke.sh "${{ matrix.binary }}" 20
+
+  # What each webview actually offers, asked of the real shell rather than assumed
+  # from a browser compatibility table. Linux only: tauri-driver has no macOS
+  # support, and the Windows driver needs a matching Edge driver. This is the
+  # evidence behind the risk table in docs/desktop-audio.mdx.
+  webview-probe:
+    name: Desktop webview capabilities (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev build-essential curl wget file xvfb dbus-x11 \
+            webkit2gtk-driver
+
+      # The shell embeds `frontendDist` at compile time, so the probe page has to be
+      # there BEFORE the build; that is the only difference from the smoke job.
+      - name: Put the probe page where the shell will embed it
+        run: |
+          mkdir -p packages/frontend/dist
+          cp desktop/e2e/probe.html packages/frontend/dist/index.html
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: probe
+
+      - name: Install tauri-driver
+        run: cargo install tauri-driver --locked
+
+      - name: Build the shell
+        run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+
+      - name: Probe the webview
+        run: dbus-run-session -- xvfb-run -a node desktop/e2e/probe.mjs "$PWD/desktop/src-tauri/target/debug/noted-desktop"

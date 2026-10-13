@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Noted webview probe</title>
+  </head>
+  <body>
+    <p>Probing this webview's capabilities.</p>
+    <script>
+      // Everything Noted's recording and storage path leans on, asked of the engine
+      // the desktop shell actually uses. Results go in an attribute so a WebDriver
+      // client can read them back; nothing here is the Noted app.
+      (async () => {
+        const nav = navigator;
+        const result = {
+          userAgent: nav.userAgent,
+          // Microphone path (the web recorder).
+          getUserMedia: typeof nav.mediaDevices?.getUserMedia,
+          getDisplayMedia: typeof nav.mediaDevices?.getDisplayMedia,
+          mediaRecorder: typeof MediaRecorder,
+          audioContext: typeof AudioContext,
+          audioWorklet: typeof AudioWorkletNode,
+          // Codecs the recorder can write.
+          recordsWebmOpus:
+            typeof MediaRecorder === 'function' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus'),
+          recordsMp4:
+            typeof MediaRecorder === 'function' && MediaRecorder.isTypeSupported('audio/mp4'),
+          // On-device transcription (ONNX / whisper in the browser).
+          webgpu: typeof nav.gpu,
+          webAssembly: typeof WebAssembly,
+          sharedArrayBuffer: typeof SharedArrayBuffer,
+          crossOriginIsolated: self.crossOriginIsolated === true,
+          // Local-first storage (SQLite on OPFS).
+          opfs: typeof nav.storage?.getDirectory,
+          indexedDb: typeof indexedDB,
+          webLocks: typeof nav.locks,
+          serviceWorker: typeof nav.serviceWorker,
+        };
+        try {
+          const adapter = result.webgpu === 'object' ? await nav.gpu.requestAdapter() : null;
+          result.webgpuAdapter = adapter !== null;
+        } catch {
+          result.webgpuAdapter = false;
+        }
+        document.body.setAttribute('data-probe', JSON.stringify(result));
+      })();
+    </script>
+  </body>
+</html>
