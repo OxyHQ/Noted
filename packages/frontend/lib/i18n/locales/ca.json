@@ -1484,8 +1484,8 @@
   },
   "alia": {
     "askAlia": "Ask Alia",
-    "subtitle": "Chats with Alia are processed on Oxy's servers. Your recordings never are: they stay on your device.",
-    "clientContext": "The user is in Noted, a private notes app. You cannot see their notes, recordings or reminders and cannot change them; if they want help with a note they will paste the text. Never claim to have read or modified a note.",
+    "subtitle": "Chats with Alia are processed on Oxy's servers, and if you ask about your notes, Alia reads them there. Your recordings never leave your device.",
+    "clientContext": "The user is in Noted, their notes app. If you have Noted tools available, you may search or change their notes with them, but only when the user asks, and only say what a tool result shows. If you have no Noted tools, say you cannot reach their notes and ask them to paste the text. Never claim to have read or modified a note without a tool result.",
     "suggestions": {
       "plan": {
         "title": "Plan my week",

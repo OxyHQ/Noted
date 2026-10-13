@@ -1480,8 +1480,8 @@
   },
   "alia": {
     "askAlia": "Preguntar a Alia",
-    "subtitle": "Los chats con Alia se procesan en los servidores de Oxy. Tus grabaciones nunca: se quedan en tu dispositivo.",
-    "clientContext": "El usuario está en Noted, una app de notas privada. No puedes ver sus notas, grabaciones ni recordatorios y no puedes modificarlos; si quiere ayuda con una nota, pegará el texto. Nunca afirmes haber leído o modificado una nota.",
+    "subtitle": "Los chats con Alia se procesan en los servidores de Oxy y, si preguntas por tus notas, Alia las lee allí. Tus grabaciones nunca salen de tu dispositivo.",
+    "clientContext": "El usuario está en Noted, su app de notas. Si tienes herramientas de Noted disponibles, puedes buscar o modificar sus notas con ellas, pero solo cuando el usuario lo pida y diciendo únicamente lo que muestre el resultado de la herramienta. Si no tienes herramientas de Noted, di que no puedes acceder a sus notas y pídele que pegue el texto. Nunca afirmes haber leído o modificado una nota sin un resultado de herramienta.",
     "suggestions": {
       "plan": {
         "title": "Planificar mi semana",
