@@ -35,6 +35,7 @@ import {
 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { toast } from '@oxy.so/bloom/toast';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { createLogger } from '@oxy.so/core/logger';
 import { noteFilename, noteToMarkdown } from '@/lib/export/markdown';
 import { saveTextFile } from '@/lib/export/save';
@@ -136,6 +137,7 @@ function NoteEditor() {
   const insets = useSafeAreaInsets();
   const { colors, colorScheme } = useColorScheme();
   const { t } = useTranslation();
+  const haptic = useHaptics();
   const { width } = useWindowDimensions();
   const { isAuthenticated, showBottomSheet, user, activeSessionId } = useOxy();
   const editorOwner = React.useRef(user?.id);
@@ -586,7 +588,10 @@ function NoteEditor() {
           <IconButton
             icon={draft.pinned ? PinOff : Pin}
             label={draft.pinned ? t('notes.unpin') : t('notes.pin')}
-            onPress={() => updateNow({ pinned: !draft.pinned })}
+            onPress={() => {
+              haptic();
+              updateNow({ pinned: !draft.pinned });
+            }}
             active={draft.pinned}
           />
           <IconButton
@@ -597,9 +602,19 @@ function NoteEditor() {
           <IconButton
             icon={draft.archived ? ArchiveRestore : Archive}
             label={draft.archived ? t('notes.unarchive') : t('notes.archive')}
-            onPress={() => updateNow({ archived: !draft.archived })}
+            onPress={() => {
+              haptic();
+              updateNow({ archived: !draft.archived });
+            }}
           />
-          <IconButton icon={Trash2} label={t('common.delete')} onPress={handleTrash} />
+          <IconButton
+            icon={Trash2}
+            label={t('common.delete')}
+            onPress={() => {
+              haptic('medium');
+              void handleTrash();
+            }}
+          />
         </View>
       </View>
 

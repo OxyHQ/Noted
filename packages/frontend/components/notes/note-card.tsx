@@ -1,5 +1,6 @@
 import { Button, GlyphButton } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import React from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
@@ -103,6 +104,7 @@ export const NoteCard = React.memo(function NoteCard({
 }: NoteCardProps) {
   const { colorScheme, colors } = useColorScheme();
   const reduceMotion = useReducedMotion();
+  const haptic = useHaptics();
   const tint = getNoteColorTint(note.color, colorScheme);
 
   // Web-only hover state. The Pressable callbacks fire only on react-native-web;
@@ -206,6 +208,7 @@ export const NoteCard = React.memo(function NoteCard({
           <GlyphButton
             onPress={(event) => {
               event.stopPropagation();
+              haptic();
               onTogglePin?.(note);
             }}
             disabled={!onTogglePin}
@@ -322,7 +325,10 @@ export const NoteCard = React.memo(function NoteCard({
               <HoverIconButton
                 icon={Archive}
                 label="Archive"
-                onPress={() => onArchive(note)}
+                onPress={() => {
+                  haptic();
+                  onArchive(note);
+                }}
                 focusable={hovered}
               />
             )}
@@ -330,7 +336,10 @@ export const NoteCard = React.memo(function NoteCard({
               <HoverIconButton
                 icon={Trash2}
                 label="Delete"
-                onPress={() => onDelete(note)}
+                onPress={() => {
+                  haptic('medium');
+                  onDelete(note);
+                }}
                 focusable={hovered}
               />
             )}
