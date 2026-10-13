@@ -125,8 +125,10 @@ and with Tauri it is also the line the Rust crate is written against.
    defaulting to the microphone, so the web build behaves exactly as before.
 2. A Tauri shell that loads the existing web build, plus the desktop adapter
    (window, tray, shortcuts). **The shell skeleton exists** (`desktop/`, compiled
-   by `.github/workflows/desktop.yml` with `cargo check --locked`); it has never
-   been run. **The first adapter exists**: a tray menu (New note / Show Noted /
+   by `.github/workflows/desktop.yml` with `cargo check --locked`); CI builds it
+   and runs it for 20 seconds under a virtual display (Xvfb, Linux/WebKitGTK) to
+   check it starts and stays up — a smoke test, nothing more: it has not been run
+   on macOS or Windows, on a real desktop, or with the web app loaded. **The first adapter exists**: a tray menu (New note / Show Noted /
    Quit) and a global shortcut (Ctrl+Shift+N, Cmd+Shift+N on macOS) that show the
    window and emit `desktop://new-note`; the web app turns that into a route
    through `lib/desktop/bridge.ts`. Still to do: verifying the microphone and
