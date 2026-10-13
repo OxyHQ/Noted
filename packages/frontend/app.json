@@ -55,7 +55,8 @@
       "llama.rn",
       "@oxy.so/services/plugins/withOxySharedPermissions",
       "expo-sharing",
-      "react-native-enriched-markdown"
+      "react-native-enriched-markdown",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true
