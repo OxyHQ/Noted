@@ -4,6 +4,7 @@ import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppShell } from '@oxy.so/bloom/app-shell';
 import { AppErrorBoundary } from '@/components/error-boundary';
+import { AliaChatHost } from '@/components/alia-chat';
 import { CommandPalette } from '@/components/command-palette';
 import { useNotedSidebar } from '@/components/sidebar';
 import { LocalStoreBoundary } from '@/components/local-store-boundary';
@@ -87,6 +88,7 @@ export default function AppLayout() {
           )}
         </AppShell>
         <CommandPalette />
+        <AliaChatHost />
       </GestureHandlerRootView>
     </AppErrorBoundary>
   );

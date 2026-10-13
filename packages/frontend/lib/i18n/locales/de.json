@@ -1476,5 +1476,24 @@
     "groupGo": "Go to",
     "groupNotes": "Notes",
     "toggleView": "Switch between grid and list"
+  },
+  "alia": {
+    "askAlia": "Ask Alia",
+    "subtitle": "Chats with Alia are processed on Oxy's servers. Your recordings never are: they stay on your device.",
+    "clientContext": "The user is in Noted, a private notes app. You cannot see their notes, recordings or reminders and cannot change them; if they want help with a note they will paste the text. Never claim to have read or modified a note.",
+    "suggestions": {
+      "plan": {
+        "title": "Plan my week",
+        "prompt": "Help me plan my week. Ask me what I need to get done and turn it into a short schedule."
+      },
+      "agenda": {
+        "title": "Draft a meeting agenda",
+        "prompt": "Help me draft an agenda for a meeting. Ask me the goal and who is coming."
+      },
+      "rewrite": {
+        "title": "Tidy up some text",
+        "prompt": "I will paste some rough notes. Rewrite them clearly, keeping every point."
+      }
+    }
   }
 }
