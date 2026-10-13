@@ -4,9 +4,11 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import React from 'react';
 import { View, type TextInput } from 'react-native';
 import Animated, { LinearTransition, FadeIn } from 'react-native-reanimated';
-import { CheckSquare, X, Palette, Paperclip, Archive } from 'lucide-react-native';
+import { CheckSquare, X, Palette, Paperclip, Archive, LayoutTemplate } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { NoteColorPicker } from '@/components/notes/note-color-picker';
+import { TemplatesDialog } from '@/components/notes/templates-dialog';
+import { applyTemplate } from '@/lib/notes/templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getNoteColorTint } from '@/lib/note-colors';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -90,6 +92,7 @@ export function QuickCapture({
   const [body, setBody] = React.useState('');
   const [color, setColor] = React.useState<NoteColor>(DEFAULT_NEW_NOTE_COLOR);
   const [colorOpen, setColorOpen] = React.useState(false);
+  const [templatesOpen, setTemplatesOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveFailed, setSaveFailed] = React.useState(false);
   const [discardOpen, setDiscardOpen] = React.useState(false);
@@ -269,6 +272,13 @@ export function QuickCapture({
               }}
             />
             <ToolButton
+              icon={LayoutTemplate}
+              label={t('templates.open')}
+              color={colors.mutedForeground}
+              disabled={saving}
+              onPress={() => setTemplatesOpen(true)}
+            />
+            <ToolButton
               icon={Archive}
               label={t('notes.archive')}
               color={colors.mutedForeground}
@@ -317,6 +327,15 @@ export function QuickCapture({
             </View>
           </DialogContent>
         </Dialog>
+        <TemplatesDialog
+          open={templatesOpen}
+          onOpenChange={setTemplatesOpen}
+          onPick={(template) => {
+            const next = applyTemplate({ title, body }, template);
+            setTitle(next.title);
+            setBody(next.body);
+          }}
+        />
         <Dialog open={colorOpen} onOpenChange={setColorOpen}>
           <DialogContent className="max-w-xs">
             <DialogHeader>

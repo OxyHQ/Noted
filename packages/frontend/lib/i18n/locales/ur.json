@@ -1356,5 +1356,34 @@
     "storeReloadSubtitle": "The local notes connection needs to restart. Close the other Noted tabs, then reload this page. Your saved notes have been preserved.",
     "reload": "Reload page",
     "storePausedSubtitle": "Another Noted tab is paused. Bring it to the foreground or close it, then try again. Your notes have been preserved."
+  },
+  "templates": {
+    "meeting": {
+      "name": "Meeting notes",
+      "title": "Meeting — {{date}}",
+      "body": "## Attendees\n\n## Agenda\n\n## Notes\n\n## Decisions\n\n## Action items\n- [ ] "
+    },
+    "lecture": {
+      "name": "Lecture notes",
+      "title": "Lecture — {{date}}",
+      "body": "## Topic\n\n## Key ideas\n\n## Questions\n\n## Review"
+    },
+    "journal": {
+      "name": "Daily journal",
+      "title": "{{date}}",
+      "body": "## Today\n\n## Grateful for\n\n## Tomorrow"
+    },
+    "weekly": {
+      "name": "Weekly plan",
+      "title": "Week of {{date}}",
+      "body": "## Goals\n- [ ] \n\n## Schedule\n\n## Review"
+    },
+    "project": {
+      "name": "Project brief",
+      "title": "Project: ",
+      "body": "## Goal\n\n## Scope\n\n## Milestones\n\n## Risks"
+    },
+    "open": "Use a template",
+    "pick": "Choose a template"
   }
 }
