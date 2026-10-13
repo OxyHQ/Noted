@@ -10,12 +10,14 @@ on:
     branches: [main]
     paths:
       - 'desktop/sidecar/**'
+      - 'desktop/src-tauri/src/stt.rs'
       - 'packages/frontend/lib/stt/models.ts'
       - '.github/workflows/whisper-sidecar.yml'
   pull_request:
     branches: [main]
     paths:
       - 'desktop/sidecar/**'
+      - 'desktop/src-tauri/src/stt.rs'
       - 'packages/frontend/lib/stt/models.ts'
       - '.github/workflows/whisper-sidecar.yml'
 
@@ -66,3 +68,31 @@ jobs:
 
       - name: Transcribe the sample with the app's own model
         run: node desktop/sidecar/verify.mjs whisper.cpp/build/bin/whisper-cli whisper.cpp/samples/jfk.wav "$RUNNER_TEMP/whisper"
+
+      # The Rust side of the sidecar: the command's own functions (WAV writer, JSON
+      # parser, process runner), run against the real binary, model and sample built
+      # above. Compiling the crate needs Tauri's Linux dependencies even though the
+      # test opens no window.
+      - name: Install Tauri's system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev build-essential curl wget file
+
+      - name: Provide a frontendDist placeholder
+        run: mkdir -p packages/frontend/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: stt
+
+      - name: The Rust transcription path, against the real binary
+        env:
+          WHISPER_CLI: ${{ github.workspace }}/whisper.cpp/build/bin/whisper-cli
+          WHISPER_MODEL: ${{ runner.temp }}/whisper/ggml-tiny-q5_1.bin
+          WHISPER_SAMPLE_WAV: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
+        run: "cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml stt:: -- --nocapture"
