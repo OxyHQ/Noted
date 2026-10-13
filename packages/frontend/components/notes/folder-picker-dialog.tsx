@@ -6,6 +6,7 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Text } from '@/components/ui/text';
 import { useTranslation } from '@/hooks/useTranslation';
+import { folderEntries } from '@/lib/folders/tree';
 import { useCreateFolder, useFolders } from '@/lib/hooks/use-folders';
 import { useColorScheme } from '@/lib/useColorScheme';
 
@@ -88,10 +89,12 @@ export function FolderPickerDialog({
             selected={current === null}
             onPress={() => choose(null)}
           />
-          {folders.map((folder) => (
+          {folderEntries(folders).map(({ folder, depth, path }) => (
             <FolderOption
               key={folder.id}
               label={folder.name}
+              accessibilityLabel={path}
+              depth={depth}
               selected={current === folder.id}
               onPress={() => choose(folder.id)}
               icon
@@ -105,11 +108,16 @@ export function FolderPickerDialog({
 
 function FolderOption({
   label,
+  accessibilityLabel,
+  depth = 0,
   selected,
   onPress,
   icon,
 }: {
   label: string;
+  /** The whole route, when the visible label is only the last step of it. */
+  accessibilityLabel?: string;
+  depth?: number;
   selected: boolean;
   onPress: () => void;
   icon?: boolean;
@@ -119,9 +127,10 @@ function FolderOption({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       onPress={onPress}
       className="flex-row items-center gap-2 border-b border-border py-3"
+      style={{ paddingLeft: depth * 16 }}
     >
       {icon ? <FolderGlyph size={18} color={colors.mutedForeground} /> : null}
       <Text className="flex-1 text-base text-foreground" numberOfLines={1}>

@@ -1421,10 +1421,13 @@
     "createPlaceholder": "New folder",
     "rename": "Rename",
     "delete": "Delete folder?",
-    "deleteConfirm": "The notes in it are kept, just no longer filed here.",
+    "deleteConfirm": "The notes and folders inside move up one level.",
     "move": "Move to folder",
     "none": "No folder",
-    "pick": "File this note in…"
+    "pick": "File this note in…",
+    "addSubfolder": "Add subfolder",
+    "newIn": "New folder in {{parent}}",
+    "clearParent": "Create at the top level instead"
   },
   "editor": {
     "format": {

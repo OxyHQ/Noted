@@ -15,6 +15,7 @@ import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { NotedMark } from '@/components/ui/noted-mark';
 import { useNotedSettings } from '@/components/settings/settings-provider';
 import { useTranslation } from '@/hooks/useTranslation';
+import { folderEntries } from '@/lib/folders/tree';
 import { useFolders } from '@/lib/hooks/use-folders';
 import { useLabels } from '@/lib/hooks/use-labels';
 import { useLocalStoreState } from '@/lib/db/local-store-context';
@@ -92,9 +93,10 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
 
   const folderItems = useMemo(
     () =>
-      folders.map((folder) => ({
+      // The route to a nested folder is its label: a sidebar row has nowhere to indent.
+      folderEntries(folders).map(({ folder, path }) => ({
         key: `folder:${folder.id}`,
-        label: folder.name,
+        label: path,
         icon: ({ width, height, fill }: { width?: number; height?: number; fill?: string }) => (
           <FolderGlyph size={width ?? height ?? 20} color={fill} />
         ),

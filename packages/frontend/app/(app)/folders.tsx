@@ -16,6 +16,7 @@ import { LocalStoreError } from '@/components/local-store-boundary';
 import { NotesContent } from '@/components/notes/notes-content';
 import { NotesHeader } from '@/components/notes/notes-header';
 import { useTranslation } from '@/hooks/useTranslation';
+import { canHaveSubfolder, folderEntries, type FolderEntry } from '@/lib/folders/tree';
 import {
   useCreateFolder,
   useDeleteFolder,
@@ -39,12 +40,18 @@ export default function FoldersScreen() {
 
   const inputRef = React.useRef<TextInput>(null);
   const [draft, setDraft] = React.useState('');
+  // Where the next folder goes: inside this one, or at the top when null.
+  const [parent, setParent] = React.useState<FolderEntry | null>(null);
+  const entries = React.useMemo(() => folderEntries(folders), [folders]);
 
   const handleCreate = React.useCallback(() => {
     const name = draft.trim();
     if (!name || createFolder.isPending) return;
-    createFolder.mutate({ name }, { onSuccess: () => setDraft('') });
-  }, [draft, createFolder]);
+    createFolder.mutate(
+      { name, parentId: parent?.folder.id ?? null },
+      { onSuccess: () => setDraft('') },
+    );
+  }, [draft, parent, createFolder]);
 
   const askDelete = React.useCallback(
     (folder: Folder) => {
@@ -83,11 +90,28 @@ export default function FoldersScreen() {
                 createFolder.reset();
               }}
               onSubmitEditing={handleCreate}
-              label={t('folders.createPlaceholder')}
-              placeholder={t('folders.createPlaceholder')}
+              label={
+                parent
+                  ? t('folders.newIn', { parent: parent.path })
+                  : t('folders.createPlaceholder')
+              }
+              placeholder={
+                parent
+                  ? t('folders.newIn', { parent: parent.path })
+                  : t('folders.createPlaceholder')
+              }
               returnKeyType="done"
             />
           </TextField>
+          {parent && (
+            <Button
+              iconOnly
+              appearance="plain"
+              icon={RiCloseLine}
+              onPress={() => setParent(null)}
+              accessibilityLabel={t('folders.clearParent')}
+            />
+          )}
           <Button
             iconOnly
             icon={RiCheckLine}
@@ -104,7 +128,7 @@ export default function FoldersScreen() {
           <View className="items-center justify-center py-16">
             <ActivityIndicator color={colors.primary} />
           </View>
-        ) : folders.length === 0 ? (
+        ) : entries.length === 0 ? (
           <EmptyState
             sticker="archive"
             title={t('folders.empty')}
@@ -112,12 +136,21 @@ export default function FoldersScreen() {
           />
         ) : (
           <View className="gap-1">
-            {folders.map((folder) => (
+            {entries.map((entry) => (
               <FolderRow
-                key={folder.id}
-                folder={folder}
-                onOpen={() => open(folder)}
-                onDelete={() => askDelete(folder)}
+                key={entry.folder.id}
+                folder={entry.folder}
+                depth={entry.depth}
+                onOpen={() => open(entry.folder)}
+                onDelete={() => askDelete(entry.folder)}
+                onAddSubfolder={
+                  canHaveSubfolder(entry)
+                    ? () => {
+                        setParent(entry);
+                        inputRef.current?.focus();
+                      }
+                    : undefined
+                }
               />
             ))}
           </View>
@@ -129,12 +162,17 @@ export default function FoldersScreen() {
 
 function FolderRow({
   folder,
+  depth,
   onOpen,
   onDelete,
+  onAddSubfolder,
 }: {
   folder: Folder;
+  depth: number;
   onOpen: () => void;
   onDelete: () => void;
+  /** Absent at the deepest level, where a folder cannot hold another. */
+  onAddSubfolder?: () => void;
 }) {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
@@ -154,7 +192,7 @@ function FolderRow({
 
   if (editing) {
     return (
-      <View className="flex-row items-center gap-2 py-1">
+      <View className="flex-row items-center gap-2 py-1" style={{ paddingLeft: depth * 16 }}>
         <TextField style={{ flex: 1 }} disabled={rename.isPending}>
           <TextFieldInput
             value={value}
@@ -189,7 +227,7 @@ function FolderRow({
   }
 
   return (
-    <View className="flex-row items-center gap-2 py-1">
+    <View className="flex-row items-center gap-2 py-1" style={{ paddingLeft: depth * 16 }}>
       <Button
         appearance="plain"
         tone="neutral"
@@ -201,6 +239,11 @@ function FolderRow({
           <Text>{folder.name}</Text>
         </View>
       </Button>
+      {onAddSubfolder && (
+        <Button appearance="plain" tone="neutral" onPress={onAddSubfolder}>
+          {t('folders.addSubfolder')}
+        </Button>
+      )}
       <Button appearance="plain" tone="neutral" onPress={() => setEditing(true)}>
         {t('folders.rename')}
       </Button>

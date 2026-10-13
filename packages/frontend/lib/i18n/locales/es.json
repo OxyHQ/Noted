@@ -1421,10 +1421,13 @@
     "createPlaceholder": "Nueva carpeta",
     "rename": "Renombrar",
     "delete": "¿Eliminar carpeta?",
-    "deleteConfirm": "Las notas que contiene se conservan, solo dejan de estar archivadas aquí.",
+    "deleteConfirm": "Las notas y carpetas que contiene suben un nivel.",
     "move": "Mover a carpeta",
     "none": "Sin carpeta",
-    "pick": "Archivar esta nota en…"
+    "pick": "Archivar esta nota en…",
+    "addSubfolder": "Añadir subcarpeta",
+    "newIn": "Nueva carpeta en {{parent}}",
+    "clearParent": "Crear en el nivel superior"
   },
   "editor": {
     "format": {

@@ -297,6 +297,10 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
       updated_at TEXT NOT NULL
     )`,
   ],
+
+  // Folders nest. The parent is the server's; this is a copy, like the rest of the
+  // table. Its own entry for the reason given above: the previous one has shipped.
+  [`ALTER TABLE folders ADD COLUMN parent_id TEXT`],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */

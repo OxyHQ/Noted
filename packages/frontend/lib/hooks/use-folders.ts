@@ -34,7 +34,7 @@ export function useCreateFolder() {
   return useMutation({
     networkMode: 'always',
     retry: false,
-    mutationFn: async (input: { name: string }): Promise<Folder> => {
+    mutationFn: async (input: { name: string; parentId?: string | null }): Promise<Folder> => {
       const viewerId = requireViewer();
       const response = await apiClient.post<Folder>(API_ROUTES.folders.create, input, {
         expectedViewerId: viewerId,
