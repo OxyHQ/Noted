@@ -226,6 +226,32 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
   };
 }
 
+/**
+ * Notes whose text links to `target` with `[[its title]]` (or `[[its title|label]]`).
+ *
+ * Computed from the text each time rather than stored: a stored link table is a
+ * second copy that has to be kept in step with every edit and every rename.
+ * Matching is by title, case-insensitively, so two notes with the same title
+ * are indistinguishable to a link — the same limit Obsidian has.
+ */
+export function backlinksQuery(target: { id: string; title: string }): NoteListQuery {
+  const title = target.title.trim().toLowerCase();
+  if (!title) return { sql: `SELECT ${NOTE_COLUMNS} FROM notes WHERE 0`, params: [] };
+  const exact = `%[[${escapeLike(title)}]]%`;
+  const labelled = `%[[${escapeLike(title)}|%`;
+  return {
+    sql: `SELECT ${NOTE_COLUMNS} FROM notes
+          WHERE notes.deleted_at IS NULL AND notes.trashed = 0 AND notes.id != ?
+            AND (
+              lower(notes.body) LIKE ? ESCAPE '\\' OR lower(notes.body) LIKE ? ESCAPE '\\'
+              OR lower(notes.generated_body) LIKE ? ESCAPE '\\'
+              OR lower(notes.generated_body) LIKE ? ESCAPE '\\'
+            )
+          ORDER BY notes.updated_at DESC`,
+    params: [target.id, exact, labelled, exact, labelled],
+  };
+}
+
 export const NOTE_DETAIL_SQL = `SELECT ${NOTE_COLUMNS} FROM notes WHERE notes.id = ? AND notes.deleted_at IS NULL`;
 
 export async function getNote(

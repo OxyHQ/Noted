@@ -1213,7 +1213,12 @@
     "historyRestored": "Versión restaurada",
     "historyFailed": "No se pudo cargar esa versión",
     "historyItems": "{{count}} elementos de lista",
-    "untitledVersion": "Sin título"
+    "untitledVersion": "Sin título",
+    "linkedMentions": "Menciones enlazadas",
+    "linkNote": "Enlazar a una nota",
+    "linkSearchPlaceholder": "Buscar notas",
+    "linkNoResults": "No se encontraron notas",
+    "linkUntitled": "Nota sin título"
   },
   "capture": {
     "start": "Tomar apuntes",

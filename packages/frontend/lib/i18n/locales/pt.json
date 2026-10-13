@@ -1213,7 +1213,12 @@
     "historyRestored": "Version restored",
     "historyFailed": "Could not load that version",
     "historyItems": "{{count}} list items",
-    "untitledVersion": "Untitled"
+    "untitledVersion": "Untitled",
+    "linkedMentions": "Linked mentions",
+    "linkNote": "Link to a note",
+    "linkSearchPlaceholder": "Search notes",
+    "linkNoResults": "No notes found",
+    "linkUntitled": "Untitled note"
   },
   "capture": {
     "start": "Iniciar",
