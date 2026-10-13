@@ -104,10 +104,15 @@ What follows from it, for the web app as it stands:
   `lib/db/desktop-driver.ts` plugs it into the SAME local store engine, so the
   schema, migrations and queries are unchanged. Verified in CI: Rust unit tests on
   all three OSes, the commands exercised inside the real Linux shell, and the real
-  web build mounting in that shell (a screenshot is kept as a CI artifact).
-  **Not yet verified end to end:** the app opening its store inside the shell —
-  those screens sit behind an Oxy sign-in that CI does not have, so each link of
-  the chain (app → engine → driver → Rust → SQLite) is checked, but not the whole.
+  web build mounting in that shell (a screenshot is kept as a CI artifact), and
+  **the whole chain end to end**: a test hook (`lib/e2e/desktop-store.ts`, present
+  only in a build made with `EXPO_PUBLIC_E2E=1`, and checked absent from the
+  production build) drives the real broker and store engine, which open and
+  migrate (to user version 8) the database through the desktop driver into Rust,
+  write a note and read it back — and the note is still there after the shell is
+  closed and started again. Linux/WebKitGTK only. Not covered: the UI showing that
+  note (it needs an Oxy sign-in), an abrupt kill, two windows at once, an account
+  switch, performance.
 - **Transcription falls back to single-threaded WASM** (no WebGPU, no threads):
   slow, and a reason to plan the `whisper.cpp` sidecar rather than treat it as a
   last resort.
