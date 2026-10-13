@@ -48,13 +48,7 @@ jobs:
         with:
           workspaces: desktop/src-tauri
 
+      # `--locked`: the committed Cargo.lock is the build. A dependency change has to
+      # be a deliberate commit to that file, not something CI quietly resolves.
       - name: cargo check
-        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --all-targets
-
-      # The lockfile cargo resolved, for whoever has no Rust toolchain to make one.
-      - name: Keep the resolved lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-cargo-lock
-          path: desktop/src-tauri/Cargo.lock
-          if-no-files-found: error
+        run: cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
