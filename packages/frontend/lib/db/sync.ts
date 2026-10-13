@@ -366,7 +366,20 @@ SELECT notes.id, notes.title, notes.body, notes.checklist_json, notes.color,
 FROM notes WHERE notes.id = ?
 `;
 
-async function pushNote(entityId: string, viewerId: string): Promise<void> {
+function isConflict(error: unknown): error is { response: { data?: { current?: Note } } } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { response?: { status?: number } }).response?.status === 409
+  );
+}
+
+async function pushNote(
+  entityId: string,
+  viewerId: string,
+  makeConflictId?: () => string,
+  retryOnConflict = true,
+): Promise<void> {
   const row = (await execute<PushableNoteRow>(PUSHABLE_NOTE_SQL, [entityId], viewerId))[0];
   if (!row) return;
 
@@ -376,11 +389,38 @@ async function pushNote(entityId: string, viewerId: string): Promise<void> {
   const payload = await notePayloadWithGenerated(row, viewerId);
   assertCurrentViewer(viewerId);
   const options = { expectedViewerId: viewerId };
-  const note =
-    row.server_updated_at === null
-      ? (await apiClient.post<Note>(API_ROUTES.notes.create, { id: row.id, ...payload }, options))
-          .data
-      : (await apiClient.patch<Note>(API_ROUTES.notes.update(row.id), payload, options)).data;
+  let note: Note;
+  if (row.server_updated_at === null) {
+    note = (
+      await apiClient.post<Note>(API_ROUTES.notes.create, { id: row.id, ...payload }, options)
+    ).data;
+  } else {
+    try {
+      // `baseUpdatedAt` is the version this edit sits on top of: the server
+      // refuses to overwrite a newer one it has not been shown.
+      note = (
+        await apiClient.patch<Note>(
+          API_ROUTES.notes.update(row.id),
+          { ...payload, baseUpdatedAt: row.server_updated_at },
+          options,
+        )
+      ).data;
+    } catch (error) {
+      const current = isConflict(error) ? error.response.data?.current : undefined;
+      // Without a way to mint the copy's id, or a body to keep, fall back to the
+      // outbox's backoff: the pull in the same cycle makes the copy.
+      if (!current || !makeConflictId || !retryOnConflict) throw error;
+      assertCurrentViewer(viewerId);
+      // Same resolution as a conflicting pull: the user's unsent text stays on
+      // the note, the other device's version survives as its own note, and the
+      // local note adopts the server version so the retry has a valid base.
+      await executeTransaction(
+        conflictCopyStatements(current, makeConflictId(), nowIso()),
+        viewerId,
+      );
+      return pushNote(entityId, viewerId, makeConflictId, false);
+    }
+  }
 
   await executeTransaction(
     [
@@ -434,6 +474,7 @@ function isNotFound(error: unknown): boolean {
  */
 export async function flushOutbox(
   viewerId = getActiveViewerId(),
+  makeConflictId?: () => string,
 ): Promise<{ sent: number; failed: number }> {
   if (!viewerId || !isDbAvailable()) return { sent: 0, failed: 0 };
   assertCurrentViewer(viewerId);
@@ -454,7 +495,7 @@ export async function flushOutbox(
       if (entry.op === 'delete') {
         await pushDeletion(entry.entity_id, viewerId);
       } else {
-        await pushNote(entry.entity_id, viewerId);
+        await pushNote(entry.entity_id, viewerId, makeConflictId);
       }
       // Retire the entry only if the note is settled. An edit that landed while
       // the request was in flight left this same row in place (there is one row
@@ -525,7 +566,7 @@ export async function pullLabels(viewerId = getActiveViewerId()): Promise<void> 
 async function runSyncCycle(makeConflictId: () => string, viewerId: string): Promise<void> {
   if (!isCurrentViewer(viewerId)) return;
   try {
-    await flushOutbox(viewerId);
+    await flushOutbox(viewerId, makeConflictId);
   } catch (error) {
     if (!isCurrentViewer(viewerId)) return;
     logger.error('Push failed', { stage: 'push' satisfies SyncStage, error: errorMessage(error) });
