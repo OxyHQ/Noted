@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { EmptyState } from '@/components/empty-state';
 import { LocalStoreError } from '@/components/local-store-boundary';
 import { NotesHeader } from '@/components/notes/notes-header';
+import { OnboardingDialog } from '@/components/onboarding-dialog';
 import { QuickCapture, type QuickCaptureCreation } from '@/components/notes/quick-capture';
 import { NoteGrid } from '@/components/notes/note-grid';
 import { BulkActionBar } from '@/components/notes/bulk-action-bar';
@@ -273,6 +274,8 @@ export default function HomeScreen() {
         <title>Noted</title>
         <meta name="description" content="Noted — capture notes, lists, and reminders." />
       </Head>
+
+      {isAuthenticated && <OnboardingDialog />}
 
       <NotesContent
         ready={!isLoading}

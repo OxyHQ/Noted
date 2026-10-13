@@ -1386,5 +1386,21 @@
     },
     "open": "Usar una plantilla",
     "pick": "Elige una plantilla"
+  },
+  "onboarding": {
+    "title": "Te damos la bienvenida a Noted",
+    "start": "Empezar",
+    "local": {
+      "title": "Tus notas viven en tu dispositivo",
+      "body": "Noted funciona sin conexión y se sincroniza con tu cuenta cuando puede."
+    },
+    "private": {
+      "title": "Tu voz es privada",
+      "body": "Las grabaciones se transcriben en tu dispositivo. El audio nunca se sube."
+    },
+    "import": {
+      "title": "Trae tus notas",
+      "body": "Importa archivos Markdown, Obsidian o Google Keep desde Ajustes."
+    }
   }
 }
