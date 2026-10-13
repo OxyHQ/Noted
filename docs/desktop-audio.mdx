@@ -151,8 +151,13 @@ model, returns the known sentence as one segment from 0 to 10 600 ms.
 the live loop re-reads recent audio continuously and the sidecar loads the model on
 every call. Only settled slices appear until the sidecar can stay resident.
 
-Still open: packaging the binary as a Tauri `externalBin` per platform and signing
-it (CI uses its own build via `NOTED_WHISPER_CLI`); downloading models from the
+The binary is declared as a Tauri `externalBin` (`desktop/sidecar/stage.mjs` puts it
+where Tauri expects it, and Tauri copies it next to the executable); the e2e job
+runs that packaged path, with no environment override, and asserts the file is
+there. Only the Linux binary is real: the other jobs stage a placeholder.
+
+Still open: real binaries for macOS and Windows, signing and notarisation, an
+installer (`tauri build` with a bundle); downloading models from the
 desktop UI (CI places the file by hand); a resident sidecar for live text; speed on
 a real laptop and on long audio; macOS and Windows; audio from a real microphone
 rather than a file.
