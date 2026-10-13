@@ -101,3 +101,78 @@ jobs:
           WHISPER_MODEL: ${{ runner.temp }}/whisper/ggml-tiny-q5_1.bin
           WHISPER_SAMPLE_WAV: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
         run: "cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml stt:: -- --nocapture"
+
+  # The same binary built and run on the other two desktop platforms. Linux above also
+  # covers the app-level checks; here the question is only "does whisper.cpp build and
+  # transcribe with the app's model on this OS, and does the Rust path parse its output".
+  transcribe-native:
+    name: whisper.cpp transcribes (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos, os: macos-latest }
+          - { name: windows, os: windows-latest }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+
+      - name: Cache the whisper.cpp build
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-${{ env.WHISPER_CPP_TAG }}-${{ matrix.name }}
+
+      - name: Build whisper-cli
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$WHISPER_CPP_TAG" https://github.com/ggml-org/whisper.cpp
+          cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF
+          cmake --build whisper.cpp/build --config Release -j --target whisper-cli
+
+      - name: Find the binary
+        run: |
+          BIN=$(find whisper.cpp/build -type f \( -name whisper-cli -o -name whisper-cli.exe \) | head -1)
+          test -n "$BIN" || { echo "whisper-cli was not built"; exit 1; }
+          echo "WHISPER_BIN=$PWD/$BIN" >> "$GITHUB_ENV"
+          echo "found $BIN"
+
+      - name: Cache the model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/whisper
+          key: whisper-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+
+      - name: Transcribe the sample with the app's own model
+        run: node desktop/sidecar/verify.mjs "$WHISPER_BIN" whisper.cpp/samples/jfk.wav "$RUNNER_TEMP/whisper"
+
+      - name: Provide a frontendDist placeholder
+        run: mkdir -p packages/frontend/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Stage the sidecar for the crate's build
+        run: node desktop/sidecar/stage.mjs "$WHISPER_BIN"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: stt-${{ matrix.name }}
+
+      - name: The Rust transcription path, against the real binary
+        env:
+          WHISPER_CLI: ${{ env.WHISPER_BIN }}
+          WHISPER_MODEL: ${{ runner.temp }}/whisper/ggml-tiny-q5_1.bin
+          WHISPER_SAMPLE_WAV: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
+        run: "cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml stt:: -- --nocapture"
