@@ -14,6 +14,7 @@ import {
   introspectNotedCapabilityTicket,
   verifyNotedCapabilityTicket,
 } from '../capabilities/capability-authority.js';
+import { queryInputFor } from '../capabilities/query-input.js';
 import { executeNotedCatalogTool, NotedCapabilityError } from '../capabilities/noted.handlers.js';
 import { NOTED_CAPABILITY_CATALOG } from '../capabilities/noted.catalog.js';
 import { log } from '../lib/logger.js';
@@ -85,7 +86,8 @@ for (const tool of NOTED_CAPABILITY_CATALOG.tools.filter(({ exposure }) =>
       return;
     }
 
-    const rawInput = tool.invocation.method === 'GET' ? request.query : request.body;
+    const rawInput =
+      tool.invocation.method === 'GET' ? queryInputFor(tool, request.query) : request.body;
     const parsedInput = parseInput.safeParse(rawInput);
     if (!parsedInput.success) {
       response.status(400).json({ error: 'capability_input_schema_mismatch' });
