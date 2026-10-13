@@ -171,11 +171,13 @@ export type LabelDTO = Label;
 
 /**
  * A place to file notes. Unlike a label a note is in at most one, and a folder
- * is a place you go to rather than a tag you filter by.
+ * is a place you go to rather than a tag you filter by. Folders nest.
  */
 export interface Folder {
   id: string;
   name: string;
+  /** The folder this one is inside; null or absent means the top level. */
+  parentId?: string | null;
 }
 
 /** The serialized folder DTO returned by the API (alias of {@link Folder}). */

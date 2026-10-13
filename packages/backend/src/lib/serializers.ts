@@ -71,5 +71,5 @@ export function serializeLabel(label: LabelRow): LabelDTO {
 }
 
 export function serializeFolder(folder: FolderRow): FolderDTO {
-  return { id: folder.id, name: folder.name };
+  return { id: folder.id, name: folder.name, parentId: folder.parentId };
 }

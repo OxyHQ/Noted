@@ -50,6 +50,13 @@
       "when": 1791874674490,
       "tag": "0006_jittery_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791877736952,
+      "tag": "0007_sticky_typhoid_mary",
+      "breakpoints": true
     }
   ]
 }
