@@ -108,10 +108,14 @@ What follows from it, for the web app as it stands:
   the recorder must negotiate a supported type, or the sidecar must record.
 
 Read with care: this is a CI runner, not a desktop. The codec result may only mean
-the runner has no GStreamer plugins, and OPFS may depend on the WebKitGTK version
-or on whether `tauri://localhost` counts as a secure context for that API. There is
-no measurement yet for macOS (WKWebView) or Windows (WebView2): `tauri-driver`
-supports neither here.
+the runner has no GStreamer plugins. **The OPFS result is not an artifact of the
+test, though:** the probe also records that the shell's origin
+(`tauri://localhost`) *is* a secure context, that the engine is WebKitGTK 2.52.6
+(current), and that `navigator.storage` is missing altogether — not just
+`getDirectory`, but `estimate` too. This embedding of WebKitGTK does not expose the
+Storage API at all, so a newer engine or a different origin would not obviously
+fix it. There is no measurement yet for macOS (WKWebView) or Windows (WebView2):
+`tauri-driver` supports neither here.
 
 If the second risk cannot be met on a platform, that platform ships without
 system audio rather than with a different recorder.
