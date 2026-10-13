@@ -103,8 +103,11 @@ What follows from it, for the web app as it stands:
   `BEGIN IMMEDIATE` transactions span separate calls) and
   `lib/db/desktop-driver.ts` plugs it into the SAME local store engine, so the
   schema, migrations and queries are unchanged. Verified in CI: Rust unit tests on
-  all three OSes, and the commands exercised inside the real Linux shell. **Not
-  yet verified:** the full web app opening its store in the shell.
+  all three OSes, the commands exercised inside the real Linux shell, and the real
+  web build mounting in that shell (a screenshot is kept as a CI artifact).
+  **Not yet verified end to end:** the app opening its store inside the shell —
+  those screens sit behind an Oxy sign-in that CI does not have, so each link of
+  the chain (app → engine → driver → Rust → SQLite) is checked, but not the whole.
 - **Transcription falls back to single-threaded WASM** (no WebGPU, no threads):
   slow, and a reason to plan the `whisper.cpp` sidecar rather than treat it as a
   last resort.
