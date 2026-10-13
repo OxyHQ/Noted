@@ -1472,5 +1472,24 @@
     "groupGo": "Ir a",
     "groupNotes": "Notas",
     "toggleView": "Cambiar entre cuadrícula y lista"
+  },
+  "alia": {
+    "askAlia": "Preguntar a Alia",
+    "subtitle": "Los chats con Alia se procesan en los servidores de Oxy. Tus grabaciones nunca: se quedan en tu dispositivo.",
+    "clientContext": "El usuario está en Noted, una app de notas privada. No puedes ver sus notas, grabaciones ni recordatorios y no puedes modificarlos; si quiere ayuda con una nota, pegará el texto. Nunca afirmes haber leído o modificado una nota.",
+    "suggestions": {
+      "plan": {
+        "title": "Planificar mi semana",
+        "prompt": "Ayúdame a planificar mi semana. Pregúntame qué tengo que hacer y conviértelo en un horario breve."
+      },
+      "agenda": {
+        "title": "Redactar una agenda de reunión",
+        "prompt": "Ayúdame a redactar la agenda de una reunión. Pregúntame el objetivo y quién viene."
+      },
+      "rewrite": {
+        "title": "Ordenar un texto",
+        "prompt": "Voy a pegar unas notas en bruto. Reescríbelas con claridad sin perder ningún punto."
+      }
+    }
   }
 }

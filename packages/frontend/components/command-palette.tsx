@@ -6,6 +6,7 @@ import { useNotedSettings } from '@/components/settings/settings-provider';
 import { useTranslation } from '@/hooks/useTranslation';
 import { buildPaletteEntries, type PaletteCommand } from '@/lib/command-palette';
 import { useNotes } from '@/lib/hooks/use-notes';
+import { openAliaChat } from '@/lib/alia-chat';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 
 /**
@@ -61,6 +62,13 @@ export function CommandPalette() {
         group: t('palette.groupActions'),
         keywords: ['todo', 'tasks', 'list'],
         run: go('/n/new?mode=checklist'),
+      },
+      {
+        id: 'ask-alia',
+        label: t('alia.askAlia'),
+        group: t('palette.groupActions'),
+        keywords: ['assistant', 'ai', 'chat', 'help'],
+        run: openAliaChat,
       },
       {
         id: 'toggle-view',

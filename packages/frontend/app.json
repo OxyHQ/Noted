@@ -56,7 +56,14 @@
       "@oxy.so/services/plugins/withOxySharedPermissions",
       "expo-sharing",
       "react-native-enriched-markdown",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Noted to hear what you dictate to Alia. Recordings you make in Noted are still transcribed on this device.",
+          "speechRecognitionPermission": "Allow Noted to turn your speech into text when you dictate to Alia."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
