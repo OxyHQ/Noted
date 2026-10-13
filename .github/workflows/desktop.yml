@@ -74,6 +74,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # `bundle.externalBin` needs a file for this target at build time (see
+      # desktop/sidecar/stage.mjs). This job does not transcribe.
+      - name: Stage a sidecar placeholder
+        run: node desktop/sidecar/stage.mjs --placeholder
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop/src-tauri
@@ -124,6 +129,11 @@ jobs:
           cp desktop/e2e/probe.html packages/frontend/dist/index.html
 
       - uses: dtolnay/rust-toolchain@stable
+
+      # `bundle.externalBin` needs a file for this target at build time (see
+      # desktop/sidecar/stage.mjs). This job does not transcribe.
+      - name: Stage a sidecar placeholder
+        run: node desktop/sidecar/stage.mjs --placeholder
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -209,6 +219,12 @@ jobs:
           cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF
           cmake --build whisper.cpp/build -j --target whisper-cli
 
+      # The REAL sidecar, staged where `bundle.externalBin` expects it: Tauri copies it
+      # next to the shell's executable, which is where the Rust command looks. This is
+      # the packaged path; nothing points at the binary through an environment variable.
+      - name: Stage the real sidecar
+        run: node desktop/sidecar/stage.mjs whisper.cpp/build/bin/whisper-cli
+
       - name: Cache the model
         uses: actions/cache@v4
         with:
@@ -227,7 +243,6 @@ jobs:
           E2E_STORE: '1'
           E2E_STT: '1'
           E2E_SAMPLE: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
-          NOTED_WHISPER_CLI: ${{ github.workspace }}/whisper.cpp/build/bin/whisper-cli
         run: dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" node desktop/e2e/app.mjs "$PWD/desktop/src-tauri/target/debug/noted-desktop" "$RUNNER_TEMP/noted-in-shell.png"
 
       - name: Keep the screenshot

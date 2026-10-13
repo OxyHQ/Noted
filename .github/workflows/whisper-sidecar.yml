@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'desktop/sidecar/**'
+      - 'desktop/src-tauri/tauri.conf.json'
       - 'desktop/src-tauri/src/stt.rs'
       - 'packages/frontend/lib/stt/models.ts'
       - '.github/workflows/whisper-sidecar.yml'
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - 'desktop/sidecar/**'
+      - 'desktop/src-tauri/tauri.conf.json'
       - 'desktop/src-tauri/src/stt.rs'
       - 'packages/frontend/lib/stt/models.ts'
       - '.github/workflows/whisper-sidecar.yml'
@@ -84,6 +86,9 @@ jobs:
         run: mkdir -p packages/frontend/dist
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Stage the sidecar for the crate's build
+        run: node desktop/sidecar/stage.mjs whisper.cpp/build/bin/whisper-cli
 
       - uses: Swatinem/rust-cache@v2
         with:
