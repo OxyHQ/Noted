@@ -230,6 +230,11 @@
       "done": "Se borraron tus datos de Noted",
       "failed": "No se pudieron borrar tus datos",
       "deviceFailed": "Tus datos se borraron del servidor, pero no se pudo limpiar este dispositivo. Cierra sesión y vuelve a entrar."
+    },
+    "localReminders": {
+      "title": "Recordarme también en este dispositivo",
+      "description": "Programa los recordatorios aquí para que suenen sin conexión. El servidor también los envía, así que con ambos activos puede que veas un recordatorio dos veces.",
+      "denied": "Las notificaciones de Noted están desactivadas en los ajustes del dispositivo."
     }
   },
   "nav": {
