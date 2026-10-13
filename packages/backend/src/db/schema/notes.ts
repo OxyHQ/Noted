@@ -41,6 +41,13 @@ export const notes = pgTable(
      * index answers "notes with this label" without a join.
      */
     labels: text().array().notNull().default(sql`'{}'`),
+    /**
+     * The folder the note is filed in. Not a foreign key: the folder lives in
+     * this database but is deleted by a route that also unfiles its notes in the
+     * same transaction (so each note's `updatedAt` moves and devices hear about
+     * it), which a cascade would do silently.
+     */
+    folderId: text(),
     pinned: boolean().notNull().default(false),
     archived: boolean().notNull().default(false),
     trashed: boolean().notNull().default(false),
@@ -90,6 +97,7 @@ export const notes = pgTable(
         sql`${t.reminderQueuedAt} is null and ${t.reminderSentAt} is null and ${t.deletedAt} is null`,
       ),
     index('notes_labels_idx').using('gin', t.labels),
+    index('notes_folder_idx').on(t.oxyUserId, t.folderId),
     index('notes_search_idx').using('gin', t.searchVector),
     // The expiry sweep's own read path.
     index('notes_deleted_at_idx').on(t.deletedAt).where(sql`${t.deletedAt} is not null`),

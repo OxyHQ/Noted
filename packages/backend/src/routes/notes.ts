@@ -40,6 +40,7 @@ import {
   snapshotBeforeEdit,
   textOf,
 } from '../lib/note-revisions.js';
+import { userOwnsFolder } from '../lib/folders.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
 import { cutSyncPage, parseSyncLimit, SYNC_MAX_LIMIT, type SyncPage } from '../lib/sync-page.js';
 import { emitNoteCreated, emitNoteUpdated, emitNoteDeleted } from '../socket.js';
@@ -99,6 +100,8 @@ export const noteWriteSchema = z
     attachments: z.array(z.string().max(NOTE_LIMITS.idLength)).max(NOTE_LIMITS.attachments),
     reminderAt: z.string().datetime().nullable(),
     order: z.number(),
+    /** The folder to file the note in; null takes it out. Checked against the user's own folders. */
+    folderId: z.string().max(NOTE_LIMITS.idLength).nullable(),
     /**
      * The server `updatedAt` this edit was made on top of. When present, a PATCH
      * only applies if the note is still at that version; otherwise it is
@@ -138,6 +141,7 @@ function toColumns(input: NoteWrite): Record<string, unknown> {
   if (input.trashed !== undefined) columns.trashed = input.trashed;
   if (input.attachments !== undefined) columns.attachments = input.attachments;
   if (input.order !== undefined) columns.sortOrder = input.order;
+  if (input.folderId !== undefined) columns.folderId = input.folderId;
   if (input.reminderAt !== undefined) {
     columns.reminderAt = input.reminderAt ? new Date(input.reminderAt) : null;
     // A new or changed reminder must be eligible for delivery again.
@@ -209,6 +213,9 @@ router.get('/', readLimiter, async (req: Request, res: Response) => {
     if (typeof req.query.label === 'string' && req.query.label) {
       filters.push(arrayContains(notes.labels, [req.query.label]));
     }
+    if (typeof req.query.folder === 'string' && req.query.folder) {
+      filters.push(eq(notes.folderId, req.query.folder));
+    }
     if (req.query.pinned === 'true' || req.query.pinned === 'false') {
       filters.push(eq(notes.pinned, req.query.pinned === 'true'));
     }
@@ -246,6 +253,10 @@ router.post('/', writeLimiter, async (req: Request, res: Response) => {
     const parsed = noteWriteSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid note payload' });
+    }
+
+    if (parsed.data.folderId && !(await userOwnsFolder(userId, parsed.data.folderId))) {
+      return res.status(400).json({ error: 'Unknown folder' });
     }
 
     // Parsed apart from the field schema: `id` addresses the note, it is not one
@@ -499,6 +510,10 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid note payload' });
     }
 
+    if (parsed.data.folderId && !(await userOwnsFolder(userId, parsed.data.folderId))) {
+      return res.status(400).json({ error: 'Unknown folder' });
+    }
+
     const base = parsed.data.baseUpdatedAt ? new Date(parsed.data.baseUpdatedAt) : null;
 
     const [note] = await getDb().transaction(async (transaction) => {
@@ -739,6 +754,7 @@ router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
           checklist: [],
           attachments: [],
           labels: [],
+          folderId: null,
           reminderAt: null,
           reminderQueuedAt: null,
           reminderSentAt: null,

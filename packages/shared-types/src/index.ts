@@ -103,6 +103,14 @@ export interface Note {
   reminderAt: string | null;
   order: number;
   /**
+   * The folder this note is filed in, or null for none.
+   *
+   * Optional on the wire with the same rule as the generated half: absent means
+   * "no change" (a client that predates folders must not unfile a note by
+   * leaving the field out), `null` means "take it out of its folder".
+   */
+  folderId?: string | null;
+  /**
    * What a recording produced for this note, and what the user did to it.
    *
    * Both travel with the note rather than on endpoints of their own, because
@@ -161,6 +169,18 @@ export interface Label {
 /** The serialized label DTO returned by the API (alias of {@link Label}). */
 export type LabelDTO = Label;
 
+/**
+ * A place to file notes. Unlike a label a note is in at most one, and a folder
+ * is a place you go to rather than a tag you filter by.
+ */
+export interface Folder {
+  id: string;
+  name: string;
+}
+
+/** The serialized folder DTO returned by the API (alias of {@link Folder}). */
+export type FolderDTO = Folder;
+
 /** Which collection of notes the home screen is showing. */
 export type NoteView = 'active' | 'archived' | 'trashed';
 
@@ -168,6 +188,8 @@ export type NoteView = 'active' | 'archived' | 'trashed';
 export interface NoteListParams {
   view?: NoteView;
   label?: string;
+  /** Only notes filed in this folder. */
+  folder?: string;
   pinned?: boolean;
   q?: string;
 }

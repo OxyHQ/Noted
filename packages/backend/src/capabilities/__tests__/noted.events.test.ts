@@ -23,6 +23,7 @@ function reminderNote(): NoteRow {
     checklist: [],
     color: 'default',
     labels: [],
+    folderId: null,
     pinned: false,
     archived: false,
     trashed: false,
