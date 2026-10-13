@@ -129,22 +129,33 @@ Storage API at all, so a newer engine or a different origin would not obviously
 fix it. There is no measurement yet for macOS (WKWebView) or Windows (WebView2):
 `tauri-driver` supports neither here.
 
-### The `whisper.cpp` sidecar: the Rust command exists; the rest does not
+### The `whisper.cpp` sidecar: works end to end in the shell on Linux; not shipped
 
 CI (`.github/workflows/whisper-sidecar.yml`, `desktop/sidecar/verify.mjs`) builds
 `whisper-cli` from a pinned `whisper.cpp` tag and transcribes a known sentence with
-the app's own `tiny` model — verifying that model's size and sha256 against
-`lib/stt/models.ts` first. It returns text and segments with millisecond offsets,
-which is what becomes `transcript_segments`.
+the app's own `tiny` model, verifying that model's size and sha256 against
+`lib/stt/models.ts` first.
 
-On top of that, `desktop/src-tauri/src/stt.rs` has the `stt_transcribe` command:
-base64 `f32` samples in, segments out, through a temporary WAV that is always
-deleted. Its pure functions are tested on every OS, and one test runs the real
-binary and model through the whole Rust path on Linux.
+`desktop/src-tauri/src/stt.rs` has the `stt_transcribe` command: base64 `f32`
+samples in, segments out, through a temporary WAV that is always deleted.
+`lib/stt/desktop-transcriber.ts` is the web app's side: it cuts a recording into
+30-second slices (an hour in one IPC call would be ~300 MB of base64), keeps
+segment ids stable so a retried slice lands on the same rows, and reports a missing
+model as its own error. `engine.web.ts` routes to it when running in the shell.
 
-Still open: the TypeScript engine adapter that calls the command, packaging the
-binary as a Tauri `externalBin` per platform (and signing it), desktop model
-downloads, and speed on a real laptop and on long or live audio.
+Verified in CI (job "Noted web app inside the shell", Linux only): the web app's
+real `transcribeSamples`, inside the real shell, with the app's default `base`
+model, returns the known sentence as one segment from 0 to 10 600 ms.
+
+**Live recording on desktop has no provisional text** (`PARTIAL_TRANSCRIPTION`):
+the live loop re-reads recent audio continuously and the sidecar loads the model on
+every call. Only settled slices appear until the sidecar can stay resident.
+
+Still open: packaging the binary as a Tauri `externalBin` per platform and signing
+it (CI uses its own build via `NOTED_WHISPER_CLI`); downloading models from the
+desktop UI (CI places the file by hand); a resident sidecar for live text; speed on
+a real laptop and on long audio; macOS and Windows; audio from a real microphone
+rather than a file.
 
 If the second risk cannot be met on a platform, that platform ships without
 system audio rather than with a different recorder.
