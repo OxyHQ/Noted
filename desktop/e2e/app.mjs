@@ -26,7 +26,7 @@ const SNAPSHOT = `
   };
 `;
 
-await withSession(application, async ({ run, screenshot }) => {
+await withSession(application, async ({ run, runAsync, screenshot }) => {
   let state = null;
   // Expo's bundle is large and the page fetches fonts and config: allow a minute.
   for (let attempt = 0; attempt < 90; attempt += 1) {
@@ -46,6 +46,36 @@ await withSession(application, async ({ run, screenshot }) => {
     );
   }
 
+  // The whole local-store chain, in the real shell: only in a build made with
+  // EXPO_PUBLIC_E2E=1, which installs the hook that lets us skip the Oxy sign-in.
+  let store = null;
+  if (process.env.E2E_STORE === '1') {
+    store = await runAsync(
+      `const done = arguments[arguments.length - 1];
+       const hook = window.__NOTED_E2E_HOOK__;
+       if (!hook) { done({ error: 'the e2e hook is not installed' }); return; }
+       hook.run('e2e-user').then(done, (error) => done({ error: String(error) }));`,
+    );
+    console.log(JSON.stringify({ store }, null, 2));
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(
+        process.env.GITHUB_STEP_SUMMARY,
+        `\n### Local store inside the shell (broker → engine → driver → Rust → SQLite)\n\n\`\`\`json\n${JSON.stringify(store, null, 2)}\n\`\`\`\n`,
+      );
+    }
+    const ok =
+      store &&
+      !store.error &&
+      store.title === 'stored in Rust' &&
+      store.body === 'hello from the desktop shell' &&
+      store.noteCount === 1 &&
+      store.userVersion > 0;
+    if (!ok) {
+      console.error('::error::the local store did not work end to end inside the shell');
+      process.exitCode = 1;
+    }
+  }
+
   if (!state.inShell) {
     console.error('::error::the page is not running inside the desktop shell');
     process.exitCode = 1;
@@ -55,3 +85,34 @@ await withSession(application, async ({ run, screenshot }) => {
     process.exitCode = 1;
   }
 });
+
+// Local-first means the notes outlive the app. Open the shell AGAIN, as a new
+// process, and ask the same account's database how many notes it holds: the one
+// written above must still be there, read from the file Rust saved.
+if (process.env.E2E_STORE === '1' && process.exitCode !== 1) {
+  await withSession(application, async ({ runAsync }) => {
+    // Let the page load and the hook install before calling it.
+    let persisted = null;
+    for (let attempt = 0; attempt < 60 && persisted === null; attempt += 1) {
+      const answer = await runAsync(
+        `const done = arguments[arguments.length - 1];
+         const hook = window.__NOTED_E2E_HOOK__;
+         if (!hook) { done(null); return; }
+         hook.count('e2e-user').then(done, (error) => done({ error: String(error) }));`,
+      );
+      if (answer !== null) persisted = answer;
+      else await sleep(1000);
+    }
+    console.log(JSON.stringify({ persistedNoteCount: persisted }, null, 2));
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(
+        process.env.GITHUB_STEP_SUMMARY,
+        `\n- after restarting the shell, the account's database still holds \`${JSON.stringify(persisted)}\` note(s)\n`,
+      );
+    }
+    if (typeof persisted !== 'number' || persisted < 1) {
+      console.error('::error::the note did not survive restarting the shell');
+      process.exitCode = 1;
+    }
+  });
+}

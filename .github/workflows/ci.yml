@@ -265,3 +265,13 @@ jobs:
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
           NODE_ENV: production
+
+      # The desktop CI drives the local store through a test hook that only an
+      # EXPO_PUBLIC_E2E=1 build installs (lib/e2e/desktop-store.ts). An ordinary
+      # build must not contain it: if it does, the flag stopped being inlined.
+      - name: The test hook is not in the production build
+        run: |
+          if grep -rl "__NOTED_E2E_HOOK__" packages/frontend/dist >/dev/null 2>&1; then
+            echo "::error::the e2e test hook leaked into the production web build"
+            exit 1
+          fi

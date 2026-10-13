@@ -34,6 +34,12 @@ import '@/lib/i18n';
 // Configure the bundled web renderer before any sticker mounts.
 configureLottieWeb();
 
+// Test-only: lets CI drive the local store inside the desktop shell without an Oxy
+// sign-in. Present only in a build made with EXPO_PUBLIC_E2E=1 (see the module).
+if (process.env.EXPO_PUBLIC_E2E === '1') {
+  void import('@/lib/e2e/desktop-store');
+}
+
 // The bare locale codes `OxyProvider` matches an account's language against —
 // derived from the catalogue's entries rather than duplicated, so a locale
 // added there is automatically one Oxy may resolve to here.
