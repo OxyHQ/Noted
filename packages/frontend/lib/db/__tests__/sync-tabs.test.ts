@@ -47,7 +47,8 @@ describe('cross-tab synchronization', () => {
     expect(state.execute).toHaveBeenCalledTimes(reads);
     response.resolve({ data: { data: [], deleted: [], serverTime: '2026-10-10T10:00:00Z' } });
     await Promise.all([firstCycle, secondCycle]);
-    expect(state.get).toHaveBeenCalledTimes(4);
+    // Two cycles, each pulling folders, notes and labels.
+    expect(state.get).toHaveBeenCalledTimes(6);
   });
 
   it('rejects the queued account implicitly before reading after its session changes', async () => {

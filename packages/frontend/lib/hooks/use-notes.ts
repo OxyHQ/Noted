@@ -211,6 +211,7 @@ export function makeDraftNote(): LocalNote {
     attachments: [],
     reminderAt: null,
     order: 0,
+    folderId: null,
     createdAt: now,
     updatedAt: now,
   };

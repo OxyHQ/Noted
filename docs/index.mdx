@@ -113,6 +113,13 @@ folder the caller does not own is refused with `400`. On the wire `folderId` is
 optional with the same rule as the generated half: absent means "no change",
 `null` means "take it out of its folder". `GET /notes?folder=<id>` filters.
 
+On the device, `folders` is a copy of the server's list (read offline, written
+online, like labels) and `notes.folder_id` is local. A pull brings folders in
+before notes. A note with unsent edits that names a folder no longer in the list
+is unfiled locally, because the server would refuse it as `Unknown folder` on
+every retry; a clean note naming a folder not yet pulled is left alone, since the
+server's version is the right one.
+
 ## Version history
 
 `note_revisions` keeps earlier versions of a note's own text (title, body,

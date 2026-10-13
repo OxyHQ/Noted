@@ -41,6 +41,7 @@ export default function HomeScreen() {
   const isLargeScreen = width >= 768;
 
   const activeLabel = useNotesUIStore((s) => s.activeLabel);
+  const activeFolder = useNotesUIStore((s) => s.activeFolder);
   const searchQuery = useNotesUIStore((s) => s.searchQuery);
   const viewMode = useNotesUIStore((s) => s.viewMode);
   const selectionMode = useNotesUIStore((s) => s.selectionMode);
@@ -53,9 +54,10 @@ export default function HomeScreen() {
     () => ({
       view: 'active',
       ...(activeLabel ? { label: activeLabel } : {}),
+      ...(activeFolder ? { folder: activeFolder } : {}),
       ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
     }),
-    [activeLabel, searchQuery],
+    [activeLabel, activeFolder, searchQuery],
   );
 
   const { data: notes, isLoading, error } = useNotes(listParams);
@@ -110,15 +112,17 @@ export default function HomeScreen() {
           color: input.initialInput.color,
           archived: input.initialInput.archived,
           labels: activeLabel ? [activeLabel] : [],
+          folderId: activeFolder,
         },
         title: input.title,
         userBody: input.body,
         color: input.color,
         archived: input.archived,
         labels: activeLabel ? [activeLabel] : [],
+        folderId: activeFolder,
       });
     },
-    [createNote, activeLabel, user?.id],
+    [createNote, activeLabel, activeFolder, user?.id],
   );
 
   const handleCreateChecklist = React.useCallback(() => {

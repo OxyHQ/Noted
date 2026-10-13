@@ -118,5 +118,9 @@ export function reconcileDraft(base: LocalNote, draft: LocalNote, stored: LocalN
     trashed: pick(base.trashed, draft.trashed, stored.trashed),
     attachments: pick(base.attachments, draft.attachments, stored.attachments),
     reminderAt: pick(base.reminderAt, draft.reminderAt, stored.reminderAt),
+    // Absent and null both mean "not filed", so they must not count as an edit.
+    folderId: untouched(base.folderId ?? null, draft.folderId ?? null)
+      ? stored.folderId
+      : draft.folderId,
   };
 }

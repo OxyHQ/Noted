@@ -1402,5 +1402,17 @@
       "title": "Trae tus notas",
       "body": "Importa archivos Markdown, Obsidian o Google Keep desde Ajustes."
     }
+  },
+  "folders": {
+    "title": "Carpetas",
+    "manage": "Carpetas",
+    "empty": "Aún no hay carpetas",
+    "createPlaceholder": "Nueva carpeta",
+    "rename": "Renombrar",
+    "delete": "¿Eliminar carpeta?",
+    "deleteConfirm": "Las notas que contiene se conservan, solo dejan de estar archivadas aquí.",
+    "move": "Mover a carpeta",
+    "none": "Sin carpeta",
+    "pick": "Archivar esta nota en…"
   }
 }

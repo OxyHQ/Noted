@@ -11,7 +11,7 @@
  */
 
 import { createLogger } from '@oxy.so/core/logger';
-import type { Label, Note } from '@noted/shared-types';
+import type { Folder, Label, Note } from '@noted/shared-types';
 
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
@@ -23,6 +23,7 @@ import {
   type Row,
   type Statement,
 } from '@/lib/db/client';
+import { saveFolders } from '@/lib/db/folders-repo';
 import { saveLabels } from '@/lib/db/labels-repo';
 import { withAccountSyncLock } from '@/lib/db/web-locks';
 import {
@@ -112,9 +113,9 @@ function applyServerNoteStatements(note: Note): Statement[] {
     {
       sql: `INSERT INTO notes (
               id, kind, title, body, body_format, checklist_json, color, pinned,
-              archived, trashed, attachments_json, reminder_at, sort_order,
+              archived, trashed, attachments_json, reminder_at, sort_order, folder_id,
               created_at, updated_at, deleted_at, dirty, server_updated_at
-            ) VALUES (?, 'note', ?, ?, 'plain', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?)
+            ) VALUES (?, 'note', ?, ?, 'plain', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?)
             ON CONFLICT (id) DO UPDATE SET
               title = excluded.title,
               body = excluded.body,
@@ -126,6 +127,7 @@ function applyServerNoteStatements(note: Note): Statement[] {
               attachments_json = excluded.attachments_json,
               reminder_at = excluded.reminder_at,
               sort_order = excluded.sort_order,
+              folder_id = excluded.folder_id,
               updated_at = excluded.updated_at,
               deleted_at = NULL,
               dirty = 0,
@@ -142,6 +144,9 @@ function applyServerNoteStatements(note: Note): Statement[] {
         JSON.stringify(note.attachments),
         note.reminderAt,
         note.order,
+        // Absent means the server said nothing; the server's own notes always
+        // carry it, so absent here can only be "not filed".
+        note.folderId ?? null,
         note.createdAt,
         note.updatedAt,
         note.updatedAt,
@@ -334,6 +339,7 @@ interface PushableNoteRow extends Row {
   attachments_json: string;
   reminder_at: string | null;
   sort_order: number;
+  folder_id: string | null;
   updated_at: string;
   server_updated_at: string | null;
 }
@@ -378,13 +384,14 @@ function notePayload(row: PushableNoteRow): Record<string, unknown> {
     attachments: parseArray(row.attachments_json),
     reminderAt: row.reminder_at,
     order: row.sort_order,
+    folderId: row.folder_id,
   };
 }
 
 const PUSHABLE_NOTE_SQL = `
 SELECT notes.id, notes.title, notes.body, notes.checklist_json, notes.color,
        notes.pinned, notes.archived, notes.trashed, notes.attachments_json,
-       notes.reminder_at, notes.sort_order, notes.updated_at, notes.server_updated_at,
+       notes.reminder_at, notes.sort_order, notes.folder_id, notes.updated_at, notes.server_updated_at,
        COALESCE((
          SELECT json_group_array(note_labels.label_id)
          FROM note_labels WHERE note_labels.note_id = notes.id
@@ -571,6 +578,16 @@ export async function flushOutbox(
  * labels, and the server's list is the only way to learn that one was deleted
  * elsewhere (labels carry no tombstone).
  */
+export async function pullFolders(viewerId = getActiveViewerId()): Promise<void> {
+  if (!viewerId || !isDbAvailable()) return;
+  assertCurrentViewer(viewerId);
+  const response = await apiClient.get<{ data: Folder[] }>(API_ROUTES.folders.list, {
+    expectedViewerId: viewerId,
+  });
+  assertCurrentViewer(viewerId);
+  await saveFolders(response.data.data, viewerId);
+}
+
 export async function pullLabels(viewerId = getActiveViewerId()): Promise<void> {
   if (!viewerId || !isDbAvailable()) return;
   assertCurrentViewer(viewerId);
@@ -596,6 +613,18 @@ async function runSyncCycle(makeConflictId: () => string, viewerId: string): Pro
   } catch (error) {
     if (!isCurrentViewer(viewerId)) return;
     logger.error('Push failed', { stage: 'push' satisfies SyncStage, error: errorMessage(error) });
+  }
+  if (!isCurrentViewer(viewerId)) return;
+  // Folders before notes: a pulled note names its folder, and a folder list
+  // that arrives afterwards would leave the note pointing at nothing for a cycle.
+  try {
+    await pullFolders(viewerId);
+  } catch (error) {
+    if (!isCurrentViewer(viewerId)) return;
+    logger.error('Folder pull failed', {
+      stage: 'pull' satisfies SyncStage,
+      error: errorMessage(error),
+    });
   }
   if (!isCurrentViewer(viewerId)) return;
   try {

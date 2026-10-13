@@ -23,6 +23,7 @@ export function editorPatch(
     'archived',
     'reminderAt',
     'attachments',
+    'folderId',
   ] as const) {
     if (base === null || JSON.stringify(base[field]) !== JSON.stringify(draft[field])) {
       Object.assign(patch, { [field]: draft[field] });

@@ -1402,5 +1402,17 @@
       "title": "Bring your notes with you",
       "body": "Import Markdown, Obsidian or Google Keep files from Settings."
     }
+  },
+  "folders": {
+    "title": "Folders",
+    "manage": "Folders",
+    "empty": "No folders yet",
+    "createPlaceholder": "New folder",
+    "rename": "Rename",
+    "delete": "Delete folder?",
+    "deleteConfirm": "The notes in it are kept, just no longer filed here.",
+    "move": "Move to folder",
+    "none": "No folder",
+    "pick": "File this note in…"
   }
 }

@@ -12,6 +12,8 @@ interface NotesUIState {
   activeView: NoteView;
   /** Label id the home screen is filtered to, if any. */
   activeLabel: string | null;
+  /** Folder id the home screen is filtered to, if any. */
+  activeFolder: string | null;
   /** Live search text applied to the active list. */
   searchQuery: string;
   /** Whether multi-select mode is active. */
@@ -23,6 +25,7 @@ interface NotesUIState {
   toggleViewMode: () => void;
   setActiveView: (view: NoteView) => void;
   setActiveLabel: (labelId: string | null) => void;
+  setActiveFolder: (folderId: string | null) => void;
   setSearchQuery: (q: string) => void;
 
   enterSelection: (id: string) => void;
@@ -37,6 +40,7 @@ export const useNotesUIStore = create<NotesUIState>()(
       viewMode: 'grid',
       activeView: 'active',
       activeLabel: null,
+      activeFolder: null,
       searchQuery: '',
       selectionMode: false,
       selectedIds: new Set<string>(),
@@ -45,6 +49,7 @@ export const useNotesUIStore = create<NotesUIState>()(
       toggleViewMode: () => set((s) => ({ viewMode: s.viewMode === 'grid' ? 'list' : 'grid' })),
       setActiveView: (activeView) => set({ activeView }),
       setActiveLabel: (activeLabel) => set({ activeLabel }),
+      setActiveFolder: (activeFolder) => set({ activeFolder }),
       setSearchQuery: (searchQuery) => set({ searchQuery }),
 
       enterSelection: (id) => set({ selectionMode: true, selectedIds: new Set<string>([id]) }),
