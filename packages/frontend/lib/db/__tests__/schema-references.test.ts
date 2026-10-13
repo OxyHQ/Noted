@@ -36,7 +36,7 @@ const EXCLUDED = new Set(['migrations.ts', 'schema-references.test.ts']);
  * name. Kept explicit: a scanner that silently drops what it does not recognise
  * is a scanner that passes when it should fail.
  */
-const NOT_APP_TABLES = new Set(['sqlite_master', 'sqlite_sequence', 'pragma']);
+const NOT_APP_TABLES = new Set(['sqlite_master', 'sqlite_sequence', 'pragma', 'json_each']);
 
 function sourceFiles(directory: string): string[] {
   const found: string[] = [];
