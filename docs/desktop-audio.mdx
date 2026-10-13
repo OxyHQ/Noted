@@ -80,6 +80,39 @@ they are listed rather than waved away.
 | **Rust audio work is new code.** | Three platform back ends, each with its own failure modes, none shared with mobile. | Keep the Rust crate to capture + PCM delivery only, behind a trait with a null implementation, so the TypeScript side is testable without it. |
 | **Fewer people know Tauri than Electron.** | Maintenance. | Keep the Rust surface small; no business logic in Rust. |
 
+### What the Linux webview was measured to offer
+
+CI loads a probe page into the real shell with `tauri-driver` and reads the
+engine's answers (`desktop/e2e/probe.mjs`, job "Desktop webview capabilities").
+On WebKitGTK on an Ubuntu runner:
+
+| | |
+|---|---|
+| `getUserMedia`, `MediaRecorder`, `AudioContext`, `AudioWorklet`, WebAssembly, IndexedDB, Web Locks | present |
+| **OPFS** (`navigator.storage.getDirectory`) | **absent** |
+| **WebGPU** | **absent** |
+| `SharedArrayBuffer` / cross-origin isolation | **absent** |
+| `MediaRecorder` writing webm/opus or mp4 | not supported on that runner |
+
+What follows from it, for the web app as it stands:
+
+- **The local store would not open.** The web build keeps notes in SQLite on OPFS
+  and must never fall back to memory (`AGENTS.md`). Desktop needs its own storage
+  engine behind the existing store seam (`lib/db/client.web.ts` vs `client.ts`) —
+  native SQLite through Tauri, which is what issue #91 already proposed — or it
+  cannot be the local-first app. This is a prerequisite, ahead of the audio work.
+- **Transcription falls back to single-threaded WASM** (no WebGPU, no threads):
+  slow, and a reason to plan the `whisper.cpp` sidecar rather than treat it as a
+  last resort.
+- **The kept recording may not be writable** in the format the recorder asks for;
+  the recorder must negotiate a supported type, or the sidecar must record.
+
+Read with care: this is a CI runner, not a desktop. The codec result may only mean
+the runner has no GStreamer plugins, and OPFS may depend on the WebKitGTK version
+or on whether `tauri://localhost` counts as a secure context for that API. There is
+no measurement yet for macOS (WKWebView) or Windows (WebView2): `tauri-driver`
+supports neither here.
+
 If the second risk cannot be met on a platform, that platform ships without
 system audio rather than with a different recorder.
 
