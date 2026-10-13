@@ -19,7 +19,7 @@ cd desktop/src-tauri
 cargo run                           # or: cargo tauri build  (needs tauri-cli)
 ```
 
-`cargo check` is what CI runs (`.github/workflows/desktop.yml`).
+`cargo check --locked` is what CI runs (`.github/workflows/desktop.yml`); `src-tauri/Cargo.lock` is committed, so changing a dependency means committing that file.
 
 ## Before this ships
 

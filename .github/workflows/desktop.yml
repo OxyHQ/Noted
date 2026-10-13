@@ -48,5 +48,7 @@ jobs:
         with:
           workspaces: desktop/src-tauri
 
+      # `--locked`: the committed Cargo.lock is the build. A dependency change has to
+      # be a deliberate commit to that file, not something CI quietly resolves.
       - name: cargo check
-        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --all-targets
+        run: cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
