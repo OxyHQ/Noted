@@ -9,7 +9,7 @@
  *   so a failure half-way leaves the recorded version untouched.
  */
 
-import type { SQLiteDatabase } from 'expo-sqlite';
+import type { EngineDatabase } from './client-engine';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('NotedDB');
@@ -320,7 +320,7 @@ export const LOCAL_TABLES: readonly string[] = [
   'cache_metadata',
 ];
 
-export async function migrate(db: SQLiteDatabase): Promise<void> {
+export async function migrate(db: EngineDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const current = row?.user_version ?? 0;
   if (current >= MIGRATIONS.length) return;

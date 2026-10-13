@@ -29,7 +29,13 @@ const SEARCHED = ['lib', 'components', 'app'];
  * checking it against itself proves nothing. This file names the removed table
  * on purpose, to prove the check can still see one.
  */
-const EXCLUDED = new Set(['migrations.ts', 'schema-references.test.ts']);
+const EXCLUDED = new Set([
+  'migrations.ts',
+  'schema-references.test.ts',
+  // Tests the transport with scratch tables (`t`) that are not the app's schema;
+  // the migrations it also runs are checked by their own tests.
+  'desktop-driver.test.ts',
+]);
 
 /**
  * SQLite's own tables and the keywords the extractor cannot tell from a table

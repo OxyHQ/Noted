@@ -18,6 +18,8 @@
 //! The tray labels are English for now: localising them means passing the app's
 //! language to the shell, which is its own piece of work.
 
+mod db;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -74,6 +76,14 @@ pub fn run() {
     );
 
     builder
+        .manage(db::Databases::default())
+        .invoke_handler(tauri::generate_handler![
+            db::db_open,
+            db::db_exec,
+            db::db_run,
+            db::db_all,
+            db::db_close
+        ])
         .setup(|app| {
             let new_note = MenuItem::with_id(app, "new-note", "New note", true, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "Show Noted", true, None::<&str>)?;

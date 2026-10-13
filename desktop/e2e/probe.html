@@ -48,6 +48,40 @@
         } catch {
           result.webgpuAdapter = false;
         }
+        // The native SQLite the shell provides (desktop/src-tauri/src/db.rs), exercised
+        // the way the local store engine uses it: open, pragma, a transaction spanning
+        // separate calls, a bound write, a read, close.
+        const invoke = window.__TAURI_INTERNALS__?.invoke;
+        if (typeof invoke !== 'function') {
+          result.nativeSqlite = 'no invoke';
+        } else {
+          const name = `probe-${Date.now()}.db`;
+          try {
+            await invoke('db_open', { name });
+            await invoke('db_exec', { name, sql: 'PRAGMA journal_mode = WAL' });
+            await invoke('db_exec', { name, sql: 'CREATE TABLE t (id TEXT PRIMARY KEY, n INTEGER)' });
+            await invoke('db_exec', { name, sql: 'BEGIN IMMEDIATE' });
+            const written = await invoke('db_run', {
+              name,
+              sql: 'INSERT INTO t VALUES (?, ?)',
+              params: ['a', 1],
+            });
+            await invoke('db_exec', { name, sql: 'COMMIT' });
+            const rows = await invoke('db_all', { name, sql: 'SELECT id, n FROM t', params: [] });
+            await invoke('db_close', { name });
+            result.nativeSqlite =
+              written.changes === 1 && rows.length === 1 && rows[0].n === 1
+                ? 'ok'
+                : `unexpected: ${JSON.stringify({ written, rows })}`;
+          } catch (error) {
+            result.nativeSqlite = `error: ${String(error)}`;
+          }
+          // The webview can send any string; a name that is a path must be refused.
+          result.refusesPathNames = await invoke('db_open', { name: '../escape.db' }).then(
+            () => false,
+            () => true,
+          );
+        }
         document.body.setAttribute('data-probe', JSON.stringify(result));
       })();
     </script>

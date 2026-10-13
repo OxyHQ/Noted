@@ -18,12 +18,7 @@
  * OPFS. Same database, same schema, all three platforms, no hosting changes.
  */
 
-import {
-  addDatabaseChangeListener,
-  openDatabaseAsync,
-  type SQLiteBindValue,
-  type SQLiteDatabase,
-} from 'expo-sqlite';
+import { addDatabaseChangeListener, openDatabaseAsync, type SQLiteBindValue } from 'expo-sqlite';
 import { createLogger } from '@oxy.so/core/logger';
 
 import { migrate } from '@/lib/db/migrations';
@@ -35,6 +30,48 @@ const logger = createLogger('NotedDB');
 const CHANGE_FLUSH_MS = 10;
 
 export type Row = Record<string, SQLiteBindValue>;
+
+/**
+ * The part of a database this module (and `migrate`) actually uses.
+ *
+ * Declared here instead of borrowing expo-sqlite's `SQLiteDatabase` so another
+ * engine can stand behind it: the desktop shell has SQLite in Rust, reached over
+ * IPC (`lib/db/desktop-driver.ts`), because its webview has no OPFS. expo-sqlite's
+ * database satisfies this as it is.
+ */
+export interface EngineDatabase {
+  execAsync: (sql: string) => Promise<void>;
+  runAsync: (sql: string, params?: SQLiteBindValue[]) => Promise<{ changes: number }>;
+  getAllAsync: <T>(sql: string, params?: SQLiteBindValue[]) => Promise<T[]>;
+  getFirstAsync: <T>(sql: string, params?: SQLiteBindValue[]) => Promise<T | null>;
+  closeAsync: () => Promise<void>;
+}
+
+/** Where databases come from. expo-sqlite by default; the desktop shell swaps it. */
+export interface DatabaseDriver {
+  open: (name: string) => Promise<EngineDatabase>;
+  /**
+   * Native table-change events, when the driver has them. May throw: the engine
+   * already treats them as an optimisation, since every write it performs
+   * invalidates its own subscriptions.
+   */
+  addChangeListener: (listener: (event: { tableName?: string }) => void) => void;
+}
+
+const expoSqliteDriver: DatabaseDriver = {
+  open: (name) =>
+    openDatabaseAsync(name, { enableChangeListener: true }) as unknown as Promise<EngineDatabase>,
+  addChangeListener: (listener) => {
+    addDatabaseChangeListener(listener);
+  },
+};
+
+let driver: DatabaseDriver = expoSqliteDriver;
+
+/** Swap the database driver. Must happen before the first account is activated. */
+export function setDatabaseDriver(next: DatabaseDriver): void {
+  driver = next;
+}
 
 export interface Statement {
   sql: string;
@@ -84,7 +121,7 @@ function errorMessage(error: unknown): string {
    the open database at all — and the first account's pending writes are still
    there when it comes back. */
 
-let connection: Promise<SQLiteDatabase> | null = null;
+let connection: Promise<EngineDatabase> | null = null;
 let available = true;
 let activeViewerId: string | null = null;
 let changeListenerAttached = false;
@@ -219,9 +256,9 @@ function retireLegacyRebuildMarker(): void {
   }
 }
 
-async function openDb(viewerId: string): Promise<SQLiteDatabase> {
+async function openDb(viewerId: string): Promise<EngineDatabase> {
   retireLegacyRebuildMarker();
-  const db = await openDatabaseAsync(databaseName(viewerId), { enableChangeListener: true });
+  const db = await driver.open(databaseName(viewerId));
 
   try {
     // WAL keeps reads running during a write; NORMAL is the safe pairing for it.
@@ -264,7 +301,7 @@ async function openDb(viewerId: string): Promise<SQLiteDatabase> {
 function attachChangeListener(): void {
   if (changeListenerAttached) return;
   try {
-    addDatabaseChangeListener((event) => {
+    driver.addChangeListener((event) => {
       if (event.tableName) markTableChanged(event.tableName);
     });
     changeListenerAttached = true;
@@ -283,7 +320,7 @@ function attachChangeListener(): void {
  * upstream is wrong (a renamed file, a recycled id, a bug in this module). It
  * fails closed without deleting the original account's unsynced notes.
  */
-async function assertOwnership(db: SQLiteDatabase, viewerId: string): Promise<void> {
+async function assertOwnership(db: EngineDatabase, viewerId: string): Promise<void> {
   const row = await db.getFirstAsync<{ value: string }>(
     'SELECT value FROM cache_metadata WHERE key = ?',
     [VIEWER_OWNER_KEY],
@@ -305,7 +342,7 @@ async function assertOwnership(db: SQLiteDatabase, viewerId: string): Promise<vo
 }
 
 /** The connection for the active account, or null if the account went away. */
-async function connectIfActive(): Promise<SQLiteDatabase | null> {
+async function connectIfActive(): Promise<EngineDatabase | null> {
   if (!activeViewerId) return null;
   if (!available) {
     // Opening already failed for this account. Retrying it per query would turn
@@ -325,7 +362,7 @@ async function connectIfActive(): Promise<SQLiteDatabase | null> {
   return connection;
 }
 
-async function getDb(): Promise<SQLiteDatabase> {
+async function getDb(): Promise<EngineDatabase> {
   for (;;) {
     // Awaited OUTSIDE the lifecycle queue deliberately: a queued task blocked on
     // sign-in would stall the `setActiveViewer` that releases it.
@@ -339,7 +376,7 @@ async function getDb(): Promise<SQLiteDatabase> {
 }
 
 /** An explicit owner binds both reads and writes across asynchronous account changes. */
-async function getDbForViewer(expectedViewerId?: string | null): Promise<SQLiteDatabase> {
+async function getDbForViewer(expectedViewerId?: string | null): Promise<EngineDatabase> {
   if (expectedViewerId === undefined) return getDb();
   return serializeLifecycle(async () => {
     if (!expectedViewerId || activeViewerId !== expectedViewerId) {

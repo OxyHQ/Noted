@@ -77,8 +77,11 @@ try {
   // What the web recorder cannot work without.
   const required = ['getUserMedia', 'mediaRecorder', 'audioContext', 'audioWorklet', 'webAssembly'];
   const missing = required.filter((key) => result[key] !== 'function' && result[key] !== 'object');
+  // And the native store the shell provides in place of OPFS.
+  if (result.nativeSqlite !== 'ok') missing.push(`nativeSqlite (${result.nativeSqlite})`);
+  if (result.refusesPathNames !== true) missing.push('refusesPathNames');
   if (missing.length > 0) {
-    console.error(`::error::this webview lacks what the recorder needs: ${missing.join(', ')}`);
+    console.error(`::error::this webview lacks what the app needs: ${missing.join(', ')}`);
     process.exitCode = 1;
   }
 } finally {
