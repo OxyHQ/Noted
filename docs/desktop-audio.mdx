@@ -180,9 +180,14 @@ real `whisper-cli` built on that OS, and opens each: the sidecar sits beside the
 executable (a Mach-O arm64 binary on macOS; `whisper-cli.exe` inside the installer on
 Windows). Nothing is signed or notarised.
 
+Interrupted model downloads resume: the partial file is kept, the manager asks for
+`Range: bytes=N-` and appends on a 206 (overwrites if the server ignores Range), and
+the final sha256 over the stitched file is what proves it. Checked in the real shell
+with a local server that honours Range. There is no automatic retry yet.
+
 Still open: `.dmg` and `.msi` installers, signing and notarisation (they need
 Apple and Windows certificates), and running transcription from an INSTALLED app;
-resumable downloads; a resident sidecar for live text; speed on a real laptop and on
+a resident sidecar for live text; speed on a real laptop and on
 long audio; audio from a real microphone rather than a file.
 
 If the second risk cannot be met on a platform, that platform ships without
