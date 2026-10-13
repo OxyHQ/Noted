@@ -10,12 +10,20 @@ import { getDb } from '../db/postgres.js';
 import { folders } from '../db/schema/folders.js';
 import { serializeFolder } from '../lib/serializers.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
-import { clearFolderFromNotes } from '../lib/folders.js';
+import { checkPlacement, type FolderPlacementError } from '../lib/folder-tree.js';
+import { listFolderNodes, moveNotesOutOfFolder, reparentChildren } from '../lib/folders.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
 
 const nameSchema = z.string().trim().min(1).max(50);
+const parentSchema = z.string().max(200).nullable();
+
+const PLACEMENT_MESSAGES: Record<FolderPlacementError, string> = {
+  'parent-not-found': 'Unknown parent folder',
+  cycle: 'A folder cannot be moved into itself',
+  'too-deep': 'Folders can only be nested three levels deep',
+};
 
 router.use(makeRateLimiter('folders'), authenticateToken, requireOxyAuth);
 
@@ -38,12 +46,22 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const userId = getRequiredOxyUserId(req);
-    const parsed = z.object({ name: nameSchema }).safeParse(req.body);
+    const parsed = z
+      .object({ name: nameSchema, parentId: parentSchema.optional() })
+      .safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Folder name is required' });
+
+    const parentId = parsed.data.parentId ?? null;
+    const problem = checkPlacement({
+      folderId: null,
+      newParentId: parentId,
+      nodes: await listFolderNodes(userId),
+    });
+    if (problem) return res.status(400).json({ error: PLACEMENT_MESSAGES[problem] });
 
     const [folder] = await getDb()
       .insert(folders)
-      .values({ oxyUserId: userId, name: parsed.data.name })
+      .values({ oxyUserId: userId, name: parsed.data.name, parentId })
       .returning();
     res.status(201).json(serializeFolder(folder));
   } catch (error: unknown) {
@@ -63,12 +81,30 @@ router.patch('/:id', async (req: Request, res: Response) => {
     if (typeof folderId !== 'string' || !isLiveEntityId(folderId)) {
       return res.status(400).json({ error: 'Invalid folder id' });
     }
-    const parsed = z.object({ name: nameSchema }).safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Folder name is required' });
+    const parsed = z
+      .object({ name: nameSchema.optional(), parentId: parentSchema.optional() })
+      .safeParse(req.body);
+    if (!parsed.success || (parsed.data.name === undefined && parsed.data.parentId === undefined)) {
+      return res.status(400).json({ error: 'Send a name, a parentId, or both' });
+    }
+
+    // Moving is the only change that can break the tree, so only it is checked.
+    if (parsed.data.parentId !== undefined) {
+      const problem = checkPlacement({
+        folderId,
+        newParentId: parsed.data.parentId,
+        nodes: await listFolderNodes(userId),
+      });
+      if (problem) return res.status(400).json({ error: PLACEMENT_MESSAGES[problem] });
+    }
 
     const [folder] = await getDb()
       .update(folders)
-      .set({ name: parsed.data.name, updatedAt: new Date() })
+      .set({
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.parentId !== undefined ? { parentId: parsed.data.parentId } : {}),
+        updatedAt: new Date(),
+      })
       .where(and(eq(folders.id, folderId), eq(folders.oxyUserId, userId)))
       .returning();
     if (!folder) return res.status(404).json({ error: 'Folder not found' });
@@ -82,7 +118,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /folders/:id — the notes in it are unfiled, not deleted
+// DELETE /folders/:id — nothing inside is lost: its notes and subfolders move up
+// to the folder it was in
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const userId = getRequiredOxyUserId(req);
@@ -91,15 +128,16 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid folder id' });
     }
 
-    // One transaction: a folder deleted while notes still named it would leave
-    // them filed somewhere nothing can open.
+    // One transaction: a folder deleted while notes or subfolders still named it
+    // would leave them filed somewhere nothing can open.
     const deleted = await getDb().transaction(async (tx) => {
       const [folder] = await tx
         .delete(folders)
         .where(and(eq(folders.id, folderId), eq(folders.oxyUserId, userId)))
-        .returning({ id: folders.id });
+        .returning({ id: folders.id, parentId: folders.parentId });
       if (!folder) return false;
-      await clearFolderFromNotes(tx, folderId, userId);
+      await reparentChildren(tx, folderId, folder.parentId, userId);
+      await moveNotesOutOfFolder(tx, folderId, folder.parentId, userId);
       return true;
     });
 

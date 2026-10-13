@@ -105,8 +105,11 @@ Four invariants are load-bearing:
 
 ## Folders
 
-A note is filed in at most one folder (`notes.folderId`, flat — nesting is a
-different feature). `GET/POST /folders`, `PATCH/DELETE /folders/:id` mirror
+A note is filed in at most one folder (`notes.folderId`). Folders nest up to three
+levels (`folders.parentId`, rules in `lib/folder-tree.ts`: no cycles, no deeper
+than three, the whole subtree counts when moving a branch), and a name is unique
+within its parent. Deleting a folder moves its notes and subfolders up to its
+parent instead of unfiling them. `GET/POST /folders`, `PATCH/DELETE /folders/:id` mirror
 labels; deleting a folder unfiles its notes in the same transaction and moves
 each note's `updatedAt`, so other devices pull the change. A note write naming a
 folder the caller does not own is refused with `400`. On the wire `folderId` is

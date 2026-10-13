@@ -6,7 +6,8 @@ import { stubEnv, unstubAllEnvs } from '../../__tests__/stubs';
 const { closePostgres, connectPostgres, getDb } = await import('../../db/postgres.js');
 const { folders } = await import('../../db/schema/folders.js');
 const { notes } = await import('../../db/schema/notes.js');
-const { clearFolderFromNotes, userOwnsFolder } = await import('../folders.js');
+const { clearFolderFromNotes, moveNotesOutOfFolder, reparentChildren, userOwnsFolder } =
+  await import('../folders.js');
 const { eq } = await import('drizzle-orm');
 
 let databaseUrl: string | undefined;
@@ -40,6 +41,81 @@ afterAll(async () => {
   await closePostgres();
   unstubAllEnvs();
   if (databaseUrl) await dropTestDatabase(databaseUrl);
+});
+
+describe('nested folders', () => {
+  it('lets two parents each hold a folder with the same name, but not one parent twice', async () => {
+    const [a, b] = await getDb()
+      .insert(folders)
+      .values([
+        { oxyUserId: 'n-A', name: 'A' },
+        { oxyUserId: 'n-A', name: 'B' },
+      ])
+      .returning();
+    await getDb().insert(folders).values({ oxyUserId: 'n-A', name: 'Reports', parentId: a.id });
+    await getDb().insert(folders).values({ oxyUserId: 'n-A', name: 'Reports', parentId: b.id });
+
+    const twice = async () => {
+      await getDb().insert(folders).values({ oxyUserId: 'n-A', name: 'Reports', parentId: a.id });
+    };
+    await expect(twice()).rejects.toThrow();
+  });
+
+  it('still refuses the same top-level name twice (NULL parents are not distinct)', async () => {
+    await getDb().insert(folders).values({ oxyUserId: 'n-B', name: 'Top' });
+    const twice = async () => {
+      await getDb().insert(folders).values({ oxyUserId: 'n-B', name: 'Top' });
+    };
+    await expect(twice()).rejects.toThrow();
+  });
+
+  it("moves notes and subfolders up to the deleted folder's parent", async () => {
+    const [root] = await getDb()
+      .insert(folders)
+      .values({ oxyUserId: 'n-C', name: 'Root' })
+      .returning();
+    const [middle] = await getDb()
+      .insert(folders)
+      .values({ oxyUserId: 'n-C', name: 'Middle', parentId: root.id })
+      .returning();
+    const [leaf] = await getDb()
+      .insert(folders)
+      .values({ oxyUserId: 'n-C', name: 'Leaf', parentId: middle.id })
+      .returning();
+    const [note] = await getDb()
+      .insert(notes)
+      .values({ oxyUserId: 'n-C', title: 'in middle', folderId: middle.id })
+      .returning();
+
+    // What the DELETE route does, in its order.
+    await getDb().transaction(async (tx) => {
+      await tx.delete(folders).where(eq(folders.id, middle.id));
+      await reparentChildren(tx, middle.id, middle.parentId, 'n-C');
+      await moveNotesOutOfFolder(tx, middle.id, middle.parentId, 'n-C');
+    });
+
+    const [movedLeaf] = await getDb().select().from(folders).where(eq(folders.id, leaf.id));
+    expect(movedLeaf.parentId).toBe(root.id);
+    const [movedNote] = await getDb().select().from(notes).where(eq(notes.id, note.id));
+    expect(movedNote.folderId).toBe(root.id);
+  });
+
+  it("puts a top-level folder's contents at the top level", async () => {
+    const [top] = await getDb()
+      .insert(folders)
+      .values({ oxyUserId: 'n-D', name: 'Top' })
+      .returning();
+    const [child] = await getDb()
+      .insert(folders)
+      .values({ oxyUserId: 'n-D', name: 'Child', parentId: top.id })
+      .returning();
+    await getDb().transaction(async (tx) => {
+      await tx.delete(folders).where(eq(folders.id, top.id));
+      await reparentChildren(tx, top.id, top.parentId, 'n-D');
+    });
+    const [after] = await getDb().select().from(folders).where(eq(folders.id, child.id));
+    expect(after.parentId).toBeNull();
+  });
 });
 
 describe('folders', () => {
