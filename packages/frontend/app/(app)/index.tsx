@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import Head from 'expo-router/head';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { EmptyState } from '@/components/empty-state';
 import { LocalStoreError } from '@/components/local-store-boundary';
 import { NotesHeader } from '@/components/notes/notes-header';
+import { NotesSkeleton } from '@/components/notes/notes-skeleton';
 import { OnboardingDialog } from '@/components/onboarding-dialog';
 import { QuickCapture, type QuickCaptureCreation } from '@/components/notes/quick-capture';
 import { NoteGrid } from '@/components/notes/note-grid';
@@ -29,13 +30,11 @@ import { useLabels } from '@/lib/hooks/use-labels';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 import { useUndoStore } from '@/lib/stores/undo-store';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useColorScheme } from '@/lib/useColorScheme';
 import type { Note, NoteColor, NoteListParams } from '@noted/shared-types';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
   const { isAuthenticated, user } = useOxy();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
@@ -305,9 +304,7 @@ export default function HomeScreen() {
         {error ? (
           <LocalStoreError />
         ) : isLoading ? (
-          <View className="items-center justify-center py-16">
-            <ActivityIndicator color={colors.primary} />
-          </View>
+          <NotesSkeleton />
         ) : allNotes.length === 0 ? (
           <EmptyState
             sticker={searchQuery.trim() || activeLabel ? 'search' : 'notes'}

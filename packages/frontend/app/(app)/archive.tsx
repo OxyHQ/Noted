@@ -3,21 +3,19 @@ import { NotesContent } from '@/components/notes/notes-content';
 import React from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { LocalStoreError } from '@/components/local-store-boundary';
-import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { NotesHeader } from '@/components/notes/notes-header';
+import { NotesSkeleton } from '@/components/notes/notes-skeleton';
 import { NoteGrid } from '@/components/notes/note-grid';
 import { useNotes } from '@/lib/hooks/use-notes';
 import { useLabels } from '@/lib/hooks/use-labels';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useColorScheme } from '@/lib/useColorScheme';
 import type { Note } from '@noted/shared-types';
 
 export default function ArchiveScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { colors } = useColorScheme();
   const viewMode = useNotesUIStore((s) => s.viewMode);
 
   const { data: notes, isLoading, error } = useNotes({ view: 'archived' });
@@ -34,9 +32,7 @@ export default function ArchiveScreen() {
         {error ? (
           <LocalStoreError />
         ) : isLoading ? (
-          <View className="items-center justify-center py-16">
-            <ActivityIndicator color={colors.primary} />
-          </View>
+          <NotesSkeleton />
         ) : allNotes.length === 0 ? (
           <EmptyState
             sticker="archive"
