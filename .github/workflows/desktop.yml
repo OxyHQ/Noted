@@ -132,6 +132,13 @@ jobs:
       - name: Build the shell
         run: cargo build --manifest-path desktop/src-tauri/Cargo.toml
 
+      - name: Keep the resolved lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-cargo-lock
+          path: desktop/src-tauri/Cargo.lock
+          if-no-files-found: error
+
       - name: Which WebKitGTK is this
         run: dpkg -l | grep -E 'libwebkit2gtk-4.1-0|webkit2gtk-driver' | awk '{print $2, $3}'
 
