@@ -95,4 +95,4 @@ jobs:
           WHISPER_CLI: ${{ github.workspace }}/whisper.cpp/build/bin/whisper-cli
           WHISPER_MODEL: ${{ runner.temp }}/whisper/ggml-tiny-q5_1.bin
           WHISPER_SAMPLE_WAV: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
-        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml stt:: -- --nocapture
+        run: "cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml stt:: -- --nocapture"
