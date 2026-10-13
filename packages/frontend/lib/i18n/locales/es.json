@@ -1491,5 +1491,16 @@
         "prompt": "Voy a pegar unas notas en bruto. Reescríbelas con claridad sin perder ningún punto."
       }
     }
+  },
+  "lock": {
+    "title": "Noted está bloqueada",
+    "unlock": "Desbloquear",
+    "prompt": "Desbloquear Noted",
+    "failed": "No se pudo desbloquear. Inténtalo de nuevo.",
+    "settingTitle": "Bloquear con Face ID / huella",
+    "settingDescription": "Pide desbloquear Noted al abrirla o al volver tras 30 segundos fuera. También sirve el código del dispositivo.",
+    "settingUnavailable": "Configura Face ID, una huella o un código en este dispositivo para usar esto.",
+    "enablePrompt": "Confirma para activar el bloqueo",
+    "section": "Seguridad"
   }
 }
