@@ -32,6 +32,7 @@ import {
   upsertOverrides,
 } from '../lib/note-artifacts.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
+import { cutSyncPage, parseSyncLimit, SYNC_MAX_LIMIT, type SyncPage } from '../lib/sync-page.js';
 import { emitNoteCreated, emitNoteUpdated, emitNoteDeleted } from '../socket.js';
 import { log } from '../lib/logger.js';
 import { enqueueNoteChangedEvent, type NoteChange } from '../capabilities/noted.events.js';
@@ -315,11 +316,35 @@ router.get('/sync', readLimiter, async (req: Request, res: Response) => {
     // taken afterwards, so the next pull would skip it permanently. Overlapping
     // instead means a note can arrive twice, which an upsert absorbs.
     const serverTime = new Date().toISOString();
-    const rows = await getDb()
+    const limit = parseSyncLimit(req.query.limit);
+    if (limit === 'invalid') {
+      return res
+        .status(400)
+        .json({ error: `limit must be an integer from 1 to ${SYNC_MAX_LIMIT}` });
+    }
+    const fetched = await getDb()
       .select()
       .from(notes)
       .where(and(...filters))
-      .orderBy(asc(notes.updatedAt));
+      .orderBy(asc(notes.updatedAt))
+      // One past the page, only to learn whether another page exists.
+      .limit(limit === null ? Number.MAX_SAFE_INTEGER : limit + 1);
+    const page: SyncPage<(typeof fetched)[number]> =
+      limit === null ? { rows: fetched, nextCursor: null } : cutSyncPage(fetched, limit);
+    let rows = page.rows;
+    if (page.wholeRunAt) {
+      // More than a page of rows share one instant: take the whole run.
+      rows = await getDb()
+        .select()
+        .from(notes)
+        .where(
+          and(
+            eq(notes.oxyUserId, oxyUserId),
+            sql`date_trunc('milliseconds', ${notes.updatedAt}) = ${page.wholeRunAt}`,
+          ),
+        )
+        .orderBy(asc(notes.updatedAt));
+    }
 
     // A note whose generated half moved without the note itself moving is still
     // a change this client needs. `since` is absent on a first pull, which
@@ -354,6 +379,10 @@ router.get('/sync', readLimiter, async (req: Request, res: Response) => {
       ),
       deleted: [...byId.values()].filter((row) => row.deletedAt).map((row) => row.id),
       serverTime,
+      // Only a paged request is told about pages; one without `limit` gets the
+      // whole answer, exactly as before, so an older client that ignores these
+      // fields can never stop early.
+      ...(limit === null ? {} : { hasMore: page.nextCursor !== null, nextCursor: page.nextCursor }),
     });
   } catch (error: unknown) {
     log.notes.error({ err: error }, 'Error syncing notes');

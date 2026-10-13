@@ -87,6 +87,22 @@ Four invariants are load-bearing:
 4. Feed reads deliberately omit artifacts, so a feed note must not be applied
    as if it asserted there are none.
 
+## Note sync contract
+
+- **Edits carry their base.** `PATCH /notes/:id` may send `baseUpdatedAt`, the
+  server `updatedAt` the edit sits on. The check is part of the SQL `UPDATE`; a
+  stale base is answered `409` with the current note and nothing is written.
+  The client keeps the other version as a conflict copy and retries once.
+  Without `baseUpdatedAt` the write is last-write-wins (capabilities, older
+  clients).
+- **Pulls are paged on request.** `GET /notes/sync?since=&limit=` (1–1000)
+  returns `hasMore` and `nextCursor`. A page never ends inside a run of rows
+  sharing one `updatedAt`, because the cursor is a timestamp and the next
+  request asks for strictly later rows. Without `limit` the answer is the whole
+  set, so a client that ignores paging cannot stop early. The client commits
+  each page's rows and cursor in one transaction; only the last page stores the
+  server clock.
+
 ## Identity and sharing boundary
 
 Every note query is filtered by the server-verified `oxyUserId`. Socket rooms
