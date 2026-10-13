@@ -19,6 +19,7 @@
 //! language to the shell, which is its own piece of work.
 
 mod db;
+mod stt;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -82,7 +83,8 @@ pub fn run() {
             db::db_exec,
             db::db_run,
             db::db_all,
-            db::db_close
+            db::db_close,
+            stt::stt_transcribe
         ])
         .setup(|app| {
             let new_note = MenuItem::with_id(app, "new-note", "New note", true, None::<&str>)?;
