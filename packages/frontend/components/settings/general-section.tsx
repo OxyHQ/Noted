@@ -14,6 +14,7 @@ import { getNativeLanguageName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useImportNotes } from '@/lib/hooks/use-import-notes';
 import { useNotedSettings } from './settings-provider';
 
 export function GeneralSection() {
@@ -22,6 +23,7 @@ export function GeneralSection() {
   const { t } = useTranslation();
   const { currentLanguage, currentLanguages, showBottomSheet } = useOxy();
   const { afterClose } = useNotedSettings();
+  const { pickAndImport, importing } = useImportNotes();
   const modes = (['system', 'light', 'dark'] as const).map((value) => ({
     value,
     label: t(`settings.appearance.${value}`),
@@ -86,6 +88,25 @@ export function GeneralSection() {
                 )}
               />
             </Select>
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+      <SettingsSection label={t('settings.import.title')}>
+        <SettingsCard>
+          <SettingsRow
+            label={t('settings.import.title')}
+            description={t('settings.import.description')}
+          >
+            <Button
+              appearance="outline"
+              size="sm"
+              disabled={importing}
+              onPress={() => {
+                void pickAndImport();
+              }}
+            >
+              {t('settings.import.button')}
+            </Button>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

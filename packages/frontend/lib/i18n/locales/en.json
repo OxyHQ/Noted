@@ -205,6 +205,14 @@
       "sky": "Sky",
       "orange": "Orange",
       "mint": "Mint"
+    },
+    "import": {
+      "title": "Import notes",
+      "description": "Bring in Markdown, Obsidian or Google Keep (JSON) files",
+      "button": "Choose files",
+      "done": "Imported {{count}} notes",
+      "skipped": "Skipped {{count}} files. First: {{first}}",
+      "failed": "Could not import those files"
     }
   },
   "nav": {
