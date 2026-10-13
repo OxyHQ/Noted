@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the main window may do. Grows one permission at a time, as each native capability is added.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
