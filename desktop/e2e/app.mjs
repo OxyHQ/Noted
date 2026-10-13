@@ -6,7 +6,8 @@
 // export. This says the bundle starts in this webview without taking the page down;
 // it cannot say the app is usable, because the interesting screens sit behind an
 // Oxy sign-in that CI does not have. The screenshot is the evidence.
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { sleep, withSession } from './driver.mjs';
 
 const application = process.argv[2];
@@ -100,6 +101,11 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
   // the sidecar and fetched the model, and the e2e build for the hook.
   if (process.env.E2E_STT === '1') {
     const audio = wavAsFloat32Base64(process.env.E2E_SAMPLE);
+    // The packaged path: Tauri must have copied the sidecar next to the executable.
+    if (!existsSync(join(dirname(application), 'whisper-cli'))) {
+      console.error('::error::externalBin did not put whisper-cli next to the shell executable');
+      process.exitCode = 1;
+    }
     const outcome = await runAsync(
       `const done = arguments[arguments.length - 1];
        const hook = window.__NOTED_E2E_HOOK__;
