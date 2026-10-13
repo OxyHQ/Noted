@@ -129,5 +129,8 @@ jobs:
       - name: Build the shell
         run: cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
 
+      - name: Which WebKitGTK is this
+        run: dpkg -l | grep -E 'libwebkit2gtk-4.1-0|webkit2gtk-driver' | awk '{print $2, $3}'
+
       - name: Probe the webview
         run: dbus-run-session -- xvfb-run -a node desktop/e2e/probe.mjs "$PWD/desktop/src-tauri/target/debug/noted-desktop"
