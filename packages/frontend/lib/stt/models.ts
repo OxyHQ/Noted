@@ -17,9 +17,11 @@ import type { File } from 'expo-file-system';
 import { loadTauriInvoke } from '@/lib/db/desktop-driver';
 import { isDesktop } from '@/lib/desktop/bridge';
 import { createDesktopModels } from '@/lib/stt/desktop-models';
+import { getActiveViewerId } from '@/lib/db/client';
 import {
   download,
   isPresent,
+  recordState,
   remove,
   statesOf,
   weightsFile,
@@ -118,15 +120,45 @@ export async function getModelStates(): Promise<Record<SttModelId, ModelState>> 
   };
 }
 
+/**
+ * The desktop download, with the same bookkeeping as the phone's: the capture engine
+ * decides whether to transcribe live by watching the `model_files` rows, so Rust's
+ * files alone would leave it believing no model is there.
+ */
+async function downloadOnDesktop(
+  models: NonNullable<typeof desktopModels>,
+  model: SttModel,
+  onProgress?: (fraction: number) => void,
+): Promise<void> {
+  const viewer = getActiveViewerId();
+  await recordState(model, 'downloading', viewer);
+  try {
+    await models.download(model, onProgress);
+    await recordState(model, 'ready', viewer);
+  } catch (error) {
+    await recordState(model, 'failed', viewer).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function removeOnDesktop(
+  models: NonNullable<typeof desktopModels>,
+  model: SttModel,
+): Promise<void> {
+  const viewer = getActiveViewerId();
+  await models.remove(model);
+  await recordState(model, 'absent', viewer);
+}
+
 export function downloadModel(
   model: SttModel,
   onProgress?: (fraction: number) => void,
 ): Promise<void> {
-  if (desktopModels) return desktopModels.download(model, onProgress);
+  if (desktopModels) return downloadOnDesktop(desktopModels, model, onProgress);
   return download(model, onProgress);
 }
 
 export function deleteModel(model: SttModel): Promise<void> {
-  if (desktopModels) return desktopModels.remove(model);
+  if (desktopModels) return removeOnDesktop(desktopModels, model);
   return remove(model);
 }
