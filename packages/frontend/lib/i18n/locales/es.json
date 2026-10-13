@@ -1425,5 +1425,22 @@
     "move": "Mover a carpeta",
     "none": "Sin carpeta",
     "pick": "Archivar esta nota en…"
+  },
+  "editor": {
+    "format": {
+      "toolbar": "Formato",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "strike": "Tachado",
+      "code": "Código",
+      "heading": "Encabezado",
+      "bullets": "Lista con viñetas",
+      "numbers": "Lista numerada",
+      "tasks": "Lista de tareas",
+      "quote": "Cita",
+      "block": "Bloque de código",
+      "link": "Enlace",
+      "linkPrompt": "Dirección del enlace"
+    }
   }
 }
