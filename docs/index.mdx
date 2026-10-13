@@ -103,6 +103,19 @@ Four invariants are load-bearing:
   each page's rows and cursor in one transaction; only the last page stores the
   server clock.
 
+## Version history
+
+`note_revisions` keeps earlier versions of a note's own text (title, body,
+checklist) — not the generated half, which is rebuilt from the recording. A
+`PATCH` that changes that text snapshots what it replaced, in the same
+transaction and only once the edit has applied (a refused `409` replaced
+nothing), at most once every ten minutes per note and keeping the newest 50.
+`GET /notes/:id/revisions` lists them and
+`POST /notes/:id/revisions/:revisionId/restore` puts one back, snapshotting the
+text it replaces first so a restore can itself be undone. Versions expire after
+90 days (`db/expiry.ts`), vanish with the note on "delete forever", and are
+erased with the account. There is no client UI yet.
+
 ## Account data
 
 `GET /account/export` returns everything Noted stores for the caller as one JSON

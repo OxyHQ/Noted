@@ -19,3 +19,4 @@ export * from './pushTokens.js';
 export * from './note-artifacts.js';
 export * from './capability-executions.js';
 export * from './normalized-app-event-outbox.js';
+export * from './note-revisions.js';

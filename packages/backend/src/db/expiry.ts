@@ -21,8 +21,10 @@ import {
 } from '@oxy.so/db/expiry';
 
 import { log } from '../lib/logger.js';
+import { REVISION_TTL_DAYS } from '../lib/note-revisions.js';
 import { getDb } from './postgres.js';
 import { capabilityExecutions } from './schema/capability-executions.js';
+import { noteRevisions } from './schema/note-revisions.js';
 import { notes } from './schema/notes.js';
 import { notifications } from './schema/notifications.js';
 
@@ -73,6 +75,16 @@ const TARGETS: readonly ExpirySweepTarget[] = [
       'Completed catalog-call receipt retained only to make delayed retries ' +
       'idempotent. It contains the structured tool result, not credentials or ' +
       'a user session, and is no longer useful after the retry window.',
+  },
+  {
+    table: noteRevisions,
+    column: noteRevisions.createdAt,
+    retentionSeconds: REVISION_TTL_DAYS * DAY_SECONDS,
+    reason:
+      'Earlier version of a note, kept so a bad edit can be undone. Past the ' +
+      'retention it is no longer a realistic undo, and the per-note cap in ' +
+      '`note-revisions.ts` only bounds the count, not the age. Holds user text, ' +
+      'so it must not linger.',
   },
 ];
 

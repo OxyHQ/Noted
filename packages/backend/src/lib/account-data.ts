@@ -5,6 +5,7 @@ import { capabilityExecutions } from '../db/schema/capability-executions.js';
 import { feedback } from '../db/schema/feedback.js';
 import { labels } from '../db/schema/labels.js';
 import { noteArtifacts, noteItemOverrides } from '../db/schema/note-artifacts.js';
+import { noteRevisions } from '../db/schema/note-revisions.js';
 import { notes } from '../db/schema/notes.js';
 import { notifications } from '../db/schema/notifications.js';
 import { pushTokens, webPushSubscriptions } from '../db/schema/pushTokens.js';
@@ -60,6 +61,7 @@ export async function exportAccountData(oxyUserId: string) {
 export async function eraseAccountData(oxyUserId: string): Promise<void> {
   await getDb().transaction(async (transaction) => {
     await transaction.delete(noteItemOverrides).where(eq(noteItemOverrides.oxyUserId, oxyUserId));
+    await transaction.delete(noteRevisions).where(eq(noteRevisions.oxyUserId, oxyUserId));
     await transaction.delete(noteArtifacts).where(eq(noteArtifacts.oxyUserId, oxyUserId));
     await transaction.delete(notes).where(eq(notes.oxyUserId, oxyUserId));
     await transaction.delete(labels).where(eq(labels.oxyUserId, oxyUserId));

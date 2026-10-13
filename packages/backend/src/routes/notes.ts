@@ -31,6 +31,14 @@ import {
   upsertArtifacts,
   upsertOverrides,
 } from '../lib/note-artifacts.js';
+import {
+  changesText,
+  deleteRevisionsOf,
+  listRevisions,
+  restoreRevision,
+  snapshotBeforeEdit,
+  textOf,
+} from '../lib/note-revisions.js';
 import { makeRateLimiter } from '../lib/rate-limit.js';
 import { cutSyncPage, parseSyncLimit, SYNC_MAX_LIMIT, type SyncPage } from '../lib/sync-page.js';
 import { emitNoteCreated, emitNoteUpdated, emitNoteDeleted } from '../socket.js';
@@ -493,6 +501,18 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
     const base = parsed.data.baseUpdatedAt ? new Date(parsed.data.baseUpdatedAt) : null;
 
     const [note] = await getDb().transaction(async (transaction) => {
+      // The text being replaced, read under a lock so the version kept is the
+      // one this edit actually overwrote. Only when the edit touches that text.
+      const { title, body, checklist } = parsed.data;
+      const touchesText = title !== undefined || body !== undefined || checklist !== undefined;
+      const [before] = touchesText
+        ? await transaction
+            .select()
+            .from(notes)
+            .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)))
+            .for('update')
+        : [];
+
       const updated = await transaction
         .update(notes)
         .set(touched(toColumns(parsed.data)))
@@ -509,6 +529,10 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
         )
         .returning();
       if (updated[0]) {
+        // Only once the edit has applied: a refused (409) edit replaced nothing.
+        if (before && changesText(textOf(before), { title, body, checklist })) {
+          await snapshotBeforeEdit(transaction, noteId, userId, textOf(before));
+        }
         await enqueueRouteNoteChange(
           transaction,
           updated[0],
@@ -548,6 +572,55 @@ router.patch('/:id', writeLimiter, async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to update note' });
   }
 });
+
+// GET /notes/:id/revisions — earlier versions of the note's text, newest first.
+router.get('/:id/revisions', readLimiter, async (req: Request, res: Response) => {
+  try {
+    const userId = getRequiredOxyUserId(req);
+    const noteId = req.params.id;
+    if (typeof noteId !== 'string' || !isLiveEntityId(noteId)) {
+      return res.status(400).json({ error: 'Invalid note id' });
+    }
+    res.json({ data: await listRevisions(noteId, userId) });
+  } catch (error: unknown) {
+    log.notes.error({ err: error }, 'Error listing note revisions');
+    res.status(500).json({ error: 'Failed to list revisions' });
+  }
+});
+
+// POST /notes/:id/revisions/:revisionId/restore — put an earlier text back.
+// The text it replaces is kept as a version, so a restore can itself be undone.
+router.post(
+  '/:id/revisions/:revisionId/restore',
+  writeLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = getRequiredOxyUserId(req);
+      const { id: noteId, revisionId } = req.params;
+      if (
+        typeof noteId !== 'string' ||
+        !isLiveEntityId(noteId) ||
+        typeof revisionId !== 'string' ||
+        !isLiveEntityId(revisionId)
+      ) {
+        return res.status(400).json({ error: 'Invalid id' });
+      }
+      const restored = await restoreRevision(noteId, revisionId, userId);
+      if (!restored) return res.status(404).json({ error: 'Revision not found' });
+
+      const generated = await readGeneratedHalf([restored.id], userId);
+      const dto = serializeNote(restored, {
+        artifacts: generated.artifacts.get(restored.id) ?? [],
+        overrides: generated.overrides.get(restored.id) ?? [],
+      });
+      emitNoteUpdated(userId, dto);
+      res.json(dto);
+    } catch (error: unknown) {
+      log.notes.error({ err: error }, 'Error restoring note revision');
+      res.status(500).json({ error: 'Failed to restore revision' });
+    }
+  },
+);
 
 // POST /notes/:id/trash — trashed = true
 router.post('/:id/trash', writeLimiter, async (req: Request, res: Response) => {
@@ -647,7 +720,11 @@ router.delete('/:id', writeLimiter, async (req: Request, res: Response) => {
         })
         .where(and(eq(notes.id, noteId), eq(notes.oxyUserId, userId), isNull(notes.deletedAt)))
         .returning({ id: notes.id, updatedAt: notes.updatedAt });
-      if (updated[0]) await enqueueRouteNoteChange(transaction, updated[0], userId, 'deleted');
+      if (updated[0]) {
+        // The tombstone clears the note's text; its history must not outlive it.
+        await deleteRevisionsOf(transaction, [updated[0].id], userId);
+        await enqueueRouteNoteChange(transaction, updated[0], userId, 'deleted');
+      }
       return updated;
     });
 
