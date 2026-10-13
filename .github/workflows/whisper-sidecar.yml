@@ -1,0 +1,68 @@
+name: Whisper sidecar
+
+# Noted Desktop's webview has no WebGPU and no threads, so on-device transcription
+# there would be slow WASM (docs/desktop-audio.mdx). The planned answer is the same
+# engine the phones use, whisper.cpp, run as a Tauri sidecar. This builds it and
+# checks it transcribes with the app's own model and gives the segments the app
+# stores. Only when the sidecar's files, the model catalogue or this file change.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/sidecar/**'
+      - 'packages/frontend/lib/stt/models.ts'
+      - '.github/workflows/whisper-sidecar.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/sidecar/**'
+      - 'packages/frontend/lib/stt/models.ts'
+      - '.github/workflows/whisper-sidecar.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # A tag, not a branch: the binary's flags and JSON output are what the shell will
+  # depend on, so moving to a newer one is a deliberate change to this line.
+  WHISPER_CPP_TAG: v1.9.5
+
+jobs:
+  transcribe:
+    name: whisper.cpp transcribes (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+
+      - name: Cache the whisper.cpp build
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-${{ env.WHISPER_CPP_TAG }}-linux
+
+      - name: Build whisper-cli
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$WHISPER_CPP_TAG" https://github.com/ggml-org/whisper.cpp
+          cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF
+          cmake --build whisper.cpp/build -j --target whisper-cli
+
+      # The weights are fetched from a host that rate-limits CI addresses. Cached by
+      # the catalogue's content, and verified against its sha256 on every run anyway.
+      - name: Cache the model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/whisper
+          key: whisper-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+
+      - name: Transcribe the sample with the app's own model
+        run: node desktop/sidecar/verify.mjs whisper.cpp/build/bin/whisper-cli whisper.cpp/samples/jfk.wav "$RUNNER_TEMP/whisper"
