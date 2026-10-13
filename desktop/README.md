@@ -20,7 +20,7 @@ cd desktop/src-tauri
 cargo run                           # or: cargo tauri build  (needs tauri-cli)
 ```
 
-CI runs `cargo check --locked`, builds the shell and runs it for 20 s under Xvfb to check it starts; that is all it proves (see the workflow).
+CI runs `cargo check --locked`, builds the shell and runs it for 20 s on Linux (Xvfb), macOS and Windows to check it starts; that is all it proves (see the workflow).
 
 `cargo check --locked` is what CI runs (`.github/workflows/desktop.yml`); `src-tauri/Cargo.lock` is committed, so changing a dependency means committing that file.
 
