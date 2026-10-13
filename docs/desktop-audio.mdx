@@ -129,16 +129,22 @@ Storage API at all, so a newer engine or a different origin would not obviously
 fix it. There is no measurement yet for macOS (WKWebView) or Windows (WebView2):
 `tauri-driver` supports neither here.
 
-### The `whisper.cpp` sidecar: shown to work, not yet integrated
+### The `whisper.cpp` sidecar: the Rust command exists; the rest does not
 
 CI (`.github/workflows/whisper-sidecar.yml`, `desktop/sidecar/verify.mjs`) builds
 `whisper-cli` from a pinned `whisper.cpp` tag and transcribes a known sentence with
 the app's own `tiny` model — verifying that model's size and sha256 against
-`lib/stt/models.ts` first. It returns the text and segments with millisecond
-offsets, which is what becomes `transcript_segments`. That settles that the
-approach works on Linux. Still open: the Rust command that runs it, packaging it
-as a Tauri `externalBin` per platform (and signing it), desktop model downloads,
-and its speed on a real laptop and on long or live audio.
+`lib/stt/models.ts` first. It returns text and segments with millisecond offsets,
+which is what becomes `transcript_segments`.
+
+On top of that, `desktop/src-tauri/src/stt.rs` has the `stt_transcribe` command:
+base64 `f32` samples in, segments out, through a temporary WAV that is always
+deleted. Its pure functions are tested on every OS, and one test runs the real
+binary and model through the whole Rust path on Linux.
+
+Still open: the TypeScript engine adapter that calls the command, packaging the
+binary as a Tauri `externalBin` per platform (and signing it), desktop model
+downloads, and speed on a real laptop and on long or live audio.
 
 If the second risk cannot be met on a platform, that platform ships without
 system audio rather than with a different recorder.
