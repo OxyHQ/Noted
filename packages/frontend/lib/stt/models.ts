@@ -14,6 +14,9 @@
 
 import type { File } from 'expo-file-system';
 
+import { loadTauriInvoke } from '@/lib/db/desktop-driver';
+import { isDesktop } from '@/lib/desktop/bridge';
+import { createDesktopModels } from '@/lib/stt/desktop-models';
 import {
   download,
   isPresent,
@@ -86,6 +89,9 @@ export const STT_MODELS: Record<SttModelId, SttModel> = {
 
 export const DEFAULT_STT_MODEL: SttModelId = 'base';
 
+/** In the desktop shell the weights live in Rust's data directory, not in expo-file-system. */
+const desktopModels = isDesktop() ? createDesktopModels(loadTauriInvoke) : null;
+
 export function modelFile(model: SttModel): File {
   return weightsFile(model);
 }
@@ -96,6 +102,14 @@ export function isModelPresent(model: SttModel): boolean {
 
 /** What the settings screen reads. */
 export async function getModelStates(): Promise<Record<SttModelId, ModelState>> {
+  if (desktopModels) {
+    const found = await desktopModels.states(Object.values(STT_MODELS));
+    return {
+      tiny: found.tiny ?? 'absent',
+      base: found.base ?? 'absent',
+      small: found.small ?? 'absent',
+    };
+  }
   const states = await statesOf(Object.values(STT_MODELS));
   return {
     tiny: states.tiny ?? 'absent',
@@ -108,9 +122,11 @@ export function downloadModel(
   model: SttModel,
   onProgress?: (fraction: number) => void,
 ): Promise<void> {
+  if (desktopModels) return desktopModels.download(model, onProgress);
   return download(model, onProgress);
 }
 
 export function deleteModel(model: SttModel): Promise<void> {
+  if (desktopModels) return desktopModels.remove(model);
   return remove(model);
 }

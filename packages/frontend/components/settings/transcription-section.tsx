@@ -8,6 +8,7 @@ import { SettingsCard, SettingsRow } from '@oxy.so/bloom/settings-modal';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { hasDownloadableModels } from '@/lib/capture/support';
+import { isDesktop } from '@/lib/desktop/bridge';
 import { DEFAULT_STT_MODEL, type SttModelId } from '@/lib/stt/models';
 import { selectSttModel } from '@/lib/stt/select-model';
 import { useSttModels, type ModelEntry } from '@/lib/stt/use-models';
@@ -217,7 +218,8 @@ export function TranscriptionSection() {
   // fetches and caches its own model, there is no file on disk to size or
   // delete, and there is no live mode to switch off. Showing the phone's
   // controls here would offer choices that do nothing.
-  if (!hasDownloadableModels()) {
+  // The desktop shell downloads models too (into Rust's data directory).
+  if (!hasDownloadableModels() && !isDesktop()) {
     return (
       <View className="gap-2">
         <Text className="text-base font-semibold text-foreground">{t('transcription.title')}</Text>
@@ -233,22 +235,25 @@ export function TranscriptionSection() {
         <Text className="text-sm text-muted-foreground">{t('transcription.explainer')}</Text>
       </View>
 
-      <SettingsCard>
-        <SettingsRow
-          label={t('transcription.live.label')}
-          description={t('transcription.live.note')}
-        >
-          <Switch
-            checked={live}
-            accessibilityLabel={t('transcription.live.label')}
-            onCheckedChange={(value) => void writeSetting(SETTING_KEYS.liveNotes, value)}
-          />
-        </SettingsRow>
-      </SettingsCard>
+      {/* No live mode on desktop yet (the sidecar is not resident), and no local language model. */}
+      {!isDesktop() && (
+        <SettingsCard>
+          <SettingsRow
+            label={t('transcription.live.label')}
+            description={t('transcription.live.note')}
+          >
+            <Switch
+              checked={live}
+              accessibilityLabel={t('transcription.live.label')}
+              onCheckedChange={(value) => void writeSetting(SETTING_KEYS.liveNotes, value)}
+            />
+          </SettingsRow>
+        </SettingsCard>
+      )}
 
       <LanguageRow />
 
-      <UnderstandingRow />
+      {!isDesktop() && <UnderstandingRow />}
 
       <View className="gap-2">
         <Text className="text-sm font-medium text-muted-foreground">

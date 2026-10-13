@@ -7,6 +7,7 @@
 // it cannot say the app is usable, because the interesting screens sit behind an
 // Oxy sign-in that CI does not have. The screenshot is the evidence.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { sleep, withSession } from './driver.mjs';
 
@@ -132,6 +133,60 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
       !(end >= 9000 && end <= 13000)
     ) {
       console.error('::error::speech to text did not work end to end inside the shell');
+      process.exitCode = 1;
+    }
+  }
+
+  // Model downloads, end to end: the app's real manager fetches over HTTP and streams
+  // to Rust, which verifies size and sha256 before the file becomes visible. A local
+  // server stands in for the model host (it rate-limits CI), serving the real `tiny`
+  // model and, at another path, a same-sized corrupt copy that must be refused.
+  if (process.env.E2E_MODELS === '1') {
+    const good = readFileSync(process.env.E2E_MODEL_FILE);
+    const corrupt = Buffer.alloc(good.length);
+    const server = createServer((request, response) => {
+      response.setHeader('Access-Control-Allow-Origin', '*');
+      const body = request.url === '/good' ? good : request.url === '/corrupt' ? corrupt : null;
+      if (!body) {
+        response.writeHead(404).end();
+        return;
+      }
+      response.writeHead(200, { 'Content-Length': body.length });
+      response.end(body);
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const download = (path) =>
+      runAsync(
+        `const done = arguments[arguments.length - 1];
+         window.__NOTED_E2E_HOOK__.downloadModel('tiny', arguments[0] + arguments[1]).then(done, (e) => done({ hookError: String(e) }));`,
+        [base, path],
+      );
+    const refused = await download('/corrupt');
+    const accepted = await download('/good');
+    const removed = await runAsync(
+      `const done = arguments[arguments.length - 1];
+       window.__NOTED_E2E_HOOK__.removeModel('tiny').then(done, (e) => done({ hookError: String(e) }));`,
+      [],
+    );
+    server.close();
+    const report = { refused, accepted, removed };
+    console.log(JSON.stringify({ modelDownload: report }, null, 2));
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(
+        process.env.GITHUB_STEP_SUMMARY,
+        `\n### Model download inside the shell\n\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\`\n`,
+      );
+    }
+    if (
+      refused?.before !== 'absent' ||
+      refused?.after !== 'absent' ||
+      !refused?.error ||
+      accepted?.after !== 'ready' ||
+      accepted?.error ||
+      removed !== 'absent'
+    ) {
+      console.error('::error::model download did not behave end to end inside the shell');
       process.exitCode = 1;
     }
   }
