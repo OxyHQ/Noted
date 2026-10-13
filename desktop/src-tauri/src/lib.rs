@@ -91,7 +91,11 @@ pub fn run() {
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
-            tray.build(app)?;
+            // Not every desktop has a tray (GNOME ships none by default), and a missing
+            // tray must not stop Noted opening: the window and the shortcut still work.
+            if let Err(error) = tray.build(app) {
+                eprintln!("could not create the tray icon: {error}");
+            }
 
             // Another app may already own the shortcut. That must not stop Noted
             // opening: the tray still works, and the failure is only logged.
