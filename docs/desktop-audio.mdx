@@ -170,8 +170,13 @@ it transcribes the sample with the app's model there, and the Rust `stt::` tests
 pass against the real binary on both. The in-shell end-to-end check is still
 Linux only, and the shipped app does not bundle those binaries yet.
 
-Still open: bundling the macOS and Windows binaries, signing and notarisation, an
-installer (`tauri build` with a bundle); resumable downloads; the recorder does not
+The Linux installer builds in CI with Tauri's own CLI (`.deb`, unsigned) and the job
+opens it to check that `usr/bin/whisper-cli` ships beside `usr/bin/noted-desktop`,
+which is where the Rust command looks. It stages a placeholder, so this proves
+packaging, not transcription from the installed app.
+
+Still open: bundling the real macOS and Windows binaries and building their
+installers, signing and notarisation; resumable downloads; the recorder does not
 wait for a model on desktop (a missing one surfaces as `model_missing`); a resident
 sidecar for live text; speed on a real laptop and on long audio; audio from a real
 microphone rather than a file.
