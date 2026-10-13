@@ -10,9 +10,16 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { isAvailableAsync, shareAsync } from 'expo-sharing';
 
-const MIME_TYPE = 'text/markdown';
+const FILE_TYPES = {
+  markdown: { mimeType: 'text/markdown', UTI: 'net.daringfireball.markdown' },
+  json: { mimeType: 'application/json', UTI: 'public.json' },
+} as const;
 
-export async function saveTextFile(filename: string, contents: string): Promise<void> {
+export async function saveTextFile(
+  filename: string,
+  contents: string,
+  kind: 'markdown' | 'json' = 'markdown',
+): Promise<void> {
   if (!(await isAvailableAsync())) {
     throw new Error('this device has no way to share a file');
   }
@@ -29,5 +36,5 @@ export async function saveTextFile(filename: string, contents: string): Promise<
   file.create();
   file.write(contents);
 
-  await shareAsync(file.uri, { mimeType: MIME_TYPE, UTI: 'net.daringfireball.markdown' });
+  await shareAsync(file.uri, FILE_TYPES[kind]);
 }

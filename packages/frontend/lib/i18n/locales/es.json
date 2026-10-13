@@ -213,6 +213,12 @@
       "done": "Se importaron {{count}} notas",
       "skipped": "Se omitieron {{count}} archivos. Primero: {{first}}",
       "failed": "No se pudieron importar esos archivos"
+    },
+    "export": {
+      "title": "Exportar todo",
+      "description": "Descarga todas tus notas, etiquetas y contenido generado en un archivo JSON",
+      "button": "Exportar",
+      "failed": "No se pudieron exportar tus notas"
     }
   },
   "nav": {

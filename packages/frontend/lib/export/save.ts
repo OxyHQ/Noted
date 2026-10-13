@@ -8,6 +8,13 @@
  * worked.
  */
 
-export function saveTextFile(_filename: string, _contents: string): Promise<void> {
+/** What a saved file is, so the platform can offer it to the right apps. */
+export type SavedFileKind = 'markdown' | 'json';
+
+export function saveTextFile(
+  _filename: string,
+  _contents: string,
+  _kind: SavedFileKind = 'markdown',
+): Promise<void> {
   return Promise.reject(new Error('saving a file is not supported on this platform'));
 }

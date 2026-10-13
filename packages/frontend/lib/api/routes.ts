@@ -18,6 +18,11 @@ export const API_ROUTES = {
     sync: '/notes/sync',
   },
 
+  // The caller's whole Noted account
+  account: {
+    export: '/account/export',
+  },
+
   // Labels
   labels: {
     list: '/labels',
