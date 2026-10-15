@@ -23,9 +23,59 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Whether a pull request touches what the macOS and Windows legs build. The
+  # org shares 20 concurrent jobs, only 5 of them macOS, so a pull request that
+  # changes only the Linux-only e2e harness or prose does not hold a macOS and
+  # a Windows runner (twice: the shell check and the installers). Everything
+  # under desktop/ counts as native EXCEPT desktop/e2e/ (driven by the Linux
+  # jobs only) and Markdown; a new file anywhere else is native by default.
+  # This workflow counts too (it pins whisper.cpp). Linux legs run on every
+  # desktop pull request, and pushes to main run every leg. No job here is a
+  # required check.
+  changes:
+    name: Desktop changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      native: ${{ steps.legs.outputs.native }}
+      platforms: ${{ steps.legs.outputs.platforms }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: every
+          filters: |
+            native:
+              - 'desktop/**'
+              - '!desktop/e2e/**'
+              - '!**/*.md'
+            workflow:
+              - '.github/workflows/desktop.yml'
+
+      - id: legs
+        env:
+          NATIVE: ${{ github.event_name != 'pull_request' || steps.filter.outputs.native == 'true' || steps.filter.outputs.workflow == 'true' }}
+        run: |
+          if [ "$NATIVE" = true ]; then
+            echo 'native=true' >>"$GITHUB_OUTPUT"
+            echo 'platforms=["linux","macos","windows"]' >>"$GITHUB_OUTPUT"
+          else
+            echo 'native=false' >>"$GITHUB_OUTPUT"
+            echo 'platforms=["linux"]' >>"$GITHUB_OUTPUT"
+            echo "::notice::No native desktop change: the macOS and Windows legs are skipped."
+          fi
+
   check:
     name: Desktop (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
+    needs: changes
+    # The legs come from `changes`, so a per-leg value is derived from the
+    # name rather than listed in an `include` (an include for a leg that is not
+    # in the list would add it straight back).
+    runs-on: ${{ matrix.name == 'linux' && 'ubuntu-latest' || matrix.name == 'macos' && 'macos-latest' || 'windows-latest' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -34,20 +84,12 @@ jobs:
       # hide what the others do.
       fail-fast: false
       matrix:
-        include:
-          - name: linux
-            os: ubuntu-latest
-            binary: desktop/src-tauri/target/debug/noted-desktop
-            # No display on a CI runner: give the shell a virtual one and a session bus.
-            wrap: dbus-run-session -- xvfb-run -a
-          - name: macos
-            os: macos-latest
-            binary: desktop/src-tauri/target/debug/noted-desktop
-            wrap: ''
-          - name: windows
-            os: windows-latest
-            binary: desktop/src-tauri/target/debug/noted-desktop.exe
-            wrap: ''
+        name: ${{ fromJSON(needs.changes.outputs.platforms) }}
+    env:
+      BINARY: desktop/src-tauri/target/debug/noted-desktop${{ matrix.name == 'windows' && '.exe' || '' }}
+      # No display on a CI runner: give the Linux shell a virtual one and a
+      # session bus. macOS and Windows run it directly.
+      WRAP: ${{ matrix.name == 'linux' && 'dbus-run-session -- xvfb-run -a' || '' }}
     defaults:
       run:
         shell: bash
@@ -98,7 +140,7 @@ jobs:
       # Compiling proves the Rust is valid; this proves the shell STARTS. See
       # desktop/smoke.sh for what "starts" means and what it does not cover.
       - name: Run the shell for a few seconds
-        run: ${{ matrix.wrap }} bash desktop/smoke.sh "${{ matrix.binary }}" 20
+        run: $WRAP bash desktop/smoke.sh "$BINARY" 20
 
   # What each webview actually offers, asked of the real shell rather than assumed
   # from a browser compatibility table. Linux only: tauri-driver has no macOS
@@ -325,6 +367,8 @@ jobs:
   # package, which is where the Rust command looks.
   installer-native:
     name: ${{ matrix.name }} installer carries the sidecar
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     permissions:
