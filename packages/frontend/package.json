@@ -20,7 +20,7 @@
     "copy-ort-runtime": "bun scripts/copy-ort-runtime.ts"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^13.1.0",
+    "@alia.onl/sdk": "^13.2.0",
     "@expo/html-elements": "^0.13.8",
     "@expo/vector-icons": "^15.1.1",
     "@fugood/react-native-audio-pcm-stream": "1.1.4",
