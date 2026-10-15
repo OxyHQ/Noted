@@ -67,7 +67,7 @@
     "@oxy.so/bloom": "10.4.0",
     "@oxy.so/contracts": "4.12.0",
     "@oxy.so/core": "4.5.0",
-    "@oxy.so/services": "11.2.0",
+    "@oxy.so/services": "^11.2.0",
     "lightningcss": "1.30.1",
     "lightningcss-linux-x64-gnu": "1.30.1",
     "lightningcss-linux-x64-musl": "1.30.1",
@@ -78,7 +78,7 @@
     "@oxy.so/bloom": "10.4.0",
     "@oxy.so/contracts": "4.12.0",
     "@oxy.so/core": "4.5.0",
-    "@oxy.so/services": "11.2.0"
+    "@oxy.so/services": "^11.2.0"
   },
   "trustedDependencies": [
     "llama.rn"

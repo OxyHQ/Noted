@@ -1487,16 +1487,13 @@
     "clientContext": "El usuario está en Noted, su app de notas. Si tienes herramientas de Noted disponibles, puedes buscar o modificar sus notas con ellas, pero solo cuando el usuario lo pida y diciendo únicamente lo que muestre el resultado de la herramienta. Si no tienes herramientas de Noted, di que no puedes acceder a sus notas y pídele que pegue el texto. Nunca afirmes haber leído o modificado una nota sin un resultado de herramienta.",
     "suggestions": {
       "plan": {
-        "title": "Planificar mi semana",
-        "prompt": "Ayúdame a planificar mi semana. Pregúntame qué tengo que hacer y conviértelo en un horario breve."
+        "title": "Planificar mi semana"
       },
       "agenda": {
-        "title": "Redactar una agenda de reunión",
-        "prompt": "Ayúdame a redactar la agenda de una reunión. Pregúntame el objetivo y quién viene."
+        "title": "Redactar una agenda de reunión"
       },
       "rewrite": {
-        "title": "Ordenar un texto",
-        "prompt": "Voy a pegar unas notas en bruto. Reescríbelas con claridad sin perder ningún punto."
+        "title": "Ordenar un texto"
       }
     }
   },
