@@ -20,7 +20,7 @@
     "copy-ort-runtime": "bun scripts/copy-ort-runtime.ts"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^13.2.0",
+    "@alia.onl/sdk": "^15.4.0",
     "@expo/html-elements": "^0.13.8",
     "@expo/vector-icons": "^15.1.1",
     "@fugood/react-native-audio-pcm-stream": "1.1.4",
@@ -30,7 +30,7 @@
     "@lottiefiles/dotlottie-web": "0.80.0",
     "@noted/shared-types": "workspace:*",
     "@oxy.so/app-preset": "3.0.0",
-    "@oxy.so/bloom": "10.4.0",
+    "@oxy.so/bloom": "^10.7.0",
     "@oxy.so/contracts": "4.12.0",
     "@oxy.so/core": "4.5.0",
     "@oxy.so/services": "^11.2.0",
@@ -81,7 +81,6 @@
     "expo-router": "~57.0.6",
     "expo-secure-store": "~57.0.1",
     "expo-sharing": "~57.0.5",
-    "expo-speech-recognition": "^57.1.1",
     "expo-splash-screen": "~57.0.2",
     "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
@@ -97,6 +96,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
+    "react-native-audio-api": "^0.13.6",
     "react-native-css": "3.1.0-rc.0",
     "react-native-drawer-layout": "^4.2.1",
     "react-native-enriched-markdown": "^0.7.4",

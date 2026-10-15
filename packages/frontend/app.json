@@ -58,10 +58,12 @@
       "react-native-enriched-markdown",
       "expo-sqlite",
       [
-        "expo-speech-recognition",
+        "react-native-audio-api",
         {
-          "microphonePermission": "Allow Noted to hear what you dictate to Alia. Recordings you make in Noted are still transcribed on this device.",
-          "speechRecognitionPermission": "Allow Noted to turn your speech into text when you dictate to Alia."
+          "iosMicrophonePermission": "Allow Noted to hear what you dictate to Alia. Recordings you make in Noted are still transcribed on this device.",
+          "iosBackgroundMode": false,
+          "androidForegroundService": false,
+          "androidPermissions": ["android.permission.RECORD_AUDIO"]
         }
       ],
       [
