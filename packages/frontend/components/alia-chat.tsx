@@ -27,8 +27,7 @@ export function AliaChatHost() {
     () =>
       (['plan', 'agenda', 'rewrite'] as const).map((id) => ({
         id,
-        title: t(`alia.suggestions.${id}.title`),
-        description: t(`alia.suggestions.${id}.prompt`),
+        text: t(`alia.suggestions.${id}.title`),
       })),
     [t],
   );
