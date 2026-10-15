@@ -17,6 +17,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { AppLockSection } from './app-lock-section';
 import { LocalRemindersRow } from './local-reminders-section';
 import { useExportAll } from '@/lib/hooks/use-export-all';
+import { useExportMarkdownZip } from '@/lib/hooks/use-export-markdown-zip';
 import { useImportNotes } from '@/lib/hooks/use-import-notes';
 import { useNotedSettings } from './settings-provider';
 
@@ -28,6 +29,7 @@ export function GeneralSection() {
   const { afterClose } = useNotedSettings();
   const { pickAndImport, importing } = useImportNotes();
   const { exportAll, exporting } = useExportAll();
+  const { exportZip, exportingZip } = useExportMarkdownZip();
   const modes = (['system', 'light', 'dark'] as const).map((value) => ({
     value,
     label: t(`settings.appearance.${value}`),
@@ -127,6 +129,21 @@ export function GeneralSection() {
               }}
             >
               {t('settings.export.button')}
+            </Button>
+          </SettingsRow>
+          <SettingsRow
+            label={t('settings.export.markdownTitle')}
+            description={t('settings.export.markdownDescription')}
+          >
+            <Button
+              appearance="outline"
+              size="sm"
+              disabled={exportingZip}
+              onPress={() => {
+                void exportZip();
+              }}
+            >
+              {t('settings.export.markdownButton')}
             </Button>
           </SettingsRow>
         </SettingsCard>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseImportFile, parseKeep, parseMarkdown } from '@/lib/import/parse';
+import { parseEnex, parseImportFile, parseKeep, parseMarkdown } from '@/lib/import/parse';
 
 let counter = 0;
 const makeId = () => `id-${++counter}`;
@@ -114,5 +114,48 @@ describe('parseImportFile', () => {
       ok: false,
       reason: '.docx files are not supported',
     });
+  });
+});
+
+describe('Evernote (ENEX)', () => {
+  const enex = (content: string, extra = '') => `<?xml version="1.0"?>
+<en-export><note><title>Plan &amp; ideas</title><content><![CDATA[<?xml version="1.0"?>
+<en-note>${content}</en-note>]]></content>${extra}</note></en-export>`;
+
+  it('reads the title, tags and body', () => {
+    const result = parseImportFile(
+      'Evernote.enex',
+      enex('<div>Hola <b>mundo</b></div>', '<tag>trabajo</tag><tag>q3</tag>'),
+      makeId,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.notes[0]).toMatchObject({
+      title: 'Plan & ideas',
+      body: 'Hola **mundo**',
+      labelNames: ['trabajo', 'q3'],
+    });
+  });
+
+  it('turns checkboxes, headings, lists and links into Markdown', () => {
+    const result = parseEnex(
+      enex(
+        '<h2>Tareas</h2><div><en-todo checked="true"/>Hecho</div><div><en-todo/>Pendiente</div>' +
+          '<ul><li>uno</li><li>dos</li></ul><a href="https://oxy.so">Oxy</a>',
+      ),
+    );
+    expect(result.ok && result.notes[0]?.body).toBe(
+      '## Tareas\n\n- [x] Hecho\n- [ ] Pendiente\n\n- uno\n- dos\n[Oxy](https://oxy.so)',
+    );
+  });
+
+  it('imports every note in a file', () => {
+    const two = `<en-export><note><title>A</title><content>x</content></note><note><title>B</title><content>y</content></note></en-export>`;
+    const result = parseEnex(two);
+    expect(result.ok && result.notes.map((n) => n.title)).toEqual(['A', 'B']);
+  });
+
+  it('refuses a file that is not an export', () => {
+    expect(parseEnex('<html></html>').ok).toBe(false);
   });
 });

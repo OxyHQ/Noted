@@ -38,3 +38,23 @@ export async function saveTextFile(
 
   await shareAsync(file.uri, FILE_TYPES[kind]);
 }
+
+export async function saveBinaryFile(
+  filename: string,
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<void> {
+  if (!(await isAvailableAsync())) {
+    throw new Error('this device has no way to share a file');
+  }
+
+  const directory = new Directory(Paths.cache, 'exports');
+  directory.create({ intermediates: true, idempotent: true });
+
+  const file = new File(directory, filename);
+  if (file.exists) file.delete();
+  file.create();
+  file.write(bytes);
+
+  await shareAsync(file.uri, { mimeType });
+}
