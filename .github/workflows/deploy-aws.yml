@@ -20,9 +20,6 @@ on:
 permissions:
   id-token: write
   contents: read
-  # A manual dispatch confirms, through the Actions API, that CI succeeded on
-  # push for the commit it is about to release. Read-only.
-  actions: read
 
 env:
   AWS_REGION: us-west-2
@@ -39,44 +36,42 @@ env:
   DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  deploy:
-    # `workflow_run` fires for every completed CI run on a branch named main,
-    # red ones and a fork's `main` included, so each guard is load-bearing.
-    # `head_sha == github.sha` keeps a run for a commit main has already moved
-    # past (its CI finished late) out of the release lane entirely: the newer
-    # head's run releases everything since what is live (see the scope step).
-    # A dispatch releases main only.
+  # Decides, OUTSIDE the release concurrency group, whether this run releases
+  # anything. It must sit outside: GitHub cancels a PENDING run when another
+  # queues behind it in the same group, so a run for an older commit (its CI
+  # finished late) that queued there could silently displace a pending release
+  # of a newer one and then hold itself, leaving neither deployed.
+  #
+  # An older commit is held ONLY when a newer commit on main has a CI run of
+  # its own (queued, in progress or succeeded) — that commit's release will
+  # carry this one. A newer commit with NO CI run (pushed with GITHUB_TOKEN, as
+  # a bot merge is, which starts no workflow) or whose CI failed holds nothing,
+  # so the newest CI-tested commit is never stranded behind it. Holding on
+  # "is this still main's head" alone strands exactly that commit.
+  gate:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_sha == github.sha)
-    runs-on: ubuntu-24.04-arm
-    # Build, pre-migration task, rollout wait, smoke, catalog task and a full
-    # rollback window if the smoke check fails.
-    timeout-minutes: 90
-    # Deploys run one at a time and are never cancelled: a rollout interrupted
-    # half-way is worse than a late one. A newer pending run may replace an
-    # older pending one, which is safe because the scope step releases
-    # everything between what is live and the newer head. On the JOB, not the
-    # workflow, so a run the guards above skip (red CI, a pull request's CI)
-    # never enters the group and cannot displace a pending release.
-    concurrency:
-      group: deploy-noted-aws
-      cancel-in-progress: false
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      release: ${{ steps.newer.outputs.release }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.DEPLOY_SHA }}
-          # The scope step diffs from the commit that is live, which can be any
-          # number of commits back.
           fetch-depth: 0
+          persist-credentials: false
 
       # One-shot, not a poll: a dispatch is a manual redeploy of a commit CI
-      # has already judged. `workflow_run` needs no such check; its guards
+      # has already judged. `workflow_run` needs no such check; the guards
       # above already read CI's conclusion for this exact SHA.
       - name: Require a successful CI run on push for this commit (dispatch)
         if: github.event_name == 'workflow_dispatch'
@@ -90,6 +85,57 @@ jobs:
             exit 1
           fi
           echo "CI succeeded on push for $DEPLOY_SHA"
+
+      - name: Hold only for a newer main commit that CI is testing or passed
+        id: newer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release() { echo "release=$1" >>"$GITHUB_OUTPUT"; echo "$2"; exit 0; }
+          main=$(git rev-parse origin/main)
+          if [ "$main" = "$DEPLOY_SHA" ]; then
+            release true "$DEPLOY_SHA is main's head"
+          fi
+          if ! git merge-base --is-ancestor "$DEPLOY_SHA" "$main"; then
+            release false "::notice::$DEPLOY_SHA is no longer on main ($main); not releasing it"
+          fi
+          # Newest first. A run counts unless it finished without succeeding.
+          for sha in $(git rev-list --first-parent "$DEPLOY_SHA..$main"); do
+            live=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" \
+              --jq '[.workflow_runs[] | select(.status != "completed" or .conclusion == "success")] | length')
+            if [ "$live" -gt 0 ]; then
+              release false "::notice::newer main commit $sha has its own CI run; its release carries $DEPLOY_SHA"
+            fi
+            echo "newer main commit $sha has no live or successful CI run; it does not hold $DEPLOY_SHA"
+          done
+          release true "no newer main commit is being released; releasing $DEPLOY_SHA"
+
+  deploy:
+    needs: gate
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-24.04-arm
+    # Build, pre-migration task, rollout wait, smoke, catalog task and a full
+    # rollback window if the smoke check fails.
+    timeout-minutes: 90
+    permissions:
+      id-token: write
+      contents: read
+    # Deploys run one at a time and are never cancelled: a rollout interrupted
+    # half-way is worse than a late one. A newer pending run may replace an
+    # older pending one, which is safe because the scope step releases
+    # everything between what is live and the newer head. On the JOB, not the
+    # workflow, so only a run `gate` judged releasable ever enters the group.
+    concurrency:
+      group: deploy-noted-aws
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          # The scope step diffs from the commit that is live, which can be any
+          # number of commits back.
+          fetch-depth: 0
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
