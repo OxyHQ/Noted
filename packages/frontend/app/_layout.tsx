@@ -7,9 +7,11 @@ import { OxyProvider, useOxy } from '@oxy.so/services';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { OverlayInertBoundary } from '@oxy.so/bloom/overlay';
+import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { createStickersClient } from '@oxy.so/stickers';
 import { StickersProvider } from '@oxy.so/stickers/react';
@@ -103,36 +105,45 @@ function AppContent() {
         <LocalStoreProvider>
           <KeyboardProvider>
             <NotedSettingsProvider>
-              {Platform.OS === 'web' ? (
-                <OverlayInertBoundary>
-                  <Navigator initialRouteName="(app)">
-                    <WebRoutes />
-                  </Navigator>
-                </OverlayInertBoundary>
-              ) : (
-                <Stack
-                  screenOptions={{
-                    contentStyle: {
-                      backgroundColor: colors.background,
-                    },
-                  }}
-                >
-                  <Stack.Screen name="(app)" options={{ headerShown: false }} />
-                  {/* Editor presented as a transparent modal ABOVE the (app) shell so
-              the masonry grid + sidebar stay mounted and visible behind it —
-              Keep-style overlay, not a page change. */}
-                  <Stack.Screen
-                    name="n/[id]"
-                    options={{
-                      presentation: 'transparentModal',
-                      animation: 'fade',
-                      headerShown: false,
-                      // Keep the native shell visible beneath the editor scene.
-                      contentStyle: { backgroundColor: 'transparent' },
-                    }}
-                  />
-                </Stack>
-              )}
+              {/* Native Portal appends into this provider/outlet pair (web portals to
+                  document.body). The outlet sits after the content it paints over and
+                  outside the inert boundary, so surfaces never hide themselves. The
+                  gesture root must contain the outlet or sheet gestures are dead. */}
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <PortalProvider>
+                  <OverlayInertBoundary>
+                    {Platform.OS === 'web' ? (
+                      <Navigator initialRouteName="(app)">
+                        <WebRoutes />
+                      </Navigator>
+                    ) : (
+                      <Stack
+                        screenOptions={{
+                          contentStyle: {
+                            backgroundColor: colors.background,
+                          },
+                        }}
+                      >
+                        <Stack.Screen name="(app)" options={{ headerShown: false }} />
+                        {/* Editor presented as a transparent modal ABOVE the (app) shell so
+                    the masonry grid + sidebar stay mounted and visible behind it —
+                    Keep-style overlay, not a page change. */}
+                        <Stack.Screen
+                          name="n/[id]"
+                          options={{
+                            presentation: 'transparentModal',
+                            animation: 'fade',
+                            headerShown: false,
+                            // Keep the native shell visible beneath the editor scene.
+                            contentStyle: { backgroundColor: 'transparent' },
+                          }}
+                        />
+                      </Stack>
+                    )}
+                  </OverlayInertBoundary>
+                  <PortalOutlet />
+                </PortalProvider>
+              </GestureHandlerRootView>
             </NotedSettingsProvider>
           </KeyboardProvider>
         </LocalStoreProvider>
