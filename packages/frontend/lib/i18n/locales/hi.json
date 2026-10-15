@@ -1488,16 +1488,13 @@
     "clientContext": "The user is in Noted, their notes app. If you have Noted tools available, you may search or change their notes with them, but only when the user asks, and only say what a tool result shows. If you have no Noted tools, say you cannot reach their notes and ask them to paste the text. Never claim to have read or modified a note without a tool result.",
     "suggestions": {
       "plan": {
-        "title": "Plan my week",
-        "prompt": "Help me plan my week. Ask me what I need to get done and turn it into a short schedule."
+        "title": "Plan my week"
       },
       "agenda": {
-        "title": "Draft a meeting agenda",
-        "prompt": "Help me draft an agenda for a meeting. Ask me the goal and who is coming."
+        "title": "Draft a meeting agenda"
       },
       "rewrite": {
-        "title": "Tidy up some text",
-        "prompt": "I will paste some rough notes. Rewrite them clearly, keeping every point."
+        "title": "Tidy up some text"
       }
     }
   },
