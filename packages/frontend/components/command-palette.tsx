@@ -143,8 +143,10 @@ export function CommandPalette() {
 
   return (
     <Command
-      visible={open}
-      onClose={close}
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) close();
+      }}
       query={query}
       onQueryChange={setQuery}
       // Already matched above; the palette's own substring filter would hide the

@@ -27,8 +27,9 @@ export function AliaChatHost() {
     () =>
       (['plan', 'agenda', 'rewrite'] as const).map((id) => ({
         id,
-        title: t(`alia.suggestions.${id}.title`),
-        description: t(`alia.suggestions.${id}.prompt`),
+        // Alia 13 shows and sends the same line, so the prompt is the text; the
+        // short title the old welcome card carried has no slot any more.
+        text: t(`alia.suggestions.${id}.prompt`),
       })),
     [t],
   );
