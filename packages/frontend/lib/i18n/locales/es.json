@@ -208,7 +208,7 @@
     },
     "import": {
       "title": "Importar notas",
-      "description": "Trae archivos Markdown, Obsidian o Google Keep (JSON)",
+      "description": "Trae archivos Markdown, Obsidian, Evernote (.enex) o Google Keep (JSON)",
       "button": "Elegir archivos",
       "done": "Se importaron {{count}} notas",
       "skipped": "Se omitieron {{count}} archivos. Primero: {{first}}",
@@ -218,7 +218,10 @@
       "title": "Exportar todo",
       "description": "Descarga todas tus notas, etiquetas y contenido generado en un archivo JSON",
       "button": "Exportar",
-      "failed": "No se pudieron exportar tus notas"
+      "failed": "No se pudieron exportar tus notas",
+      "markdownTitle": "Exportar como Markdown",
+      "markdownDescription": "Descarga cada nota como archivo .md en un único zip, directamente desde este dispositivo",
+      "markdownButton": "Exportar .zip"
     },
     "eraseData": {
       "title": "Borrar mis datos de Noted",

@@ -18,3 +18,12 @@ export function saveTextFile(
 ): Promise<void> {
   return Promise.reject(new Error('saving a file is not supported on this platform'));
 }
+
+/** Raw bytes as a file, for formats that are not text (a zip). */
+export function saveBinaryFile(
+  _filename: string,
+  _bytes: Uint8Array,
+  _mimeType: string,
+): Promise<void> {
+  return Promise.reject(new Error('saving a file is not supported on this platform'));
+}

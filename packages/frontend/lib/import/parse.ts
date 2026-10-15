@@ -169,6 +169,95 @@ export function parseKeep(text: string, makeId: () => string): ParseResult {
   };
 }
 
+/* ── Evernote (ENEX) ─────────────────────────────────────────── */
+
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity[0] === '#') {
+      const code =
+        entity[1] === 'x' || entity[1] === 'X'
+          ? Number.parseInt(entity.slice(2), 16)
+          : Number.parseInt(entity.slice(1), 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : match;
+    }
+    return ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
+
+/**
+ * ENML (Evernote's XHTML) as Markdown.
+ *
+ * A pass over the tags that matter — checkboxes, headings, lists, emphasis,
+ * links, line breaks — and the rest stripped to their text. Not an HTML parser:
+ * a note that uses a table or a font colour keeps its words and loses the
+ * decoration, which is the right failure for an import.
+ */
+export function enmlToMarkdown(enml: string): string {
+  const inner = /<en-note[^>]*>([\s\S]*?)<\/en-note>/i.exec(enml)?.[1] ?? enml;
+  const markdown = inner
+    .replace(/<en-todo\s+checked="true"\s*\/?>/gi, '- [x] ')
+    .replace(/<en-todo[^>]*\/?>/gi, '- [ ] ')
+    .replace(/<en-media[^>]*\/?>/gi, '')
+    .replace(/<h([1-6])[^>]*>/gi, (_m, level: string) => `\n\n${'#'.repeat(Number(level))} `)
+    .replace(/<\/h[1-6]>/gi, '\n\n')
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<\/(ul|ol)>/gi, '\n')
+    .replace(/<(b|strong)[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**')
+    .replace(/<(i|em)[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*')
+    .replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
+
+  return decodeEntities(markdown)
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+$/, ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** The text of the first `<tag>` in a block, unwrapping CDATA when it is there. */
+function tagText(block: string, tag: string): string | null {
+  const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, 'i').exec(block);
+  if (!match) return null;
+  const cdata = /^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/.exec(match[1]);
+  return cdata ? (cdata[1] as string) : decodeEntities(match[1] as string);
+}
+
+export function parseEnex(text: string): ParseResult {
+  if (!/<en-export[\s>]/i.test(text)) return { ok: false, reason: 'not an Evernote export' };
+
+  const notes: ParsedNote[] = [];
+  for (const match of text.matchAll(/<note>([\s\S]*?)<\/note>/gi)) {
+    const block = match[1] as string;
+    const content = tagText(block, 'content') ?? '';
+    const labelNames = cleanLabels(
+      [...block.matchAll(/<tag>([\s\S]*?)<\/tag>/gi)].map((tag) =>
+        decodeEntities(tag[1] as string),
+      ),
+    );
+    notes.push({
+      ...EMPTY,
+      title: (tagText(block, 'title') ?? '').trim(),
+      body: enmlToMarkdown(content),
+      labelNames,
+    });
+  }
+  return notes.length > 0 ? { ok: true, notes } : { ok: false, reason: 'no notes in the export' };
+}
+
 /* ── Dispatch ─────────────────────────────────────────────────── */
 
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'txt']);
@@ -180,5 +269,6 @@ export function parseImportFile(filename: string, text: string, makeId: () => st
     return { ok: true, notes: [parseMarkdown(filename, text)] };
   }
   if (extension === 'json') return parseKeep(text, makeId);
+  if (extension === 'enex') return parseEnex(text);
   return { ok: false, reason: `.${extension || '?'} files are not supported` };
 }

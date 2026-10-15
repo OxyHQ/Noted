@@ -17,7 +17,19 @@ export function saveTextFile(
   contents: string,
   kind: 'markdown' | 'json' = 'markdown',
 ): Promise<void> {
-  const url = URL.createObjectURL(new Blob([contents], { type: MIME_TYPES[kind] }));
+  return download(filename, new Blob([contents], { type: MIME_TYPES[kind] }));
+}
+
+export function saveBinaryFile(
+  filename: string,
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<void> {
+  return download(filename, new Blob([bytes as BlobPart], { type: mimeType }));
+}
+
+function download(filename: string, blob: Blob): Promise<void> {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
