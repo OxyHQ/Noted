@@ -1,19 +1,28 @@
 # AWS deploy workflow for the Noted API.
 # Builds the linux/arm64 backend image, pushes it to ECR, and forces a new ECS
 # deployment. AWS access is via the OIDC role oxy-github-deploy — no stored keys.
+#
+# It runs only AFTER CI has passed on main for the exact commit it releases
+# (`workflow_run`), instead of on every push beside CI with a test job of its
+# own that repeated CI's install, type build, backend lint, tests and backend
+# build. CI on push to main runs every job (its `changes` filter only narrows
+# pull requests), so the gate is the whole CI rather than that subset, and the
+# deploy no longer holds a second runner slot for the copy.
 name: Deploy to AWS
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
+  # A manual dispatch confirms, through the Actions API, that CI succeeded on
+  # push for the commit it is about to release. Read-only.
+  actions: read
 
 env:
   AWS_REGION: us-west-2
@@ -24,97 +33,128 @@ env:
   # Delivery is a reviewed production switch. The application still defaults
   # to disabled when run outside this deploy path.
   NOTED_EVENT_OUTBOX_WORKER_ENABLED: ${{ vars.NOTED_EVENT_OUTBOX_WORKER_ENABLED || 'false' }}
-
-# Deploys run one at a time and are never cancelled: a rollout interrupted
-# half-way is worse than a late one. A newer pending run may replace an older
-# pending one, which is safe because main's newer head contains it.
-concurrency:
-  group: deploy-noted-aws
-  cancel-in-progress: false
+  # The commit under release: the head CI tested on `workflow_run`, main's head
+  # on a dispatch. Never `github.sha` alone, which on `workflow_run` is whatever
+  # main points at when the event is created.
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  test:
-    runs-on: ubuntu-24.04-arm
-    # Same disposable server as ci.yml: the realdb suites refuse to run without
-    # TEST_DATABASE_URL, so this gate failed while ci.yml stayed green.
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.20.0
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.3
-
-      # --ignore-scripts, for the same reason the Dockerfile passes it.
-      #
-      # `bufferutil` and `utf-8-validate` are OPTIONAL C++ accelerators for `ws`
-      # (pulled in transitively by socket.io). Neither ships a linux-arm64
-      # prebuild — both carry linux-x64, darwin and win32 only — so on THIS
-      # arm64 runner their `node-gyp-build` install script always falls back to
-      # a from-source `node-gyp` compile. No manifest in this repo depends on
-      # `node-gyp`, so bun has to fetch one on the fly, and that fetch is what
-      # fails, intermittently:
-      #
-      #   error: could not determine executable to run for package node-gyp
-      #   error: install script from "bufferutil" exited with 1
-      #
-      # `ws` falls back to its pure-JS path when the addon is absent, so
-      # skipping the script is behaviour-preserving. The other scripts skipped
-      # here install PREBUILT binaries that bun already places via platform
-      # optionalDependencies (`@esbuild/linux-arm64` is in bun.lock), or belong
-      # to frontend-only tooling this job never runs.
-      #
-      # x86_64 never reaches any of this — it matches prebuilds/linux-x64 — so
-      # `ci.yml` stayed green throughout and needs no equivalent change unless
-      # it is ever moved to arm64 runners.
-      - run: bun install --frozen-lockfile --ignore-scripts
-
-      # `@noted/shared-types` is a workspace package the backend imports from its
-      # BUILT output, so lint and test cannot run until it exists. It used to be
-      # built only by `build:backend` below, which is after both of them — so the
-      # test step passed for as long as no backend test happened to import a type,
-      # and failed the day one did, with `Failed to resolve entry for package
-      # "@noted/shared-types"` rather than anything naming the real cause. A local
-      # run does not reproduce it, because a developer's `dist/` is already there.
-      - run: bun run build:types
-
-      - run: bun run --filter @noted/backend lint
-
-      - run: bun run --filter @noted/backend test
-        env:
-          # The fixture creates/drops its own guarded oxydb_test_* database.
-          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
-
-      - run: bun run build:backend
-
   deploy:
-    needs: test
+    # `workflow_run` fires for every completed CI run on a branch named main,
+    # red ones and a fork's `main` included, so each guard is load-bearing.
+    # `head_sha == github.sha` keeps a run for a commit main has already moved
+    # past (its CI finished late) out of the release lane entirely: the newer
+    # head's run releases everything since what is live (see the scope step).
+    # A dispatch releases main only.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_sha == github.sha)
     runs-on: ubuntu-24.04-arm
+    # Build, pre-migration task, rollout wait, smoke, catalog task and a full
+    # rollback window if the smoke check fails.
+    timeout-minutes: 90
+    # Deploys run one at a time and are never cancelled: a rollout interrupted
+    # half-way is worse than a late one. A newer pending run may replace an
+    # older pending one, which is safe because the scope step releases
+    # everything between what is live and the newer head. On the JOB, not the
+    # workflow, so a run the guards above skip (red CI, a pull request's CI)
+    # never enters the group and cannot displace a pending release.
+    concurrency:
+      group: deploy-noted-aws
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          # The scope step diffs from the commit that is live, which can be any
+          # number of commits back.
+          fetch-depth: 0
+
+      # One-shot, not a poll: a dispatch is a manual redeploy of a commit CI
+      # has already judged. `workflow_run` needs no such check; its guards
+      # above already read CI's conclusion for this exact SHA.
+      - name: Require a successful CI run on push for this commit (dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$DEPLOY_SHA&event=push&branch=main&status=success&per_page=1" --jq '.total_count')
+          if [ "$passed" -lt 1 ]; then
+            echo "::error::CI has not succeeded on push to main for $DEPLOY_SHA; refusing to deploy it"
+            exit 1
+          fi
+          echo "CI succeeded on push for $DEPLOY_SHA"
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
+
+      # What the old `paths-ignore` (`**.md`, `docs/**`) decided, measured from
+      # what production RUNS rather than from one push: `workflow_run` takes no
+      # `paths`, and a push's own diff would miss commits whose release was
+      # skipped or failed. The live image's 40-hex ECR tags name the commit(s)
+      # it was built from (this workflow tags every image with its SHA).
+      #
+      #   * live already contains this commit (a re-run, or CI finishing out of
+      #     order): skip, never roll production back to an older tree;
+      #   * every file changed since the live commit is Markdown or docs/: skip;
+      #   * anything else, or anything this cannot establish (no live service,
+      #     no SHA tag, a live commit that is not an ancestor, an API error):
+      #     deploy. When unsure, deploy.
+      #
+      # A dispatch always deploys: it is the manual redeploy.
+      - name: Decide whether this commit changes what production runs
+        id: scope
+        run: |
+          set -uo pipefail
+          decide() { echo "deploy=$1" >>"$GITHUB_OUTPUT"; echo "$2"; exit 0; }
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            decide true "manual dispatch: deploying $DEPLOY_SHA"
+          fi
+
+          td=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
+            --query 'services[0].taskDefinition' --output text 2>/dev/null) || td=
+          case "$td" in arn:aws:ecs:*) ;; *) decide true "no live task definition found; deploying" ;; esac
+          image=$(aws ecs describe-task-definition --task-definition "$td" \
+            --query "taskDefinition.containerDefinitions[?name=='$APP'].image | [0]" --output text 2>/dev/null) || image=
+          digest=${image#*@}
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || decide true "live image '$image' is not digest-pinned; deploying"
+          live_shas=$(aws ecr describe-images --repository-name "oxy/$APP" --image-ids "imageDigest=$digest" \
+            --query 'imageDetails[0].imageTags' --output json 2>/dev/null | jq -r '.[]? | select(test("^[0-9a-f]{40}$"))') || live_shas=
+          [ -n "$live_shas" ] || decide true "live image $digest carries no commit tag; deploying"
+
+          bases=()
+          for live in $live_shas; do
+            if ! git cat-file -e "$live^{commit}" 2>/dev/null; then
+              continue
+            fi
+            if git merge-base --is-ancestor "$DEPLOY_SHA" "$live"; then
+              decide false "live image (commit $live) already contains $DEPLOY_SHA; nothing to release"
+            fi
+            if git merge-base --is-ancestor "$live" "$DEPLOY_SHA"; then
+              bases+=("$live")
+            fi
+          done
+          [ "${#bases[@]}" -gt 0 ] || decide true "no live commit is an ancestor of $DEPLOY_SHA; deploying"
+
+          # Several tags on one digest (an identical rebuild): the union of the
+          # diffs, i.e. the widest one.
+          changed=$(for base in "${bases[@]}"; do git diff --name-only "$base" "$DEPLOY_SHA" || echo '<diff failed>'; done | sort -u)
+          relevant=$(grep -vE '\.md$|^docs/' <<<"$changed" || true)
+          if [ -z "$relevant" ]; then
+            decide false "only Markdown/docs changed since live ${bases[*]}; not deploying"
+          fi
+          echo "changed since live ${bases[*]}:"
+          sed 's/^/  /' <<<"$relevant" | head -50
+          decide true "deploying $DEPLOY_SHA"
 
       # Runtime secrets are NOT in GitHub. SSM Parameter Store (/oxy/noted/*,
       # SecureString, plus the oxy-infra-owned /oxy/_shared/*) is their single
@@ -127,9 +167,11 @@ jobs:
       # write. packages/backend/src/__tests__/deployWorkflow.test.ts fails if a
       # workflow writes SSM or reads an app secret from GitHub again.
       - name: Login to ECR
+        if: steps.scope.outputs.deploy == 'true'
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
+        if: steps.scope.outputs.deploy == 'true'
         uses: docker/setup-buildx-action@v4
 
       # `--cache-from/--cache-to type=gha` below need the Actions runtime token
@@ -137,6 +179,7 @@ jobs:
       # steps. Without them buildx skipped the cache silently: this repository
       # held no buildkit cache entry at all (`gh cache list`, 2026-09-30).
       - name: Expose the Actions cache to buildx
+        if: steps.scope.outputs.deploy == 'true'
         uses: crazy-max/ghaction-github-runtime@v4
 
       # Production builds only what the owner reviewed. The Dockerfile, its
@@ -149,10 +192,12 @@ jobs:
       # check on every pull request (`reviewed-image.py check`, Lint & Test), so a
       # change that would stop here fails before it can merge.
       - name: Refuse unreviewed image build inputs
+        if: steps.scope.outputs.deploy == 'true'
         id: reviewed
         run: python3 -B .github/scripts/reviewed-image.py guard --recipe noted
 
       - name: Build and push (linux/arm64)
+        if: steps.scope.outputs.deploy == 'true'
         id: build
         env:
           DOCKERFILE: ${{ steps.reviewed.outputs.dockerfile }}
@@ -167,11 +212,11 @@ jobs:
             --cache-from type=gha,scope=$APP-backend \
             --cache-to type=gha,scope=$APP-backend,mode=max \
             -f "$DOCKERFILE" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.revision=$DEPLOY_SHA" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "io.oxy.source.tree=$SOURCE_TREE" \
             --label "io.oxy.build-inputs.sha256=$BUILD_INPUTS_SHA256" \
-            -t "$IMG:${{ github.sha }}" \
+            -t "$IMG:$DEPLOY_SHA" \
             -t "$IMG:latest" \
             --metadata-file "$RUNNER_TEMP/build-metadata.json" \
             --push \
@@ -185,6 +230,7 @@ jobs:
           echo "image_uri=$IMG@$DIGEST" >>"$GITHUB_OUTPUT"
 
       - name: Register immutable task definition
+        if: steps.scope.outputs.deploy == 'true'
         id: task_definition
         env:
           IMAGE_URI: ${{ steps.build.outputs.image_uri }}
@@ -279,6 +325,7 @@ jobs:
       # the image being released. Reverting to a Node image means reverting this
       # command with it.
       - name: Apply pre-deploy migrations
+        if: steps.scope.outputs.deploy == 'true'
         env:
           TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
         run: |
@@ -323,6 +370,7 @@ jobs:
           echo "migrations applied"
 
       - name: Deploy immutable task definition to ECS
+        if: steps.scope.outputs.deploy == 'true'
         id: ecs_deploy
         env:
           TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
@@ -436,6 +484,7 @@ jobs:
           ' <<<"$tasks_json" | sort -u)
 
       - name: Verify live Noted MCP and central OAuth contract
+        if: steps.scope.outputs.deploy == 'true'
         id: mcp_smoke
         run: |
           set +e
@@ -454,6 +503,7 @@ jobs:
       # step has to be retried, the catalog endpoint is digest-idempotent.
       # `bun`, like the migration above: it runs the image being released.
       - name: Register canonical capability catalog
+        if: steps.scope.outputs.deploy == 'true'
         env:
           TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
         run: |

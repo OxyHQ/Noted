@@ -18,9 +18,16 @@ concurrency:
   group: deploy-noted-cloudflare
   cancel-in-progress: false
 
+# Cloudflare is reached with its own API token; the GitHub token only needs to
+# read the repository.
+permissions:
+  contents: read
+
 jobs:
   deploy-app:
     runs-on: ubuntu-latest
+    # The web export alone is allowed 60 minutes below; the rest takes ~2.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
