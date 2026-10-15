@@ -34,3 +34,4 @@ CI runs `cargo check --locked`, builds the shell and runs it for 20 s on Linux (
   logged and skipped, and the tray still works.
 - No JS-callable native capability exists. Each one added (e.g. system audio) gets
   its own entry in `capabilities/default.json`, and none of them carries note logic.
+
