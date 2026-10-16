@@ -1,6 +1,6 @@
 ---
 title: Noted architecture
-description: Local-first notes, PostgreSQL sync, on-device capture, and Oxy platform boundaries.
+description: Local-first notes, sync with Nilo, on-device capture, and Oxy platform boundaries.
 ---
 
 # Noted
@@ -9,17 +9,18 @@ Noted is Oxy's local-first notes and meeting-capture product for iOS, Android
 and the web.
 
 ```text
-Expo client -> per-account SQLite -> Noted API -> PostgreSQL
+Expo client -> per-account SQLite -> Nilo API (api.nilo.so)
             -> on-device speech and language models
 
-Noted events -> Alia agent runtime
+In-app Alia chat -> Alia agent runtime
 Future hosted point inference -> Oxy -> Kaana
 Future agent/chat/tools/memory -> Alia -> Oxy -> Kaana
 ```
 
-The backend is PostgreSQL/Drizzle only. There is no secondary store or database
-fallback. The client writes locally first and synchronises afterwards, so
-reading remains available offline and survives an interrupted edit.
+Noted has no server of its own: its notes live in Nilo, and the old Noted API
+(`api.noted.oxy.so`) is retired. There is no secondary store or remote fallback.
+The client writes locally first and synchronises afterwards, so reading remains
+available offline and survives an interrupted edit.
 
 ## Local storage and browser tabs
 
@@ -49,9 +50,10 @@ Current recording intelligence is local to the user's device:
 - transcript enhancement uses a downloaded language model on the device;
 - audio and transcript content do not leave the device for those operations.
 
-The backend's `ALIA_API_URL` integration publishes signed Noted lifecycle
-events to Alia. It does not send a prompt to a provider and is not Noted's
-inference route. If Noted later adds hosted one-shot inference, the product must
+The in-app Alia chat sheet (`components/alia-chat.tsx`) talks to Alia, the
+agent runtime, with the signed-in user's Oxy session; the notes' capability
+catalog it can use is registered by Nilo. Noted itself sends no prompt to a
+provider and has no inference route. If Noted later adds hosted one-shot inference, the product must
 call Oxy and Oxy must route it to Kaana. If it adds an agent, chat, tool or
 memory capability, the product must call Alia, which calls Oxy, which calls
 Kaana.
@@ -155,9 +157,10 @@ failed request changes nothing.
 
 ## Identity and sharing boundary
 
-Every note query is filtered by the server-verified `oxyUserId`. Socket rooms
-are derived by the server as `user:${userId}`; a client cannot name one. No note
-has a visibility, audience, collaborator or public-share-link field.
+Every note is a private page of the signed-in user's personal Nilo workspace,
+which takes no members; Nilo scopes each request to the verified Oxy user. No
+note has a visibility, audience, collaborator or public-share-link field in
+Noted.
 
 That is why Noted deliberately has no CrowdSource integration today: there is
 no public subject for another user to report. The feedback endpoint is a private
@@ -165,16 +168,8 @@ support inbox and must not expose a report or device metadata to a community
 jury. If Noted gains a published note, public link or collaborator, this
 decision must be revisited before that surface ships.
 
-## PostgreSQL rules
-
-- Every generated migration has an `-- oxy:deploy-phase=pre|post` marker and is
-  applied through `db:migrate` with an exact target database.
-- PostgreSQL has no TTL index. Every expiring table is registered in
-  `packages/backend/src/db/expiry.ts` or it grows forever.
-
 ## Read next
 
 - [Repository README](https://github.com/OxyHQ/Noted/blob/main/README.md)
 - [Contributing](https://github.com/OxyHQ/Noted/blob/main/CONTRIBUTING.md)
-- [Backend](https://github.com/OxyHQ/Noted/blob/main/packages/backend/README.md)
 - [Frontend](https://github.com/OxyHQ/Noted/blob/main/packages/frontend/README.md)

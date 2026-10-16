@@ -5,10 +5,10 @@
 > `docs/`, history in git and current rollout status in issues. This file holds
 > only hard rules, commands and pointers. **Budget: under 8 KB.**
 
-Noted is Oxy's local-first notes and meeting-capture app: Expo frontend,
-Express API and shared DTOs. This repository was forked from Clarity; a Clarity
-or retired hosting reference is a leftover unless a document explicitly marks it
-as migration history.
+Noted is Oxy's local-first notes and meeting-capture app: an Expo frontend and
+its shared DTOs. Its server is Nilo; Noted has no backend of its own. This
+repository was forked from Clarity; a Clarity or retired hosting reference is a
+leftover unless a document explicitly marks it as migration history.
 
 ## Commands
 
@@ -16,17 +16,13 @@ as migration history.
 bun install
 bun run dev
 bun run dev:frontend
-bun run dev:backend
 bun run lint            # Biome (lint + format check); bun run lint:fix to apply
-bun run build
-bun run --filter @noted/backend test   # bun test; *.realdb need TEST_DATABASE_URL
-bun scripts/check-backend-entrypoints.ts  # built dist under bun; needs NOTED_ENTRYPOINTS_ADMIN_DATABASE_URL
-bun run db:migrate --target-database=noted_dev
+bun run typecheck
+bun run --filter @noted/frontend test
+bun run build:frontend
 ```
 
-Use Bun only. Package order is `shared-types` before frontend/backend. The API
-runs on Bun in production (`oven/bun` runner stage); every ECS command override
-in `deploy-aws.yml` names `bun` and moves together with the Dockerfile.
+Use Bun only. Package order is `shared-types` before the frontend.
 
 ## Hard boundaries
 
@@ -35,17 +31,9 @@ in `deploy-aws.yml` names `bun` and moves together with the Dockerfile.
   `@oxy.so/nilo-contracts` `notes.ts`). A note's content is Nilo blocks,
   edited with Bloom's block editor (`@oxy.so/bloom-editor`), never Markdown;
   the recorder's blocks are known by id (`lib/notes/blocks.ts`
-  `GeneratedMap`), never by text. `packages/backend` is the old server, kept
-  only until the cut-over and the import of its data into Nilo.
-
-- The backend is PostgreSQL/Drizzle only. Never add a second database, a dual
-  store or a fallback store.
-- Every generated PostgreSQL migration needs an
-  `-- oxy:deploy-phase=pre|post` marker. Production uses `db:migrate`; do not
-  bypass its exact-target and phase checks with `drizzle-kit migrate`.
-- PostgreSQL has no TTL index. Register every expiring table in
-  `packages/backend/src/db/expiry.ts`; a deadline that only exists in the
-  schema never deletes anything.
+  `GeneratedMap`), never by text. Noted's own server (`api.noted.oxy.so`) is
+  retired; do not add a backend, database or server route back to this
+  repository. A server-side change belongs in Nilo.
 - The local SQLite database is the frontend's read source of truth. Screens use
   `lib/db/live-query` only after `useLocalStore()` is ready; do not query the
   remote API directly as a substitute.
@@ -80,7 +68,6 @@ in `deploy-aws.yml` names `bun` and moves together with the Dockerfile.
 
 - `docs/index.mdx`: architecture, artifact invariants, AI routes and moderation
   boundary.
-- `packages/backend/README.md`: API, environment and PostgreSQL rules.
 - `packages/frontend/README.md`: local-first UI, capture and on-device models.
 - `CONTRIBUTING.md`: setup and CI commands layered on the Oxy organization
   guide.

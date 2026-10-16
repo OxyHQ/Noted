@@ -1,7 +1,7 @@
 {
   "name": "@noted/shared-types",
   "version": "1.0.0",
-  "description": "Shared TypeScript types for the Noted frontend and backend",
+  "description": "Shared TypeScript types for the Noted app",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

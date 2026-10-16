@@ -15,6 +15,6 @@
 ## Checklist
 
 - [ ] TypeScript compiles (`tsc --noEmit`)
-- [ ] Tests pass (`bun run test --filter @noted/backend`)
+- [ ] Tests pass (`bun run --filter @noted/frontend test`)
 - [ ] No provider names exposed in UI, errors, or API responses
 - [ ] Lint passes
