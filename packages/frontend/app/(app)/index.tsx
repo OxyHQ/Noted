@@ -30,7 +30,10 @@ import { useLabels } from '@/lib/hooks/use-labels';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 import { useUndoStore } from '@/lib/stores/undo-store';
 import { useTranslation } from '@/hooks/useTranslation';
-import type { Note, NoteColor, NoteListParams } from '@noted/shared-types';
+import type { NoteColor, NoteListParams } from '@noted/shared-types';
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
+import { newNoteId } from '@/lib/db/ids';
+import { noteBlocksFromMarkdown } from '@/lib/notes/markdown-blocks';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -101,20 +104,21 @@ export default function HomeScreen() {
   const handleCreate = React.useCallback(
     (input: QuickCaptureCreation) => {
       // Nothing has been recorded into a note born here, so every word of it is
-      // the user's half.
+      // the user's. What they typed may carry Markdown (`- [ ]`, `##`), which
+      // becomes the blocks it means.
       return createNote.mutateAsync({
         expectedViewerId: user?.id,
         creationId: input.creationId,
         initialInput: {
           title: input.initialInput.title,
-          userBody: input.initialInput.body,
+          blocks: noteBlocksFromMarkdown(input.initialInput.body, [], newNoteId),
           color: input.initialInput.color,
           archived: input.initialInput.archived,
           labels: activeLabel ? [activeLabel] : [],
           folderId: activeFolder,
         },
         title: input.title,
-        userBody: input.body,
+        blocks: noteBlocksFromMarkdown(input.body, [], newNoteId),
         color: input.color,
         archived: input.archived,
         labels: activeLabel ? [activeLabel] : [],

@@ -17,7 +17,8 @@ import { getNoteColorTint } from '@/lib/note-colors';
 import { useNotes, useRestoreNote, useDeleteNote } from '@/lib/hooks/use-notes';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useColorScheme } from '@/lib/useColorScheme';
-import type { Note } from '@noted/shared-types';
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
+import { plainText } from '@/lib/notes/blocks';
 
 export default function TrashScreen() {
   const router = useRouter();
@@ -127,7 +128,7 @@ function TrashCard({
   deleteLabel: string;
 }) {
   const tint = getNoteColorTint(note.color, scheme);
-  const preview = note.body || note.checklist.map((c) => c.text).join(', ') || '';
+  const preview = plainText(note.blocks);
 
   return (
     <Card

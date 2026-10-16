@@ -31,27 +31,11 @@ import {
   type NoteInput,
   type NoteRow,
 } from '@/lib/db/notes-repo';
-import { DEFAULT_NEW_NOTE_COLOR, type Note, type NoteListParams } from '@noted/shared-types';
+import { DEFAULT_NEW_NOTE_COLOR, type NoteListParams } from '@noted/shared-types';
 
 /* ============================================================
    Normalization
    ============================================================ */
-
-/**
- * Guarantee a note's array fields are always populated arrays.
- *
- * The local store already writes them as arrays, so this only has to defend the
- * one boundary that can still deliver something else: a note arriving from the
- * server over the socket.
- */
-export function normalizeNote(note: Note): Note {
-  return {
-    ...note,
-    attachments: Array.isArray(note.attachments) ? note.attachments : [],
-    checklist: Array.isArray(note.checklist) ? note.checklist : [],
-    labels: Array.isArray(note.labels) ? note.labels : [],
-  };
-}
 
 /* ============================================================
    Queries
@@ -200,9 +184,8 @@ export function makeDraftNote(): LocalNote {
     id: newNoteId(),
     kind: 'note',
     title: '',
-    body: '',
-    generatedBody: '',
-    checklist: [],
+    blocks: [],
+    generated: {},
     color: DEFAULT_NEW_NOTE_COLOR,
     labels: [],
     pinned: false,

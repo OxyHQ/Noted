@@ -1,21 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
 import type { LocalNote } from '@/lib/db/notes-repo';
+import { inReadingOrder, type NoteBlock } from '@/lib/notes/blocks';
 import { reconcileDraft } from '@/lib/notes/draft-sync';
-import { composeNoteBody } from '@/lib/notes/generated-body';
 
-const TYPED = 'Preguntar por el presupuesto';
-const FIRST_SLICE = '## Open questions\n\n- Is it reading the entire internet?';
-const SECOND_SLICE = `${FIRST_SLICE}\n- Who signs off?`;
+const line = (
+  id: string,
+  text: string,
+  order: number,
+  type: NoteBlock['type'] = 'paragraph',
+): NoteBlock => ({
+  id,
+  parentBlockId: null,
+  type,
+  content: type === 'todo' ? { text, checked: false } : { text },
+  order,
+});
+
+const TYPED = line('typed', 'Preguntar por el presupuesto', 0);
+const HEADING = line('h', 'Open questions', 1, 'heading_2');
+const FIRST = line('q1', 'Is it reading the entire internet?', 2, 'bulleted_list_item');
+const SECOND = line('q2', 'Who signs off?', 3, 'bulleted_list_item');
 
 function note(over: Partial<LocalNote> = {}): LocalNote {
   return {
     id: 'note-1',
     kind: 'voice',
     title: 'Reunión',
-    body: composeNoteBody(TYPED, FIRST_SLICE),
-    generatedBody: FIRST_SLICE,
-    checklist: [],
+    blocks: [TYPED, HEADING, FIRST],
+    generated: { h: { key: 'section:q' }, q1: { key: 'q1' } },
     color: 'default',
     labels: [],
     pinned: false,
@@ -24,178 +37,107 @@ function note(over: Partial<LocalNote> = {}): LocalNote {
     attachments: [],
     reminderAt: null,
     order: 0,
-    createdAt: '2026-08-10T10:00:00.000Z',
-    updatedAt: '2026-08-10T10:00:00.000Z',
+    folderId: null,
+    createdAt: '2026-08-10T09:00:00.000Z',
+    updatedAt: '2026-08-10T09:00:00.000Z',
     ...over,
   };
 }
+const texts = (n: LocalNote) => inReadingOrder(n.blocks).map((b) => b.content.text);
 
-/**
- * Every fixture below carries BOTH what the user typed and what the app
- * generated. One made of only one of them cannot tell a correct merge from a
- * merge that drops the half the fixture does not have — both look green.
- */
 describe('reconcileDraft', () => {
   it('takes the whole note when the user has changed nothing', () => {
     const base = note();
-    const stored = note({
-      body: composeNoteBody(TYPED, SECOND_SLICE),
-      generatedBody: SECOND_SLICE,
-      title: 'Reunión de producto',
-      updatedAt: '2026-08-10T10:00:12.000Z',
-    });
-
-    expect(reconcileDraft(base, base, stored)).toEqual(stored);
+    const stored = note({ blocks: [TYPED, HEADING, FIRST, SECOND], title: 'Renamed' });
+    const next = reconcileDraft(base, base, stored);
+    expect(next.blocks).toBe(stored.blocks);
+    expect(next.title).toBe('Renamed');
   });
 
-  it('keeps what was typed and shows what the slice added', () => {
-    // The case the whole thing exists for: the note is open, the user is
-    // typing, and a slice lands underneath them.
+  it('keeps what was typed and shows what the slice added, once', () => {
     const base = note();
-    const draft = note({ body: composeNoteBody(`${TYPED} y el plazo`, FIRST_SLICE) });
-    const stored = note({
-      body: composeNoteBody(TYPED, SECOND_SLICE),
-      generatedBody: SECOND_SLICE,
-      updatedAt: '2026-08-10T10:00:12.000Z',
+    const draft = note({
+      blocks: [line('typed', 'Preguntar por el presupuesto y el plazo', 0), HEADING, FIRST],
     });
-
+    const stored = note({
+      blocks: [TYPED, HEADING, FIRST, SECOND],
+      generated: { ...note().generated, q2: { key: 'q2' } },
+    });
     const next = reconcileDraft(base, draft, stored);
-
-    expect(next.body).toBe(composeNoteBody(`${TYPED} y el plazo`, SECOND_SLICE));
-    expect(next.generatedBody).toBe(SECOND_SLICE);
-    // Counted, not merely present: a body that kept the old block above the new
-    // one contains both of these too.
-    expect(next.body.split('## Open questions').length - 1).toBe(1);
-    expect(next.body.split('y el plazo').length - 1).toBe(1);
+    expect(texts(next)).toEqual([
+      'Preguntar por el presupuesto y el plazo',
+      'Open questions',
+      'Is it reading the entire internet?',
+      'Who signs off?',
+    ]);
+    expect(next.generated).toEqual(stored.generated);
   });
 
-  it('extracts with the block the draft holds, not the one the store holds', () => {
-    // The two differ exactly when a slice has landed since the editor last
-    // looked. Using the store's would fail to match, and the whole draft —
-    // generated text included — would be filed as the user's writing and kept
-    // forever, which is the duplication bug wearing the user's name.
+  it('makes a generated block the user edited theirs, so the next rebuild leaves it', () => {
     const base = note();
-    const draft = note({ body: composeNoteBody(TYPED, FIRST_SLICE) });
-    const stored = note({
-      body: composeNoteBody(TYPED, SECOND_SLICE),
-      generatedBody: SECOND_SLICE,
-      updatedAt: '2026-08-10T10:00:12.000Z',
+    const draft = note({
+      blocks: [TYPED, HEADING, line('q1', 'Does it read everything?', 2, 'bulleted_list_item')],
     });
-
-    expect(reconcileDraft(base, draft, stored).body).toBe(stored.body);
+    const next = reconcileDraft(base, draft, note());
+    expect(texts(next)).toContain('Does it read everything?');
+    expect(next.generated).toEqual({ h: { key: 'section:q' } });
   });
 
   it('keeps a title the user typed and takes one they did not', () => {
     const base = note();
-    const stored = note({ title: 'Reunión de producto', updatedAt: '2026-08-10T10:00:12.000Z' });
-
-    expect(reconcileDraft(base, note({ title: 'Mi reunión' }), stored).title).toBe('Mi reunión');
-    expect(reconcileDraft(base, base, stored).title).toBe('Reunión de producto');
+    expect(reconcileDraft(base, note({ title: 'Mine' }), note({ title: 'Theirs' })).title).toBe(
+      'Mine',
+    );
+    expect(reconcileDraft(base, base, note({ title: 'Theirs' })).title).toBe('Theirs');
   });
 
-  it('keeps a checklist the user reordered and takes one they did not touch', () => {
-    const mine = [{ id: 'a', text: 'Mandar el desglose', checked: true }];
-    const theirs = [{ id: 'b', text: 'Mandar el desglose', checked: false }];
-    const base = note();
-    const stored = note({ checklist: theirs, updatedAt: '2026-08-10T10:00:12.000Z' });
-
-    // An array is compared by value: the editor replaces it wholesale on every
-    // change, so identity would report a change on every render.
-    expect(reconcileDraft(base, note({ checklist: [] }), stored).checklist).toEqual(theirs);
-    expect(reconcileDraft(base, note({ checklist: mine }), stored).checklist).toEqual(mine);
+  it('keeps blocks the user reordered and takes ones they did not touch', () => {
+    const base = note({ blocks: [line('a', 'A', 0), line('b', 'B', 1)], generated: {} });
+    const draft = note({ blocks: [line('b', 'B', 0), line('a', 'A', 1)], generated: {} });
+    const stored = note({
+      blocks: [line('a', 'A', 0), line('b', 'B', 1), line('c', 'C', 2)],
+      generated: {},
+    });
+    expect(texts(reconcileDraft(base, draft, stored))).toEqual(['B', 'A', 'C']);
   });
 
   it('keeps a colour the user picked while a slice was landing', () => {
     const base = note();
-    const stored = note({
-      body: composeNoteBody(TYPED, SECOND_SLICE),
-      generatedBody: SECOND_SLICE,
-      updatedAt: '2026-08-10T10:00:12.000Z',
-    });
-
-    const next = reconcileDraft(base, note({ color: 'teal' }), stored);
-    expect(next.color).toBe('teal');
-    expect(next.generatedBody).toBe(SECOND_SLICE);
-  });
-
-  it('does not retype the field when the editor own save lands back', () => {
-    // This runs on every autosave, and composing trims. Rewriting an unchanged
-    // body would hand the field a trimmed copy of itself — the space someone
-    // just typed vanishes from under the caret and the next word joins the last
-    // one. The trailing space is the whole assertion; do not "tidy" it away.
-    const base = note({ body: 'hola', generatedBody: '' });
-    const draft = note({ body: 'hola ', generatedBody: '' });
-    const stored = note({ body: 'hola', generatedBody: '', updatedAt: '2026-08-10T10:00:01.000Z' });
-
-    expect(reconcileDraft(base, draft, stored).body).toBe('hola ');
-  });
-
-  it('still takes a body another device changed while nothing was typed here', () => {
-    // The case the rule above must not swallow: the user's half really did move,
-    // it just did not move here.
-    const base = note({ body: 'hola', generatedBody: '' });
-    const stored = note({
-      body: 'hola mundo',
-      generatedBody: '',
-      updatedAt: '2026-08-10T10:00:01.000Z',
-    });
-
-    expect(reconcileDraft(base, note({ body: 'hola', generatedBody: '' }), stored).body).toBe(
-      'hola mundo',
+    const next = reconcileDraft(
+      base,
+      note({ color: 'teal' }),
+      note({ blocks: [TYPED, HEADING, FIRST, SECOND] }),
     );
+    expect(next.color).toBe('teal');
+    expect(texts(next)).toContain('Who signs off?');
   });
 
-  it('does not put the block back after the user converted it away', () => {
-    // Converting a body to a checklist moves every generated line into items the
-    // user owns, and clears the draft's record of the block. A slice landing in
-    // the moment before that write reaches the store must not compose the block
-    // back into a body the user has just emptied.
+  it('hands the editor the stored blocks themselves when its own save lands back', () => {
+    // Nothing moved but our own write: the editor must be given the exact list,
+    // or it would apply a no-op change and disturb the caret.
     const base = note();
-    const converted = note({
-      body: '',
-      generatedBody: '',
-      checklist: [{ id: 'a', text: 'Is it reading the entire internet?', checked: false }],
-    });
-    const stored = note({
-      body: composeNoteBody(TYPED, SECOND_SLICE),
-      generatedBody: SECOND_SLICE,
-      updatedAt: '2026-08-10T10:00:12.000Z',
-    });
+    const draft = note({ blocks: [line('typed', 'Edited', 0), HEADING, FIRST] });
+    const saved = note({ blocks: draft.blocks });
+    const next = reconcileDraft(base, draft, saved);
+    expect(next.blocks).toEqual(saved.blocks);
+  });
 
-    const next = reconcileDraft(base, converted, stored);
-
-    expect(next.body).toBe('');
-    expect(next.generatedBody).toBe('');
-    expect(next.checklist).toEqual(converted.checklist);
+  it('still takes blocks another device changed while nothing was typed here', () => {
+    const base = note();
+    const stored = note({ blocks: [line('typed', 'From the laptop', 0), HEADING, FIRST] });
+    expect(texts(reconcileDraft(base, base, stored))[0]).toBe('From the laptop');
   });
 
   it('leaves the draft consistent for the next reconcile', () => {
-    // The invariant the editor's save depends on: the block recorded in
-    // `generatedBody` is the block actually sitting inside `body`. Two slices in
-    // a row with typing in between is the shortest sequence that can break it.
     const base = note();
-    const afterFirst = reconcileDraft(
-      base,
-      note({ body: composeNoteBody(`${TYPED} y el plazo`, FIRST_SLICE) }),
-      note({
-        body: composeNoteBody(TYPED, SECOND_SLICE),
-        generatedBody: SECOND_SLICE,
-        updatedAt: '2026-08-10T10:00:12.000Z',
-      }),
+    const draft = note({ blocks: [line('typed', 'Typed more', 0), HEADING, FIRST] });
+    const first = reconcileDraft(base, draft, note({ blocks: [TYPED, HEADING, FIRST, SECOND] }));
+    const second = reconcileDraft(
+      note({ blocks: [TYPED, HEADING, FIRST, SECOND] }),
+      first,
+      note({ blocks: [TYPED, HEADING, FIRST, SECOND] }),
     );
-
-    const third = '## Open questions\n\n- Who signs off?\n- When do we ship?';
-    const afterSecond = reconcileDraft(
-      afterFirst,
-      { ...afterFirst, body: composeNoteBody(`${TYPED} y el plazo, y quién firma`, SECOND_SLICE) },
-      note({
-        body: composeNoteBody(TYPED, third),
-        generatedBody: third,
-        updatedAt: '2026-08-10T10:00:24.000Z',
-      }),
-    );
-
-    expect(afterSecond.body).toBe(composeNoteBody(`${TYPED} y el plazo, y quién firma`, third));
-    expect(afterSecond.body.split('## Open questions').length - 1).toBe(1);
+    expect(texts(second).filter((t) => t === 'Open questions')).toHaveLength(1);
+    expect(texts(second)[0]).toBe('Typed more');
   });
 });

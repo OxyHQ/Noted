@@ -47,13 +47,35 @@ describe('placeholder titles', () => {
 describe('userAuthoredPart', () => {
   const note = {
     title: placeholderTitle(STARTED_AT),
-    body: 'lo que escribí',
-    checklist: [{ id: 'a', text: 'una tarea', checked: true }],
+    blocks: [
+      {
+        id: 'p',
+        parentBlockId: null,
+        type: 'paragraph' as const,
+        content: { text: 'lo que escribí' },
+        order: 0,
+      },
+      {
+        id: 'a',
+        parentBlockId: null,
+        type: 'todo' as const,
+        content: { text: 'una tarea', checked: true },
+        order: 1,
+      },
+      {
+        id: 'g',
+        parentBlockId: null,
+        type: 'paragraph' as const,
+        content: { text: 'lo que generó la app' },
+        order: 2,
+      },
+    ],
+    generated: { g: { key: 'n1' } },
   };
 
-  it('drops the placeholder while keeping everything the user wrote', () => {
+  it('drops the placeholder and the recorder’s blocks, keeping everything the user wrote', () => {
     // The single description of "what the user contributed", so a writer cannot
-    // be handed the raw title by accident at one call site and not the other.
+    // be handed the raw title, or the app's own output, by accident.
     expect(userAuthoredPart(note, STARTED_AT)).toEqual({
       title: '',
       body: 'lo que escribí',

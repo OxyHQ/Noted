@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import type { TranscriptSegment } from '@/lib/capture/captures-repo';
 import { allItems } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
+import { noteAfterCompose, userLine, userTask } from '@/lib/artifact/__tests__/fixtures';
 import { buildDeterministicArtifact, deriveTitle } from '@/lib/artifact/generate/deterministic';
 import { renderArtifact } from '@/lib/artifact/render';
 import type { GeneratedNoteArtifact } from '@noted/shared-types';
@@ -191,40 +192,41 @@ describe('what the user wrote', () => {
       segment(5_200, 9_000, 'Hay que enviar el contrato antes del viernes.'),
     ]);
 
+    const mine = [
+      userLine('m1', 'ojo con el margen', 0),
+      userLine('m2', 'preguntar por el descuento', 1),
+      userTask('mine', 'Llamar a Ana', true, 2),
+    ];
     const composed = composeNote({
-      user: {
-        title: 'Presupuesto Q3',
-        body: '- ojo con el margen\n- preguntar por el descuento',
-        checklist: [{ id: 'mine', text: 'Llamar a Ana', checked: true }],
-      },
+      user: { title: 'Presupuesto Q3', todos: ['Llamar a Ana'] },
       live: artifact,
       fallbackTitle: startedAt.toLocaleString(),
     });
+    const note = noteAfterCompose(mine, composed.rendered);
 
     expect(composed.title).toBe('Presupuesto Q3');
-    expect(composed.body.startsWith('- ojo con el margen')).toBe(true);
-    expect(composed.body).toContain('preguntar por el descuento');
-    expect(composed.body).toContain('Al final vamos a usar el proveedor barato.');
-    expect(composed.checklist[0]).toEqual({ id: 'mine', text: 'Llamar a Ana', checked: true });
-    expect(composed.checklist.map((item) => item.text)).toContain(
-      'Hay que enviar el contrato antes del viernes.',
-    );
+    // Theirs first and untouched, tick included; the recording's after.
+    expect(note.slice(0, 3)).toEqual(mine);
+    const texts = note.map((block) => block.content.text);
+    expect(texts).toContain('Al final vamos a usar el proveedor barato.');
+    expect(texts).toContain('Hay que enviar el contrato antes del viernes.');
   });
 
   it('does not get a task added that they had already written down', () => {
     const artifact = build([segment(0, 5_000, 'Hay que enviar el contrato.')]);
     const composed = composeNote({
-      user: {
-        title: '',
-        body: '',
-        checklist: [{ id: 'mine', text: 'hay que enviar el contrato', checked: false }],
-      },
+      user: { title: '', todos: ['hay que enviar el contrato'] },
       live: artifact,
       fallbackTitle: startedAt.toLocaleString(),
     });
-    // Same commitment, typed and spoken. One item, and it is theirs.
-    expect(composed.checklist).toHaveLength(1);
-    expect(composed.checklist[0].id).toBe('mine');
+    const note = noteAfterCompose(
+      [userTask('mine', 'hay que enviar el contrato', false)],
+      composed.rendered,
+    );
+    // Same commitment, typed and spoken. One task, and it is theirs.
+    const tasks = note.filter((block) => block.type === 'todo');
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.id).toBe('mine');
   });
 });
 

@@ -1,5 +1,4 @@
 import type { LocalNote, NoteInput } from '@/lib/db/notes-repo';
-import { userBodyOf } from '@/lib/notes/generated-body';
 
 /** Capture the common ancestor with the queued draft, before other tabs refresh it. */
 export interface EditorSaveSnapshot {
@@ -7,16 +6,16 @@ export interface EditorSaveSnapshot {
   base: LocalNote | null;
 }
 
-/** Send only the editor's changes; untouched fields may already be newer in SQLite. */
-export function editorPatch(
-  base: LocalNote | null,
-  draft: LocalNote,
-  takeOverBody: boolean,
-): NoteInput {
+/**
+ * Send only the editor's changes; untouched fields may already be newer in
+ * SQLite. Its blocks go as an edit (what it started from, and what they are
+ * now), which the store merges onto its own: never written whole over a
+ * recording that has moved on since.
+ */
+export function editorPatch(base: LocalNote | null, draft: LocalNote): NoteInput {
   const patch: NoteInput = {};
   for (const field of [
     'title',
-    'checklist',
     'color',
     'labels',
     'pinned',
@@ -29,10 +28,9 @@ export function editorPatch(
       Object.assign(patch, { [field]: draft[field] });
     }
   }
-  const userBody = userBodyOf(draft.body, draft.generatedBody);
-  if (base === null || takeOverBody || userBody !== userBodyOf(base.body, base.generatedBody)) {
-    patch.userBody = userBody;
+  if (base === null) patch.edit = { base: [], next: draft.blocks };
+  else if (JSON.stringify(base.blocks) !== JSON.stringify(draft.blocks)) {
+    patch.edit = { base: base.blocks, next: draft.blocks };
   }
-  if (takeOverBody) patch.generatedBody = '';
   return patch;
 }

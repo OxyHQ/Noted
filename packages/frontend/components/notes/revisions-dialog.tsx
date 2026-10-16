@@ -65,19 +65,9 @@ export function RevisionsDialog({ open, onOpenChange, noteId, onRestore }: Revis
                   </Text>
                   <Text className="text-sm text-primary">{t('notes.historyRestore')}</Text>
                 </View>
-                <Text className="text-base text-foreground" numberOfLines={1}>
-                  {revision.title || t('notes.untitledVersion')}
+                <Text className="text-xs text-muted-foreground">
+                  {t('notes.historyBlocks', { count: revision.blockCount })}
                 </Text>
-                {revision.preview ? (
-                  <Text className="text-sm text-muted-foreground" numberOfLines={2}>
-                    {revision.preview}
-                  </Text>
-                ) : null}
-                {revision.checklistItems > 0 ? (
-                  <Text className="text-xs text-muted-foreground">
-                    {t('notes.historyItems', { count: revision.checklistItems })}
-                  </Text>
-                ) : null}
               </Pressable>
             ))
           )}

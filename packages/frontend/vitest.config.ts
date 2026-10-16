@@ -14,6 +14,8 @@ export default defineConfig({
       // node test. Only the platform boundary is replaced; the code under test
       // is untouched.
       'react-native': path.resolve(import.meta.dirname, 'lib/__tests__/react-native-stub.ts'),
+      // Same reason: minting an id reaches `expo-crypto`'s native module.
+      'expo-crypto': path.resolve(import.meta.dirname, 'lib/__tests__/expo-crypto-stub.ts'),
     },
   },
   test: {

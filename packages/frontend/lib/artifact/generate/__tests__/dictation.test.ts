@@ -94,12 +94,16 @@ describe('a dictated shopping list', () => {
 
   it('reaches the note as a real checklist', () => {
     const composed = composeNote({
-      user: { title: '', body: '', checklist: [] },
+      user: { title: '', todos: [] },
       live: artifact,
       fallbackTitle: startedAt.toLocaleString(),
     });
-    expect(composed.checklist.map((item) => item.text)).toEqual(['pollo', 'salchichas', 'pasta']);
-    expect(composed.body).toBe('');
+    // A list and nothing else: only tasks, no prose around them.
+    expect(composed.rendered.map((block) => [block.type, block.content.text])).toEqual([
+      ['todo', 'pollo'],
+      ['todo', 'salchichas'],
+      ['todo', 'pasta'],
+    ]);
   });
 });
 
@@ -119,11 +123,12 @@ describe('correcting it out loud', () => {
   it('carries the quantity into the line the user reads', () => {
     const artifact = build([...SHOPPING, 'Pon dos kilos de pollo.']);
     const composed = composeNote({
-      user: { title: '', body: '', checklist: [] },
+      user: { title: '', todos: [] },
       live: artifact,
       fallbackTitle: startedAt.toLocaleString(),
     });
-    expect(composed.checklist[0].text).toBe('dos kilos pollo');
+    const tasks = composed.rendered.filter((block) => block.type === 'todo');
+    expect(tasks[0]?.content.text).toBe('dos kilos pollo');
   });
 });
 

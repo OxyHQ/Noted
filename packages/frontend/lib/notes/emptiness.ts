@@ -23,32 +23,28 @@
  * than a white one.
  */
 
-import type { ChecklistItem } from '@noted/shared-types';
+import { hasContent, type GeneratedMap, type NoteBlock } from '@/lib/notes/blocks';
 
 export interface EmptinessInput {
   title: string;
-  /** The user's half of the body — never the composed body. */
-  userBody: string;
-  checklist: readonly ChecklistItem[];
+  blocks: readonly NoteBlock[];
+  /** The recorder's blocks. Any at all means there is a note to keep. */
+  generated?: GeneratedMap;
   attachments?: readonly string[];
   reminderAt?: string | null;
   /** `voice` for a note born from a recording. */
   kind?: 'note' | 'voice';
-  /** What a generator wrote. Non-empty means there is a note to keep. */
-  generatedBody?: string;
 }
 
 export function isEmptyNote(input: EmptinessInput): boolean {
   if (input.kind === 'voice') return false;
-  if ((input.generatedBody ?? '').trim() !== '') return false;
+  if (Object.keys(input.generated ?? {}).length > 0) return false;
   if (input.reminderAt) return false;
-
   return (
     input.title.trim() === '' &&
-    input.userBody.trim() === '' &&
-    // A checklist item with no words in it is not content either — it is the
-    // blank row the editor offers, which nobody typed.
-    input.checklist.every((item) => item.text.trim() === '') &&
+    // A block with no words in it is not content either — it is the empty
+    // line the editor offers, or a task row nobody typed into.
+    !hasContent(input.blocks) &&
     (input.attachments?.length ?? 0) === 0
   );
 }

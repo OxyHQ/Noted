@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   patch: vi.fn(),
   remove: vi.fn(),
 }));
+vi.mock('@/lib/db/erase-local', () => ({ eraseLocalAccountData: vi.fn() }));
 vi.mock('@/lib/db/client', () => ({
   getActiveViewerId: () => state.viewer,
   isDbAvailable: () => true,
@@ -64,12 +65,21 @@ describe('account-bound sync', () => {
     const pending = pullNotes(() => 'copy');
     await started.promise;
     expect(state.get).toHaveBeenCalledWith(expect.any(String), {
-      params: { limit: 500 },
+      params: { limit: 200 },
       expectedViewerId: 'alice',
     });
     state.viewer = 'bob';
     state.bearer = 'bob';
-    response.resolve({ data: { data: [], deleted: ['alice-note'], serverTime: 'alice-cursor' } });
+    response.resolve({
+      data: {
+        notes: [],
+        deleted: ['alice-note'],
+        cursor: 'alice-cursor',
+        hasMore: false,
+        full: false,
+        reset: false,
+      },
+    });
     await expect(pending).rejects.toThrow('active account changed');
     expect(state.transaction).not.toHaveBeenCalled();
     expect(state.execute.mock.calls.every((call) => call[2] === 'alice')).toBe(true);
@@ -81,7 +91,7 @@ describe('account-bound sync', () => {
     state.viewer = 'bob';
     state.bearer = 'bob';
     response.resolve({
-      data: { data: [{ id: 'private-alice-label', name: 'Private', color: null }] },
+      data: { labels: [{ id: 'private-alice-label', name: 'Private', color: null }] },
     });
     await expect(pending).rejects.toThrow('active account changed');
     expect(state.transaction).not.toHaveBeenCalled();
@@ -139,14 +149,23 @@ describe('account-bound sync', () => {
 });
 
 it('commits both ordinary pulls to the captured account', async () => {
-  state.get.mockResolvedValueOnce({ data: { data: [], deleted: [], serverTime: 'alice-cursor' } });
+  state.get.mockResolvedValueOnce({
+    data: {
+      notes: [],
+      deleted: [],
+      cursor: 'alice-cursor',
+      hasMore: false,
+      full: false,
+      reset: false,
+    },
+  });
   await expect(pullNotes(() => 'copy')).resolves.toEqual({ applied: 0, conflicts: 0 });
   expect(state.transaction).toHaveBeenLastCalledWith(
     expect.arrayContaining([expect.objectContaining({ params: ['notes_cursor', 'alice-cursor'] })]),
     'alice',
   );
   state.get.mockResolvedValueOnce({
-    data: { data: [{ id: 'label-a', name: 'Work', color: null }] },
+    data: { labels: [{ id: 'label-a', name: 'Work', color: null }] },
   });
   await pullLabels();
   expect(state.transaction).toHaveBeenLastCalledWith(

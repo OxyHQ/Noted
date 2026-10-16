@@ -27,8 +27,6 @@ import {
   Tag,
   Paperclip,
   Bell,
-  CheckSquare,
-  Type,
   Download,
   FolderInput,
   History,
@@ -44,9 +42,8 @@ import { NoteColorPicker } from '@/components/notes/note-color-picker';
 import { CaptureStatusLine } from '@/components/capture/capture-status';
 import { TranscriptPanel } from '@/components/capture/transcript-panel';
 import { RecordingControls } from '@/components/capture/recording-controls';
-import { ChecklistEditor } from '@/components/notes/checklist-editor';
 import { recordChecklistOverrides } from '@/lib/artifact/record-checklist';
-import { MarkdownBodyEditor } from '@/components/notes/markdown-body-editor';
+import { NoteBlockEditor } from '@/components/notes/note-block-editor';
 import { LabelChips } from '@/components/notes/label-chips';
 import { LabelAssignDialog } from '@/components/notes/label-assign-dialog';
 import { FolderPickerDialog } from '@/components/notes/folder-picker-dialog';
@@ -54,7 +51,9 @@ import { LinkedMentions } from '@/components/notes/linked-mentions';
 import { LinkNoteDialog } from '@/components/notes/link-note-dialog';
 import { ReminderPickerDialog } from '@/components/notes/reminder-picker-dialog';
 import { RevisionsDialog } from '@/components/notes/revisions-dialog';
-import { appendLink, linkTo } from '@/lib/notes/links';
+import { linkParagraph, noteMentionSource } from '@/lib/notes/mention-source';
+import { generatedTodos, renumber } from '@/lib/notes/blocks';
+import { newNoteId } from '@/lib/db/ids';
 import { AttachmentsRow } from '@/components/notes/attachments/AttachmentsRow';
 import type { FileMetadata } from '@oxy.so/core';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -71,11 +70,9 @@ import {
 import { useLabels } from '@/lib/hooks/use-labels';
 import type { LocalNote, NoteInput } from '@/lib/db/notes-repo';
 import { reconcileDraft } from '@/lib/notes/draft-sync';
-import { userBodyOf } from '@/lib/notes/generated-body';
 import { isEmptyNote } from '@/lib/notes/emptiness';
 import { getNoteColorTint } from '@/lib/note-colors';
-import { generateUUID } from '@/lib/utils';
-import type { ChecklistItem, NoteColor } from '@noted/shared-types';
+import type { NoteColor } from '@noted/shared-types';
 
 const AUTOSAVE_MS = 600;
 
@@ -185,6 +182,19 @@ function NoteEditor() {
     ...makeDraftNote(),
     labels: isNew && params.label ? [params.label] : [],
     folderId: isNew && params.folder ? params.folder : null,
+    // "New list" starts on a task to type into.
+    blocks:
+      isNew && startInChecklist
+        ? [
+            {
+              id: newNoteId(),
+              parentBlockId: null,
+              type: 'todo',
+              content: { text: '', checked: false },
+              order: 0,
+            },
+          ]
+        : [],
   }));
   const draftRef = React.useRef(draft);
   const [base, setBase] = React.useState<LocalNote | null>(null);
@@ -192,7 +202,6 @@ function NoteEditor() {
   baseRef.current = base;
   const lastSavedDraft = React.useRef<LocalNote | null>(null);
   const creationInput = React.useRef<NoteInput | null>(null);
-  const [showChecklist, setShowChecklist] = React.useState(startInChecklist);
   const [showColors, setShowColors] = React.useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
@@ -221,9 +230,6 @@ function NoteEditor() {
     setDraftState(stored);
     baseRef.current = stored;
     setBase(stored);
-    // Only on arrival. Flipping this on a later slice would drag someone out of
-    // the field they are typing in because the structurer found a task.
-    setShowChecklist(stored.checklist.length > 0);
   } else if (stored !== null && base !== null && base !== stored) {
     // Written to since the draft last agreed with it — a transcription slice, a
     // sync from another device, or this editor's own autosave landing.
@@ -234,19 +240,8 @@ function NoteEditor() {
     setBase(stored);
   }
 
-  /**
-   * Write the draft.
-   *
-   * `bodyTakenOver` is set by the one action that turns the app's half into the
-   * user's: converting between a body and a checklist moves every line,
-   * generated ones included, into something they now own. Without it the store
-   * would compose the block back in on the very next write, just after they
-   * converted it away.
-   */
-  const writeDraft = async (
-    { draft: next, base: queuedBase }: EditorSaveSnapshot,
-    bodyTakenOver: boolean,
-  ) => {
+  /** Write the draft: only what the editor changed, merged onto the store's note. */
+  const writeDraft = async ({ draft: next, base: queuedBase }: EditorSaveSnapshot) => {
     if (
       !isAuthenticated ||
       !editorOwner.current ||
@@ -255,13 +250,8 @@ function NoteEditor() {
     ) {
       throw new Error('The active account changed before this write could be saved');
     }
-    const userBody = userBodyOf(next.body, next.generatedBody);
     const id = noteIdRef.current;
-    const input = editorPatch(
-      id ? (queuedBase ?? lastSavedDraft.current) : null,
-      next,
-      bodyTakenOver,
-    );
+    const input = editorPatch(id ? (queuedBase ?? lastSavedDraft.current) : null, next);
     if (id) {
       if (Object.keys(input).length > 0) {
         await updateNote.mutateAsync({
@@ -271,7 +261,7 @@ function NoteEditor() {
         });
       }
       lastSavedDraft.current = next;
-    } else if (!isEmptyNote({ ...next, userBody })) {
+    } else if (!isEmptyNote(next)) {
       creationInput.current ??= input;
       const created = await createNote.mutateAsync({
         ...input,
@@ -294,18 +284,15 @@ function NoteEditor() {
   const writeDraftRef = React.useRef(writeDraft);
   writeDraftRef.current = writeDraft;
   const [saveQueue] = React.useState(
-    () =>
-      new NoteSaveQueue<EditorSaveSnapshot>((next, takeOverBody) =>
-        writeDraftRef.current(next, takeOverBody),
-      ),
+    () => new NoteSaveQueue<EditorSaveSnapshot>((next) => writeDraftRef.current(next)),
   );
   React.useEffect(() => () => saveQueue.cancelPending(), [saveQueue]);
   const persist = React.useCallback(
-    async (next: LocalNote, bodyTakenOver = false) => {
+    async (next: LocalNote) => {
       const version = ++saveVersion.current;
       setSaveState('saving');
       try {
-        await saveQueue.save({ draft: next, base: baseRef.current }, bodyTakenOver);
+        await saveQueue.save({ draft: next, base: baseRef.current });
         if (version === saveVersion.current) setSaveState('saved');
       } catch (error) {
         if (version === saveVersion.current) setSaveState('error');
@@ -339,13 +326,7 @@ function NoteEditor() {
         await persist(next);
       } while (version !== editVersion.current);
       const id = noteIdRef.current;
-      if (
-        id &&
-        isEmptyNote({
-          ...next,
-          userBody: userBodyOf(next.body, next.generatedBody),
-        })
-      ) {
+      if (id && isEmptyNote(next)) {
         await deleteNote.mutateAsync(id);
       }
       allowLeaveRef.current = true;
@@ -402,31 +383,6 @@ function NoteEditor() {
       toast.error(t('notes.exportFailed'));
     });
   }, [t]);
-
-  const handleToggleChecklist = React.useCallback(() => {
-    const prev = draftRef.current;
-    let next: LocalNote;
-    // Either direction moves every line the app generated into something the
-    // user now owns — joined into their body, or split into their checklist —
-    // so the app's record of what it wrote is cleared with it.
-    if (showChecklist) {
-      // checklist -> body: join items back into lines
-      const body = [prev.body, ...prev.checklist.map((c) => c.text)].filter(Boolean).join('\n');
-      next = { ...prev, body, checklist: [], generatedBody: '' };
-    } else {
-      // body -> checklist: split body lines into items
-      const items: ChecklistItem[] = prev.body
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((text) => ({ id: generateUUID(), text, checked: false }));
-      next = { ...prev, body: '', checklist: items, generatedBody: '' };
-    }
-    setDraft(next);
-    autosave.cancel();
-    void persist(next, true).catch(() => {});
-    setShowChecklist((s) => !s);
-  }, [showChecklist, autosave, setDraft, persist]);
 
   const handleToggleLabel = React.useCallback(
     (labelId: string) => {
@@ -527,12 +483,10 @@ function NoteEditor() {
     }
   }, [autosave, persist, trashNote, router]);
 
-  const checklistOpened = React.useRef(false);
-  React.useEffect(() => {
-    if (params.mode !== 'checklist' || isNew || !base || checklistOpened.current) return;
-    checklistOpened.current = true;
-    if (!showChecklist) handleToggleChecklist();
-  }, [params.mode, isNew, base, showChecklist, handleToggleChecklist]);
+  const mentions = React.useMemo(
+    () => noteMentionSource(isNew ? '' : params.id, t('notes.untitledVersion')),
+    [isNew, params.id, t],
+  );
 
   const attachmentOpened = React.useRef(false);
   React.useEffect(() => {
@@ -709,25 +663,25 @@ function NoteEditor() {
           multiline
         />
 
-        {showChecklist ? (
-          <ChecklistEditor
-            items={draft.checklist}
-            onChange={(checklist) => {
-              // The list write keeps the screen honest now; the overrides keep it
-              // honest after the next finalisation. Without them the next pass
-              // rebuilds the artifact, finds no record that anybody touched a
-              // generated item, and the tick disappears minutes later.
-              void recordChecklistOverrides(params.id, draft.checklist, checklist);
-              update({ checklist });
-            }}
-          />
-        ) : (
-          <MarkdownBodyEditor
-            value={draft.body}
-            onChangeMarkdown={(body) => update({ body })}
-            placeholder={t('notes.takeANote')}
-          />
-        )}
+        <NoteBlockEditor
+          noteId={draft.id}
+          blocks={draft.blocks}
+          mentions={mentions}
+          onOpenNote={(id) => router.push(`/n/${id}`)}
+          onChange={(blocks) => {
+            const previous = draftRef.current;
+            // The write keeps the screen honest now; the overrides keep it
+            // honest after the next finalisation. Without them the next pass
+            // rebuilds the artifact, finds no record that anybody touched a
+            // generated task, and the tick disappears minutes later.
+            void recordChecklistOverrides(
+              params.id,
+              generatedTodos(previous.blocks, previous.generated),
+              generatedTodos(blocks, previous.generated),
+            );
+            update({ blocks });
+          }}
+        />
 
         {draft.labels.length > 0 && <LabelChips labelIds={draft.labels} allLabels={allLabels} />}
 
@@ -783,19 +737,8 @@ function NoteEditor() {
             onPress={() => setFolderOpen(true)}
             active={Boolean(draft.folderId)}
           />
-          <IconButton
-            icon={showChecklist ? Type : CheckSquare}
-            label={showChecklist ? t('notes.convertToText') : t('notes.convertToChecklist')}
-            onPress={handleToggleChecklist}
-          />
           <IconButton icon={Download} label={t('notes.exportMarkdown')} onPress={handleExport} />
-          {!showChecklist && (
-            <IconButton
-              icon={Link2}
-              label={t('notes.linkNote')}
-              onPress={() => setLinkOpen(true)}
-            />
-          )}
+          <IconButton icon={Link2} label={t('notes.linkNote')} onPress={() => setLinkOpen(true)} />
           {!isNew && (
             <IconButton
               icon={History}
@@ -840,9 +783,23 @@ function NoteEditor() {
       open={linkOpen}
       onOpenChange={setLinkOpen}
       currentId={isNew ? '' : params.id}
-      onPick={(title) => {
-        const link = linkTo(title);
-        if (link) update({ body: appendLink(draftRef.current.body, link) });
+      onPick={(note) => {
+        // A line linking the note, after everything else; the editor shows it
+        // as a mention, and Nilo as a link to that page.
+        const blocks = draftRef.current.blocks;
+        const last = blocks.filter((block) => block.parentBlockId === null).length;
+        update({
+          blocks: [
+            ...blocks,
+            {
+              id: newNoteId(),
+              parentBlockId: null,
+              type: 'paragraph',
+              content: linkParagraph(note),
+              order: last,
+            },
+          ],
+        });
       }}
     />
   );
@@ -852,10 +809,7 @@ function NoteEditor() {
       open={historyOpen}
       onOpenChange={setHistoryOpen}
       noteId={params.id}
-      onRestore={(patch) => {
-        setShowChecklist(patch.checklist.length > 0);
-        updateNow(patch);
-      }}
+      onRestore={(patch) => updateNow({ blocks: renumber(patch.blocks ?? []) })}
     />
   );
 

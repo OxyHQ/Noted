@@ -2,14 +2,26 @@ import { describe, expect, it } from 'vitest';
 
 import { notesToArchive, uniqueFilenames } from '@/lib/export/archive';
 import { crc32, createZip } from '@/lib/export/zip';
-import type { Note } from '@noted/shared-types';
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
 
 function note(id: string, title: string, body = 'texto'): Note {
   return {
     id,
+    kind: 'note',
     title,
-    body,
-    checklist: [],
+    blocks: body
+      ? [
+          {
+            id: `${id}-p`,
+            parentBlockId: null,
+            type: 'paragraph',
+            content: { text: body },
+            order: 0,
+          },
+        ]
+      : [],
+    generated: {},
+    folderId: null,
     color: 'default',
     labels: [],
     pinned: false,

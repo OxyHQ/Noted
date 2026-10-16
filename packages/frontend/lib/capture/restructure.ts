@@ -16,7 +16,6 @@
  * reading again, and the full transcript stays alongside it.
  */
 
-import type { ChecklistItem } from '@noted/shared-types';
 import { createLogger } from '@oxy.so/core/logger';
 
 import { execute, getActiveViewerId } from '@/lib/db/client';
@@ -34,14 +33,13 @@ import {
   type NoteArtifacts,
 } from '@/lib/db/artifacts-repo';
 import { userAuthoredPart } from '@/lib/capture/placeholder-title';
-import { userBodyOf } from '@/lib/notes/generated-body';
+import type { TodoItem } from '@/lib/notes/blocks';
 import type { GeneratedNoteArtifact } from '@noted/shared-types';
 import { committed } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
 import { buildDeterministicArtifact, cleanedBlocks } from '@/lib/artifact/generate/deterministic';
 import { enhancementToArtifact } from '@/lib/artifact/generate/from-enhancement';
 import { finalizeArtifact } from '@/lib/artifact/finalize';
-import { isGeneratedItemId } from '@/lib/artifact/item-id';
 import { overridesById } from '@/lib/artifact/ownership';
 import { reduceLiveArtifact } from '@/lib/artifact/reduce';
 import { getSummarizer } from '@/lib/enhance/summarizer';
@@ -72,17 +70,6 @@ async function runModel(
   }
 }
 
-/**
- * The checklist items the user owns.
- *
- * Generated ids carry a `:` and minted ones cannot, so this is a real
- * discriminator rather than the exact-substring guess it replaces — and it works
- * for an item the user has since reworded, which the old trick never could.
- */
-function userChecklist(checklist: readonly ChecklistItem[]): ChecklistItem[] {
-  return checklist.filter((item) => !isGeneratedItemId(item.id));
-}
-
 interface CaptureContext {
   viewerId: string | null;
   note: LocalNote;
@@ -91,7 +78,7 @@ interface CaptureContext {
   overrides: ReturnType<typeof overridesById>;
   userBody: string;
   userTitle: string;
-  userItems: ChecklistItem[];
+  userItems: readonly TodoItem[];
 }
 
 /**
@@ -124,12 +111,12 @@ async function readContext(
     segments,
     artifacts: await getCaptureArtifacts(captureId, viewerId),
     overrides: overridesById(await getNoteOverrides(noteId, viewerId)),
-    // What the app wrote last time comes out before anything is rebuilt.
-    // Without this the note keeps its own previous output as if the user had
-    // typed it, and every slice appends another copy of the same sections.
-    userBody: userBodyOf(note.body, note.generatedBody),
+    // What the app wrote last time is left out: its blocks are known by id
+    // (`note.generated`), so the user's are everything else. Without this the
+    // model would be shown its own previous output and summarise itself.
+    userBody: authored.body,
     userTitle: authored.title,
-    userItems: userChecklist(note.checklist),
+    userItems: authored.checklist,
   };
 }
 
@@ -148,23 +135,19 @@ async function commit(
   }
 
   const composed = composeNote({
-    user: { title: context.userTitle, body: context.userBody, checklist: context.userItems },
+    user: { title: context.userTitle, todos: context.userItems.map((item) => item.text) },
     live: artifact.stage === 'live' ? artifact : context.artifacts.live,
     final: artifact.stage === 'final' ? artifact : context.artifacts.final,
     overrides: [...context.overrides.values()],
     fallbackTitle: startedAt.toLocaleString(),
   });
 
-  // Both halves of the body, in one write. The store composes them — this pass
-  // never assembles a body itself, so it cannot assemble one from a stale half.
+  // Only the app's own blocks, in one write: the store replaces those it
+  // knows are its (`withGenerated`) and nothing the user wrote, against the
+  // note as stored, so a stale read here cannot cost anyone their typing.
   await updateNote(
     context.note.id,
-    {
-      title: composed.title,
-      checklist: composed.checklist,
-      userBody: context.userBody,
-      generatedBody: composed.generatedBody,
-    },
+    { title: composed.title, rendered: composed.rendered },
     context.viewerId,
   );
   return true;

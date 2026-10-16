@@ -30,6 +30,14 @@ in `deploy-aws.yml` names `bun` and moves together with the Dockerfile.
 
 ## Hard boundaries
 
+- The app's server is Nilo (`api.nilo.so`): notes are rows of the user's
+  personal-workspace `notes` database, served by Nilo's `/notes` (contract:
+  `@oxy.so/nilo-contracts` `notes.ts`). A note's content is Nilo blocks,
+  edited with Bloom's block editor (`@oxy.so/bloom-editor`), never Markdown;
+  the recorder's blocks are known by id (`lib/notes/blocks.ts`
+  `GeneratedMap`), never by text. `packages/backend` is the old server, kept
+  only until the cut-over and the import of its data into Nilo.
+
 - The backend is PostgreSQL/Drizzle only. Never add a second database, a dual
   store or a fallback store.
 - Every generated PostgreSQL migration needs an
@@ -41,13 +49,13 @@ in `deploy-aws.yml` names `bun` and moves together with the Dockerfile.
 - The local SQLite database is the frontend's read source of truth. Screens use
   `lib/db/live-query` only after `useLocalStore()` is ready; do not query the
   remote API directly as a substitute.
-- Note/artifact DTOs live in `@noted/shared-types`. Only `final` artifacts sync,
-  writes are compare-and-swap on `transcriptRevision`, and omitted artifact
-  fields mean “unchanged” while empty arrays mean “clear”. Full contract:
-  `docs/index.mdx`.
-- Every backend note query is scoped by the server-verified `oxyUserId` and
-  socket rooms are derived server-side as `user:${userId}`. Noted has no public,
-  shared, collaborator or share-link surface. If that changes, revisit the
+- Artifact DTOs live in `@noted/shared-types`; the note's wire shape is Nilo's.
+  Only `final` artifacts sync, inside the note's app data (written on its
+  revision; a stale one is refused), and omitted artifact fields mean
+  “unchanged” while empty arrays mean “clear”. Full contract: `docs/index.mdx`.
+- Notes are private pages of the user's personal workspace, which takes no
+  members. Noted itself has no public, shared, collaborator or share-link
+  surface; Nilo can share a page, so if Noted ever offers that, revisit the
   CrowdSource decision documented in `docs/index.mdx` before shipping.
 
 ## AI and platform ownership

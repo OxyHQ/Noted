@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
+import type { NoteBlock } from '@/lib/notes/blocks';
 import { isEmptyNote, type EmptinessInput } from '@/lib/notes/emptiness';
 
 function note(over: Partial<EmptinessInput> = {}): EmptinessInput {
-  return { title: '', userBody: '', checklist: [], ...over };
+  return { title: '', blocks: [], ...over };
 }
+const line = (text: string, type: NoteBlock['type'] = 'paragraph'): NoteBlock => ({
+  id: text || 'blank',
+  parentBlockId: null,
+  type,
+  content: type === 'todo' ? { text, checked: false } : { text },
+  order: 0,
+});
 
 describe('a note with nothing in it', () => {
   it('is empty', () => {
@@ -12,12 +20,13 @@ describe('a note with nothing in it', () => {
   });
 
   it('is still empty when it is only whitespace', () => {
-    expect(isEmptyNote(note({ title: '   ', userBody: '\n\n  ' }))).toBe(true);
+    expect(isEmptyNote(note({ title: '   ', blocks: [line('\n\n  ')] }))).toBe(true);
   });
 
-  it('is still empty when its only checklist row was never typed into', () => {
-    // The blank row the editor offers is not something anybody wrote.
-    expect(isEmptyNote(note({ checklist: [{ id: 'a', text: '  ', checked: false }] }))).toBe(true);
+  it('is still empty when its only line or task was never typed into', () => {
+    // The empty line the editor offers is not something anybody wrote.
+    expect(isEmptyNote(note({ blocks: [line('')] }))).toBe(true);
+    expect(isEmptyNote(note({ blocks: [line('  ', 'todo')] }))).toBe(true);
   });
 });
 
@@ -26,14 +35,16 @@ describe('a note with something in it', () => {
     expect(isEmptyNote(note({ title: 'Presupuesto' }))).toBe(false);
   });
 
-  it('is kept for a body', () => {
-    expect(isEmptyNote(note({ userBody: 'algo' }))).toBe(false);
+  it('is kept for text', () => {
+    expect(isEmptyNote(note({ blocks: [line('algo')] }))).toBe(false);
   });
 
-  it('is kept for a checklist item somebody typed', () => {
-    expect(isEmptyNote(note({ checklist: [{ id: 'a', text: 'pan', checked: false }] }))).toBe(
-      false,
-    );
+  it('is kept for a task somebody typed', () => {
+    expect(isEmptyNote(note({ blocks: [line('pan', 'todo')] }))).toBe(false);
+  });
+
+  it('is kept for a block that is content without text (a divider)', () => {
+    expect(isEmptyNote(note({ blocks: [line('', 'divider')] }))).toBe(false);
   });
 
   it('is kept for an attachment', () => {
@@ -49,13 +60,20 @@ describe('a recording is content, even with nothing typed', () => {
   });
 
   it('is never empty when a generator wrote into it', () => {
-    expect(isEmptyNote(note({ generatedBody: '- Al final usamos Postgres' }))).toBe(false);
+    expect(
+      isEmptyNote(
+        note({
+          blocks: [line('Al final usamos Postgres')],
+          generated: { 'Al final usamos Postgres': { key: 'n1' } },
+        }),
+      ),
+    ).toBe(false);
   });
 
-  it('is empty again when the generated half is only whitespace', () => {
-    // A `generated_body` of blanks is not a note; it is a column that was
-    // written to and never filled.
-    expect(isEmptyNote(note({ generatedBody: '   \n' }))).toBe(true);
+  it('is never empty while the recorder holds blocks in it, even blank ones', () => {
+    expect(isEmptyNote(note({ blocks: [line('')], generated: { blank: { key: 'n1' } } }))).toBe(
+      false,
+    );
   });
 });
 

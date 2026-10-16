@@ -89,7 +89,7 @@ describe('Noted domain requests through the linked SDK', () => {
       oxy.session.setAccessToken(jwt('A'));
       expect(
         await client.get('/notes/sync', { params: { since: '2026-10-03T12:00:00+03:00' } }),
-      ).toEqual({ data: envelope });
+      ).toEqual({ data: envelope, status: 200 });
       expect(requests.at(-1)?.bearer).toBe(`Bearer ${jwt('A')}`);
       expect(
         new URL(defined(requests.at(-1), 'a recorded request').path, baseURL).searchParams.get(
@@ -97,7 +97,7 @@ describe('Noted domain requests through the linked SDK', () => {
         ),
       ).toBe('2026-10-03T12:00:00+03:00');
       oxy.session.setAccessToken(jwt('B'));
-      expect(await client.get('/notes/sync')).toEqual({ data: envelope });
+      expect(await client.get('/notes/sync')).toEqual({ data: envelope, status: 200 });
       expect(requests.at(-1)?.bearer).toBe(`Bearer ${jwt('B')}`);
       oxy.session.clear();
       const count = requests.length;
@@ -131,6 +131,7 @@ describe('Noted domain requests through the linked SDK', () => {
       const before = requests.length;
       expect(await client.post('/refresh', { id: 'note-B' }, { expectedViewerId: 'A' })).toEqual({
         data: envelope,
+        status: 200,
       });
       expect(refreshes).toBe(1);
       expect(requests.slice(before).map(({ body }) => body)).toEqual([

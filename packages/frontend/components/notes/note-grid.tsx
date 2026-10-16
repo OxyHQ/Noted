@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import Animated, { LinearTransition, FadeIn, FadeOut } from 'react-native-reanimated';
 import { NoteCard } from '@/components/notes/note-card';
-import type { Label, Note } from '@noted/shared-types';
+import type { Label } from '@noted/shared-types';
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
+import { plainText, todos } from '@/lib/notes/blocks';
 import type { ViewMode } from '@/lib/stores/notes-ui-store';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
@@ -56,13 +58,16 @@ function estimateHeight(note: Note): number {
   let h = 56; // base padding + chrome
   if ((note.attachments?.length ?? 0) > 0) h += 48; // attachment thumbnail / chip row
   if (note.title) h += 24;
-  if (note.checklist.length > 0) {
-    h += Math.min(note.checklist.length, 6) * 22;
-    if (note.checklist.length > 6) h += 18;
-  } else if (note.body) {
-    // ~36 chars per line, capped at the card's 8-line clamp.
-    const lines = Math.min(8, Math.ceil(note.body.length / 36));
+  const tasks = todos(note.blocks).length;
+  const text = plainText(note.blocks.filter((block) => block.type !== 'todo'));
+  if (text) {
+    // ~36 chars per line, capped at the card's clamp (fewer lines beside tasks).
+    const lines = Math.min(tasks > 0 ? 4 : 8, Math.ceil(text.length / 36));
     h += lines * 20;
+  }
+  if (tasks > 0) {
+    h += Math.min(tasks, 6) * 22;
+    if (tasks > 6) h += 18;
   }
   if (note.labels.length > 0) h += 26;
   if (note.reminderAt) h += 24;

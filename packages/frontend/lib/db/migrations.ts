@@ -10,6 +10,8 @@
  */
 
 import type { EngineDatabase } from './client-engine';
+import { plainText } from '@/lib/notes/blocks';
+import { type ChecklistLike, noteBlocksFromMarkdown } from '@/lib/notes/markdown-blocks';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('NotedDB');
@@ -301,6 +303,29 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
   // Folders nest. The parent is the server's; this is a copy, like the rest of the
   // table. Its own entry for the reason given above: the previous one has shipped.
   [`ALTER TABLE folders ADD COLUMN parent_id TEXT`],
+
+  // Notes are Nilo blocks: the server is Nilo (`/notes`), and a note's content
+  // is its blocks, flat, as Nilo stores them. `generated_json` is which of
+  // those the recorder wrote (`lib/notes/blocks.ts`), `body_text` their text
+  // for search and previews. `content_model` says whether a row still holds
+  // the old Markdown body: `convertMarkdownNotes` turns those into blocks once,
+  // in code, because SQL cannot parse Markdown.
+  //
+  // The cursor and every server version were the old server's and mean
+  // nothing to Nilo: the next sync is a whole pass, and unsent edits go up as
+  // creates (which Nilo answers with the imported note, to edit on top of).
+  [
+    `ALTER TABLE notes ADD COLUMN blocks_json TEXT NOT NULL DEFAULT '[]'`,
+    `ALTER TABLE notes ADD COLUMN generated_json TEXT NOT NULL DEFAULT '{}'`,
+    `ALTER TABLE notes ADD COLUMN body_text TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE notes ADD COLUMN content_model TEXT NOT NULL DEFAULT 'markdown'`,
+    `ALTER TABLE notes ADD COLUMN app_data_revision INTEGER NOT NULL DEFAULT 0`,
+    // The whole-set sync pass a row was last seen in (`lib/db/sync.ts`): what a
+    // pass did not see, and the device has not changed, is gone from the server.
+    `ALTER TABLE notes ADD COLUMN sync_pass TEXT`,
+    `UPDATE notes SET server_updated_at = NULL`,
+    `DELETE FROM sync_state WHERE key = 'notes_cursor'`,
+  ],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
@@ -319,6 +344,47 @@ export const LOCAL_TABLES: readonly string[] = [
   'model_files',
   'cache_metadata',
 ];
+
+interface MarkdownNoteRow {
+  id: string;
+  body: string;
+  checklist_json: string;
+}
+
+/**
+ * Turn the notes still holding a Markdown body into blocks (migration 8).
+ * Idempotent: only rows marked `markdown` are read, and each is marked
+ * `blocks` in the same write. What the recorder had written becomes part of
+ * the note; the next rebuild of a recording renders its blocks afresh.
+ */
+export async function convertMarkdownNotes(
+  db: EngineDatabase,
+  newId: () => string,
+): Promise<number> {
+  const rows = await db.getAllAsync<MarkdownNoteRow>(
+    `SELECT id, body, checklist_json FROM notes WHERE content_model = 'markdown'`,
+  );
+  for (const row of rows) {
+    let checklist: unknown = [];
+    try {
+      checklist = JSON.parse(row.checklist_json);
+    } catch {
+      checklist = [];
+    }
+    const blocks = noteBlocksFromMarkdown(
+      row.body,
+      Array.isArray(checklist) ? (checklist as ChecklistLike[]) : [],
+      newId,
+    );
+    await db.runAsync(
+      `UPDATE notes SET blocks_json = ?, generated_json = '{}', body_text = ?, content_model = 'blocks'
+       WHERE id = ? AND content_model = 'markdown'`,
+      [JSON.stringify(blocks), plainText(blocks), row.id],
+    );
+  }
+  if (rows.length > 0) logger.info('Converted notes to blocks', { notes: rows.length });
+  return rows.length;
+}
 
 export async function migrate(db: EngineDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

@@ -89,6 +89,7 @@ vi.mock('expo-sqlite', () => {
 vi.mock('@/lib/db/migrations', () => ({
   LOCAL_TABLES: ['notes'],
   migrate: () => (state.migrationError ? Promise.reject(state.migrationError) : Promise.resolve()),
+  convertMarkdownNotes: () => Promise.resolve(0),
 }));
 
 /** A fresh module instance, since the store keeps its connection in module state. */

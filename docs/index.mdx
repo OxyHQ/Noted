@@ -66,42 +66,50 @@ display-name, sorted-list and first-result fallbacks are forbidden.
 
 ## Note and artifact contract
 
-A recorded note has two separately persisted parts:
+Noted's server is Nilo (`api.nilo.so`): a note is a row of the user's
+personal-workspace `notes` database, served by Nilo's `/notes`; the shapes are
+`@oxy.so/nilo-contracts` `notes.ts`. A recorded note has two parts:
 
-- the Markdown note body;
+- its content, Nilo blocks (flat: `parentBlockId`, `order`, `content`), edited
+  with Bloom's block editor — the user's blocks and the recorder's, the latter
+  known by id (`lib/notes/blocks.ts` `GeneratedMap`), so a rebuild replaces
+  exactly its own and never what the user wrote;
 - an artifact containing transcript provenance, speaker/timing references,
-  transcript revision and user overrides.
+  transcript revision and user overrides, kept with the recorder's map in the
+  note's app data on Nilo (`appData`, written on its `revision`).
 
-The shared domain lives in `@noted/shared-types`, because both SQLite and the
-server store it. `CAPTURE_PROFILES` and `DOCUMENT_INTENTS` are the source tuples
-from which the unions and server validators derive.
+Artifact types live in `@noted/shared-types`. `CAPTURE_PROFILES` and
+`DOCUMENT_INTENTS` are the source tuples from which the unions derive.
 
-Four invariants are load-bearing:
+Three invariants are load-bearing:
 
 1. Only a `final` artifact synchronises; a changing `live` artifact remains on
    the device.
-2. Artifact writes compare-and-swap on `transcriptRevision` in SQL. Never
-   replace that with read-then-write application logic.
+2. Artifact writes compare-and-swap on `transcriptRevision` in SQL locally, and
+   the app data as a whole on its revision on Nilo (a stale write is `409
+   STALE_APP_DATA`; the client takes the server's and sends again).
 3. Missing `artifacts` or `itemOverrides` means “leave existing state alone”. An
    explicit empty array means “clear it”.
-4. Feed reads deliberately omit artifacts, so a feed note must not be applied
-   as if it asserted there are none.
 
 ## Note sync contract
 
-- **Edits carry their base.** `PATCH /notes/:id` may send `baseUpdatedAt`, the
-  server `updatedAt` the edit sits on. The check is part of the SQL `UPDATE`; a
-  stale base is answered `409` with the current note and nothing is written.
-  The client keeps the other version as a conflict copy and retries once.
-  Without `baseUpdatedAt` the write is last-write-wins (capabilities, older
-  clients).
-- **Pulls are paged on request.** `GET /notes/sync?since=&limit=` (1–1000)
-  returns `hasMore` and `nextCursor`. A page never ends inside a run of rows
-  sharing one `updatedAt`, because the cursor is a timestamp and the next
-  request asks for strictly later rows. Without `limit` the answer is the whole
-  set, so a client that ignores paging cannot stop early. The client commits
-  each page's rows and cursor in one transaction; only the last page stores the
-  server clock.
+- **Edits carry their base.** `PATCH /notes/:id` sends `baseUpdatedAt`, the
+  server `updatedAt` the edit sits on; a stale base is `409 STALE_NOTE` with the
+  current note and nothing is written. The client keeps the other version as a
+  conflict copy (with fresh block ids: a block belongs to one page) and retries
+  once. A create (`POST /notes` with the device's id) answers 200 when the note
+  already exists, and the client then writes its version on top.
+- **Content is merged by block, not by text.** The editor sends what it changed
+  against the blocks it started from, and the store merges that onto the note
+  as stored (`mergeBlocks`); nothing writes a whole note over a recording that
+  moved on.
+- **Pulls are passes.** `GET /notes/sync?cursor=&limit=` returns `notes`,
+  `deleted`, `cursor`, `hasMore`, and at a pass's end the labels and folders.
+  A `full` pass is the whole set: every note it returns is marked with the pass
+  (`notes.sync_pass`), and at its end what it did not see and the device has not
+  changed is gone. `reset` means the workspace was reset since: everything on
+  the device goes first, unsent edits included. Each page commits its rows and
+  cursor in one transaction.
 
 ## Folders
 
@@ -125,28 +133,19 @@ server's version is the right one.
 
 ## Version history
 
-`note_revisions` keeps earlier versions of a note's own text (title, body,
-checklist) — not the generated half, which is rebuilt from the recording. A
-`PATCH` that changes that text snapshots what it replaced, in the same
-transaction and only once the edit has applied (a refused `409` replaced
-nothing), at most once every ten minutes per note and keeping the newest 50.
-`GET /notes/:id/revisions` lists them and
-`POST /notes/:id/revisions/:revisionId/restore` puts one back, snapshotting the
-text it replaces first so a restore can itself be undone. Versions expire after
-90 days (`db/expiry.ts`), vanish with the note on "delete forever", and are
-erased with the account. The editor's toolbar opens the history; restoring applies the version as an ordinary local edit, so it syncs like any other.
+A note's history is its Nilo page's (`/pages/:id/versions`): the blocks as they
+were before the first change after a quiet spell, and before every restore. The
+editor's toolbar opens it; restoring applies the version's blocks as an
+ordinary local edit (set whole, so the recorder's map is cleared and restored
+text is the user's), and it syncs like any other.
 
 ## Account data
 
-`GET /account/export` returns everything Noted stores for the caller as one JSON
-file (`noted-export-v1`): live and trashed notes with their artifacts and item
-overrides, labels, notifications and feedback. `DELETE /account` with
-`{"confirm":"DELETE"}` erases every row Noted holds for the caller in a single
-transaction; the Oxy account itself is Oxy's to delete. Both live in
-`lib/account-data.ts` so the rows they touch are tested against PostgreSQL.
-`POST /account/erase` does the same as `DELETE /account`: a body on a DELETE is
-dropped by some proxies, which would turn the confirmation into a `400`, so the
-app uses the POST form.
+`GET /notes/export` (Nilo) returns every note (trash included), label and
+folder Noted keeps as one JSON file. `POST /notes/erase` with
+`{"confirm":"DELETE"}` erases every note, folder and label for good in one
+transaction, leaving tombstones so other devices drop them; the rest of the
+user's Nilo workspace stays, and the Oxy account itself is Oxy's to delete.
 
 Settings → Account → "Erase my Noted data" calls it, then clears this device
 (`lib/db/erase-local.ts`): recordings' audio first, then every account table

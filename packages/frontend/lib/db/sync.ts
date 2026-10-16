@@ -11,7 +11,8 @@
  */
 
 import { createLogger } from '@oxy.so/core/logger';
-import type { Folder, Label, Note } from '@noted/shared-types';
+import type { Folder, GeneratedNoteArtifact, Label, UserItemOverride } from '@noted/shared-types';
+import type { Note as NiloNote, NotesSyncPage } from '@oxy.so/nilo-contracts';
 
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
@@ -23,9 +24,12 @@ import {
   type Row,
   type Statement,
 } from '@/lib/db/client';
-import { saveFolders } from '@/lib/db/folders-repo';
-import { saveLabels } from '@/lib/db/labels-repo';
+import { replaceFolders, saveFolders } from '@/lib/db/folders-repo';
+import { newNoteId } from '@/lib/db/ids';
+import { replaceLabels, saveLabels } from '@/lib/db/labels-repo';
+import { type GeneratedMap, type NoteBlock, plainText, renumber } from '@/lib/notes/blocks';
 import { withAccountSyncLock } from '@/lib/db/web-locks';
+import { eraseLocalAccountData } from '@/lib/db/erase-local';
 import {
   artifactUpsertStatement,
   getNoteOverrides,
@@ -64,18 +68,14 @@ function nowIso(): string {
 
 /* ── Pull ──────────────────────────────────────────────────────── */
 
-interface SyncResponse {
-  data: Note[];
-  deleted: string[];
-  serverTime: string;
-  /** Present on a paged request: another page follows, from `nextCursor`. */
-  hasMore?: boolean;
-  nextCursor?: string | null;
-}
+/** A note as Nilo sends it (`@oxy.so/nilo-contracts` `Note`). */
+type ServerNote = NiloNote;
 
-const PULL_PAGE_SIZE = 500;
+const PULL_PAGE_SIZE = 200;
 /** A backstop against a server that keeps answering `hasMore` without moving. */
 const PULL_MAX_PAGES = 1_000;
+/** The whole-set pass in progress, kept across pages and restarts (`sync_pass`). */
+const PASS_KEY = 'notes_full_pass';
 
 interface LocalStateRow extends Row {
   id: string;
@@ -84,42 +84,59 @@ interface LocalStateRow extends Row {
   dirty: number;
 }
 
+/** What Noted keeps in a note's app data on Nilo: the recorder's half. */
+interface NotedAppData {
+  artifacts?: GeneratedNoteArtifact[];
+  itemOverrides?: UserItemOverride[];
+  generated?: GeneratedMap;
+}
+
+function appDataOf(note: ServerNote): NotedAppData {
+  return (note.appData?.data ?? {}) as NotedAppData;
+}
+
 /**
- * A note the server sent, written as the agreed version: not dirty, and with
- * `server_updated_at` recording what we agreed on, which is what the next merge
- * compares against.
- */
-/**
- * The generated half that arrived with a note.
+ * The recorder's half that arrived with a note.
  *
- * Absent means the server said nothing about it — the feed read does not carry
- * it — and nothing is touched. An empty array is a real answer and would clear
- * what is here, so the two must not be conflated.
+ * Absent means the server said nothing about it, and nothing is touched. An
+ * empty array is a real answer and would clear what is here, so the two must
+ * not be conflated.
  */
-function generatedHalfStatements(note: Note, now: string): Statement[] {
+function generatedHalfStatements(note: ServerNote, now: string): Statement[] {
+  const data = appDataOf(note);
   const statements: Statement[] = [];
   // The upsert carries the revision guard, so an artifact this device already
   // built from a newer transcript is refused by the database rather than by a
   // check here that a slow request could get past.
-  for (const artifact of note.artifacts ?? []) statements.push(artifactUpsertStatement(artifact));
-  for (const override of note.itemOverrides ?? []) {
+  for (const artifact of data.artifacts ?? []) statements.push(artifactUpsertStatement(artifact));
+  for (const override of data.itemOverrides ?? []) {
     statements.push(overrideUpsertStatement(note.id, override, now));
   }
   return statements;
 }
 
-function applyServerNoteStatements(note: Note): Statement[] {
+/**
+ * A note the server sent, written as the agreed version: not dirty, and with
+ * `server_updated_at` recording what we agreed on, which is what the next merge
+ * compares against.
+ */
+function applyServerNoteStatements(note: ServerNote, pass: string | null): Statement[] {
+  const blocks = renumber(note.blocks);
   return [
     {
       sql: `INSERT INTO notes (
-              id, kind, title, body, body_format, checklist_json, color, pinned,
-              archived, trashed, attachments_json, reminder_at, sort_order, folder_id,
-              created_at, updated_at, deleted_at, dirty, server_updated_at
-            ) VALUES (?, 'note', ?, ?, 'plain', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?)
+              id, kind, title, blocks_json, generated_json, body_text, content_model, color,
+              pinned, archived, trashed, attachments_json, reminder_at, sort_order, folder_id,
+              created_at, updated_at, deleted_at, dirty, server_updated_at, app_data_revision,
+              sync_pass
+            ) VALUES (?, ?, ?, ?, ?, ?, 'blocks', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
+              kind = excluded.kind,
               title = excluded.title,
-              body = excluded.body,
-              checklist_json = excluded.checklist_json,
+              blocks_json = excluded.blocks_json,
+              generated_json = excluded.generated_json,
+              body_text = excluded.body_text,
+              content_model = 'blocks',
               color = excluded.color,
               pinned = excluded.pinned,
               archived = excluded.archived,
@@ -131,12 +148,16 @@ function applyServerNoteStatements(note: Note): Statement[] {
               updated_at = excluded.updated_at,
               deleted_at = NULL,
               dirty = 0,
-              server_updated_at = excluded.server_updated_at`,
+              server_updated_at = excluded.server_updated_at,
+              app_data_revision = excluded.app_data_revision,
+              sync_pass = COALESCE(excluded.sync_pass, notes.sync_pass)`,
       params: [
         note.id,
+        note.kind,
         note.title,
-        note.body,
-        JSON.stringify(note.checklist),
+        JSON.stringify(blocks),
+        JSON.stringify(appDataOf(note).generated ?? {}),
+        plainText(blocks),
         note.color,
         note.pinned ? 1 : 0,
         note.archived ? 1 : 0,
@@ -144,12 +165,12 @@ function applyServerNoteStatements(note: Note): Statement[] {
         JSON.stringify(note.attachments),
         note.reminderAt,
         note.order,
-        // Absent means the server said nothing; the server's own notes always
-        // carry it, so absent here can only be "not filed".
-        note.folderId ?? null,
+        note.folderId,
         note.createdAt,
         note.updatedAt,
         note.updatedAt,
+        note.appData?.revision ?? 0,
+        pass,
       ],
     },
     { sql: 'DELETE FROM note_labels WHERE note_id = ?', params: [note.id] },
@@ -161,24 +182,33 @@ function applyServerNoteStatements(note: Note): Statement[] {
 }
 
 /**
- * Both sides changed. The local note keeps the id and the user's unsent text;
+ * Both sides changed. The local note keeps the id and the user's unsent edit;
  * the server's version is written as a separate note so the losing side of the
  * conflict is visible rather than discarded. It is created already dirty, so it
- * is uploaded as a note in its own right.
+ * is uploaded as a note in its own right — with fresh block ids, since a block
+ * belongs to one page and the server's are the original's.
  */
-function conflictCopyStatements(note: Note, copyId: string, now: string): Statement[] {
+function conflictCopyStatements(note: ServerNote, copyId: string, now: string): Statement[] {
+  const ids = new Map(note.blocks.map((block) => [block.id, newNoteId()]));
+  const blocks = renumber(
+    note.blocks.map((block) => ({
+      ...block,
+      id: ids.get(block.id) as string,
+      parentBlockId: block.parentBlockId ? (ids.get(block.parentBlockId) ?? null) : null,
+    })),
+  );
   return [
     {
       sql: `INSERT INTO notes (
-              id, kind, title, body, body_format, checklist_json, color, pinned,
-              archived, trashed, attachments_json, reminder_at, sort_order,
+              id, kind, title, blocks_json, generated_json, body_text, content_model, color,
+              pinned, archived, trashed, attachments_json, reminder_at, sort_order,
               created_at, updated_at, deleted_at, dirty, server_updated_at
-            ) VALUES (?, 'note', ?, ?, 'plain', ?, ?, 0, 0, 0, ?, NULL, ?, ?, ?, NULL, 1, NULL)`,
+            ) VALUES (?, 'note', ?, ?, '{}', ?, 'blocks', ?, 0, 0, 0, ?, NULL, ?, ?, ?, NULL, 1, NULL)`,
       params: [
         copyId,
         note.title,
-        note.body,
-        JSON.stringify(note.checklist),
+        JSON.stringify(blocks),
+        plainText(blocks),
         note.color,
         JSON.stringify(note.attachments),
         note.order,
@@ -195,20 +225,28 @@ function conflictCopyStatements(note: Note, copyId: string, now: string): Statem
     // The local note now agrees with the server about a version it has seen, so
     // the next pull of an unchanged server note stops re-conflicting.
     {
-      sql: 'UPDATE notes SET server_updated_at = ? WHERE id = ?',
-      params: [note.updatedAt, note.id],
+      sql: 'UPDATE notes SET server_updated_at = ?, app_data_revision = ? WHERE id = ?',
+      params: [note.updatedAt, note.appData?.revision ?? 0, note.id],
     },
   ];
 }
 
-async function readCursor(viewerId: string): Promise<string | null> {
+async function readState(key: string, viewerId: string): Promise<string | null> {
   const rows = await execute<{ value: string }>(
     'SELECT value FROM sync_state WHERE key = ?',
-    [CURSOR_KEY],
+    [key],
     viewerId,
   );
   return rows[0]?.value ?? null;
 }
+
+const writeState = (key: string, value: string | null): Statement =>
+  value === null
+    ? { sql: 'DELETE FROM sync_state WHERE key = ?', params: [key] }
+    : {
+        sql: 'INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+        params: [key, value],
+      };
 
 async function readLocalStates(
   ids: readonly string[],
@@ -245,14 +283,16 @@ export async function pullNotes(
   // One page per round trip. Each page commits its rows and its cursor together,
   // so a failure part-way resumes from the last page instead of starting over.
   const total = { applied: 0, conflicts: 0 };
-  let cursor = await readCursor(viewerId);
+  let cursor = await readState(CURSOR_KEY, viewerId);
   for (let page = 0; page < PULL_MAX_PAGES; page += 1) {
     assertCurrentViewer(viewerId);
     const next = await pullNotesPage(cursor, makeConflictId, viewerId);
     total.applied += next.applied;
     total.conflicts += next.conflicts;
-    if (next.nextCursor === null || next.nextCursor === cursor) break;
-    cursor = next.nextCursor;
+    // A server that says there is more without moving the cursor would be
+    // asked the same thing forever.
+    if (!next.hasMore || next.cursor === cursor) break;
+    cursor = next.cursor;
   }
   return total;
 }
@@ -261,17 +301,31 @@ async function pullNotesPage(
   cursor: string | null,
   makeConflictId: () => string,
   viewerId: string,
-): Promise<{ applied: number; conflicts: number; nextCursor: string | null }> {
-  const response = await apiClient.get<SyncResponse>(API_ROUTES.notes.sync, {
-    params: cursor ? { since: cursor, limit: PULL_PAGE_SIZE } : { limit: PULL_PAGE_SIZE },
+): Promise<{ applied: number; conflicts: number; hasMore: boolean; cursor: string }> {
+  const response = await apiClient.get<NotesSyncPage>(API_ROUTES.notes.sync, {
+    params: cursor ? { cursor, limit: PULL_PAGE_SIZE } : { limit: PULL_PAGE_SIZE },
     expectedViewerId: viewerId,
   });
   assertCurrentViewer(viewerId);
-  const { data, deleted, serverTime } = response.data;
-  const nextCursor = response.data.hasMore ? (response.data.nextCursor ?? null) : null;
+  const { notes, deleted, hasMore, full } = response.data;
+
+  // The workspace was reset since this device last looked: what it holds of
+  // the old notes is gone, unsent edits included — uploading them would bring
+  // back what was reset. Dropped before this pass, which is the whole new set.
+  if (response.data.reset) {
+    logger.info('The workspace was reset: dropping this device’s notes');
+    await eraseLocalAccountData(viewerId);
+    assertCurrentViewer(viewerId);
+  }
+
+  // A whole-set pass marks every note it sees; what it never saw, and this
+  // device has not changed, is gone from the server. The pass id outlives a
+  // restart, so a pass resumed from its cursor keeps marking under the same id.
+  let pass = full ? await readState(PASS_KEY, viewerId) : null;
+  if (full && !pass) pass = newNoteId();
 
   const states = await readLocalStates(
-    data.map((note) => note.id),
+    notes.map((note) => note.id),
     viewerId,
   );
   const statements: Statement[] = [];
@@ -279,14 +333,23 @@ async function pullNotesPage(
   let applied = 0;
   let conflicts = 0;
 
-  for (const note of data) {
+  for (const note of notes) {
     const action = decideMerge(states.get(note.id) ?? null, note.updatedAt);
-    if (action === 'skip') continue;
     if (action === 'apply') {
-      statements.push(...applyServerNoteStatements(note), ...generatedHalfStatements(note, now));
+      statements.push(
+        ...applyServerNoteStatements(note, pass),
+        ...generatedHalfStatements(note, now),
+      );
       applied += 1;
       continue;
     }
+    if (pass) {
+      statements.push({
+        sql: 'UPDATE notes SET sync_pass = ? WHERE id = ?',
+        params: [pass, note.id],
+      });
+    }
+    if (action === 'skip') continue;
     statements.push(...conflictCopyStatements(note, makeConflictId(), now));
     conflicts += 1;
   }
@@ -302,18 +365,36 @@ async function pullNotesPage(
     );
   }
 
-  // The cursor advances in the same transaction as the rows it covers, so a
-  // failure re-fetches rather than skips.
-  statements.push({
-    sql: 'INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
-    params: [CURSOR_KEY, nextCursor ?? serverTime],
-  });
+  if (!hasMore) {
+    // The end of a pass: the labels and folders as they are now, and, for a
+    // whole-set pass, the sweep of what it did not see.
+    if (response.data.labels) statements.push(...replaceLabels(response.data.labels, now));
+    if (response.data.folders) statements.push(...replaceFolders(response.data.folders, now));
+    if (pass) {
+      statements.push(
+        {
+          sql: `DELETE FROM note_labels WHERE note_id IN (
+                  SELECT id FROM notes WHERE dirty = 0 AND (sync_pass IS NULL OR sync_pass != ?))`,
+          params: [pass],
+        },
+        {
+          sql: 'DELETE FROM notes WHERE dirty = 0 AND (sync_pass IS NULL OR sync_pass != ?)',
+          params: [pass],
+        },
+      );
+    }
+  }
+
+  // The cursor (and the pass) advance in the same transaction as the rows
+  // they cover, so a failure re-fetches rather than skips.
+  statements.push(writeState(CURSOR_KEY, response.data.cursor));
+  statements.push(writeState(PASS_KEY, pass && hasMore ? pass : null));
 
   await executeTransaction(statements, viewerId);
   if (applied > 0 || conflicts > 0 || deleted.length > 0) {
-    logger.info('Pulled changes', { applied, conflicts, deleted: deleted.length });
+    logger.info('Pulled changes', { applied, conflicts, deleted: deleted.length, full });
   }
-  return { applied, conflicts, nextCursor };
+  return { applied, conflicts, hasMore, cursor: response.data.cursor };
 }
 
 /* ── Push ──────────────────────────────────────────────────────── */
@@ -328,9 +409,10 @@ interface OutboxRow extends Row {
 
 interface PushableNoteRow extends Row {
   id: string;
+  kind: string;
   title: string;
-  body: string;
-  checklist_json: string;
+  blocks_json: string;
+  generated_json: string;
   color: string;
   labels_json: string;
   pinned: number;
@@ -342,25 +424,25 @@ interface PushableNoteRow extends Row {
   folder_id: string | null;
   updated_at: string;
   server_updated_at: string | null;
+  app_data_revision: number;
 }
 
-function parseArray(value: string): unknown[] {
+function parseJson<T>(value: string, fallback: T): T {
   try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
+    return JSON.parse(value) as T;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
 /**
- * A note as the server should see it, generated half included.
+ * A note as the server should see it, the recorder's half included.
  *
  * Only `final` artifacts go: a `live` one is rewritten every few seconds while
  * somebody is still talking, and uploading it would be a request per slice
  * describing a recording that has not finished.
  */
-async function notePayloadWithGenerated(
+async function notePayload(
   row: PushableNoteRow,
   viewerId: string,
 ): Promise<Record<string, unknown>> {
@@ -368,30 +450,33 @@ async function notePayloadWithGenerated(
     listFinalArtifacts(row.id, viewerId),
     getNoteOverrides(row.id, viewerId),
   ]);
-  return { ...notePayload(row), artifacts, itemOverrides: overrides };
-}
-
-function notePayload(row: PushableNoteRow): Record<string, unknown> {
+  const data: NotedAppData = {
+    artifacts,
+    itemOverrides: overrides,
+    generated: parseJson<GeneratedMap>(row.generated_json, {}),
+  };
   return {
     title: row.title,
-    body: row.body,
-    checklist: parseArray(row.checklist_json),
+    blocks: parseJson<NoteBlock[]>(row.blocks_json, []),
     color: row.color,
-    labels: parseArray(row.labels_json),
+    labels: parseJson<string[]>(row.labels_json, []),
     pinned: row.pinned === 1,
     archived: row.archived === 1,
     trashed: row.trashed === 1,
-    attachments: parseArray(row.attachments_json),
+    kind: row.kind === 'voice' ? 'voice' : 'note',
+    attachments: parseJson<string[]>(row.attachments_json, []),
     reminderAt: row.reminder_at,
     order: row.sort_order,
     folderId: row.folder_id,
+    appData: { data, baseRevision: row.app_data_revision },
   };
 }
 
 const PUSHABLE_NOTE_SQL = `
-SELECT notes.id, notes.title, notes.body, notes.checklist_json, notes.color,
+SELECT notes.id, notes.kind, notes.title, notes.blocks_json, notes.generated_json, notes.color,
        notes.pinned, notes.archived, notes.trashed, notes.attachments_json,
-       notes.reminder_at, notes.sort_order, notes.folder_id, notes.updated_at, notes.server_updated_at,
+       notes.reminder_at, notes.sort_order, notes.folder_id, notes.updated_at,
+       notes.server_updated_at, notes.app_data_revision,
        COALESCE((
          SELECT json_group_array(note_labels.label_id)
          FROM note_labels WHERE note_labels.note_id = notes.id
@@ -399,60 +484,116 @@ SELECT notes.id, notes.title, notes.body, notes.checklist_json, notes.color,
 FROM notes WHERE notes.id = ?
 `;
 
-function isConflict(error: unknown): error is { response: { data?: { current?: Note } } } {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { response?: { status?: number } }).response?.status === 409
-  );
+/** The status and code of a refused request, as the API client throws it. */
+function refusal(error: unknown): { status?: number; code?: string; note?: ServerNote } {
+  if (typeof error !== 'object' || error === null) return {};
+  const response = (error as { response?: { status?: number; data?: unknown } }).response;
+  const data = (response?.data ?? {}) as { code?: string; note?: ServerNote };
+  return { status: response?.status, code: data.code, note: data.note };
 }
 
 async function pushNote(
   entityId: string,
   viewerId: string,
   makeConflictId?: () => string,
-  retryOnConflict = true,
+  retries = 1,
 ): Promise<void> {
   const row = (await execute<PushableNoteRow>(PUSHABLE_NOTE_SQL, [entityId], viewerId))[0];
   if (!row) return;
 
-  // A note the server has never confirmed is created with the id it already has
-  // locally; POST is idempotent on that id, so a retry after a lost response
-  // returns the existing note instead of duplicating it.
-  const payload = await notePayloadWithGenerated(row, viewerId);
+  const payload = await notePayload(row, viewerId);
   assertCurrentViewer(viewerId);
   const options = { expectedViewerId: viewerId };
-  let note: Note;
-  if (row.server_updated_at === null) {
-    note = (
-      await apiClient.post<Note>(API_ROUTES.notes.create, { id: row.id, ...payload }, options)
-    ).data;
-  } else {
-    try {
+  let note: ServerNote;
+  try {
+    if (row.server_updated_at === null) {
+      // A note the server has never confirmed is created with the id it
+      // already has locally; POST is idempotent on that id.
+      const created = await apiClient.post<{ note: ServerNote }>(
+        API_ROUTES.notes.create,
+        { id: row.id, ...payload, appData: undefined },
+        options,
+      );
+      note = created.data.note;
+      // 200, not 201: the note was already there — a retry whose first answer
+      // was lost, or a note copied over from the old server with this id. What
+      // this device holds is written on top of it.
+      if (created.status === 200) {
+        note = (
+          await apiClient.patch<{ note: ServerNote }>(
+            API_ROUTES.notes.update(row.id),
+            {
+              ...payload,
+              baseUpdatedAt: note.updatedAt,
+              appData: {
+                ...(payload.appData as object),
+                baseRevision: note.appData?.revision ?? 0,
+              },
+            },
+            options,
+          )
+        ).data.note;
+      } else if (payload.appData) {
+        note = (
+          await apiClient.patch<{ note: ServerNote }>(
+            API_ROUTES.notes.update(row.id),
+            {
+              appData: {
+                ...(payload.appData as object),
+                baseRevision: note.appData?.revision ?? 0,
+              },
+            },
+            options,
+          )
+        ).data.note;
+      }
+    } else {
       // `baseUpdatedAt` is the version this edit sits on top of: the server
       // refuses to overwrite a newer one it has not been shown.
       note = (
-        await apiClient.patch<Note>(
+        await apiClient.patch<{ note: ServerNote }>(
           API_ROUTES.notes.update(row.id),
           { ...payload, baseUpdatedAt: row.server_updated_at },
           options,
         )
-      ).data;
-    } catch (error) {
-      const current = isConflict(error) ? error.response.data?.current : undefined;
-      // Without a way to mint the copy's id, or a body to keep, fall back to the
-      // outbox's backoff: the pull in the same cycle makes the copy.
-      if (!current || !makeConflictId || !retryOnConflict) throw error;
-      assertCurrentViewer(viewerId);
-      // Same resolution as a conflicting pull: the user's unsent text stays on
-      // the note, the other device's version survives as its own note, and the
-      // local note adopts the server version so the retry has a valid base.
+      ).data.note;
+    }
+  } catch (error) {
+    const { status, code, note: current } = refusal(error);
+    // Deleted for good elsewhere: this device's copy goes too.
+    if (status === 410) {
       await executeTransaction(
-        conflictCopyStatements(current, makeConflictId(), nowIso()),
+        [
+          { sql: 'DELETE FROM note_labels WHERE note_id = ?', params: [row.id] },
+          { sql: 'DELETE FROM notes WHERE id = ?', params: [row.id] },
+        ],
         viewerId,
       );
-      return pushNote(entityId, viewerId, makeConflictId, false);
+      return;
     }
+    if (status !== 409 || !current || retries <= 0) throw error;
+    assertCurrentViewer(viewerId);
+    if (code === 'STALE_APP_DATA') {
+      // Only the recorder's half moved: take the server's (the artifact upsert
+      // keeps whichever revision is newer) and send again on its revision.
+      await executeTransaction(
+        [
+          ...generatedHalfStatements(current, nowIso()),
+          {
+            sql: 'UPDATE notes SET app_data_revision = ? WHERE id = ?',
+            params: [current.appData?.revision ?? 0, row.id],
+          },
+        ],
+        viewerId,
+      );
+      return pushNote(entityId, viewerId, makeConflictId, retries - 1);
+    }
+    if (!makeConflictId) throw error;
+    // Same resolution as a conflicting pull: the user's unsent edit stays on
+    // the note, the other device's version survives as its own note, and the
+    // local note adopts the server version so the retry has a valid base.
+    await executeTransaction(conflictCopyStatements(current, makeConflictId(), nowIso()), viewerId);
+    return pushNote(entityId, viewerId, makeConflictId, retries - 1);
   }
 
   await executeTransaction(
@@ -460,8 +601,8 @@ async function pushNote(
       // We now know which server version this note agrees with, whatever else has
       // happened locally in the meantime.
       {
-        sql: 'UPDATE notes SET server_updated_at = ? WHERE id = ?',
-        params: [note.updatedAt, row.id],
+        sql: 'UPDATE notes SET server_updated_at = ?, app_data_revision = ? WHERE id = ?',
+        params: [note.updatedAt, note.appData?.revision ?? 0, row.id],
       },
       // Clear `dirty` only if nothing was typed while the request was in flight.
       // The guard compares the local timestamp against the local timestamp read
@@ -491,11 +632,7 @@ async function pushDeletion(entityId: string, viewerId: string): Promise<void> {
 }
 
 function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { response?: { status?: number } }).response?.status === 404
-  );
+  return refusal(error).status === 404;
 }
 
 /**
@@ -572,30 +709,28 @@ export async function flushOutbox(
 }
 
 /**
- * Refresh the stored labels from the server.
- *
- * A whole-list replace rather than an incremental pull: a user has a handful of
- * labels, and the server's list is the only way to learn that one was deleted
- * elsewhere (labels carry no tombstone).
+ * Refresh the stored folders and labels from the server, whole: what changed
+ * in Nilo (a label renamed there) arrives at the end of every sync pass too,
+ * and this reads them on their own when only they are wanted.
  */
 export async function pullFolders(viewerId = getActiveViewerId()): Promise<void> {
   if (!viewerId || !isDbAvailable()) return;
   assertCurrentViewer(viewerId);
-  const response = await apiClient.get<{ data: Folder[] }>(API_ROUTES.folders.list, {
+  const response = await apiClient.get<{ folders: Folder[] }>(API_ROUTES.folders.list, {
     expectedViewerId: viewerId,
   });
   assertCurrentViewer(viewerId);
-  await saveFolders(response.data.data, viewerId);
+  await saveFolders(response.data.folders, viewerId);
 }
 
 export async function pullLabels(viewerId = getActiveViewerId()): Promise<void> {
   if (!viewerId || !isDbAvailable()) return;
   assertCurrentViewer(viewerId);
-  const response = await apiClient.get<{ data: Label[] }>(API_ROUTES.labels.list, {
+  const response = await apiClient.get<{ labels: Label[] }>(API_ROUTES.labels.list, {
     expectedViewerId: viewerId,
   });
   assertCurrentViewer(viewerId);
-  await saveLabels(response.data.data, viewerId);
+  await saveLabels(response.data.labels, viewerId);
 }
 
 /**
@@ -603,8 +738,7 @@ export async function pullLabels(viewerId = getActiveViewerId()): Promise<void> 
  *
  * Push first so a note created offline exists on the server before the pull
  * that would otherwise see no trace of it. Each stage is caught on its own: a
- * failing pull must not stop the outbox from draining on the next attempt, and
- * labels failing must not cost the notes their sync.
+ * failing pull must not stop the outbox from draining on the next attempt.
  */
 async function runSyncCycle(makeConflictId: () => string, viewerId: string): Promise<void> {
   if (!isCurrentViewer(viewerId)) return;
@@ -615,33 +749,14 @@ async function runSyncCycle(makeConflictId: () => string, viewerId: string): Pro
     logger.error('Push failed', { stage: 'push' satisfies SyncStage, error: errorMessage(error) });
   }
   if (!isCurrentViewer(viewerId)) return;
-  // Folders before notes: a pulled note names its folder, and a folder list
-  // that arrives afterwards would leave the note pointing at nothing for a cycle.
-  try {
-    await pullFolders(viewerId);
-  } catch (error) {
-    if (!isCurrentViewer(viewerId)) return;
-    logger.error('Folder pull failed', {
-      stage: 'pull' satisfies SyncStage,
-      error: errorMessage(error),
-    });
-  }
-  if (!isCurrentViewer(viewerId)) return;
+  // The labels and folders arrive at the end of the pass, in the same
+  // transaction as its last notes, so a note never names one this device
+  // does not have yet.
   try {
     await pullNotes(makeConflictId, viewerId);
   } catch (error) {
     if (!isCurrentViewer(viewerId)) return;
     logger.error('Pull failed', { stage: 'pull' satisfies SyncStage, error: errorMessage(error) });
-  }
-  if (!isCurrentViewer(viewerId)) return;
-  try {
-    await pullLabels(viewerId);
-  } catch (error) {
-    if (!isCurrentViewer(viewerId)) return;
-    logger.error('Label pull failed', {
-      stage: 'pull' satisfies SyncStage,
-      error: errorMessage(error),
-    });
   }
 }
 

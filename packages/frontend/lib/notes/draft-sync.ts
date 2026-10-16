@@ -23,19 +23,17 @@
  * two live versions, which is what makes this safe to run on every store change,
  * mid-sentence, as often as a recording produces one.
  *
- * ## The body is the field with two owners
+ * ## The blocks are the field with two owners
  *
- * Every other field belongs to whoever wrote it last. The body does not: it is
- * the user's writing and the app's generated block, composed. So it is merged
- * rather than chosen — the user's half comes out of the draft using the block
- * that is actually inside it, and goes back on top of whatever the app has
- * written since. Extracting with the DRAFT's block rather than the store's is
- * the whole trick: they differ exactly when a slice has landed since the editor
- * last looked, which is the case this exists for.
+ * Every other field belongs to whoever wrote it last. The blocks do not: they
+ * are the user's writing and the recorder's, side by side. So they are merged
+ * rather than chosen, block by block against the same ancestor
+ * (`mergeBlocks`): a block the user has not touched takes the store's
+ * version, one they have keeps theirs, and the recorder's map follows the
+ * blocks it still owns.
  */
-
 import type { LocalNote } from '@/lib/db/notes-repo';
-import { composeNoteBody, userBodyOf } from '@/lib/notes/generated-body';
+import { adoptEdited, mergeBlocks } from '@/lib/notes/blocks';
 
 /**
  * Whether the user has left a field alone since the draft last agreed with the
@@ -65,52 +63,29 @@ function pick<T>(base: T, draft: T, stored: T): T {
  * @param stored the note as it is now
  */
 export function reconcileDraft(base: LocalNote, draft: LocalNote, stored: LocalNote): LocalNote {
-  // Normally the editor does not own this half at all, so the draft still holds
-  // the block it was given and the store's wins. The exception is a conversion
-  // between a body and a checklist: that moves every generated line into
-  // something the user owns and clears the draft's record of it. Running it
-  // through the same rule as every other field is what keeps a slice landing in
-  // the moment after that conversion from putting the block straight back.
-  const generatedBody = pick(base.generatedBody, draft.generatedBody, stored.generatedBody);
-
-  // Extracted with the block each side actually holds. The draft's and the
-  // base's differ exactly when a slice has landed since the editor last looked,
-  // which is the case this exists for.
-  const baseUserBody = userBodyOf(base.body, base.generatedBody);
-  const draftUserBody = userBodyOf(draft.body, draft.generatedBody);
-  const storedUserBody = userBodyOf(stored.body, stored.generatedBody);
-
-  /**
-   * The body, in three cases rather than two.
-   *
-   * The third — leaving the draft's text exactly as it is — is not an
-   * optimisation. Composing trims, and this runs on every store write including
-   * this editor's own autosave landing back, so recomposing an unchanged body
-   * hands the field a trimmed copy of itself: the space someone just typed
-   * disappears from under their caret and the next word joins the last one.
-   */
-  function nextBody(): string {
-    if (generatedBody === draft.generatedBody && storedUserBody === draftUserBody) {
-      // Nothing about the body actually moved. Most often that is our own save.
-      return draft.body;
-    }
-    // Untouched here, so the store's version is simply newer — a slice, or
-    // another device.
-    if (draftUserBody === baseUserBody) return stored.body;
-    // Both halves moved. This is the only case that has to be assembled.
-    return composeNoteBody(draftUserBody, generatedBody);
-  }
+  // Nothing the user wrote since the ancestor: the store's blocks are simply
+  // newer (a slice, another device, or our own save landing back). Taken as
+  // they are, so the editor is handed the exact list the store holds.
+  const blocksUntouched = untouched(base.blocks, draft.blocks);
+  const blocks = blocksUntouched
+    ? stored.blocks
+    : mergeBlocks(base.blocks, draft.blocks, stored.blocks);
+  const present = new Set(blocks.map((block) => block.id));
+  const generated = blocksUntouched
+    ? stored.generated
+    : Object.fromEntries(
+        Object.entries(adoptEdited(base.blocks, draft.blocks, stored.generated)).filter(([id]) =>
+          present.has(id),
+        ),
+      );
 
   return {
     // Everything the editor does not own — id, kind, ordering, timestamps —
-    // comes from the store as-is. The body below is composed with the
-    // `generatedBody` above, which is what keeps the pair consistent for the
-    // next reconcile: the block recorded is the block sitting inside the text.
+    // comes from the store as-is.
     ...stored,
-    generatedBody,
+    blocks,
+    generated,
     title: pick(base.title, draft.title, stored.title),
-    body: nextBody(),
-    checklist: pick(base.checklist, draft.checklist, stored.checklist),
     color: pick(base.color, draft.color, stored.color),
     labels: pick(base.labels, draft.labels, stored.labels),
     pinned: pick(base.pinned, draft.pinned, stored.pinned),

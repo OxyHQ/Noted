@@ -36,9 +36,8 @@ describe('note search against SQLite', () => {
     const row = {
       id,
       title: '',
-      body: '',
-      generated_body: '',
-      checklist_json: '[]',
+      body_text: '',
+      content_model: 'blocks',
       ...fields,
       created_at: now,
       updated_at: now,
@@ -50,14 +49,14 @@ describe('note search against SQLite', () => {
   };
 
   addNote('title', { title: 'Quarterly Budget' });
-  addNote('body', { body: 'remember to call the bank on friday' });
-  addNote('generated', { generated_body: 'Decision: ship the redesign' });
-  addNote('checklist', {
-    checklist_json: JSON.stringify([{ id: 'x', text: 'Buy oat milk', checked: false }]),
-  });
+  // `body_text` is every block's text, the recorder's and the tasks' included
+  // (`plainText`); what each search reads.
+  addNote('body', { body_text: 'remember to call the bank on friday' });
+  addNote('generated', { body_text: 'Decision: ship the redesign' });
+  addNote('checklist', { body_text: 'Buy oat milk' });
   addNote('labelled', { title: 'Untitled' });
   addNote('spoken', { title: 'Meeting' });
-  addNote('percent', { body: 'we hit 100% of the target' });
+  addNote('percent', { body_text: 'we hit 100% of the target' });
   addNote('trashed', { title: 'Budget old', trashed: 1 });
 
   db.exec(`INSERT INTO labels (id, name, updated_at) VALUES ('l1', 'Finance', '${now}')`);
@@ -90,7 +89,7 @@ describe('note search against SQLite', () => {
     expect(search('meeting redesign')).toEqual([]);
   });
 
-  it('does not match the JSON keys of a checklist', () => {
+  it('does not match the JSON keys of the blocks', () => {
     expect(search('checked')).toEqual([]);
   });
 

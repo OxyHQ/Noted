@@ -4,6 +4,7 @@ import { unitsOf } from '@/lib/artifact/__tests__/fixtures';
 
 import { allItems } from '@/lib/artifact/artifact';
 import { composeNote } from '@/lib/artifact/compose';
+import { noteAfterCompose, userLine, userTask } from '@/lib/artifact/__tests__/fixtures';
 import { enhancementToArtifact } from '@/lib/artifact/generate/from-enhancement';
 import { renderArtifact } from '@/lib/artifact/render';
 import type { PendingExpansion } from '@noted/shared-types';
@@ -165,17 +166,16 @@ describe('derived items', () => {
 
 describe('what the user wrote', () => {
   it('survives the model exactly as it survives the rules', () => {
+    const mine = [
+      userLine('m1', 'ojo con el margen', 0),
+      userTask('mine', 'Llamar a Ana', true, 1),
+    ];
     const composed = composeNote({
-      user: {
-        title: 'Presupuesto Q3',
-        body: '- ojo con el margen',
-        checklist: [{ id: 'mine', text: 'Llamar a Ana', checked: true }],
-      },
+      user: { title: 'Presupuesto Q3', todos: ['Llamar a Ana'] },
       final: build(),
       fallbackTitle: FALLBACK,
     });
     expect(composed.title).toBe('Presupuesto Q3');
-    expect(composed.body.startsWith('- ojo con el margen')).toBe(true);
-    expect(composed.checklist[0]).toEqual({ id: 'mine', text: 'Llamar a Ana', checked: true });
+    expect(noteAfterCompose(mine, composed.rendered).slice(0, 2)).toEqual(mine);
   });
 });

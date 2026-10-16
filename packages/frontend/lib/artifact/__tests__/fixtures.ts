@@ -7,6 +7,12 @@
  * exactly what most of these tests are checking.
  */
 
+import {
+  inReadingOrder,
+  type NoteBlock,
+  type RenderedBlock,
+  withGenerated,
+} from '@/lib/notes/blocks';
 import type {
   GeneratedBlock,
   GeneratedChecklist,
@@ -135,3 +141,36 @@ export function unitsOf(section: GeneratedSection): GeneratedItem[] {
     block.kind === 'paragraph' || block.kind === 'quote' ? [block] : block.items,
   );
 }
+
+/**
+ * What a note holds after the recorder writes: the user's blocks, then the
+ * composed ones, exactly as the store puts them together (`withGenerated`).
+ */
+export function noteAfterCompose(
+  userBlocks: readonly NoteBlock[],
+  rendered: readonly RenderedBlock[],
+): NoteBlock[] {
+  let n = 0;
+  return inReadingOrder(
+    withGenerated(userBlocks, {}, rendered, () => {
+      n += 1;
+      return `gen-${n}`;
+    }).blocks,
+  );
+}
+
+/** A user's line, and a user's task. */
+export const userLine = (id: string, text: string, order = 0): NoteBlock => ({
+  id,
+  parentBlockId: null,
+  type: 'bulleted_list_item',
+  content: { text },
+  order,
+});
+export const userTask = (id: string, text: string, checked: boolean, order = 0): NoteBlock => ({
+  id,
+  parentBlockId: null,
+  type: 'todo',
+  content: { text, checked },
+  order,
+});

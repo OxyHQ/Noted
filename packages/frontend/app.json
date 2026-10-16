@@ -55,7 +55,6 @@
       "llama.rn",
       "@oxy.so/services/plugins/withOxySharedPermissions",
       "expo-sharing",
-      "react-native-enriched-markdown",
       "expo-sqlite",
       [
         "react-native-audio-api",

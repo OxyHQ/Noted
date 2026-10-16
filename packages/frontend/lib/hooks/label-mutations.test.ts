@@ -72,11 +72,15 @@ const labels = () => liveDb().prepare('SELECT id,name,color FROM labels ORDER BY
 
 it('persists a confirmed color change and null clear without dropping sibling labels or sending an unchanged name', async () => {
   state.patch
-    .mockResolvedValueOnce({ data: { id: 'label', name: 'Renamed elsewhere', color: 'pink' } })
-    .mockResolvedValueOnce({ data: { id: 'label', name: 'Renamed elsewhere', color: null } });
+    .mockResolvedValueOnce({
+      data: { label: { id: 'label', name: 'Renamed elsewhere', color: 'pink' } },
+    })
+    .mockResolvedValueOnce({
+      data: { label: { id: 'label', name: 'Renamed elsewhere', color: null } },
+    });
   await mutation(useUpdateLabel).mutate({ id: 'label', patch: { color: 'pink' } });
   expect(state.patch).toHaveBeenLastCalledWith(
-    '/labels/label',
+    '/notes/labels/label',
     { color: 'pink' },
     { expectedViewerId: 'viewer-a' },
   );
@@ -91,12 +95,12 @@ it('persists a confirmed color change and null clear without dropping sibling la
 
 it('adds a colored server-confirmed label to the local read store', async () => {
   const label = { id: 'created', name: 'Travel', color: 'yellow' };
-  state.post.mockResolvedValue({ data: label });
+  state.post.mockResolvedValue({ data: { label } });
   await mutation(useCreateLabel).mutate({ name: label.name, color: label.color });
   expect(labels()).toHaveLength(3);
   expect(labels()[0]).toEqual(label);
   expect(state.post).toHaveBeenCalledWith(
-    '/labels',
+    '/notes/labels',
     { name: 'Travel', color: 'yellow' },
     { expectedViewerId: 'viewer-a' },
   );
@@ -118,7 +122,7 @@ it('fails an offline save without pausing or retrying it later under another acc
 it('does not apply an old account response to the newly active local store', async () => {
   state.patch.mockImplementation(async () => {
     state.viewer = 'viewer-b';
-    return { data: { id: 'label', name: 'Other account secret', color: 'red' } };
+    return { data: { label: { id: 'label', name: 'Other account secret', color: 'red' } } };
   });
   await expect(
     mutation(useUpdateLabel).mutate({ id: 'label', patch: { color: 'red' } }),

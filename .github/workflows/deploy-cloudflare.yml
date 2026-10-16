@@ -47,7 +47,7 @@ jobs:
           # registered Oxy RP client id; the API URL points at the noted backend.
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
           EXPO_PUBLIC_OXY_API_URL: ${{ vars.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so' }}
-          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://api.noted.oxy.so' }}
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://api.nilo.so' }}
       # THE POINT OF THE WORKER, asserted before it is deployed. Both lines this
       # checks are one-line, entirely silent regressions: without
       # `workers_dev = false` a second complete copy of Noted appears on a
