@@ -2,6 +2,7 @@
  * Nilo's `removedAttachments` — the attachments Oxy told Nilo it no longer
  * serves — reach the note the editor reads, from the server's note only.
  */
+import type { Note } from '@oxy.so/nilo-contracts';
 import { describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -45,11 +46,11 @@ vi.mock('@/lib/api/client', () => ({
 
 import { MIGRATIONS } from '@/lib/db/migrations';
 import { NOTE_DETAIL_SQL, type NoteRow, rowToNote } from '@/lib/db/notes-repo';
-import { pullNotes, removedAttachmentsOf } from '@/lib/db/sync';
+import { pullNotes } from '@/lib/db/sync';
 
 const sqlite = await import('node:sqlite').catch(() => null);
 
-const serverNote = {
+const serverNote: Note = {
   id: 'note-1',
   title: 'Trip',
   blocks: [],
@@ -62,21 +63,13 @@ const serverNote = {
   trashed: false,
   kind: 'note',
   attachments: ['kept', 'taken-down'],
+  removedAttachments: [],
   reminderAt: null,
   order: 0,
   appData: null,
   createdAt: '2026-10-16T08:00:00.000Z',
   updatedAt: '2026-10-16T09:00:00.000Z',
 };
-
-describe('removedAttachmentsOf', () => {
-  it('reads the server’s list, and nothing from a server that predates it', () => {
-    expect(
-      removedAttachmentsOf({ ...serverNote, removedAttachments: ['a', 7, ''] } as never),
-    ).toEqual(['a']);
-    expect(removedAttachmentsOf(serverNote as never)).toEqual([]);
-  });
-});
 
 describe('a pulled note against SQLite', () => {
   if (!sqlite) {
