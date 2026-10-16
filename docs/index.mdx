@@ -141,6 +141,58 @@ editor's toolbar opens it; restoring applies the version's blocks as an
 ordinary local edit (set whole, so the recorder's map is cleared and restored
 text is the user's), and it syncs like any other.
 
+## Attachments and Oxy file references
+
+A note's attachments are Oxy files the owner already has (picked from their Oxy
+file manager; Noted uploads nothing). The note keeps their ids
+(`attachments`), and Nilo keeps them as the files property of the note's page.
+
+**Who uses the file is Nilo** (Oxy ADR 0043 D4): Nilo stores the page, serves
+its files and is the only server that sees a file leave the page or the page
+go. Noted has no server that writes notes (its old one is retired), so it
+registers no reference of its own, holds no `files:references:write` and
+receives no file events. The one reference an attachment needs:
+
+| Application | `entityType` | `entityId` | Created by |
+|---|---|---|---|
+| Nilo (`NILO_OXY_APPLICATION_ID`) | `page` (`NILO_FILE_ENTITY_TYPE`) | the note id (= the Nilo page id) | the file's owner, from Noted |
+
+**Noted's half is the owner's link.** An attachment is usually a private file,
+and Oxy lets an application reference (and serve) a person's private file only
+after that person attached it to the application with their own session (ADR
+0041 D4, ADR 0021); Nilo's service token cannot do it for them. So every sync
+ends with `syncAttachmentLinks` (`lib/files/attachment-links.ts`):
+
+- `attachment_links` (local, one row per note and file) is derived from
+  `notes.attachments_json` on every pass: a new attachment is `pending`, one
+  that left its note or whose note was deleted for good is forgotten. A device
+  that already had attachments back-fills on its first pass.
+- A row is worked on only once its note is settled on Nilo (not dirty,
+  acknowledged), so the page holds the file before the reference exists.
+- The file is read first (`GET /assets/:id`, the owner's session). `active`
+  and not yet referenced: linked (`POST /assets/:id/links`, the target above),
+  then `linked`, re-checked weekly and linked again if the reference went.
+  In the owner's trash or blocked: `unavailable`, never linked (a new
+  reference takes a file out of the trash, undoing the owner's decision),
+  checked again with backoff up to a day. Deleted: `missing`. Another
+  account's file: `not_owner` (only its owner can attach it). Both are final.
+  Failed requests back off from a minute to a day; nothing gives up for good.
+- **Noted never unlinks.** A file can be on the page twice (an attachment and a
+  file block share one reference), and only Nilo knows when the page stops
+  using it. Removing the reference when the file leaves the page or the page is
+  deleted, purged or erased, reconciling `page` references (its inventory must
+  include the files property, where these attachments live), and acting on
+  file events are Nilo's, with its service token.
+
+**What the editor shows** comes from Oxy directly: the owner's
+`GET /assets/:id`. A file in the owner's trash shows "This file is in your
+trash"; a blocked or deleted one "This file is no longer available". The note
+keeps the attachment until it is removed, so a file restored from the trash
+comes back.
+
+Requires the Oxy API with ADR 0043 stage 1: an earlier API inferred visibility
+on a link and made a public file linked to a `page` private.
+
 ## Account data
 
 `GET /notes/export` (Nilo) returns every note (trash included), label and

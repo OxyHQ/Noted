@@ -41,6 +41,10 @@ Use Bun only. Package order is `shared-types` before the frontend.
   Only `final` artifacts sync, inside the note's app data (written on its
   revision; a stale one is refused), and omitted artifact fields mean
   “unchanged” while empty arrays mean “clear”. Full contract: `docs/index.mdx`.
+- A note's attachments are Nilo page files. Noted links each one to Nilo with
+  the OWNER's session (`lib/files/attachment-links.ts`, Oxy ADR 0043) and never
+  unlinks; removing, reconciling and file events are Nilo's. Noted holds no
+  Oxy file reference of its own (`docs/index.mdx`).
 - Notes are private pages of the user's personal workspace, which takes no
   members. Noted itself has no public, shared, collaborator or share-link
   surface; Nilo can share a page, so if Noted ever offers that, revisit the
