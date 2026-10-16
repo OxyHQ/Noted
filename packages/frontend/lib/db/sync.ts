@@ -105,19 +105,6 @@ interface NotedAppData {
   generated?: GeneratedMap;
 }
 
-/**
- * The note's attachments Oxy no longer serves, as Nilo says (`removedAttachments`,
- * from the file events Nilo receives). Read with a guard: the published
- * `@oxy.so/nilo-contracts` 0.1.0 predates the field, and a server without it
- * says nothing is removed.
- */
-export function removedAttachmentsOf(note: ServerNote): string[] {
-  const value = (note as { removedAttachments?: unknown }).removedAttachments;
-  return Array.isArray(value)
-    ? value.filter((id): id is string => typeof id === 'string' && id.length > 0)
-    : [];
-}
-
 function appDataOf(note: ServerNote): NotedAppData {
   return (note.appData?.data ?? {}) as NotedAppData;
 }
@@ -191,7 +178,7 @@ function applyServerNoteStatements(note: ServerNote, pass: string | null): State
         note.archived ? 1 : 0,
         note.trashed ? 1 : 0,
         JSON.stringify(note.attachments),
-        JSON.stringify(removedAttachmentsOf(note)),
+        JSON.stringify(note.removedAttachments),
         note.reminderAt,
         note.order,
         note.folderId,
