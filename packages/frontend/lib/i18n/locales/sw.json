@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "Faili hili liko kwenye tupio lako",
+    "attachmentUnavailable": "Faili hili halipatikani tena",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "Rangi ya lebo",

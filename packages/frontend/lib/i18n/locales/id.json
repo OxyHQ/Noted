@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "File ini ada di sampah Anda",
+    "attachmentUnavailable": "File ini tidak lagi tersedia",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "Warna label",

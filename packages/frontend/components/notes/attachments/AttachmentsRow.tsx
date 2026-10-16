@@ -14,6 +14,7 @@ import {
   AttachmentImage,
   AttachmentVideo,
   AttachmentFileChip,
+  AttachmentUnavailableChip,
   RemoveButton,
 } from '@/components/notes/attachments/AttachmentMedia';
 import {
@@ -114,6 +115,17 @@ function EditorAttachmentItem({
             }}
           />
         </View>
+        {onRemove ? <RemoveButton onPress={remove} /> : null}
+      </View>
+    );
+  }
+
+  if (data && data.availability !== 'available') {
+    return (
+      <View className="flex-row items-center gap-2">
+        <AttachmentUnavailableChip
+          reason={data.availability === 'trash' ? 'trash' : 'unavailable'}
+        />
         {onRemove ? <RemoveButton onPress={remove} /> : null}
       </View>
     );

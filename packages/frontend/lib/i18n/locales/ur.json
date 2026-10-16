@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "یہ فائل آپ کے کوڑے دان میں ہے",
+    "attachmentUnavailable": "یہ فائل اب دستیاب نہیں ہے",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "لیبل کا رنگ",

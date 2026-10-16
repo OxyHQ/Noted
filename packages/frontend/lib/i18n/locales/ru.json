@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "Этот файл в корзине",
+    "attachmentUnavailable": "Этот файл больше недоступен",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "Цвет ярлыка",
