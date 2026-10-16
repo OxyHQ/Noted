@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "Este arquivo está na sua lixeira",
+    "attachmentUnavailable": "Este arquivo não está mais disponível",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "Cor da etiqueta",

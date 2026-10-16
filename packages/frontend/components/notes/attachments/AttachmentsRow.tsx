@@ -14,6 +14,7 @@ import {
   AttachmentImage,
   AttachmentVideo,
   AttachmentFileChip,
+  AttachmentUnavailableChip,
   RemoveButton,
 } from '@/components/notes/attachments/AttachmentMedia';
 import {
@@ -34,6 +35,11 @@ export interface AttachmentsRowProps {
    * `attachments` field) can never crash the internal array reads.
    */
   attachments?: string[];
+  /**
+   * Of `attachments`, the ones Oxy no longer serves, as the server says (Nilo's
+   * `removedAttachments`). Shown as removed whatever else is known about them.
+   */
+  removed?: readonly string[];
   /**
    * `editor`: full per-type chips, remove buttons, image gallery.
    * `card`: compact, cheap — image thumbnails + a generic count chip, no
@@ -70,10 +76,12 @@ interface GalleryController {
  */
 function EditorAttachmentItem({
   fileId,
+  removed,
   onRemove,
   gallery,
 }: {
   fileId: string;
+  removed: boolean;
   onRemove?: (id: string) => void;
   gallery: GalleryController;
 }) {
@@ -88,6 +96,21 @@ function EditorAttachmentItem({
   }, [oxyServices, fileId, t]);
 
   const remove = useCallback(() => onRemove?.(fileId), [onRemove, fileId]);
+
+  // Not served any more. The server's word (`removed`) decides; the owner's own
+  // read of the file only names why (their trash) and covers what the server
+  // cannot know: a file Nilo holds no reference to, so is told nothing about.
+  const unavailable = removed || (!!data && data.availability !== 'available');
+  if (unavailable) {
+    return (
+      <View className="flex-row items-center gap-2">
+        <AttachmentUnavailableChip
+          reason={data?.availability === 'trash' ? 'trash' : 'unavailable'}
+        />
+        {onRemove ? <RemoveButton onPress={remove} /> : null}
+      </View>
+    );
+  }
 
   // Loading placeholder: neutral chip while metadata resolves.
   if (isLoading) {
@@ -193,12 +216,19 @@ function ImageGalleryItem({
  * `assetGet`) plus a "+N adjuntos" paperclip chip for any remaining/non-shown
  * attachments — matching the performance posture of `note-card`.
  */
-function CardPreview({ attachments = [] }: { attachments?: string[] }) {
+function CardPreview({
+  attachments = [],
+  removed = [],
+}: {
+  attachments?: string[];
+  removed?: readonly string[];
+}) {
   const { oxyServices } = useOxy();
   const { colors } = useColorScheme();
   const { t } = useTranslation();
 
-  const shown = attachments.slice(0, CARD_THUMB_CAP);
+  // A removed file has no thumbnail to show; it still counts as an attachment.
+  const shown = attachments.filter((id) => !removed.includes(id)).slice(0, CARD_THUMB_CAP);
   const remaining = attachments.length - shown.length;
 
   return (
@@ -232,7 +262,12 @@ function CardPreview({ attachments = [] }: { attachments?: string[] }) {
  * chips + a remove button + the image gallery; the card variant renders a cheap
  * compact preview.
  */
-export function AttachmentsRow({ attachments = [], variant, onRemove }: AttachmentsRowProps) {
+export function AttachmentsRow({
+  attachments = [],
+  removed = [],
+  variant,
+  onRemove,
+}: AttachmentsRowProps) {
   const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
 
   // Stable order of the image-only subset for the gallery, plus per-id src/host.
@@ -304,14 +339,20 @@ export function AttachmentsRow({ attachments = [], variant, onRemove }: Attachme
   if (attachments.length === 0) return null;
 
   if (variant === 'card') {
-    return <CardPreview attachments={attachments} />;
+    return <CardPreview attachments={attachments} removed={removed} />;
   }
 
   return (
     <>
       <View className="gap-2">
         {attachments.map((id) => (
-          <EditorAttachmentItem key={id} fileId={id} onRemove={onRemove} gallery={gallery} />
+          <EditorAttachmentItem
+            key={id}
+            fileId={id}
+            removed={removed.includes(id)}
+            onRemove={onRemove}
+            gallery={gallery}
+          />
         ))}
       </View>
       {imageCount > 0 ? (

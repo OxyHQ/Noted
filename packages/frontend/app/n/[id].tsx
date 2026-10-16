@@ -642,6 +642,7 @@ function NoteEditor() {
           <View className="mb-3">
             <AttachmentsRow
               attachments={draft.attachments ?? []}
+              removed={draft.removedAttachments}
               variant="editor"
               onRemove={handleRemoveAttachment}
             />

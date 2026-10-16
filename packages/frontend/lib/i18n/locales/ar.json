@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "هذا الملف في سلة المهملات",
+    "attachmentUnavailable": "لم يعد هذا الملف متاحًا",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "لون التصنيف",

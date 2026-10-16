@@ -228,7 +228,11 @@ export const NoteCard = React.memo(function NoteCard({
 
         {hasAttachments && (
           <View className="px-4 pt-4">
-            <AttachmentsRow attachments={note.attachments ?? []} variant="card" />
+            <AttachmentsRow
+              attachments={note.attachments ?? []}
+              removed={note.removedAttachments}
+              variant="card"
+            />
           </View>
         )}
 

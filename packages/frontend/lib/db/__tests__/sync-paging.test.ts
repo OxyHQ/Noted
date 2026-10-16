@@ -6,6 +6,11 @@ const state = vi.hoisted(() => ({
   get: vi.fn(),
   erase: vi.fn(),
 }));
+// The owner's attachment links are `attachment-links.test.ts`'s; never Oxy here.
+vi.mock('@/lib/files/attachment-links', () => ({
+  linkNoteAttachments: vi.fn(async () => ({ linked: 0, failed: 0 })),
+  syncAttachmentLinks: vi.fn(async () => ({ linked: 0, failed: 0 })),
+}));
 vi.mock('@/lib/db/client', () => ({
   getActiveViewerId: () => 'alice',
   isDbAvailable: () => true,

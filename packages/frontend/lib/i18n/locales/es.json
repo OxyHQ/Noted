@@ -1204,6 +1204,8 @@
     "removeItem": "Eliminar elemento",
     "loadAttachmentFailed": "No se pudo cargar este archivo adjunto",
     "openAttachmentFailed": "No se pudo abrir este archivo adjunto",
+    "attachmentInTrash": "Este archivo está en tu papelera",
+    "attachmentUnavailable": "Este archivo ya no está disponible",
     "listView": "Cambiar a vista de lista",
     "gridView": "Cambiar a vista de cuadrícula",
     "labelColor": "Color de la etiqueta",

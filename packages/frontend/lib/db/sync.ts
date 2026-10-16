@@ -17,6 +17,12 @@ import type { Note as NiloNote, NotesSyncPage } from '@oxy.so/nilo-contracts';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
 import {
+  type AttachmentLinkDeps,
+  linkNoteAttachments,
+  syncAttachmentLinks,
+} from '@/lib/files/attachment-links';
+import { oxyServices } from '@/lib/oxy';
+import {
   execute,
   executeTransaction,
   getActiveViewerId,
@@ -51,12 +57,20 @@ function isCurrentViewer(viewerId: string): boolean {
   return getActiveViewerId() === viewerId && apiClient.isAccountActive(viewerId);
 }
 
+/** The owner's links of attachments to Nilo (`lib/files/attachment-links.ts`). */
+const attachmentLinks: AttachmentLinkDeps = {
+  assets: oxyServices.assets,
+  execute,
+  executeTransaction,
+  isCurrentViewer,
+};
+
 function assertCurrentViewer(viewerId: string): void {
   if (!isCurrentViewer(viewerId)) throw new Error('The active account changed during sync');
 }
 
 /** Where a failure happened, so a log line says which half of syncing broke. */
-export type SyncStage = 'push' | 'pull' | 'persist';
+export type SyncStage = 'push' | 'pull' | 'persist' | 'links';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -89,6 +103,19 @@ interface NotedAppData {
   artifacts?: GeneratedNoteArtifact[];
   itemOverrides?: UserItemOverride[];
   generated?: GeneratedMap;
+}
+
+/**
+ * The note's attachments Oxy no longer serves, as Nilo says (`removedAttachments`,
+ * from the file events Nilo receives). Read with a guard: the published
+ * `@oxy.so/nilo-contracts` 0.1.0 predates the field, and a server without it
+ * says nothing is removed.
+ */
+export function removedAttachmentsOf(note: ServerNote): string[] {
+  const value = (note as { removedAttachments?: unknown }).removedAttachments;
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : [];
 }
 
 function appDataOf(note: ServerNote): NotedAppData {
@@ -126,10 +153,10 @@ function applyServerNoteStatements(note: ServerNote, pass: string | null): State
     {
       sql: `INSERT INTO notes (
               id, kind, title, blocks_json, generated_json, body_text, content_model, color,
-              pinned, archived, trashed, attachments_json, reminder_at, sort_order, folder_id,
-              created_at, updated_at, deleted_at, dirty, server_updated_at, app_data_revision,
-              sync_pass
-            ) VALUES (?, ?, ?, ?, ?, ?, 'blocks', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)
+              pinned, archived, trashed, attachments_json, removed_attachments_json, reminder_at,
+              sort_order, folder_id, created_at, updated_at, deleted_at, dirty, server_updated_at,
+              app_data_revision, sync_pass
+            ) VALUES (?, ?, ?, ?, ?, ?, 'blocks', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
               kind = excluded.kind,
               title = excluded.title,
@@ -142,6 +169,7 @@ function applyServerNoteStatements(note: ServerNote, pass: string | null): State
               archived = excluded.archived,
               trashed = excluded.trashed,
               attachments_json = excluded.attachments_json,
+              removed_attachments_json = excluded.removed_attachments_json,
               reminder_at = excluded.reminder_at,
               sort_order = excluded.sort_order,
               folder_id = excluded.folder_id,
@@ -163,6 +191,7 @@ function applyServerNoteStatements(note: ServerNote, pass: string | null): State
         note.archived ? 1 : 0,
         note.trashed ? 1 : 0,
         JSON.stringify(note.attachments),
+        JSON.stringify(removedAttachmentsOf(note)),
         note.reminderAt,
         note.order,
         note.folderId,
@@ -665,6 +694,11 @@ export async function flushOutbox(
       if (entry.op === 'delete') {
         await pushDeletion(entry.entity_id, viewerId);
       } else {
+        // The owner links the note's new attachments to its page BEFORE the
+        // note names them on Nilo: once it does, Nilo's reconciliation may
+        // reference a public one with its own token first, and Oxy then never
+        // records the owner's grant (`lib/files/attachment-links.ts`).
+        await linkNoteAttachments(viewerId, entry.entity_id, attachmentLinks);
         await pushNote(entry.entity_id, viewerId, makeConflictId);
       }
       // Retire the entry only if the note is settled. An edit that landed while
@@ -757,6 +791,18 @@ async function runSyncCycle(makeConflictId: () => string, viewerId: string): Pro
   } catch (error) {
     if (!isCurrentViewer(viewerId)) return;
     logger.error('Pull failed', { stage: 'pull' satisfies SyncStage, error: errorMessage(error) });
+  }
+  if (!isCurrentViewer(viewerId)) return;
+  // Last: whatever owner's links are still due — the back-fill, attachments of
+  // notes just pulled, retries and weekly re-checks (`lib/files/attachment-links.ts`).
+  try {
+    await syncAttachmentLinks(viewerId, attachmentLinks);
+  } catch (error) {
+    if (!isCurrentViewer(viewerId)) return;
+    logger.error('Attachment links failed', {
+      stage: 'links' satisfies SyncStage,
+      error: errorMessage(error),
+    });
   }
 }
 

@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { File as FileIcon, FileText, FileType, Music, Play, X } from 'lucide-react-native';
+import { File as FileIcon, FileText, FileType, FileX, Music, Play, X } from 'lucide-react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from '@/lib/useColorScheme';
@@ -242,6 +242,29 @@ function AttachmentFileChip({ category, filename, length, onOpen }: AttachmentFi
   );
 }
 
+/**
+ * An attachment whose file Oxy no longer serves: in its owner's trash, taken
+ * down, or deleted (`AttachmentAvailability`). Not openable; the note keeps it
+ * until it is removed, so a file restored from the trash comes back.
+ */
+function AttachmentUnavailableChip({ reason }: { reason: 'trash' | 'unavailable' }) {
+  const { colors } = useColorScheme();
+  const { t } = useTranslation();
+  return (
+    <View
+      accessibilityRole="text"
+      className="flex-1 flex-row items-center gap-3 rounded-xl border border-dashed border-border bg-card/60 px-3 py-2.5"
+    >
+      <View className="h-9 w-9 items-center justify-center rounded-lg bg-foreground/5">
+        <FileX size={18} color={colors.mutedForeground} />
+      </View>
+      <Text className="flex-1 text-sm text-muted-foreground" numberOfLines={2}>
+        {reason === 'trash' ? t('notes.attachmentInTrash') : t('notes.attachmentUnavailable')}
+      </Text>
+    </View>
+  );
+}
+
 /** A circular remove (X) button shown over editor-mode items. */
 function RemoveButton({ onPress }: { onPress: () => void }) {
   const { t } = useTranslation();
@@ -256,7 +279,14 @@ function RemoveButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-export { AttachmentImage, AttachmentVideo, AttachmentFileChip, RemoveButton, MEDIA_CARD_HEIGHT };
+export {
+  AttachmentImage,
+  AttachmentVideo,
+  AttachmentFileChip,
+  AttachmentUnavailableChip,
+  RemoveButton,
+  MEDIA_CARD_HEIGHT,
+};
 
 const styles = StyleSheet.create({
   itemContainer: {

@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "このファイルはゴミ箱にあります",
+    "attachmentUnavailable": "このファイルは利用できなくなりました",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "ラベルの色",

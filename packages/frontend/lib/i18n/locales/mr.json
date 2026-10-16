@@ -1204,6 +1204,8 @@
     "removeItem": "Remove item",
     "loadAttachmentFailed": "Could not load this attachment",
     "openAttachmentFailed": "Could not open this attachment",
+    "attachmentInTrash": "ही फाइल तुमच्या कचरापेटीत आहे",
+    "attachmentUnavailable": "ही फाइल आता उपलब्ध नाही",
     "listView": "Switch to list view",
     "gridView": "Switch to grid view",
     "labelColor": "लेबलचा रंग",

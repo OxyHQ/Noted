@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLockManager, deferred } from './browser-lock-fixture';
 
+// The owner's attachment links are `attachment-links.test.ts`'s; never Oxy here.
+vi.mock('@/lib/files/attachment-links', () => ({
+  linkNoteAttachments: vi.fn(async () => ({ linked: 0, failed: 0 })),
+  syncAttachmentLinks: vi.fn(async () => ({ linked: 0, failed: 0 })),
+}));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 const state = vi.hoisted(() => ({ viewer: 'alice', execute: vi.fn(), get: vi.fn() }));
 vi.mock('@/lib/db/erase-local', () => ({ eraseLocalAccountData: vi.fn() }));

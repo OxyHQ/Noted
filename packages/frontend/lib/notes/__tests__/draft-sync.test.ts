@@ -35,6 +35,7 @@ function note(over: Partial<LocalNote> = {}): LocalNote {
     archived: false,
     trashed: false,
     attachments: [],
+    removedAttachments: [],
     reminderAt: null,
     order: 0,
     folderId: null,
