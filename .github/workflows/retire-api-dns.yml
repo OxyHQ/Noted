@@ -1,0 +1,71 @@
+name: Retire api.noted.oxy.so DNS
+
+# Noted's backend is retired (OxyHQ/oxy-infra#311): its load balancer rule and
+# certificate are gone, so `api.noted.oxy.so` and the ACM validation CNAME of
+# its certificate point at nothing. They live in Cloudflare, not Terraform, and
+# were created by hand or by the deleted setup-mcp-dns workflow; this removes
+# exactly those records. `mcp.noted.oxy.so` is Nilo's and is never touched:
+# only the name `api.noted.oxy.so` and names ending in `.api.noted.oxy.so`
+# match. Dry run by default: it lists what it would delete.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List the records, delete nothing'
+        type: boolean
+        default: true
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete the retired records
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        shell: python
+        run: |
+          import json, os, sys, urllib.parse, urllib.request
+
+          def call(method, path):
+              request = urllib.request.Request(
+                  f'https://api.cloudflare.com/client/v4{path}',
+                  method=method,
+                  headers={'Authorization': f'Bearer {os.environ["CF_TOKEN"]}'},
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  return json.load(response)
+
+          zones = call('GET', '/zones?name=oxy.so')
+          if not zones.get('success') or len(zones.get('result', [])) != 1:
+              sys.exit(f'cannot resolve exact zone oxy.so: {zones.get("errors")}')
+          zone_id = zones['result'][0]['id']
+
+          records, page = [], 1
+          while True:
+              batch = call('GET', f'/zones/{zone_id}/dns_records?per_page=100&page={page}')
+              records += batch.get('result', [])
+              if page >= batch.get('result_info', {}).get('total_pages', 1):
+                  break
+              page += 1
+
+          retired = [
+              r for r in records
+              if r['name'] == 'api.noted.oxy.so' or r['name'].endswith('.api.noted.oxy.so')
+          ]
+          for r in retired:
+              print(f"{r['type']} {r['name']} -> {r['content']}")
+          if not retired:
+              print('nothing to delete')
+          if os.environ['DRY_RUN'] == 'true':
+              sys.exit(0)
+          for r in retired:
+              result = call('DELETE', f"/zones/{zone_id}/dns_records/{r['id']}")
+              if not result.get('success'):
+                  sys.exit(f"could not delete {r['name']}: {result.get('errors')}")
+              print(f"deleted {r['type']} {r['name']}")
