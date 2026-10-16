@@ -28,6 +28,7 @@ function note(id: string, title: string, body = 'texto'): Note {
     archived: false,
     trashed: false,
     attachments: [],
+    removedAttachments: [],
     reminderAt: null,
     order: 0,
     createdAt: '2026-08-09T10:00:00.000Z',

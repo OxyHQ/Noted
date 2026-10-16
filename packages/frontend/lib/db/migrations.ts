@@ -338,6 +338,9 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
   // 0021). This is the device's record of each (note, file) link
   // (`lib/files/attachment-links.ts`), derived from `notes.attachments_json`
   // on every sync: it starts empty, and the first pass is the back-fill.
+  // `removed_attachments_json` is Nilo's `removedAttachments`: the attachments
+  // Oxy told Nilo it no longer serves. Written only from the server's note,
+  // never by this device.
   [
     `CREATE TABLE IF NOT EXISTS attachment_links (
       note_id TEXT NOT NULL,
@@ -350,6 +353,7 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
       PRIMARY KEY (note_id, file_id)
     )`,
     `CREATE INDEX IF NOT EXISTS attachment_links_due ON attachment_links (next_attempt_at)`,
+    `ALTER TABLE notes ADD COLUMN removed_attachments_json TEXT NOT NULL DEFAULT '[]'`,
   ],
 ];
 

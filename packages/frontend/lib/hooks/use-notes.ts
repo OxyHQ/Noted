@@ -192,6 +192,7 @@ export function makeDraftNote(): LocalNote {
     archived: false,
     trashed: false,
     attachments: [],
+    removedAttachments: [],
     reminderAt: null,
     order: 0,
     folderId: null,

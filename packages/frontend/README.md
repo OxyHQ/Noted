@@ -115,9 +115,10 @@ commits its text.
 A browser storage failure offers recovery instructions without automatically
 clearing OPFS or deleting another account's data. A mismatched database owner is
 rejected rather than wiped. Attachment loading failures offer a retry action; an
-attachment whose file is in the owner's trash, blocked or deleted shows as
-unavailable instead. Each sync links attachments to the note's Nilo page with the
-owner's session (`lib/files/attachment-links.ts`, see `docs/index.mdx`).
+attachment the server lists in `removedAttachments` (or whose file the owner's
+own read finds in the trash, blocked or deleted) shows as unavailable instead.
+The owner links attachments to the note's Nilo page before the note is sent
+(`lib/files/attachment-links.ts`, see `docs/index.mdx`).
 
 Edits update only explicitly changed fields. The editor captures the draft's
 common ancestor when queueing a save, so a later peer refresh cannot turn an

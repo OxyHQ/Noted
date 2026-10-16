@@ -58,6 +58,12 @@ export interface LocalNote {
   trashed: boolean;
   /** Oxy file ids. */
   attachments: string[];
+  /**
+   * Of those, the ones Oxy no longer serves (deleted, in the owner's trash,
+   * taken down), as the server says: Nilo's `removedAttachments`. Never set by
+   * this device; a local note not yet on the server has none.
+   */
+  removedAttachments: string[];
   reminderAt: string | null;
   order: number;
   folderId: string | null;
@@ -77,6 +83,7 @@ export interface NoteRow extends Row {
   archived: number;
   trashed: number;
   attachments_json: string;
+  removed_attachments_json: string;
   reminder_at: string | null;
   sort_order: number;
   folder_id: string | null;
@@ -142,6 +149,7 @@ export function rowToNote(row: NoteRow): LocalNote {
     archived: row.archived === 1,
     trashed: row.trashed === 1,
     attachments: parseJsonArray(row.attachments_json, isString),
+    removedAttachments: parseJsonArray(row.removed_attachments_json, isString),
     reminderAt: row.reminder_at,
     order: row.sort_order,
     folderId: row.folder_id,
@@ -168,8 +176,8 @@ export function firstRowToNote(rows: readonly NoteRow[]): LocalNote | null {
 const NOTE_COLUMNS = `
   notes.id, notes.kind, notes.title, notes.blocks_json, notes.generated_json,
   notes.color, notes.pinned, notes.archived, notes.trashed,
-  notes.attachments_json, notes.reminder_at, notes.sort_order, notes.folder_id,
-  notes.created_at, notes.updated_at,
+  notes.attachments_json, notes.removed_attachments_json, notes.reminder_at,
+  notes.sort_order, notes.folder_id, notes.created_at, notes.updated_at,
   COALESCE((
     SELECT json_group_array(note_labels.label_id)
     FROM note_labels WHERE note_labels.note_id = notes.id
@@ -463,6 +471,7 @@ export async function createNote(
     archived: input.archived ?? false,
     trashed: input.trashed ?? false,
     attachments: input.attachments ?? [],
+    removedAttachments: [],
     reminderAt: input.reminderAt ?? null,
     order: input.order ?? 0,
     folderId: input.folderId ?? null,

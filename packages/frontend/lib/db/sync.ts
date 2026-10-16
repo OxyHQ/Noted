@@ -105,6 +105,19 @@ interface NotedAppData {
   generated?: GeneratedMap;
 }
 
+/**
+ * The note's attachments Oxy no longer serves, as Nilo says (`removedAttachments`,
+ * from the file events Nilo receives). Read with a guard: the published
+ * `@oxy.so/nilo-contracts` 0.1.0 predates the field, and a server without it
+ * says nothing is removed.
+ */
+export function removedAttachmentsOf(note: ServerNote): string[] {
+  const value = (note as { removedAttachments?: unknown }).removedAttachments;
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : [];
+}
+
 function appDataOf(note: ServerNote): NotedAppData {
   return (note.appData?.data ?? {}) as NotedAppData;
 }
@@ -140,10 +153,10 @@ function applyServerNoteStatements(note: ServerNote, pass: string | null): State
     {
       sql: `INSERT INTO notes (
               id, kind, title, blocks_json, generated_json, body_text, content_model, color,
-              pinned, archived, trashed, attachments_json, reminder_at, sort_order, folder_id,
-              created_at, updated_at, deleted_at, dirty, server_updated_at, app_data_revision,
-              sync_pass
-            ) VALUES (?, ?, ?, ?, ?, ?, 'blocks', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)
+              pinned, archived, trashed, attachments_json, removed_attachments_json, reminder_at,
+              sort_order, folder_id, created_at, updated_at, deleted_at, dirty, server_updated_at,
+              app_data_revision, sync_pass
+            ) VALUES (?, ?, ?, ?, ?, ?, 'blocks', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
               kind = excluded.kind,
               title = excluded.title,
@@ -156,6 +169,7 @@ function applyServerNoteStatements(note: ServerNote, pass: string | null): State
               archived = excluded.archived,
               trashed = excluded.trashed,
               attachments_json = excluded.attachments_json,
+              removed_attachments_json = excluded.removed_attachments_json,
               reminder_at = excluded.reminder_at,
               sort_order = excluded.sort_order,
               folder_id = excluded.folder_id,
@@ -177,6 +191,7 @@ function applyServerNoteStatements(note: ServerNote, pass: string | null): State
         note.archived ? 1 : 0,
         note.trashed ? 1 : 0,
         JSON.stringify(note.attachments),
+        JSON.stringify(removedAttachmentsOf(note)),
         note.reminderAt,
         note.order,
         note.folderId,
