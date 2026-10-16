@@ -17,11 +17,11 @@ export function useNoteRevisions(noteId: string | undefined, enabled: boolean) {
     gcTime: 0,
     retry: false,
     queryFn: async (): Promise<RevisionSummary[]> => {
-      const response = await apiClient.get<{ data: RevisionSummary[] }>(
+      const response = await apiClient.get<{ versions: RevisionSummary[] }>(
         API_ROUTES.notes.revisions(noteId as string),
         { expectedViewerId: viewerId as string },
       );
-      return response.data.data;
+      return response.data.versions;
     },
   });
 }
@@ -29,9 +29,9 @@ export function useNoteRevisions(noteId: string | undefined, enabled: boolean) {
 export async function fetchRevision(noteId: string, revisionId: string): Promise<RevisionDetail> {
   const viewerId = getActiveViewerId();
   if (!viewerId) throw new Error('No active account');
-  const response = await apiClient.get<RevisionDetail>(
-    API_ROUTES.notes.revision(noteId, revisionId),
-    { expectedViewerId: viewerId },
-  );
-  return response.data;
+  const response = await apiClient.get<{
+    version: { id: string; createdAt: string };
+    blocks: RevisionDetail['blocks'];
+  }>(API_ROUTES.notes.revision(noteId, revisionId), { expectedViewerId: viewerId });
+  return { ...response.data.version, blocks: response.data.blocks };
 }

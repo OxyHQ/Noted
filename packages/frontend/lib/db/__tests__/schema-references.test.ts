@@ -42,7 +42,14 @@ const EXCLUDED = new Set([
  * name. Kept explicit: a scanner that silently drops what it does not recognise
  * is a scanner that passes when it should fail.
  */
-const NOT_APP_TABLES = new Set(['sqlite_master', 'sqlite_sequence', 'pragma', 'json_each']);
+const NOT_APP_TABLES = new Set([
+  'sqlite_master',
+  'sqlite_sequence',
+  'pragma',
+  'json_each',
+  // A table-valued JSON function, like json_each: walks a column, names no table.
+  'json_tree',
+]);
 
 function sourceFiles(directory: string): string[] {
   const found: string[] = [];

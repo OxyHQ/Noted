@@ -77,9 +77,12 @@ export function useNotificationSetup() {
         tokenRef.current = token;
 
         // Register with backend
+        // Registered as Noted's, so a note's reminder rings here and not also
+        // in Nilo on the same phone.
         await apiClient.post('/notifications/push-token', {
           token,
           platform: Platform.OS,
+          app: 'noted',
         });
       } catch {
         // Non-critical — expected to fail in dev without FCM credentials
@@ -91,13 +94,16 @@ export function useNotificationSetup() {
     };
   }, [isAuthenticated, user?.id]);
 
-  // ── Notification tap handler (deep-link to conversation) ───────
+  // ── Notification tap handler (deep-link to the note) ───────
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       if (!isAuthenticated) return;
       const data = response.notification.request.content.data;
-      if (data?.noteId) {
-        router.push(`/n/${data.noteId}`);
+      // A reminder from Nilo names the note as its page (a note is a Nilo
+      // page); one scheduled on this device names it `noteId`.
+      const noteId = data?.noteId ?? data?.pageId;
+      if (typeof noteId === 'string' && noteId) {
+        router.push(`/n/${noteId}`);
       }
     });
 
@@ -149,6 +155,7 @@ export function useNotificationSetup() {
         await apiClient.post('/notifications/web-push-subscription', {
           endpoint: subJson.endpoint,
           keys: subJson.keys,
+          app: 'noted',
         });
 
         if (!cancelled) webPushRegisteredRef.current = true;

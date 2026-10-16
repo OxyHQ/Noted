@@ -5,7 +5,7 @@
  * byte for byte the file a single export would produce.
  */
 
-import type { Note } from '@noted/shared-types';
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
 import { noteFilename, noteToMarkdown } from './markdown';
 import { createZip, type ZipEntry } from './zip';
 

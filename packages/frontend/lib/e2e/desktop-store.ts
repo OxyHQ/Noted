@@ -14,6 +14,7 @@
  * name so a leak fails the pull request.
  */
 
+import { plainText } from '@/lib/notes/blocks';
 import { execute, setActiveViewer } from '@/lib/db/client';
 import { newNoteId } from '@/lib/db/ids';
 import { createNote, getNote } from '@/lib/db/notes-repo';
@@ -35,7 +36,18 @@ async function run(viewer: string): Promise<DesktopStoreReport> {
   const id = newNoteId();
   await createNote(
     id,
-    { title: 'stored in Rust', userBody: 'hello from the desktop shell' },
+    {
+      title: 'stored in Rust',
+      blocks: [
+        {
+          id: newNoteId(),
+          parentBlockId: null,
+          type: 'paragraph',
+          content: { text: 'hello from the desktop shell' },
+          order: 0,
+        },
+      ],
+    },
     viewer,
   );
   const note = await getNote(id, viewer);
@@ -45,7 +57,7 @@ async function run(viewer: string): Promise<DesktopStoreReport> {
 
   return {
     title: note?.title,
-    body: note?.body,
+    body: note ? plainText(note.blocks) : undefined,
     noteCount: Number(count[0]?.n ?? 0),
     userVersion: Number(version[0]?.user_version ?? 0),
   };

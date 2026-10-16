@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const execute = vi.fn();
 const executeTransaction = vi.fn();
 
+vi.mock('@/lib/db/erase-local', () => ({ eraseLocalAccountData: vi.fn() }));
 vi.mock('@/lib/db/client', () => ({
   execute: (...args: unknown[]) => execute(...args),
   executeTransaction: (...args: unknown[]) => executeTransaction(...args),
@@ -69,7 +70,7 @@ describe('syncNotes', () => {
     execute.mockReset().mockResolvedValue([]);
     executeTransaction.mockReset().mockResolvedValue([]);
     get.mockReset().mockResolvedValue({
-      data: { data: [], deleted: [], serverTime: '2026-03-04T10:00:00.000Z' },
+      data: { notes: [], deleted: [], cursor: 'C', hasMore: false, full: false, reset: false },
     });
   });
 

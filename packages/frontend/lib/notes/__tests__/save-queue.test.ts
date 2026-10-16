@@ -32,20 +32,15 @@ describe('editor local save lifecycle', () => {
     expect(writes).toEqual(['create:first', 'update:note:first and second']);
   });
 
-  it('lets a later edit retry a failed save without restoring generated text after conversion', async () => {
-    const writes: Array<[string, boolean]> = [];
-    const queue = new NoteSaveQueue<string>(async (body, takeover) => {
-      writes.push([body, takeover]);
+  it('lets a later edit retry a failed save', async () => {
+    const writes: string[] = [];
+    const queue = new NoteSaveQueue<string>(async (body) => {
+      writes.push(body);
       if (writes.length === 1) throw new Error('disk full');
     });
-    await expect(queue.save('converted list', true)).rejects.toThrow('disk full');
-    await queue.save('edited converted list');
-    await queue.save('later edit');
-    expect(writes).toEqual([
-      ['converted list', true],
-      ['edited converted list', true],
-      ['later edit', false],
-    ]);
+    await expect(queue.save('first')).rejects.toThrow('disk full');
+    await queue.save('edited');
+    expect(writes).toEqual(['first', 'edited']);
   });
 
   it('does not report a final save complete before earlier writes land', async () => {

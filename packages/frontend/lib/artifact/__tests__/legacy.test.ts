@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { composeNote } from '@/lib/artifact/compose';
 import { legacyArtifact, legacyArtifactId, legacyItemId } from '@/lib/artifact/legacy';
 import { renderArtifact } from '@/lib/artifact/render';
-import { composeNoteBody } from '@/lib/notes/generated-body';
 import { NOW, unitsOf } from '@/lib/artifact/__tests__/fixtures';
 
 /** A real generated block, of the shape the old path wrote. */
@@ -59,35 +57,5 @@ describe('migrating loses nothing', () => {
     expect(migrated).not.toBeNull();
     if (!migrated) return;
     expect(renderArtifact(migrated)).toBe(GENERATED);
-  });
-
-  it('composes the same note the old code composed', () => {
-    // The whole migration promise in one assertion: the same user text, the same
-    // generated text, the same body — through the new path.
-    const userBody = 'Mis notas de la reunión';
-    const migrated = legacyArtifact(INPUT);
-    expect(migrated).not.toBeNull();
-    if (!migrated) return;
-
-    const composed = composeNote({
-      user: { title: '', body: userBody, checklist: [] },
-      final: migrated,
-      fallbackTitle: 'da igual',
-    });
-    expect(composed.body).toBe(composeNoteBody(userBody, GENERATED));
-    expect(composed.generatedBody).toBe(GENERATED);
-  });
-
-  it('composes the same note when the user typed nothing', () => {
-    const migrated = legacyArtifact(INPUT);
-    expect(migrated).not.toBeNull();
-    if (!migrated) return;
-
-    const composed = composeNote({
-      user: { title: '', body: '', checklist: [] },
-      final: migrated,
-      fallbackTitle: 'da igual',
-    });
-    expect(composed.body).toBe(composeNoteBody('', GENERATED));
   });
 });

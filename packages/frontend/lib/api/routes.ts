@@ -1,45 +1,46 @@
 /**
- * Centralized API routes configuration.
- * All Noted API endpoints are defined here for easy maintenance.
+ * The API's routes, in one place.
+ *
+ * Noted's server is Nilo: its notes are rows of the personal workspace's
+ * notes database, served by Nilo's `/notes` (contract:
+ * `@oxy.so/nilo-contracts` `notes.ts`). A note's history is its Nilo page's.
  */
 
 export const API_ROUTES = {
   // Notes
   notes: {
-    revisions: (id: string) => `/notes/${id}/revisions`,
-    revision: (id: string, revisionId: string) => `/notes/${id}/revisions/${revisionId}`,
+    revisions: (id: string) => `/pages/${id}/versions`,
+    revision: (id: string, revisionId: string) => `/pages/${id}/versions/${revisionId}`,
     list: '/notes',
     create: '/notes',
     get: (id: string) => `/notes/${id}`,
     update: (id: string) => `/notes/${id}`,
     delete: (id: string) => `/notes/${id}`,
-    trash: (id: string) => `/notes/${id}/trash`,
-    restore: (id: string) => `/notes/${id}/restore`,
     reorder: '/notes/reorder',
-    /** Everything changed since a cursor, tombstones included. */
+    /** Everything changed since a cursor, deletions included. */
     sync: '/notes/sync',
   },
 
-  // The caller's whole Noted account
+  // The caller's whole Noted account: their notes, labels and folders
   account: {
-    export: '/account/export',
-    erase: '/account/erase',
+    export: '/notes/export',
+    erase: '/notes/erase',
   },
 
   // Folders
   folders: {
-    list: '/folders',
-    create: '/folders',
-    update: (id: string) => `/folders/${id}`,
-    delete: (id: string) => `/folders/${id}`,
+    list: '/notes/folders',
+    create: '/notes/folders',
+    update: (id: string) => `/notes/folders/${id}`,
+    delete: (id: string) => `/notes/folders/${id}`,
   },
 
   // Labels
   labels: {
-    list: '/labels',
-    create: '/labels',
-    update: (id: string) => `/labels/${id}`,
-    delete: (id: string) => `/labels/${id}`,
+    list: '/notes/labels',
+    create: '/notes/labels',
+    update: (id: string) => `/notes/labels/${id}`,
+    delete: (id: string) => `/notes/labels/${id}`,
   },
 
   // Notifications
@@ -51,5 +52,5 @@ export const API_ROUTES = {
   },
 
   // Health check
-  health: '/health',
+  health: '/health/live',
 } as const;

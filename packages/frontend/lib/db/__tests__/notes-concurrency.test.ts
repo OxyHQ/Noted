@@ -57,8 +57,20 @@ vi.mock('@/lib/db/client', () => ({
 vi.mock('@/lib/capture/captures-repo', () => ({ deleteNoteRecordings: vi.fn() }));
 
 import { MIGRATIONS } from '@/lib/db/migrations';
-import { createNote, getNote, updateNote } from '@/lib/db/notes-repo';
+import { createNote, getNote, type NoteInput, updateNote } from '@/lib/db/notes-repo';
+import { type NoteBlock, plainText } from '@/lib/notes/blocks';
 import { resumeNoteCreation } from '@/lib/notes/resume-creation';
+
+const line = (id: string, text: string, order = 0): NoteBlock => ({
+  id,
+  parentBlockId: null,
+  type: 'paragraph',
+  content: { text },
+  order,
+});
+/** The editor's first write of a new note: everything is new. */
+const typed = (...blocks: NoteBlock[]): NoteInput['edit'] => ({ base: [], next: blocks });
+const TYPED = line('typed', 'Typed');
 
 beforeEach(async () => {
   state.db = new DatabaseSync(':memory:');
@@ -66,14 +78,22 @@ beforeEach(async () => {
   state.beforeWrite = null;
   state.afterCommit = null;
   state.rollbacks = 0;
-  await createNote('note', { title: 'Original', userBody: 'Typed', generatedBody: 'Generated' });
+  await createNote('note', {
+    title: 'Original',
+    edit: typed(TYPED),
+    rendered: [{ key: 'gen', type: 'paragraph', content: { text: 'Generated' } }],
+  });
   state.db.exec('DELETE FROM outbox');
   state.writes = 0;
 });
 
 describe('manual creation retries after an uncertain response', () => {
   it('confirms the same note without overwriting peer edits, labels or its outbox', async () => {
-    const input = { title: 'First draft', userBody: 'Original body', labels: ['original'] };
+    const input: NoteInput = {
+      title: 'First draft',
+      edit: typed(line('b', 'Original body')),
+      labels: ['original'],
+    };
     state.afterCommit = () => {
       state.afterCommit = null;
       throw new Error('Owner disappeared after commit');
@@ -88,8 +108,8 @@ describe('manual creation retries after an uncertain response', () => {
       id: 'stable-id',
       title: 'Other tab renamed it',
       labels: ['peer'],
-      body: 'Original body',
     });
+    expect(plainText(recovered.blocks)).toBe('Original body');
     expect(liveDb().prepare('SELECT id FROM notes WHERE id = ?').all('stable-id')).toHaveLength(1);
     expect(liveDb().prepare('SELECT * FROM outbox WHERE entity_id = ?').all('stable-id')).toEqual(
       outbox,
@@ -97,28 +117,29 @@ describe('manual creation retries after an uncertain response', () => {
   });
 
   it('preserves typing after the failed attempt without reverting untouched peer fields', async () => {
-    const input = { title: 'First draft', userBody: 'Original body', pinned: false };
+    const input: NoteInput = {
+      title: 'First draft',
+      edit: typed(line('b', 'Original body')),
+      pinned: false,
+    };
     await createNote('stable-id', input);
     await updateNote('stable-id', {
       title: 'Peer title',
       pinned: true,
-      generatedBody: 'Peer generated',
+      rendered: [{ key: 'peer', type: 'paragraph', content: { text: 'Peer generated' } }],
     });
     const recovered = await resumeNoteCreation(
       'stable-id',
       input,
-      { ...input, userBody: 'Typed after error' },
+      { ...input, edit: typed(line('b', 'Typed after error')) },
       'viewer',
     );
-    expect(recovered).toMatchObject({
-      title: 'Peer title',
-      pinned: true,
-      body: 'Typed after error\n\nPeer generated',
-    });
+    expect(recovered).toMatchObject({ title: 'Peer title', pinned: true });
+    expect(plainText(recovered.blocks)).toBe('Typed after error\nPeer generated');
   });
 
   it('creates once when the first attempt never committed and retains subsequent typing', async () => {
-    const input = { title: 'First draft', userBody: 'Original body' };
+    const input: NoteInput = { title: 'First draft', edit: typed(line('b', 'Original body')) };
     state.beforeWrite = () => {
       state.beforeWrite = null;
       throw new Error('Owner disappeared before commit');
@@ -137,7 +158,7 @@ describe('manual creation retries after an uncertain response', () => {
   });
 
   it('does not resurrect a creation that another tab deleted before confirmation', async () => {
-    const input = { title: 'First draft', userBody: 'Original body' };
+    const input: NoteInput = { title: 'First draft', edit: typed(line('b', 'Original body')) };
     await createNote('stable-id', input);
     liveDb().prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run('deleted', 'stable-id');
     const outbox = liveDb().prepare('SELECT * FROM outbox').all();
@@ -166,15 +187,19 @@ describe('concurrent local note patches', () => {
     expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(1);
   });
 
-  it('recomposes user and generated halves after a competing write rolls back the stale snapshot', async () => {
+  it('keeps the user’s edit and the recorder’s rebuild after a competing write rolls back the stale snapshot', async () => {
     await Promise.all([
-      updateNote('note', { userBody: 'New typed', labels: [] }),
-      updateNote('note', { generatedBody: 'New generated' }),
+      updateNote('note', {
+        edit: { base: [TYPED], next: [line('typed', 'New typed')] },
+        labels: [],
+      }),
+      updateNote('note', {
+        rendered: [{ key: 'gen', type: 'paragraph', content: { text: 'New generated' } }],
+      }),
     ]);
-    expect(await getNote('note')).toMatchObject({
-      body: 'New typed\n\nNew generated',
-      generatedBody: 'New generated',
-    });
+    const note = await getNote('note');
+    expect(plainText(note?.blocks ?? [])).toBe('New typed\nNew generated');
+    expect(Object.values(note?.generated ?? {})).toEqual([{ key: 'gen' }]);
     expect(state.rollbacks).toBe(1);
     expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(1);
   });
@@ -196,11 +221,11 @@ describe('concurrent local note patches', () => {
     state.afterCommit = () => {
       throw new Error('Storage owner disappeared before acknowledging this write');
     };
-    await expect(updateNote('note', { userBody: 'Committed once' })).rejects.toThrow(
-      'Storage owner disappeared',
-    );
+    await expect(
+      updateNote('note', { edit: { base: [TYPED], next: [line('typed', 'Committed once')] } }),
+    ).rejects.toThrow('Storage owner disappeared');
     expect(state.writes).toBe(1);
-    expect(await getNote('note')).toMatchObject({ body: 'Committed once\n\nGenerated' });
+    expect(plainText((await getNote('note'))?.blocks ?? [])).toBe('Committed once\nGenerated');
   });
 
   it('rolls back the note and outbox when a label write fails', async () => {
@@ -217,10 +242,15 @@ describe('concurrent local note patches', () => {
 
   it('bounds contention retries while keeping the unsaved patch out of SQLite', async () => {
     state.beforeWrite = () =>
-      liveDb().prepare('UPDATE notes SET body = ?').run(`Competing ${state.writes}`);
-    await expect(updateNote('note', { userBody: 'Unsaved draft', labels: [] })).rejects.toThrow(
-      'Your draft has been preserved',
-    );
+      liveDb()
+        .prepare('UPDATE notes SET blocks_json = ?')
+        .run(JSON.stringify([line('typed', `Competing ${state.writes}`)]));
+    await expect(
+      updateNote('note', {
+        edit: { base: [TYPED], next: [line('typed', 'Unsaved draft')] },
+        labels: [],
+      }),
+    ).rejects.toThrow('Your draft has been preserved');
     expect(state.writes).toBe(8);
     expect(state.rollbacks).toBe(8);
     expect(liveDb().prepare('SELECT * FROM outbox').all()).toHaveLength(0);

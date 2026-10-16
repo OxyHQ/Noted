@@ -1157,8 +1157,6 @@
     "attachFile": "Adjuntar archivo",
     "openAttachment": "Abrir adjunto",
     "attachments": "Adjuntos",
-    "convertToChecklist": "Mostrar casillas",
-    "convertToText": "Ocultar casillas",
     "pickColor": "Elige un color",
     "labelNote": "Etiquetar nota",
     "noLabels": "Aún no hay etiquetas",
@@ -1231,7 +1229,6 @@
     "historyRestore": "Restaurar",
     "historyRestored": "Versión restaurada",
     "historyFailed": "No se pudo cargar esa versión",
-    "historyItems": "{{count}} elementos de lista",
     "untitledVersion": "Sin título",
     "linkedMentions": "Menciones enlazadas",
     "linkNote": "Enlazar a una nota",
@@ -1242,7 +1239,8 @@
     "reminderTime": "Hora del recordatorio",
     "reminderInPast": "Elige una hora en el futuro",
     "setReminder": "Poner recordatorio",
-    "customReminder": "Elegir hora…"
+    "customReminder": "Elegir hora…",
+    "historyBlocks": "{{count}} bloques"
   },
   "capture": {
     "start": "Tomar apuntes",
@@ -1440,39 +1438,6 @@
     "moveTo": "Mover «{{name}}» a…",
     "topLevel": "Nivel superior"
   },
-  "editor": {
-    "format": {
-      "toolbar": "Formato",
-      "bold": "Negrita",
-      "italic": "Cursiva",
-      "strike": "Tachado",
-      "code": "Código",
-      "heading": "Encabezado",
-      "bullets": "Lista con viñetas",
-      "numbers": "Lista numerada",
-      "tasks": "Lista de tareas",
-      "quote": "Cita",
-      "block": "Bloque de código",
-      "link": "Enlace",
-      "linkPrompt": "Dirección del enlace",
-      "table": "Tabla",
-      "moveUp": "Subir línea (Alt+↑)",
-      "moveDown": "Bajar línea (Alt+↓)"
-    },
-    "slash": {
-      "title": "Insertar un bloque",
-      "h1": "Encabezado 1",
-      "h2": "Encabezado 2",
-      "h3": "Encabezado 3",
-      "bullets": "Lista con viñetas",
-      "numbers": "Lista numerada",
-      "tasks": "Lista de tareas",
-      "quote": "Cita",
-      "code": "Bloque de código",
-      "divider": "Separador",
-      "table": "Tabla"
-    }
-  },
   "palette": {
     "placeholder": "Busca notas o ejecuta un comando…",
     "empty": "No se encontró nada",
@@ -1507,5 +1472,140 @@
     "settingUnavailable": "Configura Face ID, una huella o un código en este dispositivo para usar esto.",
     "enablePrompt": "Confirma para activar el bloqueo",
     "section": "Seguridad"
+  },
+  "blockEditor": {
+    "ui": {
+      "placeholder": "Escribe '/' para ver comandos",
+      "emptyHeading": "Encabezado",
+      "emptyListItem": "Lista",
+      "emptyToggle": "Desplegable",
+      "slashNoResults": "Sin resultados",
+      "turnInto": "Convertir en",
+      "duplicate": "Duplicar",
+      "delete": "Eliminar",
+      "moveUp": "Mover arriba",
+      "moveDown": "Mover abajo",
+      "indent": "Aumentar sangría",
+      "outdent": "Reducir sangría",
+      "color": "Color",
+      "background": "Fondo",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "underline": "Subrayado",
+      "strike": "Tachado",
+      "code": "Código",
+      "link": "Enlace",
+      "linkPlaceholder": "Pega un enlace",
+      "removeLink": "Quitar enlace",
+      "apply": "Aplicar",
+      "cancel": "Cancelar",
+      "open": "Abrir",
+      "mention": "Mencionar",
+      "undo": "Deshacer",
+      "redo": "Rehacer",
+      "formatting": "Formato",
+      "blockMenu": "Opciones del bloque",
+      "dragHandle": "Arrastra para mover",
+      "addBelow": "Añadir un bloque debajo",
+      "toggleOpen": "Contraer",
+      "toggleClosed": "Expandir",
+      "checkbox": "Hecho",
+      "comment": "Comentar",
+      "mentionNoResults": "Sin resultados",
+      "mentionSearching": "Buscando…"
+    },
+    "slashGroups": {
+      "basic": "Bloques básicos",
+      "advanced": "Avanzado"
+    },
+    "colors": {
+      "default": "Predeterminado",
+      "gray": "Gris",
+      "brown": "Marrón",
+      "orange": "Naranja",
+      "yellow": "Amarillo",
+      "green": "Verde",
+      "blue": "Azul",
+      "purple": "Morado",
+      "pink": "Rosa",
+      "red": "Rojo"
+    },
+    "slashMenu": {
+      "paragraph": {
+        "label": "Texto",
+        "description": "Párrafo de texto sin formato.",
+        "keywords": "texto, párrafo, parrafo"
+      },
+      "heading1": {
+        "label": "Encabezado 1",
+        "description": "Encabezado de sección grande.",
+        "keywords": "encabezado, título, titulo"
+      },
+      "heading2": {
+        "label": "Encabezado 2",
+        "description": "Encabezado de sección mediano.",
+        "keywords": "encabezado, subtítulo, subtitulo"
+      },
+      "heading3": {
+        "label": "Encabezado 3",
+        "description": "Encabezado de sección pequeño.",
+        "keywords": "encabezado"
+      },
+      "toggleHeading1": {
+        "label": "Encabezado desplegable 1",
+        "description": "Un encabezado que pliega su contenido.",
+        "keywords": "desplegable, encabezado, h1, plegar"
+      },
+      "toggleHeading2": {
+        "label": "Encabezado desplegable 2",
+        "description": "Un encabezado que pliega su contenido.",
+        "keywords": "desplegable, encabezado, h2, plegar"
+      },
+      "toggleHeading3": {
+        "label": "Encabezado desplegable 3",
+        "description": "Un encabezado que pliega su contenido.",
+        "keywords": "desplegable, encabezado, h3, plegar"
+      },
+      "bulletedList": {
+        "label": "Lista con viñetas",
+        "description": "Crea una lista simple con viñetas.",
+        "keywords": "viñeta, vineta, lista"
+      },
+      "numberedList": {
+        "label": "Lista numerada",
+        "description": "Crea una lista con numeración.",
+        "keywords": "numerada, ordenada, lista"
+      },
+      "todo": {
+        "label": "Lista de tareas",
+        "description": "Sigue tus tareas con casillas.",
+        "keywords": "tarea, tareas, casilla, pendiente"
+      },
+      "toggle": {
+        "label": "Desplegable",
+        "description": "Haz clic para expandir o contraer el contenido.",
+        "keywords": "desplegable, plegable, detalles"
+      },
+      "quote": {
+        "label": "Cita",
+        "description": "Destaca una cita.",
+        "keywords": "cita"
+      },
+      "callout": {
+        "label": "Destacado",
+        "description": "Resalta información importante.",
+        "keywords": "destacado, nota, aviso"
+      },
+      "code": {
+        "label": "Código",
+        "description": "Bloque de código monoespaciado.",
+        "keywords": "código, codigo, fragmento"
+      },
+      "divider": {
+        "label": "Divisor",
+        "description": "Separa bloques visualmente.",
+        "keywords": "divisor, línea, linea, separador"
+      }
+    }
   }
 }

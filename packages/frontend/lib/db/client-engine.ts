@@ -21,7 +21,8 @@
 import { addDatabaseChangeListener, openDatabaseAsync, type SQLiteBindValue } from 'expo-sqlite';
 import { createLogger } from '@oxy.so/core/logger';
 
-import { migrate } from '@/lib/db/migrations';
+import { newNoteId } from '@/lib/db/ids';
+import { convertMarkdownNotes, migrate } from '@/lib/db/migrations';
 import { readTables, writtenTables } from '@/lib/db/sql-tables';
 
 const logger = createLogger('NotedDB');
@@ -277,6 +278,7 @@ async function openDb(viewerId: string): Promise<EngineDatabase> {
     }
 
     await migrate(db);
+    await convertMarkdownNotes(db, newNoteId);
     await assertOwnership(db, viewerId);
     attachChangeListener();
 

@@ -40,11 +40,11 @@ export function useCreateLabel() {
     retry: false,
     mutationFn: async (input: { name: string; color?: NoteColor | null }): Promise<Label> => {
       const viewerId = requireViewer();
-      const res = await apiClient.post<Label>(API_ROUTES.labels.create, input, {
+      const res = await apiClient.post<{ label: Label }>(API_ROUTES.labels.create, input, {
         expectedViewerId: viewerId,
       });
-      await saveLabel(res.data, viewerId);
-      return res.data;
+      await saveLabel(res.data.label, viewerId);
+      return res.data.label;
     },
     onSuccess: () => requestSync(),
     onError: (error: Error) => {
@@ -65,11 +65,11 @@ export function useUpdateLabel() {
       patch: { name?: string; color?: NoteColor | null };
     }): Promise<Label> => {
       const viewerId = requireViewer();
-      const res = await apiClient.patch<Label>(API_ROUTES.labels.update(id), patch, {
+      const res = await apiClient.patch<{ label: Label }>(API_ROUTES.labels.update(id), patch, {
         expectedViewerId: viewerId,
       });
-      await saveLabel(res.data, viewerId);
-      return res.data;
+      await saveLabel(res.data.label, viewerId);
+      return res.data.label;
     },
     onSuccess: () => requestSync(),
     onError: (error: Error) => {

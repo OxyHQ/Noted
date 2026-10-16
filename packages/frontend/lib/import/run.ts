@@ -6,6 +6,7 @@
  * and why — are tested without a device.
  */
 
+import { noteBlocksFromMarkdown } from '@/lib/notes/markdown-blocks';
 import type { Label } from '@noted/shared-types';
 import type { NoteInput } from '@/lib/db/notes-repo';
 import { parseImportFile } from './parse';
@@ -91,8 +92,9 @@ export async function runImport(
 
       await deps.createNote(deps.makeId(), {
         title: note.title.slice(0, IMPORT_LIMITS.title),
-        userBody: note.body,
-        checklist: note.checklist,
+        // Markdown, Keep and Evernote all arrive as Markdown and a checklist:
+        // the blocks they mean, read the way Nilo reads Markdown.
+        blocks: noteBlocksFromMarkdown(note.body, note.checklist, deps.makeId),
         labels: ids,
         pinned: note.pinned,
         archived: note.archived,

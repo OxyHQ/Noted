@@ -1,41 +1,36 @@
-import type { ChecklistItem } from '@noted/shared-types';
-import type { LocalNote } from '@/lib/db/notes-repo';
+import type { NoteBlock } from '@/lib/notes/blocks';
+import { renumber } from '@/lib/notes/blocks';
+import type { NoteInput } from '@/lib/db/notes-repo';
 
-/** One entry of `GET /notes/:id/revisions`. */
+/**
+ * A note's history is its Nilo page's: a version is the blocks as they were
+ * before the first change after a quiet spell, and before every restore.
+ */
+
+/** One entry of `GET /pages/:id/versions`, newest first. */
 export interface RevisionSummary {
   id: string;
   createdAt: string;
-  title: string;
-  preview: string;
-  checklistItems: number;
+  createdBy: string;
+  blockCount: number;
 }
 
-/** One version's full text (`GET /notes/:id/revisions/:revisionId`). */
+/** One version's blocks (`GET /pages/:id/versions/:versionId`). */
 export interface RevisionDetail {
   id: string;
   createdAt: string;
-  title: string;
-  body: string;
-  checklist: ChecklistItem[];
+  blocks: NoteBlock[];
 }
 
 /**
- * The edit that puts a version's text back.
+ * The edit that puts a version's blocks back.
  *
- * Applied like any other local edit, so it syncs through the outbox and the
- * server snapshots the text it replaces: a restore is never destructive.
- * `generatedBody` is cleared because the restored text is now the user's — the
- * app's record of which lines it wrote described the text that is being
- * replaced, and keeping it would let a later recording treat restored text as
- * its own to rewrite.
+ * Applied like any other local edit, so it syncs through the outbox and Nilo
+ * keeps the blocks it replaces as a version of their own: a restore is never
+ * destructive. Set whole (`blocks`), which clears the recorder's map: the
+ * restored text is the user's now, and a later recording must not treat it
+ * as its own to rewrite.
  */
-export function revisionToPatch(
-  revision: RevisionDetail,
-): Pick<LocalNote, 'title' | 'body' | 'generatedBody' | 'checklist'> {
-  return {
-    title: revision.title,
-    body: revision.body,
-    generatedBody: '',
-    checklist: revision.checklist,
-  };
+export function revisionToPatch(revision: RevisionDetail): Pick<NoteInput, 'blocks'> {
+  return { blocks: renumber(revision.blocks) };
 }

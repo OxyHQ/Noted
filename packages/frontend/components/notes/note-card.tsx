@@ -22,8 +22,9 @@ import { getNoteColorTint } from '@/lib/note-colors';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
 import { cn } from '@/lib/utils';
-import { toPreviewText } from '@/lib/markdown/blocks';
-import type { Label, Note } from '@noted/shared-types';
+import { plainText, todos } from '@/lib/notes/blocks';
+import type { Label } from '@noted/shared-types';
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
 
 const CHECKLIST_PREVIEW = 6;
 
@@ -113,16 +114,19 @@ export const NoteCard = React.memo(function NoteCard({
   const [hovered, setHovered] = React.useState(false);
   const showHoverAffordances = isWeb && hovered;
 
-  const hasChecklist = note.checklist.length > 0;
-  const shownChecklist = note.checklist.slice(0, CHECKLIST_PREVIEW);
-  const remainingChecklist = note.checklist.length - shownChecklist.length;
+  // A glance: the text of the note, then its tasks with their ticks.
+  const tasks = todos(note.blocks);
+  const previewText = plainText(note.blocks.filter((block) => block.type !== 'todo'));
+  const hasChecklist = tasks.length > 0;
+  const shownChecklist = tasks.slice(0, CHECKLIST_PREVIEW);
+  const remainingChecklist = tasks.length - shownChecklist.length;
 
   // Attachments render through the shared `AttachmentsRow` card variant (cheap:
   // thumbnails via `getFileDownloadUrl` + a generic count chip, no per-item
   // metadata queries). The card only needs to know whether any exist.
   const hasAttachments = (note.attachments?.length ?? 0) > 0;
 
-  const isEmpty = !note.title && !note.body && !hasChecklist && !hasAttachments;
+  const isEmpty = !note.title && !previewText && !hasChecklist && !hasAttachments;
 
   // Top-right corner control: pin (web hover) / pin indicator (pinned) / nothing.
   const showPinControl =
@@ -235,20 +239,19 @@ export const NoteCard = React.memo(function NoteCard({
             </Text>
           ) : null}
 
-          {!hasChecklist && note.body ? (
+          {previewText ? (
             <Text
               className={cn('text-sm text-foreground/80', note.title ? 'mt-1.5' : '')}
-              numberOfLines={8}
+              numberOfLines={hasChecklist ? 4 : 8}
             >
-              {/* Flattened, because a card is a glance: `## Summary` in a preview
-                is syntax where prose should be, and it costs a line to say
-                nothing. The note itself keeps its Markdown. */}
-              {toPreviewText(note.body)}
+              {/* The blocks' text, one per line: a card is a glance, and a
+                heading's size or a list's bullet costs a line to say nothing. */}
+              {previewText}
             </Text>
           ) : null}
 
           {hasChecklist ? (
-            <View className={cn('gap-1.5', note.title ? 'mt-2.5' : '')}>
+            <View className={cn('gap-1.5', note.title || previewText ? 'mt-2.5' : '')}>
               {shownChecklist.map((item) => {
                 const Box = item.checked ? CheckSquare : Square;
                 return (

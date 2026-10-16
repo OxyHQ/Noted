@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Label } from '@noted/shared-types';
 import type { NoteInput } from '@/lib/db/notes-repo';
 import { IMPORT_LIMITS, MAX_IMPORT_FILES, runImport } from '@/lib/import/run';
+import { plainText, todos } from '@/lib/notes/blocks';
+
+const contentOf = (input: NoteInput) => input.blocks ?? [];
 
 const label = (id: string, name: string): Label => ({ id, name, color: null }) as Label;
 
@@ -38,9 +41,10 @@ describe('runImport', () => {
     expect(d.createLabel).toHaveBeenCalledWith('home');
     expect(d.createNote.mock.calls[0][1]).toMatchObject({
       title: 'A',
-      userBody: 'body',
       labels: ['l-work', 'new-home'],
     });
+    // The Markdown, read as the blocks it means.
+    expect(plainText(contentOf(d.createNote.mock.calls[0][1]))).toBe('body');
     expect(d.createNote.mock.calls[1][1].labels).toEqual(['new-home']);
   });
 
@@ -104,10 +108,12 @@ describe('runImport', () => {
       ],
       d,
     );
-    expect(d.createNote.mock.calls[0][1]).toMatchObject({
-      pinned: true,
-      archived: true,
-      checklist: [{ text: 'a', checked: true }],
-    });
+    expect(d.createNote.mock.calls[0][1]).toMatchObject({ pinned: true, archived: true });
+    expect(
+      todos(contentOf(d.createNote.mock.calls[0][1])).map(({ text, checked }) => ({
+        text,
+        checked,
+      })),
+    ).toEqual([{ text: 'a', checked: true }]);
   });
 });

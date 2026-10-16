@@ -16,7 +16,7 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
     path: string,
     body?: unknown,
     query?: Query,
-  ): Promise<{ data: T }> {
+  ): Promise<{ data: T; status: number }> {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query?.params ?? {})) {
       if (value !== undefined && value !== null) params.set(key, String(value));
@@ -70,7 +70,9 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
         // Existing Noted callers inspect response.status (404 deletes) and data.error.
         throw Object.assign(new Error(message), { response: { status: response.status, data } });
       }
-      return { data: data as T };
+      // The status too: `POST /notes` answers 200 for a note that was already
+      // there and 201 for one it made, and the sync treats the two differently.
+      return { data: data as T, status: response.status };
     } finally {
       clearTimeout(timer);
       unsubscribe?.();

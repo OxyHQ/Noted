@@ -9,8 +9,7 @@
 import {
   DEFAULT_NEW_NOTE_COLOR,
   normalizeNoteColor,
-  type ChecklistItem,
-  type Note,
+  type NoteColor,
   type NoteListParams,
 } from '@noted/shared-types';
 
@@ -22,35 +21,56 @@ import {
   type Statement,
 } from '@/lib/db/client';
 import { deleteNoteRecordings } from '@/lib/capture/captures-repo';
-import { nextNoteBody } from '@/lib/notes/generated-body';
+import {
+  adoptEdited,
+  type GeneratedMap,
+  mergeBlocks,
+  type NoteBlock,
+  plainText,
+  type RenderedBlock,
+  renumber,
+  withGenerated,
+} from '@/lib/notes/blocks';
+import { newNoteId } from '@/lib/db/ids';
 
 /** Marks a note as carrying local edits the server has not acknowledged. */
 const DIRTY = 1;
 
 /**
- * A note as this device stores it: the shared DTO plus the bookkeeping that
- * never leaves the machine.
+ * A note as this device stores it.
  *
- * `generatedBody` is the half of `body` the app composed. It is local by
- * construction — the server has the note's body and no business knowing which
- * part of it the app wrote — and it is what lets the next writer replace its own
- * previous output instead of preserving it as something the user typed.
+ * Its content is `blocks` (`lib/notes/blocks.ts`), Nilo's blocks, flat.
+ * `generated` says which of them the recorder wrote, so the next rebuild
+ * replaces exactly those and nothing the user wrote; it syncs with the note,
+ * in Noted's own data on the server.
  */
-export interface LocalNote extends Note {
+export interface LocalNote {
+  id: string;
   /** `voice` for a note born from a recording, `note` for one someone opened. */
   kind: 'note' | 'voice';
-  /** The part of `body` the app composed, exactly as last written. */
-  generatedBody: string;
+  title: string;
+  blocks: NoteBlock[];
+  generated: GeneratedMap;
+  color: NoteColor;
+  labels: string[];
+  pinned: boolean;
+  archived: boolean;
+  trashed: boolean;
+  /** Oxy file ids. */
+  attachments: string[];
+  reminderAt: string | null;
+  order: number;
+  folderId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface NoteRow extends Row {
   id: string;
   kind: string;
   title: string;
-  body: string;
-  generated_body: string;
-  body_format: string;
-  checklist_json: string;
+  blocks_json: string;
+  generated_json: string;
   color: string;
   labels_json: string;
   pinned: number;
@@ -81,14 +101,32 @@ function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
 
-function isChecklistItem(value: unknown): value is ChecklistItem {
+function isBlock(value: unknown): value is NoteBlock {
   if (typeof value !== 'object' || value === null) return false;
-  const item = value as Record<string, unknown>;
+  const block = value as Record<string, unknown>;
   return (
-    typeof item.id === 'string' &&
-    typeof item.text === 'string' &&
-    typeof item.checked === 'boolean'
+    typeof block.id === 'string' &&
+    typeof block.type === 'string' &&
+    typeof block.order === 'number' &&
+    (block.parentBlockId === null || typeof block.parentBlockId === 'string') &&
+    typeof block.content === 'object' &&
+    block.content !== null
   );
+}
+
+function parseGenerated(value: string): GeneratedMap {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    const out: GeneratedMap = {};
+    for (const [id, ref] of Object.entries(parsed as Record<string, unknown>)) {
+      const key = (ref as { key?: unknown } | null)?.key;
+      if (typeof key === 'string') out[id] = { key };
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export function rowToNote(row: NoteRow): LocalNote {
@@ -96,9 +134,8 @@ export function rowToNote(row: NoteRow): LocalNote {
     id: row.id,
     kind: row.kind === 'voice' ? 'voice' : 'note',
     title: row.title,
-    body: row.body,
-    generatedBody: row.generated_body,
-    checklist: parseJsonArray(row.checklist_json, isChecklistItem),
+    blocks: parseJsonArray(row.blocks_json, isBlock),
+    generated: parseGenerated(row.generated_json),
     color: normalizeNoteColor(row.color),
     labels: parseJsonArray(row.labels_json, isString),
     pinned: row.pinned === 1,
@@ -129,8 +166,8 @@ export function firstRowToNote(rows: readonly NoteRow[]): LocalNote | null {
 // subquery also registers `note_labels` as a read dependency, which is what
 // makes a label change re-run this query.
 const NOTE_COLUMNS = `
-  notes.id, notes.kind, notes.title, notes.body, notes.generated_body, notes.body_format,
-  notes.checklist_json, notes.color, notes.pinned, notes.archived, notes.trashed,
+  notes.id, notes.kind, notes.title, notes.blocks_json, notes.generated_json,
+  notes.color, notes.pinned, notes.archived, notes.trashed,
   notes.attachments_json, notes.reminder_at, notes.sort_order, notes.folder_id,
   notes.created_at, notes.updated_at,
   COALESCE((
@@ -207,12 +244,7 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
     const pattern = `%${escapeLike(term)}%`;
     where.push(`(
       lower(notes.title) LIKE ? ESCAPE '\\'
-      OR lower(notes.body) LIKE ? ESCAPE '\\'
-      OR lower(notes.generated_body) LIKE ? ESCAPE '\\'
-      OR EXISTS (
-        SELECT 1 FROM json_each(notes.checklist_json)
-        WHERE lower(json_extract(json_each.value, '$.text')) LIKE ? ESCAPE '\\'
-      )
+      OR lower(notes.body_text) LIKE ? ESCAPE '\\'
       OR EXISTS (
         SELECT 1 FROM note_labels JOIN labels ON labels.id = note_labels.label_id
         WHERE note_labels.note_id = notes.id AND labels.deleted_at IS NULL
@@ -223,7 +255,7 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
         WHERE captures.note_id = notes.id AND lower(transcript_segments.text) LIKE ? ESCAPE '\\'
       )
     )`);
-    values.push(pattern, pattern, pattern, pattern, pattern, pattern);
+    values.push(pattern, pattern, pattern, pattern);
   }
 
   return {
@@ -234,28 +266,32 @@ export function noteListQuery(params: NoteListParams): NoteListQuery {
 }
 
 /**
- * Notes whose text links to `target` with `[[its title]]` (or `[[its title|label]]`).
+ * Notes that link to `target`: a page mention of it in their blocks (how the
+ * editor links a note, and how Nilo does), or the old `[[its title]]` /
+ * `[[its title|label]]` text that notes written before blocks still carry.
  *
- * Computed from the text each time rather than stored: a stored link table is a
- * second copy that has to be kept in step with every edit and every rename.
- * Matching is by title, case-insensitively, so two notes with the same title
- * are indistinguishable to a link — the same limit Obsidian has.
+ * Computed from the content each time rather than stored: a stored link table
+ * is a second copy that has to be kept in step with every edit and rename.
  */
 export function backlinksQuery(target: { id: string; title: string }): NoteListQuery {
   const title = target.title.trim().toLowerCase();
-  if (!title) return { sql: `SELECT ${NOTE_COLUMNS} FROM notes WHERE 0`, params: [] };
   const exact = `%[[${escapeLike(title)}]]%`;
   const labelled = `%[[${escapeLike(title)}|%`;
   return {
     sql: `SELECT ${NOTE_COLUMNS} FROM notes
           WHERE notes.deleted_at IS NULL AND notes.trashed = 0 AND notes.id != ?
             AND (
-              lower(notes.body) LIKE ? ESCAPE '\\' OR lower(notes.body) LIKE ? ESCAPE '\\'
-              OR lower(notes.generated_body) LIKE ? ESCAPE '\\'
-              OR lower(notes.generated_body) LIKE ? ESCAPE '\\'
+              EXISTS (
+                SELECT 1 FROM json_tree(notes.blocks_json)
+                WHERE json_tree.key = 'id' AND json_tree.value = ?
+                  AND json_tree.path LIKE '%.mention.attributes'
+              )
+              OR (? != '' AND (
+                lower(notes.body_text) LIKE ? ESCAPE '\\' OR lower(notes.body_text) LIKE ? ESCAPE '\\'
+              ))
             )
           ORDER BY notes.updated_at DESC`,
-    params: [target.id, exact, labelled, exact, labelled],
+    params: [target.id, target.id, title, exact, labelled],
   };
 }
 
@@ -309,28 +345,33 @@ function labelStatements(noteId: string, labels: readonly string[]): Statement[]
 
 const NOTE_INSERT_SQL = `
 INSERT INTO notes (
-  id, kind, title, body, generated_body, body_format, checklist_json, color,
+  id, kind, title, blocks_json, generated_json, body_text, content_model, color,
   pinned, archived, trashed, attachments_json, reminder_at, sort_order, folder_id,
   created_at, updated_at, deleted_at, dirty, server_updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
+) VALUES (?, ?, ?, ?, ?, ?, 'blocks', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)
 ON CONFLICT (id) DO NOTHING
 `;
 
 /**
  * The fields a caller may set; everything else is derived or server-owned.
  *
- * `body` is deliberately absent, and its absence is the point. A recorded note's
- * body has two authors — the person typing and the structurer running every few
- * seconds — so no caller holds a version of it that is safe to write whole. Each
- * one names the half it owns and this module assembles the result, which is what
- * keeps an editor that has been open for a minute from erasing a minute of
- * transcript. See `lib/notes/generated-body.ts`.
+ * Content has three writers, and none of them writes it whole over the
+ * others. A recorded note's blocks have two authors — the person typing and
+ * the recorder rebuilding every few seconds — so each names what it owns and
+ * this module puts the result together against the note as it is stored:
+ *
+ * - `edit`, the editor's change: the blocks it started from and what they are
+ *   now, merged onto the stored blocks (`mergeBlocks`), so an editor open for
+ *   a minute does not erase a minute of transcript. A generated block it
+ *   changed becomes the user's (`adoptEdited`).
+ * - `rendered`, the recorder's blocks, replacing only its own (`withGenerated`).
+ * - `blocks`, content set whole: a new note's, an import's, a restored
+ *   version's. The recorder's map is cleared: nothing in it is its any more.
  */
 export type NoteInput = Partial<
   Pick<
-    Note,
+    LocalNote,
     | 'title'
-    | 'checklist'
     | 'color'
     | 'labels'
     | 'pinned'
@@ -340,14 +381,32 @@ export type NoteInput = Partial<
     | 'reminderAt'
     | 'order'
     | 'folderId'
+    | 'kind'
   >
 > & {
-  kind?: 'note' | 'voice';
-  /** What the user wrote. On a note nobody recorded, that is the whole body. */
-  userBody?: string;
-  /** What the app wrote. Only the capture writers set this. */
-  generatedBody?: string;
+  edit?: { base: readonly NoteBlock[]; next: readonly NoteBlock[] };
+  rendered?: readonly RenderedBlock[];
+  blocks?: readonly NoteBlock[];
 };
+
+/** The content a write lands, given the note as stored. */
+export function nextContent(
+  current: Pick<LocalNote, 'blocks' | 'generated'>,
+  patch: Pick<NoteInput, 'edit' | 'rendered' | 'blocks'>,
+): { blocks: NoteBlock[]; generated: GeneratedMap } | null {
+  let blocks = patch.blocks ? renumber(patch.blocks) : current.blocks;
+  let generated = patch.blocks ? {} : current.generated;
+  if (patch.edit) {
+    generated = adoptEdited(patch.edit.base, patch.edit.next, generated);
+    blocks = mergeBlocks(patch.edit.base, patch.edit.next, blocks);
+    // A generated block the merge dropped is no longer anyone's.
+    const present = new Set(blocks.map((block) => block.id));
+    generated = Object.fromEntries(Object.entries(generated).filter(([id]) => present.has(id)));
+  }
+  if (patch.rendered)
+    ({ blocks, generated } = withGenerated(blocks, generated, patch.rendered, newNoteId));
+  return patch.blocks || patch.edit || patch.rendered ? { blocks, generated } : null;
+}
 
 function creationStatements(note: LocalNote, now: string): Statement[] {
   return [
@@ -358,10 +417,9 @@ function creationStatements(note: LocalNote, now: string): Statement[] {
         note.id,
         note.kind,
         note.title,
-        note.body,
-        note.generatedBody,
-        'plain',
-        JSON.stringify(note.checklist),
+        JSON.stringify(note.blocks),
+        JSON.stringify(note.generated),
+        plainText(note.blocks),
         note.color,
         note.pinned ? 1 : 0,
         note.archived ? 1 : 0,
@@ -387,19 +445,18 @@ export async function createNote(
   viewerId = getActiveViewerId(),
 ): Promise<LocalNote> {
   const now = nowIso();
-  // Through the same assembler as every later edit, starting from a note with
-  // neither half written yet, so there is exactly one place a body is composed.
-  const body = nextNoteBody(
-    { body: '', generatedBody: '' },
-    { userBody: input.userBody ?? '', generatedBody: input.generatedBody },
-  );
+  // Through the same assembler as every later edit, starting from an empty
+  // note, so there is exactly one place content is put together.
+  const content = nextContent(
+    { blocks: [], generated: {} },
+    { blocks: input.blocks, edit: input.edit, rendered: input.rendered },
+  ) ?? { blocks: [], generated: {} };
   const note: LocalNote = {
     id,
     kind: input.kind ?? 'note',
     title: input.title ?? '',
-    body: body.body,
-    generatedBody: body.generatedBody,
-    checklist: input.checklist ?? [],
+    blocks: content.blocks,
+    generated: content.generated,
     color: input.color ?? DEFAULT_NEW_NOTE_COLOR,
     labels: input.labels ?? [],
     pinned: input.pinned ?? false,
@@ -436,9 +493,10 @@ export async function createNote(
  * Apply a partial edit.
  *
  * Only named fields are updated, so concurrent patches from different tabs do
- * not restore unrelated fields from an older read. Body halves are assembled
- * against a snapshot and compared in SQL before writing; a changed snapshot
- * rolls back the entire transaction, including labels and the outbox.
+ * not restore unrelated fields from an older read. Content is put together
+ * against a snapshot of the stored blocks and compared in SQL before writing;
+ * a changed snapshot rolls back the entire transaction, labels and outbox
+ * included, and the write is put together again on the newer note.
  */
 export async function updateNote(
   id: string,
@@ -459,10 +517,6 @@ export async function updateNote(
     };
     set('kind', patch.kind);
     set('title', patch.title);
-    set(
-      'checklist_json',
-      patch.checklist === undefined ? undefined : JSON.stringify(patch.checklist),
-    );
     set('color', patch.color);
     set('pinned', patch.pinned === undefined ? undefined : Number(patch.pinned));
     set('archived', patch.archived === undefined ? undefined : Number(patch.archived));
@@ -475,21 +529,21 @@ export async function updateNote(
     set('sort_order', patch.order);
     set('folder_id', patch.folderId);
 
-    const changesBody = patch.userBody !== undefined || patch.generatedBody !== undefined;
-    if (changesBody) {
-      const body = nextNoteBody(current, patch);
-      set('body', body.body);
-      set('generated_body', body.generatedBody);
+    const content = nextContent(current, patch);
+    if (content) {
+      set('blocks_json', JSON.stringify(content.blocks));
+      set('generated_json', JSON.stringify(content.generated));
+      set('body_text', plainText(content.blocks));
     }
     params.push(id);
-    if (changesBody) params.push(current.body, current.generatedBody);
+    if (content) params.push(JSON.stringify(current.blocks), JSON.stringify(current.generated));
 
     try {
       await executeTransaction(
         [
           {
             sql: `UPDATE notes SET ${assignments.join(', ')}
-                WHERE id = ? AND deleted_at IS NULL${changesBody ? ' AND body = ? AND generated_body = ?' : ''}`,
+                WHERE id = ? AND deleted_at IS NULL${content ? ' AND blocks_json = ? AND generated_json = ?' : ''}`,
             params,
             expectedRowsAffected: 1,
           },

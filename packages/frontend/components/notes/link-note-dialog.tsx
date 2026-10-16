@@ -13,8 +13,8 @@ interface LinkNoteDialogProps {
   onOpenChange: (open: boolean) => void;
   /** The note being edited; it cannot link to itself. */
   currentId: string;
-  /** Called with the chosen note's title. */
-  onPick: (title: string) => void;
+  /** Called with the chosen note. */
+  onPick: (note: { id: string; title: string }) => void;
 }
 
 /** Search the user's notes and pick one to link to. */
@@ -23,7 +23,7 @@ export function LinkNoteDialog({ open, onOpenChange, currentId, onPick }: LinkNo
   const { colors } = useColorScheme();
   const [query, setQuery] = React.useState('');
   const { data } = useNotes({ view: 'active', q: query });
-  // A link names its target by title, so an untitled note cannot be linked.
+  // A link reads as its target's title, so an untitled note has nothing to show.
   const candidates = data.filter((note) => note.id !== currentId && note.title.trim() !== '');
 
   return (
@@ -57,7 +57,7 @@ export function LinkNoteDialog({ open, onOpenChange, currentId, onPick }: LinkNo
                 accessibilityRole="button"
                 accessibilityLabel={note.title}
                 onPress={() => {
-                  onPick(note.title);
+                  onPick({ id: note.id, title: note.title });
                   setQuery('');
                   onOpenChange(false);
                 }}

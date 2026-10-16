@@ -40,7 +40,7 @@ describe('what a push sends', () => {
   it('carries the generated half with the note, not on a route of its own', () => {
     // One request. A second endpoint would let a note and its evidence arrive
     // out of order, and there is no ordering rule that makes that safe.
-    expect(SYNC).toContain('notePayloadWithGenerated');
+    expect(SYNC).toContain('appData: { data, baseRevision: row.app_data_revision }');
     expect(SYNC).toContain('listFinalArtifacts');
     expect(SYNC).toContain('getNoteOverrides');
   });
@@ -77,17 +77,18 @@ describe('what a pull may overwrite', () => {
   });
 
   it('leaves the local artifact alone when the server said nothing about it', () => {
-    // The feed read does not carry the generated half. An absent field means
-    // "no opinion"; an empty array would mean "there are none" and wipe it.
-    expect(SYNC).toContain('note.artifacts ?? []');
-    expect(SYNC).toContain('note.itemOverrides ?? []');
+    // An absent field means "no opinion"; an empty array would mean "there
+    // are none" and wipe it.
+    expect(SYNC).toContain('data.artifacts ?? []');
+    expect(SYNC).toContain('data.itemOverrides ?? []');
   });
 
   it('applies it in the same transaction as the note it arrived with', () => {
     // Otherwise a failure between the two leaves a note whose body claims a
     // structure the device does not have.
-    expect(SYNC).toContain(
-      'statements.push(...applyServerNoteStatements(note), ...generatedHalfStatements(note, now));',
+    // Whitespace-agnostic: the formatter owns how the call is wrapped.
+    expect(SYNC).toMatch(
+      /statements\.push\(\s*\.\.\.applyServerNoteStatements\(note, pass\),\s*\.\.\.generatedHalfStatements\(note, now\),?\s*\)/,
     );
   });
 });

@@ -2,7 +2,7 @@
  * That every writer of a note body actually goes through the ownership rules.
  *
  * The three writers reach SQLite, expo-router or React, so none of them can run
- * in this suite — and the rules they have to follow live in `generated-body.ts`
+ * in this suite — and the rules they have to follow live in `lib/notes/blocks.ts`
  * and `draft-sync.ts`, which are tested thoroughly and in isolation. That leaves
  * exactly one gap, and it is the gap both bugs fell through: the pure module can
  * be perfect while nothing calls it.
@@ -38,37 +38,29 @@ describe('the recorder', () => {
 
   it('writes the note in exactly one place, for both passes', () => {
     // The two passes used to be two write paths, and a rule enforced in one copy
-    // is not enforced. They now share one `commit`, which is why the counts here
-    // are one rather than two: a second `updateNote` is a second opinion about
-    // who owns what.
+    // is not enforced. They share one `commit`: a second `updateNote` is a second
+    // opinion about who owns what.
     expect(occurrences(RESTRUCTURE, 'updateNote(')).toBe(1);
-    expect(occurrences(RESTRUCTURE, 'userBodyOf(')).toBe(1);
   });
 
-  it('sends both halves and composes neither', () => {
-    // The duplication bug: the generated block was written as the whole body,
+  it('sends only its own blocks, and puts none together itself', () => {
+    // The duplication bug: the generated text was written as the whole note,
     // then read back next slice as if the user had typed it, and appended to.
-    // It is the store that puts the halves together, against the row as it
-    // stands at write time — so composing here would be composing against a
-    // copy of the note that a slice or a keystroke may already have moved past.
-    expect(RESTRUCTURE).toContain('userBody: context.userBody');
-    expect(RESTRUCTURE).toContain('generatedBody: composed.generatedBody');
-    expect(RESTRUCTURE).not.toContain('composeNoteBody');
+    // The recorder hands over what it renders (`rendered`) and the store
+    // replaces its previous blocks with them, against the row as it stands at
+    // write time — never a whole block list composed from a stale read.
+    expect(RESTRUCTURE).toContain('rendered: composed.rendered');
+    expect(RESTRUCTURE).not.toMatch(/\bblocks:/);
+    expect(RESTRUCTURE).not.toContain('withGenerated(');
   });
 
-  it('never shows a writer the note body it wrote itself', () => {
-    // The model is handed the USER's half, never the composed body: shown its
-    // own previous output it summarises itself. The deterministic pass is handed
-    // no body at all — it reads the transcript.
+  it('never shows a writer the note it wrote itself', () => {
+    // The model is handed what the USER wrote (`userAuthoredPart`, which leaves
+    // out the recorder's blocks), never the whole note: shown its own previous
+    // output it summarises itself.
     expect(RESTRUCTURE).toContain('body: context.userBody');
-    expect(RESTRUCTURE).not.toMatch(/body:\s*context\.note\.body/);
-  });
-
-  it('treats generated checklist items as the app’s, by id and not by text', () => {
-    // The exact-substring trick this epic exists to delete: it could not tell an
-    // edit from a paragraph typed after the block, and said nothing at all about
-    // a checklist item.
-    expect(RESTRUCTURE).toContain('isGeneratedItemId(');
+    expect(RESTRUCTURE).toContain('userAuthoredPart(');
+    expect(RESTRUCTURE).not.toMatch(/body:\s*context\.note\./);
   });
 });
 
@@ -78,17 +70,16 @@ describe('the store', () => {
     expect(REPO).toContain('export async function updateNote');
   });
 
-  it('is the one place a body is assembled', () => {
-    // Both writes hand their halves to the assembler; a write that stopped
-    // doing so would have to compose somewhere else, and the single path would
-    // be two.
-    expect(occurrences(REPO, 'nextNoteBody(')).toBe(2);
+  it('is the one place content is put together', () => {
+    // Both writes hand their part to the assembler; a write that stopped doing
+    // so would have to merge somewhere else, and the single path would be two.
+    expect(occurrences(REPO, 'nextContent(')).toBe(3);
+    expect(REPO).toContain('mergeBlocks(');
+    expect(REPO).toContain('withGenerated(');
   });
 
-  it('does not accept a whole body from anyone', () => {
-    // `NoteInput` deliberately drops `body` from the fields it picks. A caller
-    // able to set it is a caller able to overwrite the half it does not own.
-    expect(REPO).not.toMatch(/\|\s*'body'/);
+  it('compares the stored blocks before writing, so a stale merge is redone', () => {
+    expect(REPO).toContain('AND blocks_json = ? AND generated_json = ?');
   });
 });
 
@@ -97,12 +88,12 @@ describe('the open editor', () => {
     expect(EDITOR).toContain('export default function NoteEditorScreen');
   });
 
-  it('sends only the half it owns', () => {
-    // The reported bug: the editor persisted `body` in full, so a keystroke in
-    // an open note wrote back the body as it was when the note opened and
-    // erased everything the recorder had added since.
-    expect(EDITOR).toContain('userBodyOf(next.body, next.generatedBody)');
-    expect(EDITOR).not.toMatch(/^\s*body: next\.body,\s*$/m);
+  it('sends its blocks as an edit on what it started from', () => {
+    // The reported bug: the editor persisted the body in full, so a keystroke
+    // in an open note wrote back the note as it was when it opened and erased
+    // everything the recorder had added since.
+    expect(EDITOR).toContain('editorPatch(');
+    expect(EDITOR).not.toMatch(/patch:\s*\{\s*blocks:/);
   });
 
   it('follows the store instead of hydrating once', () => {

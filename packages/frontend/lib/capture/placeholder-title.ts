@@ -1,4 +1,11 @@
-import type { ChecklistItem } from '@noted/shared-types';
+import {
+  type GeneratedMap,
+  type NoteBlock,
+  plainText,
+  type TodoItem,
+  todos,
+  userBlocks,
+} from '@/lib/notes/blocks';
 
 /**
  * The name a recording carries until something can do better.
@@ -42,26 +49,24 @@ export function userTitleOf(title: string, startedAt: Date): string {
 /** What the user themselves contributed to a note. */
 export interface UserAuthored {
   title: string;
+  /** The text of what they wrote, tasks aside. */
   body: string;
-  checklist: readonly ChecklistItem[];
+  /** The tasks they wrote. */
+  checklist: readonly TodoItem[];
 }
 
 /**
- * The user's own contribution to a note, as a writer should see it.
- *
- * Both writers — the structurer and the model — take this and treat every field
- * in it as untouchable. Building it here rather than at each call site is what
- * keeps the placeholder from leaking back in: there is one way to describe what
- * the user wrote, and it already knows the date is not one of the things they
- * wrote.
+ * What the user wrote of a note: a title they gave (not the placeholder),
+ * and their blocks — those not the recorder's — as text and tasks.
  */
 export function userAuthoredPart(
-  note: { title: string; body: string; checklist: readonly ChecklistItem[] },
+  note: { title: string; blocks: readonly NoteBlock[]; generated: GeneratedMap },
   startedAt: Date,
 ): UserAuthored {
+  const own = userBlocks(note.blocks, note.generated);
   return {
     title: userTitleOf(note.title, startedAt),
-    body: note.body,
-    checklist: note.checklist,
+    body: plainText(own.filter((block) => block.type !== 'todo')),
+    checklist: todos(own),
   };
 }

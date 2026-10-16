@@ -11,7 +11,7 @@ import { useNotes } from '@/lib/hooks/use-notes';
 import { useLabels } from '@/lib/hooks/use-labels';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
 import { useTranslation } from '@/hooks/useTranslation';
-import type { Note } from '@noted/shared-types';
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
 
 export default function ArchiveScreen() {
   const router = useRouter();

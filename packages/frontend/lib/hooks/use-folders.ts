@@ -36,11 +36,11 @@ export function useCreateFolder() {
     retry: false,
     mutationFn: async (input: { name: string; parentId?: string | null }): Promise<Folder> => {
       const viewerId = requireViewer();
-      const response = await apiClient.post<Folder>(API_ROUTES.folders.create, input, {
+      const response = await apiClient.post<{ folder: Folder }>(API_ROUTES.folders.create, input, {
         expectedViewerId: viewerId,
       });
-      await saveFolder(response.data, viewerId);
-      return response.data;
+      await saveFolder(response.data.folder, viewerId);
+      return response.data.folder;
     },
     onSuccess: () => requestSync(),
     onError: (error: Error) => {
@@ -55,13 +55,13 @@ export function useRenameFolder() {
     retry: false,
     mutationFn: async ({ id, name }: { id: string; name: string }): Promise<Folder> => {
       const viewerId = requireViewer();
-      const response = await apiClient.patch<Folder>(
+      const response = await apiClient.patch<{ folder: Folder }>(
         API_ROUTES.folders.update(id),
         { name },
         { expectedViewerId: viewerId },
       );
-      await saveFolder(response.data, viewerId);
-      return response.data;
+      await saveFolder(response.data.folder, viewerId);
+      return response.data.folder;
     },
     onSuccess: () => requestSync(),
     onError: (error: Error) => {
@@ -83,13 +83,13 @@ export function useMoveFolder() {
       parentId: string | null;
     }): Promise<Folder> => {
       const viewerId = requireViewer();
-      const response = await apiClient.patch<Folder>(
+      const response = await apiClient.patch<{ folder: Folder }>(
         API_ROUTES.folders.update(id),
         { parentId },
         { expectedViewerId: viewerId },
       );
-      await saveFolder(response.data, viewerId);
-      return response.data;
+      await saveFolder(response.data.folder, viewerId);
+      return response.data.folder;
     },
     onSuccess: () => requestSync(),
     onError: (error: Error) => {

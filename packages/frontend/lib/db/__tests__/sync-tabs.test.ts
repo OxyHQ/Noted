@@ -3,6 +3,7 @@ import { createLockManager, deferred } from './browser-lock-fixture';
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 const state = vi.hoisted(() => ({ viewer: 'alice', execute: vi.fn(), get: vi.fn() }));
+vi.mock('@/lib/db/erase-local', () => ({ eraseLocalAccountData: vi.fn() }));
 vi.mock('@/lib/db/client', () => ({
   execute: state.execute,
   executeTransaction: vi.fn().mockResolvedValue([]),
@@ -22,9 +23,9 @@ beforeEach(() => {
   vi.stubGlobal('navigator', { locks: createLockManager() });
   state.viewer = 'alice';
   state.execute.mockReset().mockResolvedValue([]);
-  state.get
-    .mockReset()
-    .mockResolvedValue({ data: { data: [], deleted: [], serverTime: '2026-10-10T10:00:00Z' } });
+  state.get.mockReset().mockResolvedValue({
+    data: { notes: [], deleted: [], cursor: 'C', hasMore: false, full: false, reset: false },
+  });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -45,10 +46,12 @@ describe('cross-tab synchronization', () => {
     const secondCycle = second.syncNotes(() => 'conflict');
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(state.execute).toHaveBeenCalledTimes(reads);
-    response.resolve({ data: { data: [], deleted: [], serverTime: '2026-10-10T10:00:00Z' } });
+    response.resolve({
+      data: { notes: [], deleted: [], cursor: 'C', hasMore: false, full: false, reset: false },
+    });
     await Promise.all([firstCycle, secondCycle]);
-    // Two cycles, each pulling folders, notes and labels.
-    expect(state.get).toHaveBeenCalledTimes(6);
+    // Two cycles, each one pull: labels and folders come with the notes.
+    expect(state.get).toHaveBeenCalledTimes(2);
   });
 
   it('rejects the queued account implicitly before reading after its session changes', async () => {
@@ -61,7 +64,9 @@ describe('cross-tab synchronization', () => {
     const reads = state.execute.mock.calls.length;
     const secondCycle = second.syncNotes(() => 'conflict');
     state.viewer = 'bob';
-    response.resolve({ data: { data: [], deleted: [] } });
+    response.resolve({
+      data: { notes: [], deleted: [], cursor: 'C', hasMore: false, full: false, reset: false },
+    });
     await Promise.all([firstCycle, secondCycle]);
     expect(state.execute).toHaveBeenCalledTimes(reads);
     expect(state.get).toHaveBeenCalledOnce();

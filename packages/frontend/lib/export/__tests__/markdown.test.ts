@@ -1,14 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
+import type { LocalNote as Note } from '@/lib/db/notes-repo';
 import { noteFilename, noteToMarkdown } from '@/lib/export/markdown';
-import type { Note } from '@noted/shared-types';
+import type { NoteBlock } from '@/lib/notes/blocks';
+
+const block = (
+  id: string,
+  type: NoteBlock['type'],
+  content: Record<string, unknown>,
+  order: number,
+): NoteBlock => ({
+  id,
+  parentBlockId: null,
+  type,
+  content,
+  order,
+});
+const DECISIONS: NoteBlock[] = [
+  block('h', 'heading_2', { text: 'Decisions' }, 0),
+  block('b', 'bulleted_list_item', { text: 'Congelar contrataciones' }, 1),
+];
 
 function note(overrides: Partial<Note> = {}): Note {
   return {
     id: '0198c3f2a1b74e0f8c2d5a6b',
+    kind: 'note',
     title: 'Presupuesto Q3',
-    body: '## Decisions\n\n- Congelar contrataciones',
-    checklist: [],
+    blocks: DECISIONS,
+    generated: {},
+    folderId: null,
     color: 'default',
     labels: [],
     pinned: false,
@@ -29,16 +49,16 @@ describe('noteToMarkdown', () => {
     expect(noteToMarkdown(note()).startsWith('# Presupuesto Q3')).toBe(true);
   });
 
-  it('keeps the body exactly as written', () => {
+  it('writes the blocks as the Markdown they read as', () => {
     expect(noteToMarkdown(note())).toContain('## Decisions\n\n- Congelar contrataciones');
   });
 
-  it('writes the checklist as tasks anything can read', () => {
+  it('writes the tasks as tasks anything can read', () => {
     const markdown = noteToMarkdown(
       note({
-        checklist: [
-          { id: 'a', text: 'Hecho', checked: true },
-          { id: 'b', text: 'Pendiente', checked: false },
+        blocks: [
+          block('a', 'todo', { text: 'Hecho', checked: true }, 0),
+          block('b', 'todo', { text: 'Pendiente', checked: false }, 1),
         ],
       }),
     );
@@ -47,12 +67,16 @@ describe('noteToMarkdown', () => {
   });
 
   it('omits what the note does not have', () => {
-    expect(noteToMarkdown(note({ title: '', body: 'solo cuerpo' }))).toBe('solo cuerpo');
-    expect(noteToMarkdown(note({ body: '', checklist: [] }))).toBe('# Presupuesto Q3');
+    expect(
+      noteToMarkdown(
+        note({ title: '', blocks: [block('p', 'paragraph', { text: 'solo cuerpo' }, 0)] }),
+      ),
+    ).toBe('solo cuerpo');
+    expect(noteToMarkdown(note({ blocks: [] }))).toBe('# Presupuesto Q3');
   });
 
   it('produces nothing for an empty note rather than a bare heading', () => {
-    expect(noteToMarkdown(note({ title: '', body: '', checklist: [] }))).toBe('');
+    expect(noteToMarkdown(note({ title: '', blocks: [] }))).toBe('');
   });
 });
 

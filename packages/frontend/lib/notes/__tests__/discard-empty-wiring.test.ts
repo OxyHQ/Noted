@@ -53,11 +53,9 @@ describe('the editor', () => {
     expect(EDITOR).toContain('usePreventRemove(isNew || base !== null');
   });
 
-  it('compares the user half of the body, not the composed one', () => {
-    // The composed body carries whatever a recording wrote. Measuring emptiness
-    // against it would keep every blank note that ever had a recorder open on it
-    // — and measuring the raw draft body would be measuring the app's own output
-    // as if the user had typed it.
-    expect(EDITOR).toContain('userBody: userBodyOf(next.body, next.generatedBody)');
+  it('measures the note itself, which counts the recorder’s blocks as content', () => {
+    // A note the recorder has written into is not empty, however little the
+    // user typed: `isEmptyNote` reads the recorder's map for exactly that.
+    expect(EDITOR).toContain('isEmptyNote(next)');
   });
 });

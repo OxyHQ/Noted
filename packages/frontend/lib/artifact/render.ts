@@ -14,6 +14,7 @@
 import type { GeneratedBlock, GeneratedNoteArtifact, GeneratedSection } from '@noted/shared-types';
 import { type ArtifactLabels, DEFAULT_ARTIFACT_LABELS } from '@/lib/artifact/types';
 import { nonEmptySections, visibleItems } from '@/lib/artifact/artifact';
+import type { RenderedBlock } from '@/lib/notes/blocks';
 
 /**
  * A section's heading, when it has earned one.
@@ -130,4 +131,65 @@ export function renderArtifact(
       : [];
 
   return [...people, ...sections, ...questions].join('\n').trim();
+}
+
+/* ── As blocks ─────────────────────────────────────────────────── */
+
+/**
+ * The artifact as note blocks, the same reading as `renderArtifact`: people,
+ * then each section under its heading, then the open questions. Each block
+ * carries the id of what it renders as its key (`RenderedBlock.key`), so the
+ * next rebuild hands the same point the same block and the user's tick or
+ * edit on it is not lost. The checklist is not here, for the reason above:
+ * `lib/artifact/compose.ts` adds it as `todo` blocks.
+ */
+export function renderArtifactBlocks(
+  artifact: GeneratedNoteArtifact,
+  labels: ArtifactLabels = DEFAULT_ARTIFACT_LABELS,
+): RenderedBlock[] {
+  const out: RenderedBlock[] = [];
+  for (const person of artifact.people ?? []) {
+    const described = [person.name, person.role, person.organization]
+      .filter((part): part is string => (part ?? '').trim() !== '')
+      .join(' — ');
+    if (!described) continue;
+    const label = `${labels.speaker}:`;
+    out.push({
+      key: `person:${person.id}`,
+      type: 'paragraph',
+      content: {
+        text: `${label} ${described}`,
+        segments: [{ text: label, bold: true }, { text: ` ${described}` }],
+      },
+    });
+  }
+  for (const section of nonEmptySections(artifact)) {
+    const heading = headingFor(section, labels);
+    if (heading) {
+      out.push({ key: `section:${section.id}`, type: 'heading_2', content: { text: heading } });
+    }
+    for (const block of section.blocks) {
+      if (block.kind === 'paragraph') {
+        out.push({ key: block.id, type: 'paragraph', content: { text: block.text.trim() } });
+      } else if (block.kind === 'quote') {
+        const text = block.attribution
+          ? `${block.text.trim()}\n— ${block.attribution}`
+          : block.text.trim();
+        out.push({ key: block.id, type: 'quote', content: { text } });
+      } else {
+        const type = block.kind === 'numbered-list' ? 'numbered_list_item' : 'bulleted_list_item';
+        for (const item of block.items) {
+          out.push({ key: item.id, type, content: { text: item.text.trim() } });
+        }
+      }
+    }
+  }
+  const open = visibleItems(artifact.openQuestions);
+  if (open.length > 0) {
+    out.push({ key: 'section:questions', type: 'heading_2', content: { text: labels.questions } });
+    for (const item of open) {
+      out.push({ key: item.id, type: 'bulleted_list_item', content: { text: item.text.trim() } });
+    }
+  }
+  return out;
 }

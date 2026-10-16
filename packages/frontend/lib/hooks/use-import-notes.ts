@@ -47,13 +47,13 @@ export function useImportNotes() {
         // still imported, just without that label.
         createLabel: async (name) => {
           try {
-            const response = await apiClient.post<Label>(
+            const response = await apiClient.post<{ label: Label }>(
               API_ROUTES.labels.create,
               { name },
               { expectedViewerId: viewerId },
             );
-            await saveLabel(response.data, viewerId);
-            return response.data;
+            await saveLabel(response.data.label, viewerId);
+            return response.data.label;
           } catch {
             return null;
           }
