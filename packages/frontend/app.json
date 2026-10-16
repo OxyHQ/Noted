@@ -54,6 +54,7 @@
       "expo-notifications",
       "llama.rn",
       "@oxy.so/services/plugins/withOxySharedPermissions",
+      "@oxy.so/app-preset/plugin/withOxyAndroidRelease",
       "expo-sharing",
       "expo-sqlite",
       [
