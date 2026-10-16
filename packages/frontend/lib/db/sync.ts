@@ -16,7 +16,11 @@ import type { Note as NiloNote, NotesSyncPage } from '@oxy.so/nilo-contracts';
 
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
-import { syncAttachmentLinks } from '@/lib/files/attachment-links';
+import {
+  type AttachmentLinkDeps,
+  linkNoteAttachments,
+  syncAttachmentLinks,
+} from '@/lib/files/attachment-links';
 import { oxyServices } from '@/lib/oxy';
 import {
   execute,
@@ -52,6 +56,14 @@ const CURSOR_KEY = 'notes_cursor';
 function isCurrentViewer(viewerId: string): boolean {
   return getActiveViewerId() === viewerId && apiClient.isAccountActive(viewerId);
 }
+
+/** The owner's links of attachments to Nilo (`lib/files/attachment-links.ts`). */
+const attachmentLinks: AttachmentLinkDeps = {
+  assets: oxyServices.assets,
+  execute,
+  executeTransaction,
+  isCurrentViewer,
+};
 
 function assertCurrentViewer(viewerId: string): void {
   if (!isCurrentViewer(viewerId)) throw new Error('The active account changed during sync');
@@ -667,6 +679,11 @@ export async function flushOutbox(
       if (entry.op === 'delete') {
         await pushDeletion(entry.entity_id, viewerId);
       } else {
+        // The owner links the note's new attachments to its page BEFORE the
+        // note names them on Nilo: once it does, Nilo's reconciliation may
+        // reference a public one with its own token first, and Oxy then never
+        // records the owner's grant (`lib/files/attachment-links.ts`).
+        await linkNoteAttachments(viewerId, entry.entity_id, attachmentLinks);
         await pushNote(entry.entity_id, viewerId, makeConflictId);
       }
       // Retire the entry only if the note is settled. An edit that landed while
@@ -761,15 +778,10 @@ async function runSyncCycle(makeConflictId: () => string, viewerId: string): Pro
     logger.error('Pull failed', { stage: 'pull' satisfies SyncStage, error: errorMessage(error) });
   }
   if (!isCurrentViewer(viewerId)) return;
-  // Last, once the notes on this device agree with Nilo's: the owner's links of
-  // their attachments to the note's page (`lib/files/attachment-links.ts`).
+  // Last: whatever owner's links are still due — the back-fill, attachments of
+  // notes just pulled, retries and weekly re-checks (`lib/files/attachment-links.ts`).
   try {
-    await syncAttachmentLinks(viewerId, {
-      assets: oxyServices.assets,
-      execute,
-      executeTransaction,
-      isCurrentViewer,
-    });
+    await syncAttachmentLinks(viewerId, attachmentLinks);
   } catch (error) {
     if (!isCurrentViewer(viewerId)) return;
     logger.error('Attachment links failed', {

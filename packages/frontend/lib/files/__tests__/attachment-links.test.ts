@@ -15,8 +15,10 @@ import {
   type DueLinkRow,
   deriveAttachmentLinkStatements,
   DUE_LINKS_SQL,
+  DUE_NOTE_LINKS_SQL,
   LINK_RECHECK_MS,
   linkAttachment,
+  linkNoteAttachments,
   linkRetryDelayMs,
   type LinkedAssetRecord,
   niloPageTarget,
@@ -101,6 +103,7 @@ describe('linkAttachment', () => {
             applicationId: NILO_OXY_APPLICATION_ID,
             entityType: 'page',
             entityId: 'note-1',
+            createdBy: VIEWER,
           },
         ],
       }),
@@ -108,6 +111,16 @@ describe('linkAttachment', () => {
     const outcome = await linkAttachment(assets, VIEWER, row({ state: 'linked' }), current);
     expect(linkCalls).toEqual([]);
     expect(outcome?.state).toBe('linked');
+  });
+
+  it('links again over a reference Nilo made with its token, which carries no grant', async () => {
+    const { assets, linkCalls } = fakeAssets(
+      active({
+        links: [{ app: NILO_OXY_APPLICATION_ID, entityType: 'page', entityId: 'note-1' }],
+      }),
+    );
+    await linkAttachment(assets, VIEWER, row({ state: 'linked' }), current);
+    expect(linkCalls).toHaveLength(1);
   });
 
   it('links again when a re-check finds the reference gone', async () => {
@@ -287,16 +300,46 @@ describe('attachment_links against SQLite', () => {
     expect(links(db)).toEqual([{ note_id: 'a', file_id: 'f2', state: 'linked' }]);
   });
 
-  it('works only on notes Nilo already holds as this device does', () => {
+  it('is due before the note reaches Nilo, and stays due while it is in Noted’s trash', () => {
     const db = freshDb();
     addNote(db, 'settled', ['f1']);
+    // Linked BEFORE the note names the file on Nilo (`linkNoteAttachments`).
     addNote(db, 'unsent', ['f2'], { dirty: 1 });
-    addNote(db, 'never-synced', ['f3'], { server_updated_at: null });
+    addNote(db, 'never-synced', ['f3'], { server_updated_at: null, dirty: 1 });
+    // A note in Noted's trash is still a note: its files are still used.
     addNote(db, 'trashed', ['f4'], { trashed: 1 });
     run(db, deriveAttachmentLinkStatements(NOW.toISOString()));
     const due = db.prepare(DUE_LINKS_SQL).all(NOW.toISOString()) as DueLinkRow[];
-    // A note in Noted's trash is still a note: its files are still used.
-    expect(due.map((r) => r.note_id).sort()).toEqual(['settled', 'trashed']);
+    expect(due.map((r) => r.note_id).sort()).toEqual([
+      'never-synced',
+      'settled',
+      'trashed',
+      'unsent',
+    ]);
+    const forNote = db.prepare(DUE_NOTE_LINKS_SQL).all(NOW.toISOString(), 'unsent') as DueLinkRow[];
+    expect(forNote.map((r) => r.file_id)).toEqual(['f2']);
+  });
+
+  it('links one note’s new attachments before it is sent, and never throws', async () => {
+    const db = freshDb();
+    addNote(db, 'new', ['mine'], { dirty: 1, server_updated_at: null });
+    addNote(db, 'other', ['elsewhere']);
+    const link = vi.fn(async () => ({}));
+    const deps = {
+      assets: { get: async () => ({ file: active() }), link },
+      execute: async <T>(sql: string, params: readonly unknown[]) =>
+        db.prepare(sql).all(...(params as string[])) as T[],
+      executeTransaction: async (statements: readonly Statement[]) => run(db, statements),
+      isCurrentViewer: (viewerId: string) => viewerId === VIEWER,
+      now: () => NOW,
+    };
+
+    expect(await linkNoteAttachments(VIEWER, 'new', deps)).toEqual({ linked: 1, failed: 0 });
+    expect(link).toHaveBeenCalledWith('mine', niloPageTarget('new'));
+    expect(link).toHaveBeenCalledTimes(1);
+
+    const broken = { ...deps, executeTransaction: async () => Promise.reject(new Error('locked')) };
+    expect(await linkNoteAttachments(VIEWER, 'other', broken)).toEqual({ linked: 0, failed: 1 });
   });
 
   it('never picks a final state, nor a row whose time has not come', () => {

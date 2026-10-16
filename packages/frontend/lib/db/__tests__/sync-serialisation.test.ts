@@ -19,6 +19,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const execute = vi.fn();
 const executeTransaction = vi.fn();
 
+// The owner's attachment links are `attachment-links.test.ts`'s; never Oxy here.
+vi.mock('@/lib/files/attachment-links', () => ({
+  linkNoteAttachments: vi.fn(async () => ({ linked: 0, failed: 0 })),
+  syncAttachmentLinks: vi.fn(async () => ({ linked: 0, failed: 0 })),
+}));
 vi.mock('@/lib/db/erase-local', () => ({ eraseLocalAccountData: vi.fn() }));
 vi.mock('@/lib/db/client', () => ({
   execute: (...args: unknown[]) => execute(...args),
@@ -62,11 +67,8 @@ function heldOutboxRead(): { hold: () => Promise<unknown>; release: () => void }
   return { hold: () => promise, release };
 }
 
-/**
- * Three reads per cycle: the outbox's ready entries, the pull cursor and the
- * attachment links due (`lib/files/attachment-links.ts`).
- */
-const READS_PER_CYCLE = 3;
+/** Two reads per cycle: the outbox's ready entries and the pull cursor. */
+const READS_PER_CYCLE = 2;
 
 describe('syncNotes', () => {
   beforeEach(() => {

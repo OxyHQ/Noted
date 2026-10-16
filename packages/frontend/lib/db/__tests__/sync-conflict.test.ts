@@ -4,6 +4,12 @@ const state = vi.hoisted(() => ({
   execute: vi.fn(),
   transaction: vi.fn(),
   patch: vi.fn(),
+  linkNote: vi.fn(),
+}));
+vi.mock('@/lib/files/attachment-links', () => ({
+  // The owner's links are `attachment-links.test.ts`'s; here, only WHEN they run.
+  linkNoteAttachments: (...args: unknown[]) => state.linkNote(...args),
+  syncAttachmentLinks: vi.fn(async () => ({ linked: 0, failed: 0 })),
 }));
 vi.mock('@/lib/db/client', () => ({
   getActiveViewerId: () => 'alice',
@@ -89,12 +95,31 @@ const statements = () => state.transaction.mock.calls.flatMap(([batch]) => batch
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.linkNote.mockResolvedValue({ linked: 0, failed: 0 });
   state.transaction.mockResolvedValue([]);
   state.execute.mockImplementation(async (sql: string) =>
     sql.includes('FROM outbox')
       ? [{ id: 1, entity: 'note', entity_id: 'note-1', op: 'upsert', attempts: 0 }]
       : [pushable],
   );
+});
+
+describe('attachments', () => {
+  it('are linked by their owner before the note names them on Nilo', async () => {
+    const order: string[] = [];
+    state.linkNote.mockImplementation(async (viewerId: string, noteId: string) => {
+      order.push(`link ${viewerId} ${noteId}`);
+      return { linked: 1, failed: 0 };
+    });
+    state.patch.mockImplementation(async () => {
+      order.push('patch');
+      return { data: { note: { ...serverNote, updatedAt: '2026-10-13T10:00:01.000Z' } } };
+    });
+
+    await flushOutbox('alice', () => 'copy-id');
+
+    expect(order).toEqual(['link alice note-1', 'patch']);
+  });
 });
 
 describe('push against a note another device changed', () => {

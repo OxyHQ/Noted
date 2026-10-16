@@ -21,15 +21,23 @@
  *   ({@link deriveAttachmentLinkStatements}): a new attachment becomes
  *   `pending`, one that left its note (or whose note was deleted) is forgotten.
  *   An install that already had attachments back-fills on its first sync.
- * - A pending row is linked only once its note is settled on Nilo (`dirty = 0`,
- *   acknowledged), so the page Nilo's reconciliation sees already holds it.
+ * - A pending row is linked BEFORE the note that names it is sent to Nilo
+ *   ({@link linkNoteAttachments}, called by the outbox). The order matters: a
+ *   public file already on the page can be referenced by Nilo's reconciliation
+ *   with its service token, and Oxy then answers the owner's later link
+ *   `exists` without recording the owner, so the ADR 0021 grant never lands.
+ *   A link for a page that is never saved is harmless: Nilo's reconciliation
+ *   removes it. The end of every sync works through whatever is still due
+ *   ({@link syncAttachmentLinks}): back-fill, notes pulled from elsewhere,
+ *   retries, re-checks.
  * - Removing a use is NEVER done here: a file can be on the same page twice (an
  *   attachment and a file block, one reference), and only Nilo knows when the
  *   page stops using it. Nilo removes its reference with its service token.
  * - A file not `active` (in its owner's trash, blocked) is never linked: Oxy
  *   restores a trashed file on a new reference, which would undo the owner's
  *   own decision. It is checked again later.
- * - A `linked` row is re-checked weekly and re-linked if the reference has gone.
+ * - A `linked` row is re-checked weekly and linked again unless the owner's own
+ *   reference is there (one Nilo made with its token does not carry the grant).
  *
  * Every request is made as the viewer whose database this is, and abandoned the
  * moment the active account changes.
@@ -105,19 +113,24 @@ export function deriveAttachmentLinkStatements(now: string): Statement[] {
   ];
 }
 
-/** Rows due for work whose note Nilo already holds as this device does. */
-export const DUE_LINKS_SQL = `
+const DUE_LINKS_FROM = `
   SELECT attachment_links.note_id, attachment_links.file_id, attachment_links.state,
          attachment_links.attempts
   FROM attachment_links
   JOIN notes ON notes.id = attachment_links.note_id
   WHERE attachment_links.state IN ('pending', 'linked', 'unavailable')
     AND attachment_links.next_attempt_at <= ?
-    AND notes.deleted_at IS NULL
-    AND notes.dirty = 0
-    AND notes.server_updated_at IS NOT NULL
+    AND notes.deleted_at IS NULL`;
+
+/** Rows due for work, oldest first. */
+export const DUE_LINKS_SQL = `${DUE_LINKS_FROM}
   ORDER BY attachment_links.next_attempt_at ASC
   LIMIT ${LINK_BATCH}`;
+
+/** One note's rows due for work. */
+export const DUE_NOTE_LINKS_SQL = `${DUE_LINKS_FROM}
+    AND attachment_links.note_id = ?
+  ORDER BY attachment_links.file_id ASC`;
 
 export interface DueLinkRow extends Row {
   note_id: string;
@@ -135,6 +148,8 @@ export interface LinkedAssetRecord {
     applicationId?: string;
     entityType: string;
     entityId: string;
+    /** Absent on a reference an application made with its service token. */
+    createdBy?: string;
   }>;
 }
 
@@ -156,12 +171,18 @@ export interface LinkOutcome {
   error: string | null;
 }
 
-function hasNiloPageLink(file: LinkedAssetRecord, noteId: string): boolean {
+/**
+ * The OWNER's reference of the file to the note's page. A reference Nilo made
+ * with its token (no `createdBy`) is the same use but not the owner's grant
+ * (ADR 0021), so it does not count: the owner links again.
+ */
+function hasOwnerNiloPageLink(file: LinkedAssetRecord, owner: string, noteId: string): boolean {
   return (file.links ?? []).some(
     (link) =>
       (link.applicationId ?? link.app) === NILO_OXY_APPLICATION_ID &&
       link.entityType === NILO_FILE_ENTITY_TYPE &&
-      link.entityId === noteId,
+      link.entityId === noteId &&
+      link.createdBy === owner,
   );
 }
 
@@ -218,7 +239,7 @@ export async function linkAttachment(
       error: `file is ${file.status}`,
     };
   }
-  if (hasNiloPageLink(file, row.note_id)) {
+  if (hasOwnerNiloPageLink(file, file.ownerUserId ?? viewerId, row.note_id)) {
     return { state: 'linked', retryInMs: LINK_RECHECK_MS, attempts: 0, error: null };
   }
 
@@ -270,19 +291,13 @@ export interface AttachmentLinkDeps {
   now?: () => Date;
 }
 
-/**
- * One pass: derive the rows from the notes, then work through the due ones.
- * A failure on one row is recorded on it and never stops the others.
- */
-export async function syncAttachmentLinks(
+/** Work through `due`, recording each outcome; stops if the account changes. */
+async function workThrough(
   viewerId: string,
+  due: readonly DueLinkRow[],
   deps: AttachmentLinkDeps,
+  now: () => Date,
 ): Promise<{ linked: number; failed: number }> {
-  const now = deps.now ?? (() => new Date());
-  if (!deps.isCurrentViewer(viewerId)) return { linked: 0, failed: 0 };
-  await deps.executeTransaction(deriveAttachmentLinkStatements(now().toISOString()), viewerId);
-
-  const due = await deps.execute<DueLinkRow>(DUE_LINKS_SQL, [now().toISOString()], viewerId);
   let linked = 0;
   let failedCount = 0;
   for (const row of due) {
@@ -302,4 +317,48 @@ export async function syncAttachmentLinks(
     }
   }
   return { linked, failed: failedCount };
+}
+
+/**
+ * One pass: derive the rows from the notes, then work through the due ones.
+ * A failure on one row is recorded on it and never stops the others.
+ */
+export async function syncAttachmentLinks(
+  viewerId: string,
+  deps: AttachmentLinkDeps,
+): Promise<{ linked: number; failed: number }> {
+  const now = deps.now ?? (() => new Date());
+  if (!deps.isCurrentViewer(viewerId)) return { linked: 0, failed: 0 };
+  await deps.executeTransaction(deriveAttachmentLinkStatements(now().toISOString()), viewerId);
+  const due = await deps.execute<DueLinkRow>(DUE_LINKS_SQL, [now().toISOString()], viewerId);
+  return workThrough(viewerId, due, deps, now);
+}
+
+/**
+ * Link one note's due attachments, before the note is sent to Nilo. Never
+ * throws: a link that failed is recorded on its row and retried, and the note
+ * is sent anyway — holding a note's text back for a file link would trade a
+ * rare missing grant for a lost edit.
+ */
+export async function linkNoteAttachments(
+  viewerId: string,
+  noteId: string,
+  deps: AttachmentLinkDeps,
+): Promise<{ linked: number; failed: number }> {
+  const now = deps.now ?? (() => new Date());
+  try {
+    if (!deps.isCurrentViewer(viewerId)) return { linked: 0, failed: 0 };
+    await deps.executeTransaction(deriveAttachmentLinkStatements(now().toISOString()), viewerId);
+    const due = await deps.execute<DueLinkRow>(
+      DUE_NOTE_LINKS_SQL,
+      [now().toISOString(), noteId],
+      viewerId,
+    );
+    return await workThrough(viewerId, due, deps, now);
+  } catch (error) {
+    logger.warn("Could not link a note's attachments before sending it", {
+      error: errorMessage(error),
+    });
+    return { linked: 0, failed: 1 };
+  }
 }
