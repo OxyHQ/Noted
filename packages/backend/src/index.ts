@@ -19,16 +19,12 @@ import foldersRouter from './routes/folders.js';
 import feedbackRouter from './routes/feedback.js';
 import notificationsRouter from './routes/notifications.js';
 import capabilitiesRouter from './routes/capabilities.js';
+import { refuseWrites } from './lib/read-only.js';
 import accountRouter from './routes/account.js';
 import { createNotedMcpHttpService } from './capabilities/noted-mcp-http.js';
 
 // Socket.io
 import { initSocket } from './socket.js';
-import { startReminderScheduler, stopReminderScheduler } from './lib/reminders.js';
-import {
-  startNotedEventOutboxWorker,
-  stopNotedEventOutboxWorker,
-} from './lib/normalized-event-outbox.js';
 import { makeRateLimiter } from './lib/rate-limit.js';
 
 // Bun loads `.env` from the working directory before any module runs, and every
@@ -149,6 +145,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // (The SDK exempts health probes + CORS preflight internally.)
 app.use(makeRateLimiter('general'));
 
+// The notes are Nilo's now: every account route reads, none writes.
+app.use(['/notes', '/labels', '/folders', '/account', '/_oxy/capabilities'], refuseWrites);
+
 // Routes
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
@@ -232,11 +231,8 @@ connectPostgres()
           log.general.info('Redis not configured (REDIS_URL not set) — rate limiting disabled');
         }
       });
-      // Start the note-reminder sweep (no-op without REDIS_URL)
-      startReminderScheduler().catch((err) =>
-        log.general.error({ err }, 'Failed to start reminder scheduler'),
-      );
-      startNotedEventOutboxWorker();
+      // Reminders and Alia's events are Nilo's now (its reminder sweep and
+      // event outbox): starting Noted's would send a reminder twice.
     });
 
     // Graceful shutdown handler
@@ -259,11 +255,6 @@ connectPostgres()
       forceTimeout.unref();
 
       try {
-        // Stop the reminder scheduler (BullMQ worker + queue)
-        await stopReminderScheduler();
-        log.general.info('Reminder scheduler stopped');
-        stopNotedEventOutboxWorker();
-
         // Close Socket.IO connections
         const { getIO } = await import('./socket.js');
         const io = getIO();

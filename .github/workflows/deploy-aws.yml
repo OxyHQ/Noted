@@ -115,8 +115,9 @@ jobs:
     needs: gate
     if: needs.gate.outputs.release == 'true'
     runs-on: ubuntu-24.04-arm
-    # Build, pre-migration task, rollout wait, smoke, catalog task and a full
-    # rollback window if the smoke check fails.
+    # Build, pre-migration task, rollout wait, smoke and a full rollback
+    # window if the smoke check fails. The `noted` capability catalog and its
+    # MCP server are Nilo's now (OxyHQ/Nilo#87): this deploy registers nothing.
     timeout-minutes: 90
     permissions:
       id-token: write
@@ -529,67 +530,11 @@ jobs:
             | .taskArn
           ' <<<"$tasks_json" | sort -u)
 
-      - name: Verify live Noted MCP and central OAuth contract
-        if: steps.scope.outputs.deploy == 'true'
-        id: mcp_smoke
-        run: |
-          set +e
-          bash scripts/smoke-mcp.sh
-          smoke_status=$?
-          external_dependency_exit=42
-          echo "status=$smoke_status" >>"$GITHUB_OUTPUT"
-          if [ "$smoke_status" = "$external_dependency_exit" ]; then
-            echo "rollback_safe=false" >>"$GITHUB_OUTPUT"
-          else
-            echo "rollback_safe=true" >>"$GITHUB_OUTPUT"
-          fi
-          exit "$smoke_status"
-
-      # Publish discovery only after the matching handlers are healthy. If this
-      # step has to be retried, the catalog endpoint is digest-idempotent.
-      # `bun`, like the migration above: it runs the image being released.
-      - name: Register canonical capability catalog
-        if: steps.scope.outputs.deploy == 'true'
-        env:
-          TASK_DEFINITION: ${{ steps.task_definition.outputs.task_definition_arn }}
-        run: |
-          set -euo pipefail
-          NETWORK=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
-            --query 'services[0].networkConfiguration' --output json)
-          run_json=$(aws ecs run-task \
-            --cluster "$CLUSTER" \
-            --task-definition "$TASK_DEFINITION" \
-            --launch-type FARGATE \
-            --network-configuration "$NETWORK" \
-            --overrides "$(jq -nc --arg app "$APP" '{
-              containerOverrides: [{
-                name: $app,
-                command: ["node", "packages/backend/dist/register-capability-catalog.js"]
-              }]
-            }')")
-          TASK_ARN=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
-          if [ -z "$TASK_ARN" ]; then
-            echo "::error::ECS did not start catalog registration: $(jq -c '.failures' <<<"$run_json")"
-            exit 1
-          fi
-          echo "catalog registration task: $TASK_ARN"
-          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
-          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
-            --query "tasks[0].containers[?name=='$APP'].exitCode | [0]" --output text)
-          if [ "$EXIT_CODE" != "0" ]; then
-            REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
-              --query 'tasks[0].stoppedReason' --output text)
-            echo "::error::capability catalog registration exited $EXIT_CODE ($REASON)"
-            exit 1
-          fi
-          echo "capability catalog registered"
-
-      - name: Roll back a failed release and restore its catalog
+      - name: Roll back a failed release
         if: >-
           ${{
             failure() &&
-            steps.ecs_deploy.outputs.deployment_started == 'true' &&
-            steps.mcp_smoke.outputs.rollback_safe != 'false'
+            steps.ecs_deploy.outputs.deployment_started == 'true'
           }}
         env:
           PREVIOUS_TASK_DEFINITION: ${{ steps.task_definition.outputs.previous_task_definition }}
@@ -618,34 +563,4 @@ jobs:
             exit 1
           fi
 
-          NETWORK=$(jq -c '.services[0].networkConfiguration' <<<"$service_json")
-          # The PREVIOUS image may predate the move to Bun (2026-10) and ship only
-          # Node, so this one command picks whichever runtime that image has:
-          # `bun` where it exists, else `node`. A Bun image's `node` would also
-          # work (it is a symlink to bun), but a Node image has no `bun` at all.
-          run_json=$(aws ecs run-task \
-            --cluster "$CLUSTER" \
-            --task-definition "$PREVIOUS_TASK_DEFINITION" \
-            --launch-type FARGATE \
-            --network-configuration "$NETWORK" \
-            --overrides "$(jq -nc --arg app "$APP" '{
-              containerOverrides: [{
-                name: $app,
-                command: ["sh", "-c", "exec \"$(command -v bun || command -v node)\" packages/backend/dist/register-capability-catalog.js"]
-              }]
-            }')")
-          task_arn=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")
-          if [ -z "$task_arn" ]; then
-            echo "::error::ECS did not start catalog restoration: $(jq -c '.failures' <<<"$run_json")"
-            exit 1
-          fi
-
-          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
-          exit_code=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
-            --query "tasks[0].containers[?name=='$APP'].exitCode | [0]" --output text)
-          if [ "$exit_code" != "0" ]; then
-            echo "::error::Previous catalog restoration exited $exit_code"
-            exit 1
-          fi
-
-          echo "Rolled back to $PREVIOUS_TASK_DEFINITION and restored its capability catalog"
+          echo "Rolled back to $PREVIOUS_TASK_DEFINITION"

@@ -326,6 +326,12 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
     `UPDATE notes SET server_updated_at = NULL`,
     `DELETE FROM sync_state WHERE key = 'notes_cursor'`,
   ],
+  // Once the notes moved, Noted's old server refused every write (503
+  // MOVED_TO_NILO), and a build from before the move kept retrying until the
+  // outbox gave up on the entry (`OUTBOX_MAX_ATTEMPTS`), the note still unsent.
+  // Those attempts were against a server that could never take it: the entries
+  // start over, against Nilo, at once.
+  [`UPDATE outbox SET attempts = 0, next_attempt_at = '1970-01-01T00:00:00.000Z'`],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
