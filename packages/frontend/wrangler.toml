@@ -9,9 +9,9 @@
 #
 # The same deployment under two names, the second in NO CORS allowlist, so it
 # rendered the shell and failed every call it made. `noted.pages.dev` was the
-# same second copy of this app: `https://noted.oxy.so` is the only frontend
-# origin the API allows (`packages/backend/src/index.ts`, `src/socket.ts`) and
-# the only registered Oxy redirect origin (`lib/oxy-client-id.ts`), so a visitor
+# same second copy of this app: `https://noted.oxy.so` is the only Noted origin
+# the API's CORS allowlist names and the only registered Oxy redirect origin
+# (`lib/oxy-client-id.ts`), so a visitor
 # who landed on the Pages hostname got a complete-looking Noted that could
 # neither sign in nor sync. `workers_dev = false` leaves `noted.oxy.so` as the
 # only name that reaches this deployment.

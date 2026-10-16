@@ -21,8 +21,8 @@ Attaching an existing file does not upload another copy; removing a reference
 from a note does not delete the shared Oxy file. Cancellation and expiry do not
 rewrite notes; the next Oxy usage response supplies the effective account limit
 and future uploads are admitted by Oxy. Reads of attachment content remain
-protected by Oxy's file authorization; Noted's backend stores references, not
-bytes or a separate allowance.
+protected by Oxy's file authorization; a note stores references, not bytes or a
+separate allowance.
 
 ## Local validation
 

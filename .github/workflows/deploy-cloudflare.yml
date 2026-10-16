@@ -44,7 +44,7 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=4096'
           NODE_ENV: production
           # Public, compile-time Expo env. EXPO_PUBLIC_OXY_CLIENT_ID is the
-          # registered Oxy RP client id; the API URL points at the noted backend.
+          # registered Oxy RP client id; the API URL points at Nilo, Noted's server.
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
           EXPO_PUBLIC_OXY_API_URL: ${{ vars.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so' }}
           EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://api.nilo.so' }}

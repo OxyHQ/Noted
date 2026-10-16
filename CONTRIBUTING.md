@@ -1,67 +1,56 @@
 # Contributing to Noted
 
-Noted is a notes and labels app by Oxy, with real time sync, reminders, push notifications and web push.
+Noted is a notes and labels app by Oxy, with real time sync, reminders, push notifications and web push. Its server is [Nilo](https://github.com/OxyHQ/Nilo) (`api.nilo.so`); this repository holds only the app.
 
 **The contribution process lives in the [Oxy organisation CONTRIBUTING guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md)**: reporting an issue, filing a feature request, opening a pull request, code review, licensing. It applies here unchanged. This file layers on top of it the same way `AGENTS.md` files layer, so it is short on purpose: it carries only what is different about this repository.
 
 ## Where this repository came from
 
-Noted was started from the Clarity codebase, a different product. The READMEs and this file have been rewritten, but the fork is worth knowing about: if you find something that mentions Clarity, an AI search engine or retired hosting, it is a leftover rather than a second product or a second database — Noted is a notes app, runs on PostgreSQL, and deploys to AWS and Cloudflare. Fix it where you see it.
+Noted was started from the Clarity codebase, a different product. The READMEs and this file have been rewritten, but the fork is worth knowing about: if you find something that mentions Clarity, an AI search engine or retired hosting, it is a leftover rather than a second product or a second database — Noted is a notes app, its notes live in Nilo, and the web app deploys to Cloudflare. Fix it where you see it.
 
 ## Prerequisites
 
 - **Bun.** The package manager for every Oxy repository, never npm or yarn. The pinned version is `packageManager` in the root `package.json`, and CI installs that exact version.
-- **Node.js 24.20.0 or newer**, for the Expo frontend tooling. The backend runs on Bun, in development and in production (the image's runtime is `oven/bun`), and its tests run under `bun test`.
-- **PostgreSQL 17**, to run the backend — `docker compose -f docker-compose.postgres.yml up -d postgres`, then `bun run db:migrate --target-database=noted_dev`. The test suite does not need one.
-- **Redis**, optional. Caching and Socket.IO scaling fall back gracefully without it.
+- **Node.js 24.20.0 or newer**, for the Expo frontend tooling.
+- **A Nilo API**, to sync. In development the app talks to port 4001 of the host it was opened from (run Nilo's API locally), or set `EXPO_PUBLIC_API_URL`. The test suite needs nothing running.
 
 ## Setup
 
 ```bash
 git clone https://github.com/OxyHQ/Noted.git && cd Noted
 bun install
-cp packages/backend/.env.example packages/backend/.env   # fill in your values
-bun run dev                                              # every package at once
+cp packages/frontend/.env.example packages/frontend/.env   # optional overrides
+bun run dev                                                # the Expo app
+bun run dev:frontend                                       # the same, with --clear --tunnel
 ```
-
-Focused commands:
-
-```bash
-bun run dev:backend    # API only
-bun run dev:frontend   # Expo app only (runs with --clear --tunnel)
-```
-
-`packages/frontend` has its own `.env.example`; copy that too if you are working on the app.
 
 ## Layout
 
-A bun workspaces monorepo on the standard Oxy three package shape:
+A bun workspaces monorepo:
 
 | Package | Stack | Purpose |
 | --- | --- | --- |
-| `packages/backend` (`@noted/backend`) | Express + TypeScript | Core API runtime |
 | `packages/frontend` (`@noted/frontend`) | Expo (React Native and Web) | Main app: web, iOS, Android |
-| `packages/shared-types` (`@noted/shared-types`) | TypeScript | Note and label DTOs, `normalizeNoteColor` |
+| `packages/shared-types` (`@noted/shared-types`) | TypeScript | Note, label and artifact DTOs, `normalizeNoteColor` |
+| `desktop` | Tauri (Rust) | Noted Desktop, outside the Bun workspace |
 
-`shared-types` has to be built before either consumer, which is why `build:frontend` and `build:backend` both build it first. Run `bun run build:types` after changing a shared type.
+`shared-types` has to be built before the app, which is why `build:frontend` builds it first. Run `bun run build:types` after changing a shared type.
 
 ## Tests
 
 ```bash
-bun run --filter @noted/backend test
+bun run --filter @noted/frontend test
 ```
 
-`bun test` (`bun:test`), on the runtime production uses. Place test files next to the source as `*.test.ts`. Files run isolated from each other (`--parallel`), and `mock.module` is not hoisted, so a test that mocks a module imports the module under test dynamically after the mock. The `*.realdb.test.ts` suites need `TEST_DATABASE_URL` (a disposable Postgres server; each creates and drops its own database); everything else needs nothing running.
-
-`bun run build:backend && NOTED_ENTRYPOINTS_ADMIN_DATABASE_URL=… bun scripts/check-backend-entrypoints.ts` executes the built server, migrator and catalog one-shot under Bun and checks every failure exits non-zero.
+Vitest, with test files next to the source or under `__tests__`.
 
 CI runs the following on every pull request, and each line runs locally as written:
 
 ```bash
+bun run build:types
 bunx biome ci --error-on-warnings .  # Biome: lint + format check, whole repo, zero warnings
-bun run typecheck                # tsc --noEmit for the API and the app
-bun run --filter @noted/backend test
-bun run build:backend
+bun run typecheck                    # tsc --noEmit for the app
+bun run --filter @noted/frontend test
 bun run build:frontend
 ```
 
@@ -95,4 +84,4 @@ does not integrate with CrowdSource, live in `docs/index.mdx`. `AGENTS.md` keeps
 only hard rules, commands and pointers for coding agents; do not turn it into a
 second architecture document.
 
-One thing worth knowing before your first pull request: **Noted has no shared or public surface.** Every note query is scoped to the owning `oxyUserId` and socket rooms are derived server side from the verified user id, never named by the client. If you add a feature that changes that, say so explicitly in the pull request, because a good deal of the design in `AGENTS.md` rests on it.
+One thing worth knowing before your first pull request: **Noted has no shared or public surface.** Every note is a private page of the user's personal Nilo workspace, and Nilo scopes every request to the verified Oxy user. If you add a feature that changes that, say so explicitly in the pull request, because a good deal of the design in `AGENTS.md` rests on it.

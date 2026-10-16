@@ -17,14 +17,18 @@ A notes app by [Oxy](https://oxy.so). Write a note, or put the phone on the tabl
 ```
 packages/
   frontend/       # @noted/frontend     — Expo app (iOS, Android, web)
-  backend/        # @noted/backend      — Express API
-  shared-types/   # @noted/shared-types — the DTOs both sides agree on
+  shared-types/   # @noted/shared-types — note, label and artifact DTOs
+desktop/          # Noted Desktop (Tauri)
 ```
+
+Noted has no server of its own. Its notes are rows of the user's personal
+workspace in [Nilo](https://github.com/OxyHQ/Nilo) (`api.nilo.so`), served by
+Nilo's `/notes`; the old Noted API (`api.noted.oxy.so`) is retired.
 
 ## Stack
 
 - **Frontend** — Expo SDK 57 (React Native 0.86), expo-router, NativeWind 5, Reanimated, Zustand, TanStack Query, expo-sqlite
-- **Backend** — Express, PostgreSQL (drizzle over postgres.js, via `@oxy.so/db`), Socket.IO, Redis
+- **Server** — Nilo (`api.nilo.so`), contract in `@oxy.so/nilo-contracts`
 - **Auth** — Oxy (`@oxy.so/core`, `@oxy.so/services`); no app-local session handling
 - **UI** — Bloom (`@oxy.so/bloom`) for dialogs, toasts and theming
 
@@ -33,9 +37,8 @@ packages/
 ```bash
 bun install          # bun only — never npm or yarn
 
-bun run dev          # frontend and backend together
-bun run dev:frontend # Expo
-bun run dev:backend  # Express
+bun run dev          # Expo
+bun run dev:frontend # Expo, with --clear --tunnel
 
 bun run web          # Expo on the web
 bun run ios          # native build, iOS
@@ -44,14 +47,7 @@ bun run android      # native build, Android
 
 Tests are `bun run test` inside `packages/frontend`; `bun run lint` at the root.
 
-## Database
-
-PostgreSQL, database `noted` on the shared `oxy-postgres` instance. Connection in `packages/backend/src/db/postgres.ts`, schema in `src/db/schema/`, migrations in `drizzle/`.
-
-Two rules that are not obvious from the code:
-
-- **Every generated migration needs a `-- oxy:deploy-phase=pre|post` marker.** `db:migrate` refuses to apply an unmarked one, before any DDL runs.
-- **Postgres has no TTL index.** A table that would have carried one needs an entry in `src/db/expiry.ts`, or it grows forever with no error and no failing test.
+In development the app talks to a local Nilo API on port 4001 of the host it was opened from; `EXPO_PUBLIC_API_URL` overrides it (`packages/frontend/lib/config.ts`).
 
 ## AI boundary
 
@@ -67,15 +63,14 @@ service application credential identifies Noted; it is not a provider key.
 
 ## Deployment
 
-Both halves ship from GitHub Actions:
+The web app ships from GitHub Actions; the server is Nilo's and deploys from that repository.
 
 | workflow | what it does |
 |---|---|
-| `ci.yml` | lint, tests and both builds |
-| `deploy-aws.yml` | builds the linux/arm64 backend image, pushes it to ECR, and rolls the ECS service on `oxy-cluster` |
+| `ci.yml` | lint, typecheck, tests and the Expo web build |
 | `deploy-cloudflare.yml` | exports the Expo web build and deploys it as the Cloudflare Worker `noted`, serving `noted.oxy.so` |
-
-The frontend deploy is gated on backend CI, so the web app cannot ship ahead of the API it talks to.
+| `desktop.yml` | builds Noted Desktop |
+| `whisper-sidecar.yml` | builds and checks the desktop whisper.cpp sidecar |
 
 ## Conventions
 

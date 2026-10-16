@@ -1,21 +1,14 @@
 /**
  * @noted/shared-types — the canonical Note/Label contract.
  *
- * This is the SINGLE SOURCE OF TRUTH for the shapes shared between the Noted
- * backend (the wire contract returned by the Notes API) and the frontend (what
- * the app renders). Both sides import these types from here rather than
- * redefining note/label shapes locally, so the two can never drift.
- *
- * The backend's drizzle tables keep their own row types (`NoteRow`, `LabelRow`)
- * — those carry storage-only columns (`oxyUserId`, `deletedAt`, `searchVector`)
- * and are NOT part of this shared contract. The serialized DTOs the API returns
- * are exactly the {@link Note} / {@link Label} shapes below.
+ * The note/label/artifact shapes the app renders and stores. Noted's server is
+ * Nilo, whose wire contract is `@oxy.so/nilo-contracts` `notes.ts`; the app
+ * imports these types from here rather than redefining them locally.
  */
 
 /**
- * The 12 note colors — a stored API contract shared with the client (the
- * backend's `NOTE_COLORS` enum and this list MUST stay in sync; they are now
- * one and the same). `default` means "no tint / app surface"; the other 11 are
+ * The 12 note colors — a stored contract the server (Nilo) keeps as well, so
+ * this list and Nilo's must stay in sync. `default` means "no tint / app surface"; the other 11 are
  * exactly the standard (non-premium) Bloom color presets
  * (`@oxy.so/bloom/theme` `APP_COLOR_PRESETS`), so a note's tint derives from the
  * canonical Bloom color system on the client.

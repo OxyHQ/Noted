@@ -1,12 +1,4 @@
-# What production runs is decided by these files, so the owner reviews every
-# change to them: the image's build inputs, the reviewed pin over those inputs
-# and the gate that enforces it, and every workflow (each can build, push or
-# deploy). See .github/scripts/reviewed-image.py.
+# Every workflow can build, push or deploy, so the owner reviews every change to
+# them and to this file.
 /.github/CODEOWNERS @NateIsern
 /.github/workflows/ @NateIsern
-/.github/scripts/reviewed-images.json @NateIsern
-/.github/scripts/reviewed-image.py @NateIsern
-/.github/scripts/test_reviewed_image.py @NateIsern
-Dockerfile* @NateIsern
-.dockerignore @NateIsern
-*.dockerignore @NateIsern
