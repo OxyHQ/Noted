@@ -332,6 +332,25 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
   // Those attempts were against a server that could never take it: the entries
   // start over, against Nilo, at once.
   [`UPDATE outbox SET attempts = 0, next_attempt_at = '1970-01-01T00:00:00.000Z'`],
+  // A note's attachments are Oxy files the owner attaches to the note's Nilo
+  // page. Oxy counts that use, and lets Nilo serve the file, only once the
+  // owner's own session has linked the file to Nilo (Oxy ADR 0043 D4, ADR
+  // 0021). This is the device's record of each (note, file) link
+  // (`lib/files/attachment-links.ts`), derived from `notes.attachments_json`
+  // on every sync: it starts empty, and the first pass is the back-fill.
+  [
+    `CREATE TABLE IF NOT EXISTS attachment_links (
+      note_id TEXT NOT NULL,
+      file_id TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TEXT NOT NULL,
+      last_error TEXT,
+      checked_at TEXT,
+      PRIMARY KEY (note_id, file_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS attachment_links_due ON attachment_links (next_attempt_at)`,
+  ],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
@@ -341,6 +360,7 @@ export const LOCAL_TABLES: readonly string[] = [
   'transcript_segments',
   'captures',
   'note_labels',
+  'attachment_links',
   'notes',
   'labels',
   'folders',

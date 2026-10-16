@@ -62,8 +62,11 @@ function heldOutboxRead(): { hold: () => Promise<unknown>; release: () => void }
   return { hold: () => promise, release };
 }
 
-/** Two reads per cycle: the outbox's ready entries and the pull cursor. */
-const READS_PER_CYCLE = 2;
+/**
+ * Three reads per cycle: the outbox's ready entries, the pull cursor and the
+ * attachment links due (`lib/files/attachment-links.ts`).
+ */
+const READS_PER_CYCLE = 3;
 
 describe('syncNotes', () => {
   beforeEach(() => {

@@ -24,6 +24,7 @@ export const ACCOUNT_DATA_TABLES = [
   'transcript_segments',
   'captures',
   'note_labels',
+  'attachment_links',
   'notes',
   'labels',
   'folders',

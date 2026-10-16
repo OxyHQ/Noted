@@ -16,6 +16,8 @@ import type { Note as NiloNote, NotesSyncPage } from '@oxy.so/nilo-contracts';
 
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
+import { syncAttachmentLinks } from '@/lib/files/attachment-links';
+import { oxyServices } from '@/lib/oxy';
 import {
   execute,
   executeTransaction,
@@ -56,7 +58,7 @@ function assertCurrentViewer(viewerId: string): void {
 }
 
 /** Where a failure happened, so a log line says which half of syncing broke. */
-export type SyncStage = 'push' | 'pull' | 'persist';
+export type SyncStage = 'push' | 'pull' | 'persist' | 'links';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -757,6 +759,23 @@ async function runSyncCycle(makeConflictId: () => string, viewerId: string): Pro
   } catch (error) {
     if (!isCurrentViewer(viewerId)) return;
     logger.error('Pull failed', { stage: 'pull' satisfies SyncStage, error: errorMessage(error) });
+  }
+  if (!isCurrentViewer(viewerId)) return;
+  // Last, once the notes on this device agree with Nilo's: the owner's links of
+  // their attachments to the note's page (`lib/files/attachment-links.ts`).
+  try {
+    await syncAttachmentLinks(viewerId, {
+      assets: oxyServices.assets,
+      execute,
+      executeTransaction,
+      isCurrentViewer,
+    });
+  } catch (error) {
+    if (!isCurrentViewer(viewerId)) return;
+    logger.error('Attachment links failed', {
+      stage: 'links' satisfies SyncStage,
+      error: errorMessage(error),
+    });
   }
 }
 
