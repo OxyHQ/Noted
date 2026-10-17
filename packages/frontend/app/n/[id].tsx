@@ -11,10 +11,9 @@ import { editorPatch, type EditorSaveSnapshot } from '@/lib/notes/editor-patch';
 import { getActiveViewerId } from '@/lib/db/client';
 import { View, ScrollView, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usePreventRemove } from 'expo-router/react-navigation';
 
 import { FloatingBottomStack } from '@/components/floating-bottom-stack';
-import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
+import { useLocalSearchParams, useRouter, usePreventRemove } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import {
   ArrowLeft,
@@ -133,7 +132,6 @@ function NoteEditor() {
     folder?: string;
   }>();
   const router = useRouter();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { colors, colorScheme } = useColorScheme();
   const { t } = useTranslation();
@@ -163,7 +161,11 @@ function NoteEditor() {
   // The note id we PATCH against. Starts null for `n/new` until the first save
   // creates a server note; thereafter all edits PATCH this id.
   const noteIdRef = React.useRef<string | null>(isNew ? null : params.id);
-  const allowLeaveRef = React.useRef(false);
+  // Set once the editor's last write succeeded and it lets the route go. It
+  // turns the removal guard off: expo-router 58 dispatches a blocked action
+  // again only through `repeat`/`disablePrevention`, and the guard's own prop
+  // has to agree with that or a re-dispatch is blocked a second time.
+  const [leaveAllowed, setLeaveAllowed] = React.useState(false);
   const leavingRef = React.useRef(false);
   const saveVersion = React.useRef(0);
   const editVersion = React.useRef(0);
@@ -308,37 +310,43 @@ function NoteEditor() {
 
   // Keep the editor mounted until its last local write succeeds. A failed disk
   // write leaves the draft visible with a retry action instead of losing it.
-  usePreventRemove(isNew || base !== null, (event) => {
-    if (allowLeaveRef.current) {
-      navigation.dispatch(event.data.action);
-      return;
-    }
-    if (leavingRef.current) return;
-    leavingRef.current = true;
-    autosave.cancel();
-    void (async () => {
-      let next: LocalNote;
-      let version: number;
-      do {
-        autosave.cancel();
-        version = editVersion.current;
-        next = draftRef.current;
-        await persist(next);
-      } while (version !== editVersion.current);
-      const id = noteIdRef.current;
-      if (id && isEmptyNote(next)) {
-        await deleteNote.mutateAsync(id);
-      }
-      allowLeaveRef.current = true;
-      navigation.dispatch(event.data.action);
-    })()
-      .catch(() => {
-        setSaveState('error');
-      })
-      .finally(() => {
-        leavingRef.current = false;
-      });
-  });
+  //
+  // On web, expo-router 58's guard also blocks browser refresh/close for as long
+  // as it is on. The editor warns on unload only while a draft is at risk (the
+  // effect below), so on web the guard is on only while leaving has work to do:
+  // a write still pending or failed, or a stored note left empty that leaving
+  // deletes. A saved note then leaves with no prompt and no write, as before.
+  const leaveHasWork = saveState !== 'saved' || (base !== null && isEmptyNote(draft));
+  const disablePrevention = usePreventRemove(
+    (isNew || base !== null) && !leaveAllowed && (Platform.OS !== 'web' || leaveHasWork),
+    ({ repeat }) => {
+      if (leavingRef.current) return;
+      leavingRef.current = true;
+      autosave.cancel();
+      void (async () => {
+        let next: LocalNote;
+        let version: number;
+        do {
+          autosave.cancel();
+          version = editVersion.current;
+          next = draftRef.current;
+          await persist(next);
+        } while (version !== editVersion.current);
+        const id = noteIdRef.current;
+        if (id && isEmptyNote(next)) {
+          await deleteNote.mutateAsync(id);
+        }
+        setLeaveAllowed(true);
+        repeat();
+      })()
+        .catch(() => {
+          setSaveState('error');
+        })
+        .finally(() => {
+          leavingRef.current = false;
+        });
+    },
+  );
 
   // Browser refresh/close cannot await SQLite. Warn only while a draft is at risk.
   React.useEffect(() => {
@@ -474,14 +482,15 @@ function NoteEditor() {
       } while (version !== editVersion.current);
       const id = noteIdRef.current;
       if (id) await trashNote.mutateAsync(id);
-      allowLeaveRef.current = true;
+      setLeaveAllowed(true);
+      disablePrevention();
       router.back();
     } catch {
       setSaveState('error');
     } finally {
       leavingRef.current = false;
     }
-  }, [autosave, persist, trashNote, router]);
+  }, [autosave, persist, trashNote, router, disablePrevention]);
 
   const mentions = React.useMemo(
     () => noteMentionSource(isNew ? '' : params.id, t('notes.untitledVersion')),

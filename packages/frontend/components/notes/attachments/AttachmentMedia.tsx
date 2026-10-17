@@ -5,6 +5,7 @@ import {
   Image as RNImage,
   StyleSheet,
   Platform,
+  type ViewInstance,
   type ViewStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -41,7 +42,7 @@ const webGrabCursorStyle: ViewStyle | null =
  * the gallery close fly-back. Called with the host `View` on mount, `null` on
  * unmount.
  */
-export type RegisterThumbHost = (node: View | null) => void;
+export type RegisterThumbHost = (node: ViewInstance | null) => void;
 
 /** lucide icon for each non-image attachment category. */
 const CATEGORY_ICON: Record<Exclude<AttachmentCategory, 'image'>, typeof FileIcon> = {
@@ -66,7 +67,7 @@ interface AttachmentImageProps {
  */
 function AttachmentImage({ src, onPress, registerHost }: AttachmentImageProps) {
   const theme = useTheme();
-  const wrapperRef = useRef<View | null>(null);
+  const wrapperRef = useRef<ViewInstance | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number | undefined>(() =>
     getCachedAspectRatio(src),
   );
@@ -75,7 +76,7 @@ function AttachmentImage({ src, onPress, registerHost }: AttachmentImageProps) {
   // host into the parent's index registry (for the close fly-back). Registers on
   // mount, clears on unmount — no effect needed.
   const setHostRef = useCallback(
-    (node: View | null) => {
+    (node: ViewInstance | null) => {
       wrapperRef.current = node;
       registerHost?.(node);
     },

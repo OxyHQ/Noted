@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, View, type TextInput } from 'react-native';
+import { ActivityIndicator, View, type TextInputInstance } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Folder as FolderGlyph } from 'lucide-react-native';
 import { Button } from '@oxy.so/bloom/button';
@@ -39,7 +39,7 @@ export default function FoldersScreen() {
   const createFolder = useCreateFolder();
   const deleteFolder = useDeleteFolder();
 
-  const inputRef = React.useRef<TextInput>(null);
+  const inputRef = React.useRef<TextInputInstance>(null);
   const [draft, setDraft] = React.useState('');
   // Where the next folder goes: inside this one, or at the top when null.
   const [parent, setParent] = React.useState<FolderEntry | null>(null);

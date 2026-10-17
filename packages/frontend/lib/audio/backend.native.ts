@@ -38,11 +38,12 @@ function ensure(captureId: string): Directory {
 }
 
 export class FileSystemChunkBackend implements ChunkBackend {
-  put(captureId: string, index: number, chunk: Uint8Array): Promise<void> {
+  // `File.write` is asynchronous from SDK 58: a chunk is stored once its
+  // promise settles, not when the call returns.
+  async put(captureId: string, index: number, chunk: Uint8Array): Promise<void> {
     const file = new File(ensure(captureId), chunkName(index));
     file.create({ overwrite: true });
-    file.write(chunk);
-    return Promise.resolve();
+    await file.write(chunk);
   }
 
   indices(captureId: string): Promise<number[]> {
@@ -75,11 +76,10 @@ export class FileSystemChunkBackend implements ChunkBackend {
     return Promise.resolve(file.exists ? file.text() : null);
   }
 
-  writeManifest(captureId: string, json: string): Promise<void> {
+  async writeManifest(captureId: string, json: string): Promise<void> {
     const file = new File(ensure(captureId), MANIFEST);
     file.create({ overwrite: true });
-    file.write(json);
-    return Promise.resolve();
+    await file.write(json);
   }
 
   remove(captureId: string): Promise<void> {

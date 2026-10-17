@@ -8,6 +8,7 @@ import {
   Modal,
   Image as RNImage,
   ScrollView,
+  type ScrollViewInstance,
   useWindowDimensions,
   type ViewStyle,
   type NativeSyntheticEvent,
@@ -186,7 +187,7 @@ const ZoomableImageGalleryInner = React.forwardRef<
   // shrinks back to it. Never overwritten by the drag gesture.
   const originScale = useSharedValue(1);
 
-  const pagerRef = useRef<ScrollView>(null);
+  const pagerRef = useRef<ScrollViewInstance>(null);
   // Latch the index the pager must land on once it has mounted + laid out.
   const pendingIndexRef = useRef(0);
   // Mirror of `activeIndex` readable synchronously from callbacks/worklets.

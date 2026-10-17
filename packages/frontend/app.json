@@ -8,11 +8,6 @@
     "icon": "./assets/icon-512.png",
     "scheme": "noted",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/icon-512.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#040711"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "so.oxy.noted",
@@ -44,7 +39,7 @@
       "favicon": "./assets/icon-192.png"
     },
     "plugins": [
-      "expo-router",
+      ["expo-router", { "asyncRoutes": { "web": false } }],
       "expo-localization",
       "expo-font",
       "expo-image",

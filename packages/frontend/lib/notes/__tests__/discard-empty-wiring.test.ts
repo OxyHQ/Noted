@@ -26,20 +26,33 @@ describe('the editor', () => {
   });
 
   it('uses the removal guard from the same navigation context as Expo Router', () => {
-    // SDK 56 owns its navigation context. The upstream hook typechecks but
-    // throws "Could not find a navigation object" when opening a real editor.
+    // Expo Router owns its navigation context: the upstream React Navigation
+    // hook typechecks but throws "Could not find a navigation object" when
+    // opening a real editor, and SDK 58 exports the guard from `expo-router`
+    // itself rather than from its `react-navigation` fork.
     // Quote-agnostic: the formatter owns quote style, and a needle spelled with
     // one quote kind makes the negative check pass vacuously on the other.
-    expect(EDITOR).toMatch(
-      /import \{ usePreventRemove \} from ['"]expo-router\/react-navigation['"]/,
-    );
+    expect(EDITOR).toMatch(/import \{[^}]*\busePreventRemove\b[^}]*\} from ['"]expo-router['"]/);
+    expect(EDITOR).not.toMatch(/from ['"]expo-router\/react-navigation['"]/);
     expect(EDITOR).not.toMatch(/from ['"]@react-navigation\/native['"]/);
   });
 
-  it('asks one question about emptiness, in both places', () => {
+  it('lets a blocked leave go only through the guard', () => {
+    // SDK 58 blocks a re-dispatched action again while the guard is on, so the
+    // editor continues one with `repeat` (or `disablePrevention` before its own
+    // navigation), and turns its prop off in the same breath.
+    expect(EDITOR).not.toContain('navigation.dispatch(');
+    expect(EDITOR).toContain('repeat();');
+    expect(occurrences(EDITOR, 'setLeaveAllowed(true)')).toBe(2);
+    expect(EDITOR).toMatch(/disablePrevention\(\);\s*router\.back\(\)/);
+  });
+
+  it('asks one question about emptiness, in every place', () => {
     // Two copies of "is this empty" drift, and the drift shows up as a note that
-    // could be created but not kept — or worse, kept but not created.
-    expect(occurrences(EDITOR, 'isEmptyNote(')).toBe(2);
+    // could be created but not kept — or worse, kept but not created. Three
+    // calls of the one helper: creating, deleting on leave, and (web) whether
+    // leaving has a note to delete.
+    expect(occurrences(EDITOR, 'isEmptyNote(')).toBe(3);
   });
 
   it('throws the note away when it is left empty', () => {
@@ -50,7 +63,8 @@ describe('the editor', () => {
     // `base` is null until the note arrives and the draft starts blank, so
     // without this, opening an existing note and closing it before it loads
     // reads as "the user emptied this".
-    expect(EDITOR).toContain('usePreventRemove(isNew || base !== null');
+    expect(EDITOR).toMatch(/usePreventRemove\(\s*\(isNew \|\| base !== null\)/);
+    expect(EDITOR).toContain('(base !== null && isEmptyNote(draft))');
   });
 
   it('measures the note itself, which counts the recorder’s blocks as content', () => {

@@ -2,7 +2,7 @@ import { Button, GlyphButton } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import React from 'react';
-import { View, type TextInput } from 'react-native';
+import { View, type TextInputInstance } from 'react-native';
 import Animated, { LinearTransition, FadeIn } from 'react-native-reanimated';
 import { CheckSquare, X, Palette, Paperclip, Archive, LayoutTemplate } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
@@ -98,7 +98,7 @@ export function QuickCapture({
   const [discardOpen, setDiscardOpen] = React.useState(false);
   const savingRef = React.useRef(false);
   const creation = React.useRef<{ id: string; input: QuickCaptureInput } | null>(null);
-  const bodyRef = React.useRef<TextInput>(null);
+  const bodyRef = React.useRef<TextInputInstance>(null);
 
   const tint = getNoteColorTint(color, colorScheme);
 

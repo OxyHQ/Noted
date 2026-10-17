@@ -1,9 +1,16 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      // whisper.rn ships its TypeScript source under the `react-native` condition,
+      // and that source does not typecheck against React Native 0.88
+      // (`Image.resolveAssetSource` may return undefined; src/index.ts:172 reads
+      // `.uri` from it unchecked). Type it from its own published declarations
+      // instead. Metro is unaffected: no file in lib/typescript has a source
+      // extension, so the bundler falls back to the package's normal resolution.
+      "whisper.rn/*": ["../../node_modules/whisper.rn/lib/typescript/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"]
