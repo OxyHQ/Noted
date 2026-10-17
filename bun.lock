@@ -7,7 +7,7 @@
       "dependencies": {
         "@oxy.so/bloom": "10.21.0",
         "@oxy.so/contracts": "4.24.0",
-        "@oxy.so/core": "5.1.0",
+        "@oxy.so/core": "5.2.0",
         "@oxy.so/services": "11.14.0",
       },
       "devDependencies": {
@@ -20,6 +20,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@alia.onl/sdk": "^21.3.0",
+        "@expo/app-integrity": "~58.0.2",
         "@expo/html-elements": "^0.13.8",
         "@expo/vector-icons": "^15.1.1",
         "@fugood/react-native-audio-pcm-stream": "1.1.4",
@@ -33,7 +34,7 @@
         "@oxy.so/bloom-editor": "0.2.0",
         "@oxy.so/bloom-text": "0.1.0",
         "@oxy.so/contracts": "4.24.0",
-        "@oxy.so/core": "5.1.0",
+        "@oxy.so/core": "5.2.0",
         "@oxy.so/nilo-contracts": "0.2.0",
         "@oxy.so/services": "11.14.0",
         "@oxy.so/stickers": "0.1.1",
@@ -53,7 +54,7 @@
         "@rn-primitives/slot": "^1.2.0",
         "@rn-primitives/types": "^1.2.0",
         "@shopify/flash-list": "2.3.2",
-        "@tanstack/react-query": "^5.100.0",
+        "@tanstack/react-query": "^5.101.0",
         "@tauri-apps/api": "^2",
         "axios": "^1.13.2",
         "class-variance-authority": "^0.7.1",
@@ -159,7 +160,7 @@
   "overrides": {
     "@oxy.so/bloom": "10.21.0",
     "@oxy.so/contracts": "4.24.0",
-    "@oxy.so/core": "5.1.0",
+    "@oxy.so/core": "5.2.0",
     "@oxy.so/protocol": "1.4.0",
     "@oxy.so/services": "11.14.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -667,7 +668,7 @@
 
     "@oxy.so/contracts": ["@oxy.so/contracts@4.24.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-ZQvW7N5xdji7H5G61FNmUWwtSw/aLxTnwyxWwsni4XlBrDk+VaW0vdSuMsRZw/pnNaQP+QSP2c3i+NbewowY0g=="],
 
-    "@oxy.so/core": ["@oxy.so/core@5.1.0", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "4.24.0", "@oxy.so/protocol": "^1.4.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "<3.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-h3VtYjesWtYh2z6aAsntPvIbxlh8n5ePDZPoq9Nh3vkGW5btmi+swyY69LhiWX84jCrCl9ZwEKGlTsN5R8Lm9g=="],
+    "@oxy.so/core": ["@oxy.so/core@5.2.0", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "4.24.0", "@oxy.so/protocol": "^1.4.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "<3.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-NJoIFdxF6zxHf8exartFhboOwUVCnps5Nc+IteCJGX4meYk2HBCAlR254vFwOVWPIUlyzyG9BqY9vnJslGOdYw=="],
 
     "@oxy.so/nilo-contracts": ["@oxy.so/nilo-contracts@0.2.0", "", { "dependencies": { "zod": "^3.24.1" }, "peerDependencies": { "@oxy.so/bloom-editor": ">=0.4.0 <0.5.0", "@oxy.so/bloom-text": ">=0.1.1 <0.2.0" }, "optionalPeers": ["@oxy.so/bloom-editor", "@oxy.so/bloom-text"] }, "sha512-4VQfPfDex2NiF2vfcI5l4SUDTHxcVT9ose/7bowJDKyqrfTvX0IgUVN9E6OCvnUB1P8Hk9wTJw3bUL0u8GFsyA=="],
 
@@ -2427,10 +2428,6 @@
 
     "@expo/config/semver": ["semver@7.8.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-rkVq3IXh+4FDGch+KwzX3aV9W3kO54GyEgpvBzSyctDA6Xtd7RJQV1xmXbeQp5v7+VzLOfVqiutSE6GICgPFvg=="],
 
-    "@expo/config-plugins/@expo/config-types": ["@expo/config-types@58.0.3", "", {}, "sha512-wyfrwkTT/hQHzwyqkXkngKxoOa8L6ovsTP4h/UukS1mTmssee5et6HOPoN5RtawdJPnm5JO28f//C/wXlpka8Q=="],
-
-    "@expo/config-plugins/@expo/plist": ["@expo/plist@0.10.1", "", { "dependencies": { "@xmldom/xmldom": "^0.8.8", "base64-js": "^1.5.1", "xmlbuilder": "^15.1.1" } }, "sha512-nuNOqj+r/hGJbZ1Ax3jUpZaOB8UAMHUrISALJEUKaCieTflYj7224EqFWmMpriCGk9wXS1gH+9GGVnSj0tWzuQ=="],
-
     "@expo/config-plugins/glob": ["glob@13.0.6", "", { "dependencies": { "minimatch": "^10.2.2", "minipass": "^7.1.3", "path-scurry": "^2.0.2" } }, "sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw=="],
 
     "@expo/config-plugins/semver": ["semver@7.8.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-rkVq3IXh+4FDGch+KwzX3aV9W3kO54GyEgpvBzSyctDA6Xtd7RJQV1xmXbeQp5v7+VzLOfVqiutSE6GICgPFvg=="],
@@ -2743,8 +2740,6 @@
 
     "@bramus/specificity/css-tree/mdn-data": ["mdn-data@2.27.1", "", {}, "sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ=="],
 
-    "@expo/cli/@expo/config-plugins/@expo/sdk-runtime-versions": ["@expo/sdk-runtime-versions@1.0.0", "", {}, "sha512-Doz2bfiPndXYFPMRwPyGa1k5QaKDVpY806UJj570epIiMzWaYyCtobasyfC++qfIXVb5Ocy7r3tP9d62hAQ7IQ=="],
-
     "@expo/cli/accepts/mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="],
 
     "@expo/cli/accepts/negotiator": ["negotiator@0.6.3", "", {}, "sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg=="],
@@ -2764,8 +2759,6 @@
     "@expo/config-plugins/glob/minipass": ["minipass@7.1.3", "", {}, "sha512-tEBHqDnIoM/1rXME1zgka9g6Q2lcoCkxHLuc7ODJ5BxbP5d4c2Z5cGgtXAku59200Cx7diuHTOYfSBD8n6mm8A=="],
 
     "@expo/config-plugins/glob/path-scurry": ["path-scurry@2.0.2", "", { "dependencies": { "lru-cache": "^11.0.0", "minipass": "^7.1.2" } }, "sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg=="],
-
-    "@expo/config/@expo/config-plugins/@expo/sdk-runtime-versions": ["@expo/sdk-runtime-versions@1.0.0", "", {}, "sha512-Doz2bfiPndXYFPMRwPyGa1k5QaKDVpY806UJj570epIiMzWaYyCtobasyfC++qfIXVb5Ocy7r3tP9d62hAQ7IQ=="],
 
     "@expo/config/glob/minimatch": ["minimatch@10.2.4", "", { "dependencies": { "brace-expansion": "^5.0.2" } }, "sha512-oRjTw/97aTBN0RHbYCdtF1MQfvusSIBQM0IZEgzl6426+8jSC0nF1a/GmnVLpfB9yyr6g6FTqWqiZVbxrtaCIg=="],
 
