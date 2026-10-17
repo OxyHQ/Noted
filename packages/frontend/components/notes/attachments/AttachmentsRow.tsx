@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Linking } from 'react-native';
+import { View, Linking, type ViewInstance } from 'react-native';
 import { Image } from 'expo-image';
 import { Paperclip } from 'lucide-react-native';
 import { useOxy } from '@oxy.so/services';
@@ -59,13 +59,13 @@ export interface AttachmentsRowProps {
 // ---------------------------------------------------------------------------
 interface GalleryRegistration {
   src: string;
-  node: View | null;
+  node: ViewInstance | null;
 }
 
 interface GalleryController {
   register: (fileId: string, src: string) => void;
   unregister: (fileId: string) => void;
-  setHost: (fileId: string, node: View | null) => void;
+  setHost: (fileId: string, node: ViewInstance | null) => void;
   open: (fileId: string, rect?: MeasuredRect) => void;
 }
 
@@ -203,7 +203,7 @@ function ImageGalleryItem({
   );
 
   const registerHost = useCallback(
-    (node: View | null) => gallery.setHost(fileId, node),
+    (node: ViewInstance | null) => gallery.setHost(fileId, node),
     [gallery, fileId],
   );
 

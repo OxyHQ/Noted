@@ -34,7 +34,7 @@ export async function saveTextFile(
   // user would share a file containing their note twice.
   if (file.exists) file.delete();
   file.create();
-  file.write(contents);
+  await file.write(contents);
 
   await shareAsync(file.uri, FILE_TYPES[kind]);
 }
@@ -54,7 +54,7 @@ export async function saveBinaryFile(
   const file = new File(directory, filename);
   if (file.exists) file.delete();
   file.create();
-  file.write(bytes);
+  await file.write(bytes);
 
   await shareAsync(file.uri, { mimeType });
 }

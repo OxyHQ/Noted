@@ -20,6 +20,22 @@ import apiClient from '@/lib/api/client';
 const PROJECT_ID =
   Constants.expoConfig?.extra?.eas?.projectId ?? 'ca1a1ca1-2469-4ceb-8387-e43d6832bbab';
 
+// ── Foreground notification display (native only) ──────────────
+// Installed when this module loads, before any screen asks for permission or
+// creates a channel: from SDK 58 a notification that arrives with no handler
+// installed is shown with Expo's defaults, so the handler has to be the first
+// thing in place rather than an effect that runs after its children's.
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+}
+
 export function useNotificationSetup() {
   const { user, oxyServices, isAuthenticated } = useOxy();
   const router = useRouter();
@@ -29,19 +45,6 @@ export function useNotificationSetup() {
   const accessToken = oxyServices.session.accessToken;
   const tokenRef = useRef<string | null>(null);
   const webPushRegisteredRef = useRef(false);
-
-  // ── Foreground notification display (once, native only) ────────
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
-    });
-  }, []);
 
   // ── Push token registration ────────────────────────────────────
   useEffect(() => {

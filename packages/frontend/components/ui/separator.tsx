@@ -6,7 +6,10 @@ function Separator({
   orientation = 'horizontal',
   decorative = true,
   ...props
-}: SeparatorPrimitive.RootProps & React.RefAttributes<SeparatorPrimitive.RootRef>) {
+  // No ref: under React Native 0.88 `RootRef` (rn-primitives' `ElementRef<typeof
+  // View>`) names the component rather than its instance, so a forwarded ref
+  // cannot typecheck. Nothing in the app passes one.
+}: Omit<SeparatorPrimitive.RootProps, 'ref'>) {
   return (
     <SeparatorPrimitive.Root
       decorative={decorative}

@@ -113,7 +113,9 @@ function AppContent() {
                 <PortalProvider>
                   <OverlayInertBoundary>
                     {Platform.OS === 'web' ? (
-                      <Navigator initialRouteName="(app)">
+                      // The initial route comes from `unstable_settings` above: expo-router 58's
+                      // Navigator reads it from the route node and takes no prop for it.
+                      <Navigator>
                         <WebRoutes />
                       </Navigator>
                     ) : (

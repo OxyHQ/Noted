@@ -5,7 +5,7 @@ import { NotesContent } from '@/components/notes/notes-content';
 import React from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { LocalStoreError } from '@/components/local-store-boundary';
-import { View, type TextInput, ActivityIndicator } from 'react-native';
+import { View, type TextInputInstance, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TextField, TextFieldInput, TextFieldIcon } from '@oxy.so/bloom/text-field';
 import { Button } from '@oxy.so/bloom/button';
@@ -33,7 +33,7 @@ export default function LabelsScreen() {
   const createLabel = useCreateLabel();
   const deleteLabel = useDeleteLabel();
 
-  const inputRef = React.useRef<TextInput>(null);
+  const inputRef = React.useRef<TextInputInstance>(null);
   const [draft, setDraft] = React.useState('');
   const [draftColor, setDraftColor] = React.useState<NoteColor | null>(null);
   const [showColors, setShowColors] = React.useState(false);
