@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { Slot, Stack, usePathname } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AppShell } from '@oxy.so/bloom/app-shell';
+import { AppShell, AppShellPanel } from '@oxy.so/bloom/app-shell';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { AliaChatHost } from '@/components/alia-chat';
 import { AppLockGate } from '@/components/app-lock-gate';
@@ -64,7 +64,7 @@ export default function AppLayout() {
             variant="feed"
             scroll={Platform.OS === 'web' ? 'document' : 'fixed'}
             safeArea
-            panel
+            panels
             sidebar={sidebar}
             drawer="reveal"
             drawerOpen={drawerOpen}
@@ -79,19 +79,21 @@ export default function AppLayout() {
             bottomBarVisibility="always"
             testID="noted-app-shell"
           >
-            {Platform.OS === 'web' ? (
-              <Scene>
-                <Slot />
-              </Scene>
-            ) : (
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: 'transparent' },
-                }}
-                screenLayout={renderScene}
-              />
-            )}
+            <AppShellPanel>
+              {Platform.OS === 'web' ? (
+                <Scene>
+                  <Slot />
+                </Scene>
+              ) : (
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}
+                  screenLayout={renderScene}
+                />
+              )}
+            </AppShellPanel>
           </AppShell>
           <CommandPalette />
           <AliaChatHost />
