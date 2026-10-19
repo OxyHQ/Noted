@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   get: vi.fn(),
 }));
 
-vi.mock('@oxy.so/services', () => ({ useOxy: () => state.auth }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => state.auth }));
 vi.mock('../api/client', () => ({ default: { get: state.get } }));
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),

@@ -4,7 +4,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiLayoutGridLine } from '@oxy.so/bloom/icons/RiLayoutGridLine';
 import { RiListView } from '@oxy.so/bloom/icons/RiListView';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from '@/hooks/useTranslation';
 import { openAliaChat } from '@/lib/alia-chat';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';

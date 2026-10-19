@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { SettingsModal, type SettingsNavGroup } from '@oxy.so/bloom/settings-modal';
 import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';

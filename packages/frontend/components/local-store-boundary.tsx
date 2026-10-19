@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 import { Screen } from '@oxy.so/bloom/screen';
-import { openAccountDialog, useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { EmptyState } from '@/components/empty-state';
 import { useLocalStoreState } from '@/lib/db/local-store-context';
 import { storageErrorKind } from '@/lib/db/storage-error';
@@ -44,7 +44,7 @@ export function LocalStoreBoundary({
   fallbackHeader?: ReactNode;
   documentScroll?: boolean;
 }) {
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, openAccountDialog } = useOxy();
   const { isReady, error, viewerId } = useLocalStoreState();
   const { t } = useTranslation();
   if (isAuthenticated && isReady)

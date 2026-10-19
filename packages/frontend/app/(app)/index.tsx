@@ -2,7 +2,7 @@ import React from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import Head from 'expo-router/head';
 import { useRouter } from 'expo-router';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { Fab } from '@oxy.so/bloom/fab';
 import { Screen } from '@oxy.so/bloom/screen';

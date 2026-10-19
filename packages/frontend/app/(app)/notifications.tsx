@@ -14,7 +14,7 @@ import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
 import { Bell, BellOff, Zap, Clock, Eye, AlertTriangle, MessageSquare } from 'lucide-react-native';
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import * as ExpoNotifications from 'expo-notifications';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 

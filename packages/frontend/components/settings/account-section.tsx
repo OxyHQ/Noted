@@ -3,14 +3,14 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { SettingsCard, SettingsRow } from '@oxy.so/bloom/settings-modal';
-import { openAccountDialog, useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useEraseAccountData } from '@/lib/hooks/use-erase-account-data';
 import { useNotedSettings } from './settings-provider';
 import { EmptyState } from '@/components/empty-state';
 
 export function AccountSection() {
-  const { user, isAuthenticated, showBottomSheet } = useOxy();
+  const { user, isAuthenticated, showBottomSheet, openAccountDialog } = useOxy();
   const { t } = useTranslation();
   const { afterClose } = useNotedSettings();
   const erase = useEraseAccountData();

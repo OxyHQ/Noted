@@ -1,6 +1,6 @@
 import { AliaChatSheet } from '@alia.onl/sdk';
 import React from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from '@/hooks/useTranslation';
 import { aliaChatRef } from '@/lib/alia-chat';
 

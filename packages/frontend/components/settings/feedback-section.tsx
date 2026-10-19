@@ -3,7 +3,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useState } from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useNotedSettings } from './settings-provider';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from 'lucide-react-native';

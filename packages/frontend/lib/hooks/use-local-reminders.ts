@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Row } from '@/lib/db/client';
 import { useLiveQuery } from '@/lib/db/live-query';

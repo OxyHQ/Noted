@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { createLogger } from '@oxy.so/core/logger';
 
 import { recoverInterruptedCaptures } from '@/lib/capture/captures-repo';

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FloatingBottomStack } from '@/components/floating-bottom-stack';
 import { useLocalSearchParams, useRouter, usePreventRemove } from 'expo-router';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import {
   ArrowLeft,
   Pin,
