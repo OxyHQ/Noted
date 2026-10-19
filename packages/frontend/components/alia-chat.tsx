@@ -18,6 +18,10 @@ import { aliaChatRef } from '@/lib/alia-chat';
  * Noted tools if it has them and to say so plainly if it does not, rather than
  * asserting either. The SDK sends the signed-in user's Oxy session; Noted holds no
  * credential of its own for it.
+ *
+ * The chat is text-only (`voice={false}`): @alia.onl/sdk turns its voice call on by
+ * default since 21.x, and Noted has never offered one — Alia's chat here is typing
+ * (and the SDK's dictation), nothing more.
  */
 export function AliaChatHost() {
   const { t } = useTranslation();
@@ -39,6 +43,7 @@ export function AliaChatHost() {
       clientContext={t('alia.clientContext')}
       welcomeSubtitle={t('alia.subtitle')}
       welcomeSuggestions={suggestions}
+      voice={false}
     />
   );
 }
