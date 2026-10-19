@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@oxy.so/services', () => ({ useOxy: vi.fn() }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: vi.fn() }));
 
 import { parseFileMeta } from '@/lib/hooks/use-file-metadata';
 

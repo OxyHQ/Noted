@@ -21,7 +21,7 @@ const fake = vi.hoisted(() => ({
   }[],
   unsubscribes: [] as ReturnType<typeof vi.fn>[],
 }));
-vi.mock('@oxy.so/services', () => ({ useOxy: () => fake.session }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => fake.session }));
 vi.mock('react-native', () => ({ AppState: { addEventListener: () => ({ remove() {} }) } }));
 vi.mock('@react-native-community/netinfo', () => ({
   default: { addEventListener: () => () => {} },

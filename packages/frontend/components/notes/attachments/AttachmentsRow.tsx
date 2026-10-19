@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Linking, type ViewInstance } from 'react-native';
 import { Image } from 'expo-image';
 import { Paperclip } from 'lucide-react-native';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { Text } from '@/components/ui/text';
 import { EmptyState } from '@/components/empty-state';
 import { toast } from '@oxy.so/bloom/toast';

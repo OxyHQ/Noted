@@ -3,7 +3,7 @@ import { Folder as FolderGlyph, FolderCog } from 'lucide-react-native';
 import { LabelIcon } from '@/components/notes/label-color';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
-import { ProfileButton, openAccountDialog } from '@oxy.so/services';
+import { ProfileButton, useOxy } from '@oxy.so/services/ui/client';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiCalendarScheduleLine } from '@oxy.so/bloom/icons/RiCalendarScheduleLine';
 import { RiPriceTag3Line } from '@oxy.so/bloom/icons/RiPriceTag3Line';
@@ -30,6 +30,7 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   const settings = useNotedSettings();
+  const { openAccountDialog } = useOxy();
   const { isReady } = useLocalStoreState();
   const { data: labels } = useLabels();
   const { data: folders } = useFolders();
@@ -58,14 +59,10 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
     closeDrawer();
     settings.open();
   }, [closeDrawer, settings]);
-  const openAccount = useCallback(() => {
-    closeDrawer();
-    settings.open('account');
-  }, [closeDrawer, settings]);
   const addAccount = useCallback(() => {
     closeDrawer();
     openAccountDialog();
-  }, [closeDrawer]);
+  }, [closeDrawer, openAccountDialog]);
 
   const labelItems = useMemo(
     () =>
@@ -198,11 +195,7 @@ export function useNotedSidebar(closeDrawer: () => void): SidebarProps {
       },
     },
     footer: ({ collapsed: isCollapsed }) => (
-      <ProfileButton
-        expanded={!isCollapsed}
-        onNavigateManage={openAccount}
-        onAddAccount={addAccount}
-      />
+      <ProfileButton expanded={!isCollapsed} onAddAccount={addAccount} />
     ),
   };
 }

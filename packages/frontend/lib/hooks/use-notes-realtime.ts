@@ -16,7 +16,7 @@
  */
 
 import { useEffect } from 'react';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 import { io as socketIO, type Socket } from 'socket.io-client';
 import apiClient from '@/lib/api/client';
 import config from '@/lib/config';

@@ -2,7 +2,7 @@ import React from 'react';
 import { getErrorStatus } from '@oxy.so/core';
 import { attachmentMetadataKey, readScopedStorage } from '@/lib/shared-storage';
 import { useQuery } from '@tanstack/react-query';
-import { useOxy } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services/ui/client';
 
 /**
  * Whether Oxy still serves an attachment's file. Only `active` is served
