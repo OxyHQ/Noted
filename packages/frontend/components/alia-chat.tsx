@@ -1,4 +1,4 @@
-import { AliaChatSheet } from '@alia.onl/sdk';
+import { AliaChatSheet } from '@alia.onl/sdk/text';
 import React from 'react';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -19,8 +19,9 @@ import { aliaChatRef } from '@/lib/alia-chat';
  * asserting either. The SDK sends the signed-in user's Oxy session; Noted holds no
  * credential of its own for it.
  *
- * The chat is text-only (`voice={false}`): @alia.onl/sdk turns its voice call on by
- * default since 21.x, and Noted has never offered one — Alia's chat here is typing
+ * The chat is text-only: Noted has never offered Alia's voice call, so the sheet
+ * comes from `@alia.onl/sdk/text`, which never offers the call and keeps its code
+ * (socket, protocol, audio engine) out of the bundle. Alia's chat here is typing
  * (and the SDK's dictation), nothing more.
  */
 export function AliaChatHost() {
@@ -43,7 +44,6 @@ export function AliaChatHost() {
       clientContext={t('alia.clientContext')}
       welcomeSubtitle={t('alia.subtitle')}
       welcomeSuggestions={suggestions}
-      voice={false}
     />
   );
 }

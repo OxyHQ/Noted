@@ -1,5 +1,5 @@
 import { createRef } from 'react';
-import type { AliaChatSheetRef } from '@alia.onl/sdk';
+import type { AliaChatSheetRef } from '@alia.onl/sdk/text';
 
 /**
  * The one chat sheet the app mounts (`components/alia-chat.tsx`), reachable from
