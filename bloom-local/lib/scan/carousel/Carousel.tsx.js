@@ -1,0 +1,946 @@
+import React, {
+  type ComponentRef,
+  Children,
+  isValidElement,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Animated,
+  Platform,
+  Pressable,
+  ScrollView,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  type KeyDownEvent,
+} from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
+
+import { Button } from '../button';
+import { resolveButtonRamps } from '../button/shared';
+import { RiArrowLeftSLine } from '../icons/remix/RiArrowLeftSLine';
+import { RiArrowRightSLine } from '../icons/remix/RiArrowRightSLine';
+import { useDirectionProps, useIsRtl } from '../hooks/use-is-rtl';
+import { useInteractionState } from '../hooks/use-interaction-state';
+import { useMessages } from '../locale/messages';
+import { useInteractiveWebCss } from '../styles/interactive-web-css';
+import { borderRadius } from '../styles/tokens';
+import type { WebCssStyle } from '../styles/web-view-style';
+import { webDataSet } from '../styles/web-data';
+import type { Theme } from '../theme/types';
+import { useTheme } from '../theme/use-theme';
+import { CarouselContext, CarouselItemIndexContext } from './context';
+import { CAROUSEL_MESSAGES } from './messages';
+import type { CarouselItemProps, CarouselProps } from './types';
+import { IS_WEB } from '../styles/platform';
+
+/**
+ * A gallery carousel: a horizontal run of slides you scroll through, with
+ * prev/next buttons above and a position indicator below.
+ *
+ *   column     gap 16
+ *   header     optional leading content of the arrows row (a title)
+ *   arrows     right-aligned row, gap 8, small secondary icon buttons
+ *              (Bloom's pill `Button`, sized to a 32px square icon button)
+ *   track      native horizontal scrolling that SNAPS to each slide — CSS
+ *              `scroll-snap` on web, `snapToOffsets` on native — gap 16
+ *   dots       centred row, gap 6; 6px tall pills, the active one 16 wide in
+ *              `text-primary`, the rest 6 wide in `background-tertiary`
+ *              (hover `border-button-active`), width/colour eased 200ms
+ *
+ * The track is a real scroller rather than a transformed strip, so swipe,
+ * trackpad, momentum and (on web) keyboard scrolling all come free.
+ * Slide positions are MEASURED (`onLayout`), never derived from a width, so
+ * slides of different widths keep working. The two ends are pinned rather than
+ * measured: at the far end the last slide can never reach the left edge, so a
+ * nearest-slide search would never light the last dot.
+ */
+
+/** `transition-all duration-200 ease-out` on the dots. */
+const DOT_TRANSITION_MS = 200;
+const DOT_HEIGHT = 6;
+const DOT_WIDTH = 6;
+const DOT_ACTIVE_WIDTH = 16;
+
+interface CarouselPaint {
+  dotActive: string;
+  dot: string;
+  dotHover: string;
+  ring: string;
+}
+
+/**
+ * Every colour the carousel paints (the arrows are `Button`'s own). Pure.
+ *
+ *   dot active   text/primary
+ *   dot          background/tertiary/default   neutral-200  (dark neutral-800)
+ *   dot hover    border/button/active          neutral-400  (dark neutral-600)
+ */
+export function resolveCarouselPaint(theme: Theme): CarouselPaint {
+  const { accent } = resolveButtonRamps(theme);
+  return {
+    dotActive: theme.colors.text,
+    dot: theme.colors.backgroundSecondary,
+    dotHover: theme.colors.textSecondary,
+    ring: accent[500],
+  };
+}
+
+// ---------------------------------------------------------------------------
+//  Web CSS
+//
+//  Scroll snapping, the hidden scrollbar, the track's keyboard focus ring and
+//  the dots' eased width/colour have no inline-style spelling, so they live in
+//  an adopted sheet hanging off `dataSet` attributes (a class never reaches
+//  the DOM through react-native-web). `adoptStyleSheet` no-ops without a
+//  `document`, so native pays for a hook call and nothing else.
+// ---------------------------------------------------------------------------
+
+const STYLE_ID = 'bloom-carousel-web-css';
+const ROOT = '[data-bloom-carousel]';
+const HOVER_ROOT = '[data-bloom-carousel="hover"]';
+const ARROW = '[data-bloom-carousel-arrow]';
+const TRACK = '[data-bloom-carousel-track]';
+const DOT = '[data-bloom-carousel-dot]';
+
+const BLOOM_CAROUSEL_CSS = `
+${ROOT} { --bloom-carousel-arrow-opacity: 1; }
+${ARROW} {
+  opacity: var(--bloom-carousel-arrow-opacity, 1);
+  transition: opacity 150ms ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  ${HOVER_ROOT} { --bloom-carousel-arrow-opacity: 0; }
+  ${HOVER_ROOT}:hover, ${HOVER_ROOT}:focus-within { --bloom-carousel-arrow-opacity: 1; }
+}
+${TRACK} {
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--bloom-carousel-inset, 0px);
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  outline: none;
+}
+${TRACK}::-webkit-scrollbar {
+  display: none;
+}
+${TRACK}:focus-visible {
+  outline: 2px solid var(--bloom-carousel-ring, currentColor);
+  outline-offset: 2px;
+}
+${TRACK} [data-bloom-carousel-item] {
+  scroll-snap-align: start;
+}
+${TRACK}[data-bloom-carousel-track="center"] [data-bloom-carousel-item] {
+  scroll-snap-align: center;
+}
+${DOT} {
+  cursor: pointer;
+  outline: none;
+  transition: width ${DOT_TRANSITION_MS}ms ease-out, background-color ${DOT_TRANSITION_MS}ms ease-out;
+}
+${DOT}:focus-visible {
+  outline: 2px solid var(--bloom-carousel-ring, currentColor);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+${DOT}, ${ARROW} {
+  transition: none;
+}
+}
+`;
+
+// ---------------------------------------------------------------------------
+//  Slide
+// ---------------------------------------------------------------------------
+
+const CarouselItemComponent = function CarouselItem({
+  children,
+  width,
+  accessibilityLabel,
+  style,
+  testID,
+}: CarouselItemProps) {
+  const ctx = useContext(CarouselContext);
+  const index = useContext(CarouselItemIndexContext);
+  const { messages } = useMessages(CAROUSEL_MESSAGES);
+  const reportOffset = ctx?.reportOffset;
+  const itemRef = useRef<ComponentRef<typeof View>>(null);
+
+  const onLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { x, width: w } = event.nativeEvent.layout;
+      reportOffset?.(index, x, w);
+    },
+    [reportOffset, index],
+  );
+
+  const slideWidth = width ?? (ctx && ctx.trackWidth > 0 ? ctx.trackWidth : undefined);
+  useLayoutEffect(() => {
+    const node: unknown = itemRef.current;
+    if (!IS_WEB || typeof HTMLElement === 'undefined' || !(node instanceof HTMLElement)) return;
+    // RNW observes sizes, so a keyed slide reordered without resizing might
+    // receive no onLayout. Read its new position after that DOM commit too.
+    const parent = node.parentElement;
+    if (!parent) return;
+    const bounds = node.getBoundingClientRect();
+    reportOffset?.(index, bounds.left - parent.getBoundingClientRect().left, bounds.width);
+  }, [index, reportOffset, slideWidth]);
+
+  return (
+    <View
+      ref={itemRef}
+      {...webDataSet({ bloomCarouselItem: '' })}
+      role="group"
+      {...(IS_WEB ? { 'aria-roledescription': messages.slideRole } : {})}
+      accessibilityLabel={
+        accessibilityLabel ?? (ctx ? messages.slideOf(index + 1, ctx.count) : undefined)
+      }
+      onLayout={onLayout}
+      style={[{ flexShrink: 0 }, slideWidth != null ? { width: slideWidth } : null, style]}
+      testID={testID}
+    >
+      {children}
+    </View>
+  );
+};
+
+export const CarouselItem = memo(CarouselItemComponent);
+CarouselItem.displayName = 'CarouselItem';
+
+// ---------------------------------------------------------------------------
+//  Dot
+// ---------------------------------------------------------------------------
+
+function CarouselDot({
+  active,
+  paint,
+  label,
+  reducedMotion,
+  onPress,
+}: {
+  active: boolean;
+  paint: CarouselPaint;
+  label: string;
+  reducedMotion: boolean;
+  onPress: () => void;
+}) {
+  const { state: hovered, onIn, onOut } = useInteractionState();
+  // Native has no stylesheet to carry the width transition, so it is driven.
+  const width = useRef(new Animated.Value(active ? DOT_ACTIVE_WIDTH : DOT_WIDTH)).current;
+
+  useEffect(() => {
+    if (IS_WEB) return;
+    const to = active ? DOT_ACTIVE_WIDTH : DOT_WIDTH;
+    if (reducedMotion) {
+      width.setValue(to);
+      return;
+    }
+    Animated.timing(width, {
+      toValue: to,
+      duration: DOT_TRANSITION_MS,
+      // `width` is a layout property, which the native driver cannot animate.
+      useNativeDriver: false,
+    }).start();
+  }, [active, reducedMotion, width]);
+
+  const background = active ? paint.dotActive : hovered ? paint.dotHover : paint.dot;
+
+  return (
+    <Pressable
+      {...webDataSet({ bloomCarouselDot: '' })}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      aria-current={active}
+      onPress={onPress}
+      onHoverIn={onIn}
+      onHoverOut={onOut}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      style={
+        IS_WEB
+          ? {
+              height: DOT_HEIGHT,
+              width: active ? DOT_ACTIVE_WIDTH : DOT_WIDTH,
+              borderRadius: borderRadius.full,
+              backgroundColor: background,
+            }
+          : undefined
+      }
+    >
+      {IS_WEB ? null : (
+        <Animated.View
+          style={{
+            height: DOT_HEIGHT,
+            width,
+            borderRadius: borderRadius.full,
+            backgroundColor: background,
+          }}
+        />
+      )}
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  Carousel
+// ---------------------------------------------------------------------------
+
+interface SlideOffset {
+  x: number;
+  width: number;
+}
+
+/**
+ * A place the track can come to rest, and the slide it stands for. Slides
+ * narrower than the track share one: every slide that cannot reach the start
+ * edge clamps to the same end offset, so the end is ONE stop however many slides
+ * it holds.
+ */
+interface Stop {
+  offset: number;
+  slide: number;
+}
+
+/**
+ * Collapse per-slide resting offsets (ascending) into distinct stops, 1px of
+ * slack for fractional hi-DPI offsets. A shared stop stands for its FIRST slide,
+ * except the end, which stands for the LAST — the far end is where the last
+ * slide is, and naming anything else would leave it unreachable.
+ */
+function toStops(resting: readonly number[], groupSize = 1): Stop[] {
+  const stops: Stop[] = [];
+  resting.forEach((offset, slide) => {
+    if (slide % groupSize !== 0 && slide !== resting.length - 1) return;
+    const last = stops[stops.length - 1];
+    if (last && Math.abs(offset - last.offset) <= 1) return;
+    stops.push({ offset, slide });
+  });
+  const end = stops[stops.length - 1];
+  if (end) end.slide = resting.length - 1;
+  return stops;
+}
+
+const CarouselComponent = function Carousel({
+  children,
+  accessibilityLabel,
+  header,
+  footer,
+  loop = false,
+  slidesPerGroup = 1,
+  showArrows = true,
+  arrowsPlacement = 'header',
+  arrowsInset = 8,
+  arrowsVisibility = 'always',
+  arrowButtonProps,
+  hideUnavailableArrows = false,
+  showDots = true,
+  align = 'start',
+  gap = 16,
+  inset = 0,
+  index,
+  onIndexChange,
+  previousLabel: previousLabelProp,
+  nextLabel: nextLabelProp,
+  dotLabel,
+  style,
+  testID,
+}: CarouselProps) {
+  const groupSize = Number.isFinite(slidesPerGroup) ? Math.max(1, Math.trunc(slidesPerGroup)) : 1;
+  const ownsTrackKeys = loop || groupSize > 1;
+  const { messages } = useMessages(CAROUSEL_MESSAGES);
+  const previousLabel = previousLabelProp ?? messages.previousSlide;
+  const nextLabel = nextLabelProp ?? messages.nextSlide;
+  const theme = useTheme();
+  const rtl = useIsRtl();
+  const directionProps = useDirectionProps();
+  useInteractiveWebCss(STYLE_ID, BLOOM_CAROUSEL_CSS);
+  const reducedMotion = useReducedMotion();
+  const paint = useMemo(() => resolveCarouselPaint(theme), [theme]);
+
+  const slides = Children.toArray(children).filter(isValidElement);
+  const count = slides.length;
+  // React's child keys keep measurements attached to slides across insertions,
+  // removals and reordering. Do not reuse a removed slide's numeric-index slot.
+  const keySignature = JSON.stringify(slides.map((child) => child.key));
+  const slideKeys = useMemo(() => JSON.parse(keySignature) as string[], [keySignature]);
+  const controlledIndex =
+    index === undefined
+      ? undefined
+      : Math.min(
+          Math.max(0, count - 1),
+          Math.max(0, Math.trunc(Number.isFinite(index) ? index : 0)),
+        );
+  const controlledIndexRef = useRef(controlledIndex);
+  controlledIndexRef.current = controlledIndex;
+
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const previousArrowRef = useRef<ComponentRef<typeof View>>(null);
+  const nextArrowRef = useRef<ComponentRef<typeof View>>(null);
+  const offsets = useRef(new Map<string, SlideOffset>());
+  const scroll = useRef({ x: 0, contentWidth: 0 });
+  const [trackWidth, setTrackWidth] = useState(0);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [active, setActive] = useState(0);
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(false);
+
+  const onIndexChangeRef = useRef(onIndexChange);
+  onIndexChangeRef.current = onIndexChange;
+  const activeSlideRef = useRef(0);
+  const pendingTarget = useRef<number | null>(null);
+  const appliedOffset = useRef<number | null>(null);
+  const dragging = useRef(false);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [settledRevision, setSettledRevision] = useState(0);
+  const lastAppliedSelection = useRef<{
+    index: number | undefined;
+    keys: string;
+    stops: Stop[];
+  } | null>(null);
+  const clearSettleTimer = useCallback(() => {
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+  }, []);
+  useEffect(() => clearSettleTimer, [clearSettleTimer]);
+  const scheduleSettled = useCallback(() => {
+    clearSettleTimer();
+    if (controlledIndexRef.current === undefined || dragging.current) return;
+    settleTimer.current = setTimeout(() => {
+      settleTimer.current = null;
+      const current = controlledIndexRef.current;
+      if (current === undefined || dragging.current) return;
+      if (activeSlideRef.current !== current) onIndexChangeRef.current?.(activeSlideRef.current);
+      // If the owner declined the request, restore its selected slide.
+      setSettledRevision((revision) => revision + 1);
+    }, 150);
+  }, [clearSettleTimer]);
+  useEffect(() => {
+    const current = new Set(slideKeys);
+    for (const key of offsets.current.keys()) if (!current.has(key)) offsets.current.delete(key);
+  }, [slideKeys]);
+
+  const targetFor = useCallback(
+    (item: SlideOffset) => {
+      const start = rtl ? scroll.current.contentWidth - item.x - item.width : item.x;
+      const raw = align === 'center' ? start - (trackWidth - item.width) / 2 : start - inset;
+      const max = Math.max(0, scroll.current.contentWidth - trackWidth);
+      return Math.min(Math.max(0, raw), max);
+    },
+    [align, inset, trackWidth, rtl],
+  );
+
+  /**
+   * The distinct places the track can rest — or `null` until every slide has
+   * been measured. Dots, snapping and the active slide use individual stops;
+   * grouped controls filter the same measured offsets before deduplicating.
+   */
+  const computeStops = useCallback(
+    (navigationGroupSize = 1): Stop[] | null => {
+      if (trackWidth <= 0 || scroll.current.contentWidth <= 0) return null;
+      const all = slideKeys.map((key) => offsets.current.get(key));
+      if (all.some((item) => !item || item.width <= 0)) return null;
+      return toStops((all as SlideOffset[]).map(targetFor), navigationGroupSize);
+    },
+    [slideKeys, targetFor, trackWidth],
+  );
+
+  const measure = useCallback(() => {
+    const { x, contentWidth } = scroll.current;
+    const viewport = trackWidth;
+    // 1px of slack: offsets are fractional on hi-DPI displays, so an exact
+    // comparison leaves the end arrow enabled on a fully scrolled track.
+    const start = x <= 1;
+    const end = viewport > 0 && contentWidth > 0 && x >= contentWidth - viewport - 1;
+    setAtStart(start);
+    setAtEnd(end);
+
+    const all = computeStops();
+    if (!all || all.length === 0) return;
+
+    // The ends are pinned, not measured: within 1px of either end the first/last
+    // stop is active. Between them, the stop nearest the scroll offset — compared
+    // against where each stop RESTS (inset and centring included), not where its
+    // slide sits in the content.
+    let next = 0;
+    if (end) {
+      next = all.length - 1;
+    } else if (!start) {
+      let shortest = Number.POSITIVE_INFINITY;
+      all.forEach((stop, index) => {
+        const distance = Math.abs(stop.offset - x);
+        if (distance < shortest) {
+          shortest = distance;
+          next = index;
+        }
+      });
+    }
+    setActive(next);
+    const slide = all[next]?.slide ?? 0;
+    if (slide !== activeSlideRef.current) {
+      activeSlideRef.current = slide;
+      if (controlledIndexRef.current === undefined) onIndexChangeRef.current?.(slide);
+    }
+  }, [computeStops, trackWidth]);
+
+  const recomputeStops = useCallback(() => {
+    const next = computeStops();
+    if (next)
+      setStops((previous) =>
+        previous.length === next.length &&
+        previous.every(
+          (stop, i) => stop.offset === next[i]?.offset && stop.slide === next[i]?.slide,
+        )
+          ? previous
+          : next,
+      );
+  }, [computeStops]);
+
+  const reportOffset = useCallback(
+    (index: number, x: number, width: number) => {
+      const key = slideKeys[index];
+      if (key === undefined) return;
+      offsets.current.set(key, { x, width });
+      recomputeStops();
+      measure();
+    },
+    [measure, recomputeStops, slideKeys],
+  );
+
+  useEffect(() => {
+    recomputeStops();
+    measure();
+  }, [recomputeStops, measure]);
+
+  const scrollToOffset = useCallback(
+    (offset: number, animated: boolean) => {
+      // Web exposes negative scrollLeft in RTL; Android uses physical x, while
+      // iOS's ScrollView command already converts a logical offset internally.
+      const max = Math.max(0, scroll.current.contentWidth - trackWidth);
+      const x = !rtl
+        ? offset
+        : IS_WEB
+          ? -offset
+          : Platform.OS === 'android'
+            ? max - offset
+            : offset;
+      scrollRef.current?.scrollTo({ x, animated });
+    },
+    [rtl, trackWidth],
+  );
+
+  useLayoutEffect(() => {
+    if (controlledIndex === undefined) {
+      pendingTarget.current = null;
+      appliedOffset.current = null;
+      lastAppliedSelection.current = null;
+      clearSettleTimer();
+      return;
+    }
+    clearSettleTimer();
+    const item = offsets.current.get(slideKeys[controlledIndex]!);
+    if (!item || !trackWidth || !scroll.current.contentWidth || !computeStops()) {
+      pendingTarget.current = null;
+      appliedOffset.current = null;
+      if (!slideKeys.length) lastAppliedSelection.current = null;
+      return;
+    }
+    const target = targetFor(item);
+    // CSS snapping may retain the same keyed element after a reorder before
+    // RNW delivers onScroll. Read the committed DOM position, not that old event.
+    const node: unknown = IS_WEB ? scrollRef.current?.getScrollableNode() : null;
+    if (typeof HTMLElement !== 'undefined' && node instanceof HTMLElement) {
+      scroll.current.x = rtl ? -node.scrollLeft : node.scrollLeft;
+    }
+    appliedOffset.current = target;
+    const previous = lastAppliedSelection.current;
+    const changedIndex =
+      previous !== null &&
+      previous.keys === keySignature &&
+      previous.stops === stops &&
+      !Object.is(previous.index, index);
+    lastAppliedSelection.current = { index, keys: keySignature, stops };
+    if (Math.abs(scroll.current.x - target) <= 1) {
+      pendingTarget.current = null;
+      return;
+    }
+    pendingTarget.current = target;
+    // Initial positioning, resize and list changes are immediate. Only a new
+    // selection animates; intermediate scroll events must not rewrite that selection.
+    scrollToOffset(target, changedIndex && !reducedMotion);
+  }, [
+    index,
+    controlledIndex,
+    keySignature,
+    slideKeys,
+    stops,
+    trackWidth,
+    computeStops,
+    targetFor,
+    reducedMotion,
+    scrollToOffset,
+    settledRevision,
+    clearSettleTimer,
+    rtl,
+  ]);
+
+  const interruptControlledScroll = useCallback(() => {
+    pendingTarget.current = null;
+    appliedOffset.current = null;
+    clearSettleTimer();
+  }, [clearSettleTimer]);
+  const beginDrag = useCallback(() => {
+    dragging.current = true;
+    interruptControlledScroll();
+  }, [interruptControlledScroll]);
+  const endDrag = useCallback(() => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    scheduleSettled();
+  }, [scheduleSettled]);
+  useEffect(() => {
+    if (!IS_WEB || controlledIndex === undefined) return;
+    const node: unknown = scrollRef.current?.getScrollableNode();
+    if (typeof HTMLElement === 'undefined' || !(node instanceof HTMLElement)) return;
+    // RNW does not emit onScrollBeginDrag. Real input interrupts a requested
+    // smooth scroll so its resulting swipe/keyboard position can notify the owner.
+    node.addEventListener('pointerdown', beginDrag);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Owned grouped/loop navigation must retain its pending destination so rapid
+      // key presses advance from the requested stop, not an animation frame.
+      if (
+        ownsTrackKeys &&
+        event.target === node &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+      )
+        return;
+      interruptControlledScroll();
+    };
+    node.addEventListener('wheel', interruptControlledScroll);
+    node.addEventListener('keydown', onKeyDown);
+    return () => {
+      node.removeEventListener('pointerdown', beginDrag);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      node.removeEventListener('wheel', interruptControlledScroll);
+      node.removeEventListener('keydown', onKeyDown);
+    };
+  }, [controlledIndex !== undefined, interruptControlledScroll, beginDrag, endDrag, ownsTrackKeys]);
+
+  const scrollToStop = (stop: Stop | undefined) => {
+    if (!stop) return;
+    if (controlledIndex !== undefined) {
+      if (stop.slide !== controlledIndex) onIndexChangeRef.current?.(stop.slide);
+      setSettledRevision((revision) => revision + 1);
+    } else {
+      scrollToOffset(stop.offset, !reducedMotion);
+    }
+  };
+
+  /**
+   * The arrows step from where the track IS, to the nearest stop before or after
+   * it (1px of slack, as in `measure`). Group destinations use every Nth child
+   * plus the physical end; individual snap stops and dot destinations remain
+   * unchanged. After a swipe/dot between groups, choose the adjacent boundary.
+   */
+  const step = (direction: -1 | 1) => {
+    const all = computeStops(groupSize);
+    if (!all) return;
+    // An accepted controlled destination stays authoritative after its animation
+    // settles: browser snapping may round its physical position by a pixel.
+    // Real drag/wheel input clears appliedOffset and resumes physical navigation.
+    const x = pendingTarget.current ?? appliedOffset.current ?? scroll.current.x;
+    const target =
+      direction === 1
+        ? all.find((stop) => stop.offset > x + 1)
+        : [...all].reverse().find((stop) => stop.offset < x - 1);
+    scrollToStop(
+      target ?? (loop && all.length > 1 ? all[direction === 1 ? 0 : all.length - 1] : undefined),
+    );
+  };
+
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize } = event.nativeEvent;
+    const max = Math.max(0, contentSize.width - trackWidth);
+    const x = !rtl
+      ? contentOffset.x
+      : IS_WEB
+        ? -contentOffset.x
+        : Platform.OS === 'android'
+          ? max - contentOffset.x
+          : contentOffset.x;
+    scroll.current = { x, contentWidth: contentSize.width };
+    measure();
+    if (controlledIndexRef.current === undefined || count === 0 || !computeStops()) return;
+    if (pendingTarget.current !== null) {
+      if (Math.abs(x - pendingTarget.current) <= 1) pendingTarget.current = null;
+      return;
+    }
+    if (appliedOffset.current !== null && Math.abs(x - appliedOffset.current) <= 1) return;
+    // Commit a real swipe only after it settles, preserving momentum and
+    // preventing intermediate controlled updates from interrupting the gesture.
+    scheduleSettled();
+  };
+
+  const onContentSizeChange = (width: number) => {
+    scroll.current = { ...scroll.current, contentWidth: width };
+    recomputeStops();
+    measure();
+  };
+
+  const dotCount = stops.length > 0 ? stops.length : count;
+
+  const contextValue = useMemo(
+    () => ({ trackWidth, count, reportOffset }),
+    [trackWidth, count, reportOffset],
+  );
+
+  const trackStyle: WebCssStyle = {
+    width: '100%',
+    // The `:focus-visible` ring colour, read by the adopted sheet.
+    '--bloom-carousel-ring': paint.ring,
+    // Where a start-aligned slide snaps to on web, matching `inset` on native.
+    '--bloom-carousel-inset': `${inset}px`,
+  };
+
+  const overlay = arrowsPlacement === 'overlay';
+  const canWrap = loop && stops.length > 1;
+  const previousUnavailable = atStart && !canWrap;
+  const nextUnavailable = atEnd && !canWrap;
+  const arrowsVisible = showArrows && count > 0;
+  // Slots stay mounted at the same edges even when their controls are hidden.
+  // Hover opacity belongs to the slot, leaving the button's recipe authoritative.
+  const arrow = (
+    button: React.ReactElement,
+    unavailable: boolean,
+    ref: React.RefObject<ComponentRef<typeof View> | null>,
+  ) => {
+    const hidden = hideUnavailableArrows && unavailable;
+    return hideUnavailableArrows || (IS_WEB && arrowsVisibility === 'hover') ? (
+      <View
+        ref={ref}
+        {...webDataSet({ bloomCarouselArrow: '' })}
+        aria-hidden={hidden || undefined}
+        accessibilityElementsHidden={hidden}
+        importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+        pointerEvents={hidden ? 'none' : 'auto'}
+        style={{ flexShrink: 0, ...(hidden ? { opacity: 0 } : undefined) }}
+      >
+        {button}
+      </View>
+    ) : (
+      button
+    );
+  };
+  useLayoutEffect(() => {
+    if (!IS_WEB || !hideUnavailableArrows || typeof HTMLElement === 'undefined') return;
+    const activeElement = document.activeElement;
+    for (const [unavailable, ref] of [
+      [previousUnavailable, previousArrowRef],
+      [nextUnavailable, nextArrowRef],
+    ] as const) {
+      const slot: unknown = ref.current;
+      if (unavailable && slot instanceof HTMLElement && slot.contains(activeElement)) {
+        const trackNode: unknown = scrollRef.current?.getScrollableNode();
+        if (trackNode instanceof HTMLElement) trackNode.focus({ preventScroll: true });
+        break;
+      }
+    }
+  }, [previousUnavailable, nextUnavailable, hideUnavailableArrows]);
+  const arrowButtons = (
+    <>
+      {arrow(
+        <Button
+          size={overlay ? 'lg' : 'sm'}
+          appearance="subtle"
+          tone="neutral"
+          {...arrowButtonProps}
+          icon={rtl ? RiArrowRightSLine : RiArrowLeftSLine}
+          accessibilityLabel={previousLabel}
+          disabled={previousUnavailable}
+          onPress={() => step(-1)}
+        />,
+        previousUnavailable,
+        previousArrowRef,
+      )}
+      {arrow(
+        <Button
+          size={overlay ? 'lg' : 'sm'}
+          appearance="subtle"
+          tone="neutral"
+          {...arrowButtonProps}
+          icon={rtl ? RiArrowLeftSLine : RiArrowRightSLine}
+          accessibilityLabel={nextLabel}
+          disabled={nextUnavailable}
+          onPress={() => step(1)}
+        />,
+        nextUnavailable,
+        nextArrowRef,
+      )}
+    </>
+  );
+  // iOS snapping reads physical offsets even though its imperative command and
+  // scroll events use logical offsets. Android converts snap offsets internally.
+  const snapOffsets =
+    rtl && Platform.OS === 'ios'
+      ? stops
+          .map((stop) => Math.max(0, scroll.current.contentWidth - trackWidth) - stop.offset)
+          .reverse()
+      : stops.map((stop) => stop.offset);
+
+  const track = (
+    <CarouselContext.Provider value={contextValue}>
+      <ScrollView
+        ref={scrollRef}
+        {...webDataSet({ bloomCarouselTrack: align })}
+        // The browser scrolls a focused track by default; groups/wrapping opt into
+        // stop-based Left/Right navigation without intercepting slide controls.
+        {...(IS_WEB
+          ? {
+              tabIndex: 0,
+              // `nativeEvent` holds the key fields under React Native 0.88's
+              // `KeyDownEvent` and, on web, is the browser's KeyboardEvent.
+              onKeyDown: (event: KeyDownEvent) => {
+                const { key, altKey, ctrlKey, metaKey } = event.nativeEvent;
+                if (
+                  !ownsTrackKeys ||
+                  event.target !== event.currentTarget ||
+                  altKey ||
+                  ctrlKey ||
+                  metaKey
+                )
+                  return;
+                if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+                event.preventDefault();
+                event.stopPropagation();
+                step((key === 'ArrowRight') !== rtl ? 1 : -1);
+              },
+            }
+          : {})}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
+        onScrollBeginDrag={beginDrag}
+        onScrollEndDrag={endDrag}
+        onContentSizeChange={onContentSizeChange}
+        onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+        snapToOffsets={IS_WEB ? undefined : snapOffsets}
+        decelerationRate={IS_WEB ? undefined : 'fast'}
+        disableIntervalMomentum
+        style={trackStyle}
+        contentContainerStyle={{ gap, paddingHorizontal: inset }}
+      >
+        {slides.map((child, index) => (
+          <CarouselItemIndexContext.Provider key={child.key ?? index} value={index}>
+            {child}
+          </CarouselItemIndexContext.Provider>
+        ))}
+      </ScrollView>
+    </CarouselContext.Provider>
+  );
+
+  return (
+    <View
+      role="group"
+      {...webDataSet({ bloomCarousel: arrowsVisibility })}
+      {...directionProps}
+      {...(IS_WEB ? { 'aria-roledescription': messages.carouselRole } : {})}
+      accessibilityLabel={accessibilityLabel}
+      style={[{ width: '100%', flexDirection: 'column', gap: 16 }, style]}
+      testID={testID}
+    >
+      {header != null || (arrowsVisible && arrowsPlacement === 'header') ? (
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: inset }}
+        >
+          <View style={{ flex: 1, minWidth: 0 }}>{header}</View>
+          {arrowsVisible && arrowsPlacement === 'header' ? arrowButtons : null}
+        </View>
+      ) : null}
+
+      {overlay ? (
+        <View
+          style={{ position: 'relative', width: '100%' }}
+          testID={testID ? `${testID}-track-frame` : undefined}
+        >
+          {track}
+          {arrowsVisible && overlay ? (
+            <View
+              pointerEvents="box-none"
+              testID={testID ? `${testID}-overlay-arrows` : undefined}
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                insetInlineStart:
+                  typeof arrowsInset === 'number' ? arrowsInset : (arrowsInset.start ?? 8),
+                insetInlineEnd:
+                  typeof arrowsInset === 'number' ? arrowsInset : (arrowsInset.end ?? 8),
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              {arrowButtons}
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        track
+      )}
+
+      {showDots && dotCount > 1 ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            paddingHorizontal: inset,
+          }}
+        >
+          {Array.from({ length: dotCount }, (_, index) => {
+            // One dot per STOP: slides that share a resting place share a dot,
+            // so no dot scrolls nowhere. Until the slides are measured there is
+            // one per slide, which is what full-width slides settle on anyway.
+            const slide = stops[index]?.slide ?? index;
+            return (
+              <CarouselDot
+                key={index}
+                active={index === active}
+                paint={paint}
+                label={dotLabel ? dotLabel(slide + 1) : messages.goToSlide(slide + 1)}
+                reducedMotion={reducedMotion}
+                onPress={() => scrollToStop(stops[index])}
+              />
+            );
+          })}
+        </View>
+      ) : null}
+      {footer != null || (arrowsVisible && arrowsPlacement === 'footer') ? (
+        <View
+          testID={testID ? `${testID}-footer` : undefined}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: inset }}
+        >
+          <View style={{ flex: 1, minWidth: 0 }}>{footer}</View>
+          {arrowsVisible && arrowsPlacement === 'footer' ? arrowButtons : null}
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
+export const Carousel = memo(CarouselComponent);
+Carousel.displayName = 'Carousel';

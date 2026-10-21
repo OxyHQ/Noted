@@ -1,0 +1,195 @@
+import type { BloomAppearance, BloomSize, BloomTone } from '../appearance';
+import type {
+  GestureResponderEvent,
+  MouseEvent as NativeMouseEvent,
+  StyleProp,
+  TextStyle,
+  ViewStyle,
+} from 'react-native';
+
+import type { AccentFill, AccentTone } from '../theme/accent-colors';
+
+/**
+ * 24 / 24 / 28 / 32 / 40 tall. `xl` and `2xl` are the filter rungs: the scale
+ * used to stop at 28, which is why five families drew their own pill. The table
+ * is in `shared.ts`.
+ */
+export type ChipSize = BloomSize | 'xl' | '2xl';
+
+/**
+ * The three accent fills, plus `inverted`: a hairline pill on the page that
+ * turns the page's own reading pair OVER when selected, rather than promoting
+ * to the brand tone. `shared.ts` says why that is a different idea rather than
+ * a fourth loudness.
+ */
+export type ChipVariant = AccentFill | 'inverted';
+
+/**
+ * Data hues: a category, a department, an objective — colours that carry
+ * data rather than a status role.
+ *
+ * A select option's ten colours map onto them as default `neutral`, gray
+ * `gray`, brown `brown`, orange `orange`, yellow `yellow`, green `lime`, blue
+ * `blue`, purple `purple`, pink `pink` and red `rose`. `hue-colors.ts` has the
+ * stops each one paints.
+ */
+export type ChipHue =
+  | 'lime'
+  | 'rose'
+  | 'yellow'
+  | 'cyan'
+  | 'blue'
+  | 'purple'
+  | 'orange'
+  | 'brown'
+  | 'pink'
+  | 'neutral'
+  | 'gray'
+  | 'soft';
+
+/**
+ * What a pressable chip IS, which decides the state ARIA reads it by:
+ * a toggle `button` (`aria-pressed`), a `checkbox` in a multi-select filter
+ * group (`aria-checked`), a `radio` in a radiogroup (`aria-checked`), or a
+ * `tab` in a tablist (`aria-selected`).
+ */
+export type ChipRole = 'button' | 'checkbox' | 'radio' | 'tab';
+
+export interface ChipProps {
+  appearance?: BloomAppearance;
+  tone?: BloomTone;
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  leading?: React.ReactNode;
+  trailing?: React.ReactNode;
+  leadingIcon?: import('../icons/icon-component').BloomIconComponent;
+  trailingIcon?: import('../icons/icon-component').BloomIconComponent;
+
+  /** Text content of the chip. */
+  children?: React.ReactNode;
+  /**
+   * How loudly the chip is painted. `subtle` used to be spelled `soft` here and
+   * `subtle` on `Badge` — one concept, two names, resolved by the shared
+   * {@link AccentFill}.
+   */
+  variant?: ChipVariant;
+  /** Semantic color. */
+  color?: AccentTone;
+  /**
+   * Paints the chip in one of the data hues instead of `color` +
+   * `variant` (both are ignored while it is set; `selected` still promotes the
+   * chip to the brand tone). Pair it with a size for the right emphasis:
+   * `bold` is `medium`, `subtle` is `large`, `caption` is `small`.
+   */
+  hue?: ChipHue;
+  /**
+   * The colour the chip sits on. A hue's dark fill is translucent,
+   * so it is mixed over this. Defaults to the page background.
+   */
+  surface?: string;
+  /** Size preset. */
+  size?: ChipSize;
+  /** Icon rendered before the label. */
+  startIcon?: React.ReactNode;
+  /** Icon or close button rendered after the label. */
+  endIcon?: React.ReactNode;
+  /**
+   * Called when the chip is pressed, with the press event. Makes the chip
+   * interactive.
+   */
+  onPress?: (event: GestureResponderEvent) => void;
+  /**
+   * Called on a long press, with the press event. Makes the chip interactive,
+   * like `onPress`; a long press does not also fire `onPress`.
+   */
+  onLongPress?: (event: GestureResponderEvent) => void;
+  /**
+   * Keep a press on the chip from also activating a pressable parent (a chip in
+   * a pressable card or row). Covers `onPress` and `onLongPress`. Default
+   * false, like `Button`'s.
+   */
+  stopPropagation?: boolean;
+  /**
+   * Pointer hover over an interactive chip (one with `onPress`, `onLongPress`
+   * or `onCheckedChange`). Only a platform with a real pointer calls it, and a
+   * disabled chip does not.
+   */
+  onHoverIn?: (event: NativeMouseEvent) => void;
+  /** The pointer left an interactive chip. See {@link ChipProps.onHoverIn}. */
+  onHoverOut?: (event: NativeMouseEvent) => void;
+  /** Called when the close/end icon is pressed. */
+  onClose?: () => void;
+  /**
+   * Names the close button. Defaults to `"Remove <label>"` when the chip's
+   * label is a string, and to `"Remove"` when it is not — a row of removable
+   * chips whose buttons are all called "Remove" gives a screen reader no way to
+   * say which one it is about.
+   */
+  closeLabel?: string;
+  /** Whether the chip is in a selected state. */
+  selected?: boolean;
+  /**
+   * What a pressable chip is to assistive technology. Default `button`
+   * (`aria-pressed`). Use `checkbox` for a multi-select filter chip (in a
+   * `group`), `radio` inside a `radiogroup` and `tab` inside a `tablist` — the
+   * state attribute follows the role, and a `radio` announcing `aria-pressed`
+   * is invalid.
+   */
+  role?: ChipRole;
+  /** Whether the chip is disabled. */
+  disabled?: boolean;
+  /**
+   * Web only, for a roving-tabindex row: `-1` takes the chip out of the tab
+   * order so the row is a single tab stop. Inert on native.
+   */
+  tabIndex?: number;
+  /**
+   * Web only: key handling for a roving-tabindex row (arrows move focus).
+   * Inert on native.
+   */
+  onKeyDown?: (event: { key: string; preventDefault: () => void }) => void;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+  /** NativeWind recipe override; omitted keeps the standard pill. */
+  className?: string;
+  textClassName?: string;
+  accessibilityLabel?: string;
+  testID?: string;
+}
+
+export interface ChipRowProps {
+  /** The pills. */
+  children?: React.ReactNode;
+  /** Between pills. Default 8. */
+  gap?: number;
+  /** Side padding inside the scroller, so the first and last pill clear the edge. */
+  contentInset?: number;
+  /**
+   * The colour the web edge fades blend into — the surface behind the row.
+   * Default the page background.
+   */
+  fadeColor?: string;
+  /**
+   * Room kept on every side for a pill's focus ring, taken back out again with
+   * negative margins so the row still lines up with what is above it. Default 4.
+   */
+  ringInset?: number;
+  /** What the row is: a `group` of toggles, a `radiogroup`, or a `tablist`. Default `group`. */
+  role?: 'group' | 'radiogroup' | 'tablist';
+  /** Names the row. Required for anything but a plain `group` of self-naming pills. */
+  accessibilityLabel?: string;
+  /** Marks the whole row disabled to assistive technology (web `aria-disabled`). */
+  disabled?: boolean;
+  /**
+   * Whether a tap on a pill while the software keyboard is open reaches the
+   * pill. Default `handled`: the pill takes the press and the keyboard stays.
+   * React Native's own default (`never`) spends the first tap dismissing the
+   * keyboard, so a row of pills under a text field — a composer's audience and
+   * language pills, a search screen's filters — needed two taps, and the first
+   * one dropped the keyboard the reader was typing with. Native only.
+   */
+  keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
+  style?: StyleProp<ViewStyle>;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+  testID?: string;
+}

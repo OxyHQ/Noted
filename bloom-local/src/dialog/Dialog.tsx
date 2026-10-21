@@ -1,0 +1,743 @@
+import { useSurfaceTransition } from '../motion/use-surface-transition';
+import { MOTION_RECIPES } from '../motion/recipes';
+import { surfaceStyle } from '../shapes/surface-style';
+import { SURFACE_SHAPES } from '../design-tokens/shapes';
+import { SurfacePaint } from '../surface/SurfacePaint';
+import { resolveSurfaceMaterial } from '../surface/resolve-surface-material';
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import Animated, {
+  type AnimatedStyle,
+  cancelAnimation,
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+
+import { BottomSheet, type BottomSheetRef } from '../bottom-sheet';
+import { Backdrop, OverlayRoot } from '../overlay';
+import { useTheme } from '../theme/use-theme';
+import { useIsRtl } from '../hooks/use-is-rtl';
+import { bloomShadowStyle } from '../design-tokens/shadows';
+import { StyledView } from '../styles/styled-primitives';
+import { SurfaceLevelProvider } from '../styles/surface-levels';
+import { Context } from './context';
+import { DialogBody } from './DialogContent';
+import { DialogBottomSheet } from './DialogBottomSheet';
+import {
+  type DialogHeaderController,
+  DialogHeaderProvider,
+  DialogLargeTitle,
+  DialogNavBarSpacer,
+  DialogNavHeader,
+  useDialogHeaderController,
+} from './DialogHeader';
+import { DialogMorphContent, useDialogMorph } from './DialogMorph';
+import {
+  ANIMATION_DURATION,
+  DEFAULT_DIALOG_CONTENT_PADDING,
+  DEFAULT_SIDE_WIDTH,
+  DIALOG_SHEET_BACKDROP_TESTID,
+  resolveSideSheetWidth,
+  useResolvedPlacement,
+  physicalDialogSide,
+  type DialogSidePlacement,
+} from './placement';
+import type { DialogControlProps, DialogInset, DialogProps } from './types';
+import { useMessages } from '../locale/messages';
+import { DIALOG_MESSAGES } from './messages';
+
+/**
+ * The panel node carries `className`, the caller's `style`, the surface chrome
+ * AND the enter/exit transform, so all four are ONE element type — built once at
+ * module scope, because a type constructed during render remounts the subtree on
+ * every render. See `button/Button.tsx` for the full rule.
+ */
+const AnimatedStyledView = Animated.createAnimatedComponent(StyledView);
+
+/**
+ * Native variant of `<Dialog>`.
+ *
+ * Open/close is driven by EITHER the imperative `control` (legacy) OR the
+ * controlled `open` prop. When `open` is provided it wins.
+ *
+ * `placement` selects the surface:
+ *
+ *   - `'center'` (default) / `'bottom'` — bloom's `BottomSheet` (`detached`
+ *     for center: a floating, content-hugging card that degrades from sheet to
+ *     centered card via the 500px cap; flush for bottom: a full-width sheet
+ *     with a drag handle). Default behavior is unchanged.
+ *   - `'left'` / `'right'` — an anchored side-sheet/drawer driven by
+ *     reanimated. Exit animations are safe on native.
+ *
+ * The component accepts three rendering modes simultaneously:
+ *
+ *   1. Declarative — `title`, `description`, `actions`.
+ *   2. Custom children — caller passes JSX, bloom renders the chrome.
+ *   3. Pure children — no `title`/`description`/`actions`.
+ */
+export function Dialog({ placement, ...rest }: DialogProps) {
+  const resolvedPlacement = useResolvedPlacement(placement);
+
+  // `bottom` routes to the shared cross-platform `BottomSheet` surface — one
+  // code path with drag-to-dismiss on web and native. `center` (default) and
+  // the side-sheets keep their existing native lifecycle below. Each branch is
+  // its own component so the dispatcher only ever calls `useResolvedPlacement`,
+  // keeping the rules-of-hooks contract intact across a responsive placement
+  // change.
+  if (resolvedPlacement === 'bottom') {
+    return <DialogBottomSheet {...rest} />;
+  }
+  return (
+    <CenteredOrSideDialog
+      {...rest}
+      placement={rest.presentation === 'custom' ? 'end' : resolvedPlacement}
+    />
+  );
+}
+
+/**
+ * Native `center` and `left`/`right` placements. `center` uses bloom's
+ * `BottomSheet` in `detached` mode (a floating, content-hugging card that
+ * degrades from sheet to centered card via the 500px cap); the side placements
+ * use a reanimated drawer. These share one open/close lifecycle. The `bottom`
+ * placement is handled separately by `DialogBottomSheet`.
+ */
+function CenteredOrSideDialog({
+  material: surfaceMaterial = 'surface',
+  backdrop,
+  transition,
+  control,
+  open: controlledOpen,
+  startOpen,
+  presentation = 'default',
+  exitDuration,
+  onClose,
+  testID,
+  title,
+  description,
+  actions,
+  header,
+  scrollable,
+  morph,
+  placement,
+  width = DEFAULT_SIDE_WIDTH,
+  minSideGutter,
+  inset,
+  dismissOnBackdrop = true,
+  contentPadding = DEFAULT_DIALOG_CONTENT_PADDING,
+  style,
+  panelStyle,
+  panelClassName,
+  containerStyle,
+  containerClassName,
+  label,
+  children,
+}: Omit<DialogProps, 'placement'> & { placement: 'center' | DialogSidePlacement }) {
+  const isControlled = controlledOpen !== undefined;
+  const isSide = placement !== 'center';
+  const headerController = useDialogHeaderController();
+  const scrollableResolved = scrollable ?? true;
+  const { height: viewportHeight } = useWindowDimensions();
+
+  // Size morphing across an in-place content swap. The detached centered card
+  // is content-hugging, so animating its height reshapes it about its own
+  // centre; the side placements are anchored top-to-bottom at a fixed width and
+  // have no size to morph, so they never pin (`measurable: false`). The card's
+  // own `maxHeight` (inside `BottomSheet`) does the exact capping — the viewport
+  // is just the bound the reshape may not exceed.
+  const morphState = useDialogMorph({
+    enabled: morph !== false && !isSide,
+    measurable: scrollableResolved && !isSide,
+    maxHeight: viewportHeight,
+  });
+
+  // Imperative open state for the side placement. The centred BottomSheet owns
+  // its own visibility (its ref and its `open` seed below) and reads this only
+  // for the context's `isClosing`.
+  const [sideOpen, setSideOpen] = useState(() => controlledOpen ?? startOpen ?? false);
+
+  const theme = useTheme();
+  const ref = useRef<BottomSheetRef>(null);
+  const closeCallbacks = useRef<(() => void)[]>([]);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  // Read the latest controlled flag / `onClose` inside stable callbacks
+  // without re-binding them (the context + imperative handle depend on `close`
+  // staying referentially stable).
+  const isControlledRef = useRef(isControlled);
+  isControlledRef.current = isControlled;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const controlledOpenRef = useRef(controlledOpen);
+  controlledOpenRef.current = controlledOpen;
+
+  // Drain queued close callbacks atomically — capturing the list and
+  // resetting it before invocation ensures a callback that synchronously
+  // re-opens the dialog (and queues fresh callbacks) does not see the old
+  // ones replayed against the new session.
+  const callQueuedCallbacks = useCallback(() => {
+    const queued = closeCallbacks.current;
+    closeCallbacks.current = [];
+    for (const cb of queued) {
+      try {
+        cb();
+      } catch (e) {
+        if (typeof console !== 'undefined' && console.error) {
+          console.error('Dialog close callback error:', e);
+        }
+      }
+    }
+  }, []);
+
+  const open = useCallback(() => {
+    setSideOpen(true);
+    ref.current?.present();
+  }, []);
+
+  // A dismissal request (backdrop, pan-to-close, action button). In controlled
+  // mode it asks the host to close via `onClose` (the host flips `open`); in
+  // imperative mode it dismisses the surface directly. The optional callback
+  // runs once the dialog has finished closing.
+  const close = useCallback<DialogControlProps['close']>((cb) => {
+    if (typeof cb === 'function') {
+      closeCallbacks.current.push(cb);
+    }
+    if (isControlledRef.current) {
+      onCloseRef.current?.();
+      return;
+    }
+    setSideOpen(false);
+    ref.current?.dismiss();
+  }, []);
+
+  // Fired when the underlying surface has finished closing. Drains queued
+  // callbacks, then fires `onClose` in imperative mode. In controlled mode a
+  // close the HOST made (it flipped `open` to false, usually after `close()`
+  // asked it to) was already requested through `onClose`, so firing it again
+  // would double-call it — but a close the centred card made on its own (the
+  // backdrop, a swipe, Android Back: `BottomSheet` dismisses itself) arrives
+  // with `open` still true, and the host has to hear about it or its state says
+  // open over a closed dialog. The same rule as `DialogBottomSheet`. The side
+  // drawer routes its own dismissals through `close()`, so it never gets here
+  // with `open` true.
+  const handleDismiss = useCallback(() => {
+    callQueuedCallbacks();
+    if (!isControlledRef.current || controlledOpenRef.current) onCloseRef.current?.();
+  }, [callQueuedCallbacks]);
+
+  // In controlled mode, mirror the `open` prop onto the underlying surface so
+  // both modes share one lifecycle. The BottomSheet path presents/dismisses by
+  // ref; the side path flips `sideOpen`.
+  useEffect(() => {
+    if (!isControlled) return;
+    if (controlledOpen) {
+      setSideOpen(true);
+      ref.current?.present();
+    } else {
+      setSideOpen(false);
+      ref.current?.dismiss();
+    }
+  }, [isControlled, controlledOpen]);
+
+  useImperativeHandle(control?.ref, () => ({ open, close }), [open, close]);
+
+  const context = useMemo(
+    () => ({ close, isWithinDialog: true, isClosing: !sideOpen }),
+    [close, sideOpen],
+  );
+
+  // Backdrop, Android Back and drag-down on the centred card are USER
+  // dismissals: returning `false` vetoes them before the close starts, which is
+  // how `dismissOnBackdrop={false}` maps onto the sheet. The bottom placement
+  // does the same (`DialogBottomSheet`); without it the centred card closed on a
+  // backdrop tap or a swipe whatever the prop said. `close()` and the header's
+  // close button dismiss by ref, which the veto does not see.
+  const onDismissAttempt = useCallback(() => dismissOnBackdrop, [dismissOnBackdrop]);
+
+  // The array composes the plain surface styles with the morph's reanimated
+  // animated style (`morphState.panelStyle` from `useAnimatedStyle`), so the
+  // element type must admit an animated style, not just a plain `ViewStyle`.
+  // It flows to `<BottomSheet style>`, which applies it to its outer Animated.View.
+  const sheetStyle = useMemo<StyleProp<AnimatedStyle<ViewStyle>>>(
+    () => [
+      {
+        maxWidth: 500,
+        backgroundColor: 'transparent',
+        // All four corners rounded — bloom's BottomSheet defaults to top-only
+        // radius in flush mode, but we use `detached` so the whole card is
+        // floating and rounded uniformly.
+        ...surfaceStyle(SURFACE_SHAPES.panel),
+      },
+      // Drives the card's `height` only while a morph is in flight; at rest it
+      // resolves to `height: 'auto'` — the card's normal content sizing.
+      morphState.panelStyle,
+    ],
+    [theme.colors.background, morphState.panelStyle],
+  );
+
+  const bodyNode = (
+    <DialogBody
+      titleId={titleId}
+      descriptionId={descriptionId}
+      title={title}
+      description={description}
+      actions={actions}
+    >
+      {children}
+    </DialogBody>
+  );
+
+  // Nav-header mode: the Dialog OWNS a sticky gradient nav bar + a large
+  // collapsing title over its own scroll content. The large title + screen body
+  // scroll under the bar, feeding the shared collapse controller. `contentPadding`
+  // is dropped (the large title + screens own their padding).
+  const headerBody = header ? (
+    scrollableResolved ? (
+      <>
+        <DialogLargeTitle controller={headerController} header={header} />
+        <DialogHeaderProvider controller={headerController}>{bodyNode}</DialogHeaderProvider>
+      </>
+    ) : (
+      <>
+        <DialogNavBarSpacer controller={headerController} header={header} />
+        <DialogHeaderProvider controller={headerController}>{bodyNode}</DialogHeaderProvider>
+      </>
+    )
+  ) : null;
+
+  if (isSide) {
+    return (
+      <Context.Provider value={context}>
+        <SideSheet
+          backdrop={backdrop}
+          transition={transition}
+          material={surfaceMaterial}
+          presentation={presentation}
+          exitDuration={exitDuration}
+          scrollable={scrollableResolved}
+          open={sideOpen}
+          onDismiss={handleDismiss}
+          side={placement}
+          minSideGutter={minSideGutter}
+          width={width}
+          inset={inset}
+          dismissOnBackdrop={dismissOnBackdrop}
+          contentPadding={contentPadding}
+          testID={testID}
+          label={label}
+          title={title}
+          description={description}
+          titleId={titleId}
+          descriptionId={descriptionId}
+          header={header}
+          headerController={headerController}
+          onHeaderDismiss={close}
+          panelStyle={panelStyle}
+          panelClassName={panelClassName}
+          containerStyle={containerStyle}
+          containerClassName={containerClassName}
+          style={style}
+        >
+          {bodyNode}
+        </SideSheet>
+      </Context.Provider>
+    );
+  }
+
+  return (
+    <BottomSheet
+      backdrop={backdrop}
+      transition={transition}
+      material={surfaceMaterial}
+      backgroundFill={
+        surfaceMaterial === 'flat'
+          ? String(
+              StyleSheet.flatten([style, panelStyle])?.backgroundColor ?? theme.colors.background,
+            )
+          : undefined
+      }
+      ref={ref}
+      // Seed the sheet's open state, as the bottom placement does: `BottomSheet`
+      // reads its first visibility from `open` alone, so without it an
+      // uncontrolled `startOpen` card (including the branch a responsive
+      // placement mounts when it crosses into `center`) never appeared.
+      open={isControlled ? controlledOpen : startOpen}
+      onDismiss={handleDismiss}
+      onDismissAttempt={onDismissAttempt}
+      enablePanDownToClose
+      detached
+      // Nav-header mode hides the drag handle (the nav bar sits at the very top)
+      // and coordinates the body pan with the scroll so content scrolls.
+      showHandle={!header}
+      scrollable={scrollableResolved}
+      manualActivation={!!header && scrollableResolved}
+      scrollY={header ? headerController.scrollY : undefined}
+      headerOverlay={
+        header ? (
+          <DialogNavHeader
+            flatSurface={surfaceMaterial === 'flat'}
+            controller={headerController}
+            header={header}
+            onDismiss={close}
+            collapse={scrollableResolved}
+          />
+        ) : undefined
+      }
+      // Stronger dim when a Dialog is stacked over another sheet so the
+      // underlying sheet's handle/content doesn't bleed through.
+      backdropOpacity={0.7}
+      // Measures the floating card — the size a morph starts from.
+      onLayout={morphState.onPanelLayout}
+      style={sheetStyle}
+    >
+      <Context.Provider value={context}>
+        <StyledView
+          testID={testID}
+          accessibilityLabel={label}
+          aria-labelledby={title ? titleId : undefined}
+          aria-describedby={description ? descriptionId : undefined}
+          className={panelClassName}
+          style={[
+            // Detached BottomSheet already adds `marginBottom: insets.bottom + 16`
+            // to the sheet container — the floating card sits ABOVE the
+            // system gesture bar, so we don't add `insets.bottom` here.
+            // Nav-header mode: the large title + screens own their padding.
+            header ? null : { padding: contentPadding },
+            { backgroundColor: 'transparent' },
+            scrollableResolved ? null : { flex: 1, minHeight: 0 },
+            style,
+            panelStyle,
+          ]}
+        >
+          {/* The morph layer is its own node INSIDE the class-name'd container:
+              a className'd component's `onLayout` never fires on web, and this
+              one has to measure the incoming frame. */}
+          <DialogMorphContent
+            morph={morphState}
+            style={scrollableResolved ? undefined : { flex: 1, minHeight: 0 }}
+          >
+            {header ? headerBody : bodyNode}
+          </DialogMorphContent>
+        </StyledView>
+      </Context.Provider>
+    </BottomSheet>
+  );
+}
+
+/**
+ * Reanimated side-sheet/drawer for the `left`/`right` placements (native).
+ *
+ * A shared `progress` value times 0 -> 1 on open and 1 -> 0 on close, mapped to
+ * the panel translateX and the backdrop opacity. The node stays mounted through
+ * the close timing and unmounts from the animation completion callback. Native
+ * exit animations are safe (the web `removeChild` crash does not apply).
+ */
+function SideSheet({
+  material: surfaceMaterial = 'surface',
+  backdrop,
+  transition,
+  scrollable,
+  presentation,
+  exitDuration,
+  open,
+  onDismiss,
+  side,
+  width,
+  minSideGutter,
+  inset,
+  dismissOnBackdrop,
+  contentPadding,
+  testID,
+  label,
+  title,
+  description,
+  titleId,
+  descriptionId,
+  header,
+  headerController,
+  onHeaderDismiss,
+  panelStyle,
+  panelClassName,
+  containerStyle,
+  containerClassName,
+  style,
+  children,
+}: {
+  material?: DialogProps['material'];
+  backdrop?: DialogProps['backdrop'];
+  transition?: DialogProps['transition'];
+  scrollable: boolean;
+  presentation?: DialogProps['presentation'];
+  exitDuration?: number;
+  open: boolean;
+  onDismiss: () => void;
+  side: DialogSidePlacement;
+  width: number;
+  minSideGutter?: number;
+  inset?: DialogInset;
+  dismissOnBackdrop: boolean;
+  contentPadding: number;
+  testID?: string;
+  label?: string;
+  title?: string;
+  description?: string;
+  titleId: string;
+  descriptionId: string;
+  header?: DialogProps['header'];
+  headerController: DialogHeaderController;
+  onHeaderDismiss: () => void;
+  panelStyle?: StyleProp<ViewStyle>;
+  panelClassName?: string;
+  containerStyle?: StyleProp<ViewStyle>;
+  containerClassName?: string;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+}) {
+  const motion = useSurfaceTransition(transition);
+  const dialogMessages = useMessages(DIALOG_MESSAGES).messages;
+  const theme = useTheme();
+  const { width: viewportWidth } = useWindowDimensions();
+
+  const [mounted, setMounted] = useState(open);
+  const progress = useSharedValue(open ? 1 : 0);
+
+  const insetTop = inset?.top ?? 0;
+  const insetBottom = inset?.bottom ?? 0;
+  const insetLeft = inset?.left ?? 0;
+  const insetRight = inset?.right ?? 0;
+  // `start`/`end` resolve to the physical edge they land on for everything a
+  // layout engine does not mirror: the slide sign, and which `inset` applies.
+  const rtl = useIsRtl();
+  const edge = physicalDialogSide(side, rtl);
+  // The POSITION of a logical placement is a logical key, resolved by Yoga
+  // against `I18nManager` — a physical `left`/`right` here would be swapped by
+  // React Native's default `swapLeftAndRightInRTL` and land on the wrong edge.
+  const anchorKey =
+    side === 'start' ? 'insetInlineStart' : side === 'end' ? 'insetInlineEnd' : side;
+  const anchorInset = edge === 'left' ? insetLeft : insetRight;
+  const oppositeInset = edge === 'left' ? insetRight : insetLeft;
+
+  const sideWidth = useMemo(() => {
+    return resolveSideSheetWidth(viewportWidth, width, anchorInset, oppositeInset, minSideGutter);
+  }, [viewportWidth, anchorInset, oppositeInset, width, minSideGutter]);
+
+  // Travel distance for the hidden state: the panel's measured width, with the
+  // geometry target as the pre-measurement fallback.
+  const travel = useSharedValue(sideWidth);
+  useEffect(() => {
+    travel.value = sideWidth;
+  }, [sideWidth, travel]);
+
+  const finishClose = useCallback(() => {
+    setMounted(false);
+    onDismiss();
+  }, [onDismiss]);
+
+  useEffect(() => {
+    cancelAnimation(progress);
+    const timing = {
+      ...MOTION_RECIPES[open ? 'present' : 'dismiss'],
+      duration:
+        presentation === 'custom' ? (exitDuration ?? 0) : (motion.duration ?? ANIMATION_DURATION),
+      easing: transition ? motion.easing : Easing.out(Easing.cubic),
+    };
+    if (open) {
+      setMounted(true);
+      progress.value = withTiming(1, timing);
+      return;
+    }
+    if (!mounted) return;
+    progress.value = withTiming(0, timing, (finished) => {
+      if (finished) runOnJS(finishClose)();
+    });
+  }, [
+    open,
+    mounted,
+    progress,
+    finishClose,
+    presentation,
+    exitDuration,
+    motion.duration,
+    motion.easing,
+    !!transition,
+  ]);
+
+  const handleBackdropPress = useCallback(() => {
+    if (dismissOnBackdrop) onHeaderDismiss();
+  }, [dismissOnBackdrop, onHeaderDismiss]);
+
+  const hiddenSign = edge === 'left' ? -1 : 1;
+  const panelAnimatedStyle = useAnimatedStyle(() => {
+    const hidden = 1 - progress.value;
+    return {
+      opacity: presentation === 'custom' ? 1 : progress.value,
+      transform: [
+        { translateX: presentation === 'custom' ? 0 : hidden * travel.value * hiddenSign },
+      ],
+    };
+  }, [hiddenSign, progress, travel, presentation]);
+
+  const measurePanel = useCallback(
+    (e: { nativeEvent: { layout: { width: number } } }) => {
+      const measured = e.nativeEvent.layout.width;
+      if (measured > 0) travel.value = measured;
+    },
+    [travel],
+  );
+
+  const panelGeometry = useMemo<ViewStyle>(
+    () => ({
+      top: insetTop,
+      bottom: insetBottom,
+      [anchorKey]: anchorInset,
+      width: sideWidth,
+      ...surfaceStyle(SURFACE_SHAPES.panel),
+    }),
+    [insetTop, insetBottom, anchorKey, anchorInset, sideWidth],
+  );
+
+  const panelRadius =
+    StyleSheet.flatten([panelStyle, style])?.borderRadius ?? SURFACE_SHAPES.panel.radius;
+  const material = resolveSurfaceMaterial({
+    fill: String(
+      StyleSheet.flatten([panelStyle, style])?.backgroundColor ?? theme.colors.background,
+    ),
+    parentFill: theme.colors.background,
+    level: 0,
+    paint: surfaceMaterial !== 'flat',
+  });
+  const { paintFill, publishedFill: surfaceFill } = material;
+  if (!mounted) return null;
+
+  // The drawer uses the PAGE token as its tint and nominal surface for its
+  // content: anything inside it that has to be opaque in "the colour I am on"
+  // gets the drawer's, not that of whatever surface it was opened from. The
+  // sheet path is covered by `BottomSheetBase`, which publishes the same way.
+  const surfaceChildren = <>{children}</>;
+
+  return (
+    // `OverlayRoot` takes this drawer's place in the open-order overlay stack.
+    // It mounts here, past the `mounted` guard, so the rank tracks OPENING.
+    // `onRequestClose`: the drawer is not an RN `Modal`, so Android back would
+    // otherwise pass straight to the screen behind it. A drawer that refuses
+    // backdrop dismissal still swallows the press, and stays open.
+    <OverlayRoot
+      style={[sideStyles.root, containerStyle]}
+      className={containerClassName}
+      onRequestClose={handleBackdropPress}
+      modal
+    >
+      <Backdrop
+        {...backdrop}
+        testID={testID ? `${testID}-backdrop` : DIALOG_SHEET_BACKDROP_TESTID}
+        accessibilityLabel={
+          label ? dialogMessages.dismissNamed(label) : dialogMessages.dismissDialog
+        }
+        onPress={handleBackdropPress}
+        disabled={!dismissOnBackdrop}
+        progress={progress}
+        dimOpacity={presentation === 'custom' ? 0 : backdrop?.dimOpacity}
+        blurIntensity={presentation === 'custom' ? 0 : backdrop?.blurIntensity}
+        style={sideStyles.backdrop}
+      />
+
+      <AnimatedStyledView
+        accessibilityViewIsModal
+        accessibilityLabel={label}
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={description ? descriptionId : undefined}
+        testID={testID}
+        onLayout={measurePanel}
+        className={panelClassName}
+        style={[
+          presentation === 'custom' ? { position: 'absolute' } : sideStyles.panel,
+          // `shadowColor` is a valid RN style prop on native (Dialog.tsx is the
+          // native variant); the web `shadow*` deprecation is handled in Dialog.web.tsx.
+          { backgroundColor: 'transparent', pointerEvents: 'auto', ...material.vars },
+          panelGeometry,
+          panelAnimatedStyle,
+          panelStyle,
+          style,
+          { backgroundColor: surfaceMaterial === 'flat' ? paintFill : 'transparent' },
+        ]}
+      >
+        {presentation !== 'custom' && surfaceMaterial !== 'flat' && (
+          <SurfacePaint
+            fill={paintFill}
+            shape={{ curve: SURFACE_SHAPES.panel.curve }}
+            radius={panelRadius}
+          />
+        )}
+        <SurfaceLevelProvider level={material.level} fill={surfaceFill}>
+          {header ? (
+            // Nav-header mode on a side drawer: a static titled bar (the drawer body
+            // has no Dialog scroll offset to drive a collapse) over content inset
+            // below the bar.
+            <View style={{ flex: 1, minHeight: 0, borderRadius: panelRadius, overflow: 'hidden' }}>
+              <DialogNavHeader
+                flatSurface={surfaceMaterial === 'flat'}
+                controller={headerController}
+                header={header}
+                onDismiss={onHeaderDismiss}
+                collapse={false}
+              />
+              <DialogNavBarSpacer controller={headerController} header={header} />
+              <DialogHeaderProvider controller={headerController}>
+                {surfaceChildren}
+              </DialogHeaderProvider>
+            </View>
+          ) : (
+            <View
+              style={{
+                padding: contentPadding,
+                flex: presentation === 'custom' || !scrollable ? 1 : undefined,
+                minHeight: 0,
+                borderRadius: panelRadius,
+                overflow: presentation === 'custom' ? 'visible' : 'hidden',
+              }}
+            >
+              {surfaceChildren}
+            </View>
+          )}
+        </SurfaceLevelProvider>
+      </AnimatedStyledView>
+    </OverlayRoot>
+  );
+}
+
+const sideStyles = StyleSheet.create({
+  // No `zIndex` here: the drawer's depth relative to other surfaces is the
+  // overlay stack's decision, applied by `OverlayRoot` (see
+  // `src/overlay/stack.ts`).
+  root: {
+    ...StyleSheet.absoluteFill,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFill,
+  },
+  panel: {
+    position: 'absolute',
+    // `shadow-m` — the overlay role this drawer is one of. Hand-rolled here it
+    // was only the NATIVE half of the split, so the web fork's drawer got none
+    // of it, and its numbers drifted from every other Bloom overlay.
+    ...bloomShadowStyle('m'),
+  },
+});

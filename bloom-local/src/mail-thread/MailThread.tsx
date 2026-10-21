@@ -1,0 +1,195 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { View } from 'react-native';
+
+import { Button } from '../button';
+import { useControllableState } from '../hooks/use-controllable-state';
+import { MailLabelChips, MailStar } from '../mail-list/parts';
+import { mailStrings, resolveMailPaint, visibleLabels } from '../mail-list/shared';
+import { adoptStyleSheet } from '../styles/adopt-style-sheet';
+import { useSurfaceFill } from '../styles/surface-levels';
+import { space } from '../styles/tokens';
+
+import { useTheme } from '../theme/use-theme';
+import { Text } from '../typography';
+import { useMessages } from '../locale/messages';
+import { MailMessage } from './MailMessage';
+import {
+  MAIL_BODY_INSET,
+  MAIL_THREAD_CSS,
+  MAIL_THREAD_GEOMETRY,
+  MAIL_THREAD_STYLE_ID,
+  collapseThread,
+  defaultExpandedIds,
+  mailThreadStrings,
+} from './shared';
+import { MAIL_THREAD_MESSAGES } from './messages';
+import type { MailThreadProps } from './types';
+
+/**
+ * One conversation: the subject, the stack of messages, and the quick reply.
+ *
+ * THE NEWEST MESSAGE IS OPEN AND THE REST ARE CLOSED. That is the arrangement
+ * a reader arriving at a thread wants every time, so it is the default rather
+ * than a prop the app has to remember; `expandedIds` takes it over when the app
+ * has its own idea (a deep link to one message, "expand all").
+ *
+ * THE MIDDLE FOLDS, NOT THE TAIL. A long thread hides everything between the
+ * first message and the last two behind one "N earlier messages" control: the
+ * message that started the conversation and the two that are the conversation
+ * NOW are the three a reader needs, and folding from the top instead would hide
+ * the first, which is the one that says what the thread is about. `collapseAfter`
+ * moves the threshold; `0` turns it off. The arithmetic is pure and lives in
+ * `collapseThread`.
+ *
+ * The quick reply is a SLOT. What a reply box is — a one-line field, a row of
+ * suggested replies, a full composer — is an app's decision, and a thread that
+ * shipped one of them would be wrong in the other two apps.
+ */
+export function MailThread({
+  subject,
+  labels,
+  starred = false,
+  onStarredChange,
+  messages,
+  expandedIds,
+  onExpandedIdsChange,
+  collapseAfter = 4,
+  messageGap = space.md,
+  quickReply,
+  header,
+  strings,
+  accessibilityLabel,
+  style,
+  testID,
+}: MailThreadProps) {
+  const { messages: localeStrings } = useMessages(MAIL_THREAD_MESSAGES);
+  const theme = useTheme();
+  const surface = useSurfaceFill();
+  useEffect(() => {
+    adoptStyleSheet(MAIL_THREAD_STYLE_ID, MAIL_THREAD_CSS);
+  }, []);
+  const paint = useMemo(() => resolveMailPaint(theme, surface), [theme, surface]);
+  const text = useMemo(() => mailThreadStrings(strings, localeStrings), [strings, localeStrings]);
+  const rowStrings = useMemo(
+    () => mailStrings({ starred: text.starred, star: text.star }),
+    [text.star, text.starred],
+  );
+  const geo = MAIL_THREAD_GEOMETRY;
+
+  const [openIds, setOpenIds] = useControllableState<readonly string[]>({
+    value: expandedIds,
+    defaultValue: useMemo(() => defaultExpandedIds(messages), [messages]),
+    onChange: onExpandedIdsChange
+      ? (next: readonly string[]) => onExpandedIdsChange([...next])
+      : undefined,
+  });
+  const open = useMemo(() => new Set(openIds), [openIds]);
+  const [revealed, setRevealed] = useState(false);
+
+  const entries = useMemo(
+    () => collapseThread(messages, revealed ? 0 : collapseAfter),
+    [collapseAfter, messages, revealed],
+  );
+
+  const { shown, overflow } = visibleLabels(labels, 3);
+
+  return (
+    <View accessibilityLabel={accessibilityLabel ?? subject} style={style} testID={testID}>
+      {header}
+      {subject !== undefined || onStarredChange !== undefined ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 8,
+            paddingTop: geo.paddingVertical,
+            paddingBottom: geo.paddingVertical,
+            paddingLeft: geo.paddingHorizontal,
+            paddingRight: geo.paddingHorizontal,
+          }}
+        >
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+            {subject === undefined ? null : (
+              <Text
+                variant="title-3-semibold"
+                style={{ color: paint.text }}
+                testID={testID ? `${testID}-subject` : undefined}
+              >
+                {subject}
+              </Text>
+            )}
+            {shown.length > 0 || overflow > 0 ? (
+              <MailLabelChips
+                labels={shown}
+                overflow={overflow}
+                surface={paint.surface}
+                strings={rowStrings}
+                testID={testID ? `${testID}-labels` : undefined}
+              />
+            ) : null}
+          </View>
+          <MailStar
+            starred={starred}
+            onStarredChange={onStarredChange}
+            size={geo.action}
+            glyph={18}
+            paint={paint}
+            strings={rowStrings}
+            testID={testID ? `${testID}-star` : undefined}
+          />
+        </View>
+      ) : null}
+      <View
+        testID={testID ? `${testID}-messages` : undefined}
+        style={{ paddingTop: space.xs, paddingBottom: space.xs, gap: messageGap }}
+      >
+        {entries.map((entry) =>
+          entry.kind === 'message' ? (
+            <MailMessage
+              key={entry.message.id}
+              {...entry.message}
+              strings={entry.message.strings ?? strings}
+              expanded={open.has(entry.message.id)}
+              onExpandedChange={(next) => {
+                const ids = new Set(open);
+                if (next) ids.add(entry.message.id);
+                else ids.delete(entry.message.id);
+                setOpenIds([...ids]);
+              }}
+              testID={testID ? `${testID}-message-${entry.message.id}` : undefined}
+            />
+          ) : (
+            // The fold is a CONTROL, so it is Bloom's control: a hand-drawn
+            // pill here was a shape the library does not otherwise use, and it
+            // carried its own focus ring, its own fill and its own hover.
+            <Button
+              key="earlier"
+              size="sm"
+              onPress={() => setRevealed(true)}
+              accessibilityLabel={text.earlierMessages(entry.count)}
+              style={{ alignSelf: 'flex-start', marginLeft: MAIL_BODY_INSET }}
+              testID={testID ? `${testID}-earlier` : undefined}
+              tone="neutral"
+              appearance="outline"
+            >
+              {text.earlierMessages(entry.count)}
+            </Button>
+          ),
+        )}
+      </View>
+      {quickReply === undefined ? null : (
+        <View
+          style={{
+            paddingTop: geo.paddingVertical,
+            paddingBottom: geo.paddingVertical,
+            paddingLeft: geo.paddingHorizontal,
+            paddingRight: geo.paddingHorizontal,
+          }}
+          testID={testID ? `${testID}-quick-reply` : undefined}
+        >
+          {quickReply}
+        </View>
+      )}
+    </View>
+  );
+}

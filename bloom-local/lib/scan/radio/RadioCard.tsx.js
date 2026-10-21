@@ -1,0 +1,215 @@
+import { useRadioGroupItem } from './use-radio-group-item';
+import { useFieldMembership } from '../field/membership';
+import { useRingOffsetStyle } from '../styles/surface-levels';
+import { useBloomAppearance } from '../appearance';
+import { resolveBloomColors } from '../appearance/colors';
+import React, { memo, useCallback, useMemo } from 'react';
+import { View } from 'react-native';
+
+import { useTheme } from '../theme/use-theme';
+import { Text } from '../typography';
+import { useInteractionState } from '../hooks/use-interaction-state';
+import { resolveButtonRamps } from '../button/shared';
+import { focusRingShadow, useInteractiveWebCss } from '../styles/interactive-web-css';
+import type { WebCssStyle } from '../styles/web-view-style';
+import { webDataSet } from '../styles/web-data';
+import { RadioIndicator } from '../radio-indicator';
+import type { RadioCardProps } from './types';
+import { RadioHost, RadioLabel } from './RadioHost';
+import { DISABLED_OPACITY, animation } from '../styles/tokens';
+import { IS_WEB } from '../styles/platform';
+
+/**
+ * `RadioCard` — the radio flavour of `CheckboxCard`: title and an optional
+ * description on the left, the medium radio dot on the right, the whole card
+ * selects.
+ *
+ *   card    radius 10, 1px border-button-default, pl 16 · pr 20 · py 12, gap 12
+ *           background-primary-default; hover background-primary-hover
+ *   title   body-medium, text-primary, one line
+ *   desc    body-regular, text-secondary, one line, 2px under the title
+ *   dot     16px `RadioIndicator`, 4px above and below (`py-1`)
+ *   focus   the dot's 2px accent ring outside a 2px white offset
+ *   disabled the whole card at 50%, not-allowed cursor
+ *
+ * Put cards in a `RadioGroup variant="card"` (or any `radiogroup`) — a lone
+ * radio card cannot say "one of N". Colour-only hover and no press scale;
+ * native borrows the hover paint while the card is held.
+ */
+const CARD_RADIUS = 10;
+const DOT_SIZE = 16;
+const TRANSITION_MS = animation.duration.fast;
+
+const STYLE_ID = 'bloom-radio-card-web-css';
+const CARD = '[data-bloom-radio-card]';
+const DOT = '[data-bloom-radio-card-dot]';
+const CARD_CSS = `
+${CARD} {
+  cursor: pointer;
+  user-select: none;
+}
+${CARD}[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+${CARD}:focus-visible {
+  outline: none;
+}
+${CARD}:focus-visible ${DOT} {
+  box-shadow: ${focusRingShadow('--bloom-radio-ring')};
+}
+@media (prefers-reduced-motion: reduce) {
+${CARD} {
+  transition: none !important;
+}
+}`;
+
+const RadioCardComponent = function RadioCard<Value extends string = string>({
+  value,
+  checked: checkedProp,
+  onValueChange,
+  title,
+  labelContent,
+  description,
+  disabled: disabledProp = false,
+  tone: toneProp,
+  style,
+  className,
+  labelClassName,
+  labelStyle,
+  accessibilityLabel,
+  testID,
+}: RadioCardProps<Value>) {
+  const checked = checkedProp ?? false;
+  const field = useFieldMembership({
+    disabled: disabledProp,
+    accessibilityLabel,
+    label: title,
+    labelPlacement: 'adjacent',
+  });
+  const disabled = field.disabled;
+  const theme = useTheme();
+  const ringOffset = useRingOffsetStyle();
+  const { tone } = useBloomAppearance({ tone: toneProp }, { size: 'md', tone: 'accent' });
+  const { background: color, foreground } = resolveBloomColors(theme.colors, tone, 'solid');
+  useInteractiveWebCss(STYLE_ID, CARD_CSS);
+  const { state: hovered, onIn: onHoverIn, onOut: onHoverOut } = useInteractionState();
+  const { state: pressed, onIn: onPressIn, onOut: onPressOut } = useInteractionState();
+  const highlighted = !disabled && (hovered || pressed);
+
+  const paint = useMemo(() => {
+    const { accent } = resolveButtonRamps(theme);
+    return {
+      border: theme.colors.borderLight,
+      background: theme.colors.card,
+      backgroundHover: theme.colors.backgroundSecondary,
+      title: theme.colors.text,
+      description: theme.colors.textSecondary,
+      ring: color ?? accent[500],
+    };
+  }, [theme, color]);
+
+  const handlePress = useCallback(() => {
+    // A radio has no "off": re-choosing the chosen card is a no-op.
+    if (disabled || checked) return;
+    onValueChange?.(value);
+  }, [disabled, checked, onValueChange, value]);
+
+  const cardStyle: WebCssStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    width: '100%',
+    borderRadius: CARD_RADIUS,
+    borderWidth: 1,
+    borderColor: paint.border,
+    paddingLeft: 16,
+    paddingRight: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: highlighted ? paint.backgroundHover : paint.background,
+    opacity: disabled ? DISABLED_OPACITY : 1,
+    '--bloom-radio-ring': paint.ring,
+    ...ringOffset,
+    ...(IS_WEB
+      ? {
+          transitionProperty: 'background-color, border-color, color',
+          transitionDuration: `${TRANSITION_MS}ms`,
+          transitionTimingFunction: 'ease',
+        }
+      : null),
+  };
+
+  const groupItem = useRadioGroupItem(value, disabled, handlePress);
+
+  return (
+    <RadioHost
+      className={className}
+      {...groupItem}
+      {...webDataSet({ bloomRadioCard: '' })}
+      style={[className ? { '--bloom-radio-ring': paint.ring, ...ringOffset } : cardStyle, style]}
+      onPress={handlePress}
+      onPressIn={disabled ? undefined : onPressIn}
+      onPressOut={disabled ? undefined : onPressOut}
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
+      disabled={disabled}
+      accessibilityRole="radio"
+      // `aria-checked` is the one spelling both platforms honour — see `Radio`.
+      aria-checked={checked}
+      accessibilityLabel={field.accessibilityLabel}
+      nativeID={field.nativeID}
+      aria-describedby={field.describedBy}
+      aria-invalid={field.invalid || undefined}
+      accessibilityHint={description}
+      testID={testID}
+    >
+      <View style={{ flexDirection: 'column', gap: 2, minWidth: 0, flexShrink: 1 }}>
+        {labelContent != null ? (
+          <View
+            pointerEvents="none"
+            aria-hidden
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            {labelContent}
+          </View>
+        ) : (
+          <RadioLabel
+            className={labelClassName}
+            variant="body-medium"
+            numberOfLines={1}
+            style={[!labelClassName && { color: paint.title }, labelStyle]}
+          >
+            {title}
+          </RadioLabel>
+        )}
+        {description != null && (
+          <Text variant="body-regular" numberOfLines={1} style={{ color: paint.description }}>
+            {description}
+          </Text>
+        )}
+      </View>
+      <View
+        style={{
+          flexShrink: 0,
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingTop: 4,
+          paddingBottom: 4,
+        }}
+      >
+        <View {...webDataSet({ bloomRadioCardDot: '' })} style={{ borderRadius: DOT_SIZE / 2 }}>
+          <RadioIndicator
+            selected={checked}
+            size={DOT_SIZE}
+            selectedColor={color}
+            selectedForeground={foreground}
+          />
+        </View>
+      </View>
+    </RadioHost>
+  );
+};
+
+export const RadioCard = memo(RadioCardComponent) as typeof RadioCardComponent;

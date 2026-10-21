@@ -1,0 +1,1040 @@
+import { useSurfaceTransition } from '../motion/use-surface-transition';
+import { MOTION_RECIPES } from '../motion/recipes';
+import { surfaceStyle } from '../shapes/surface-style';
+import { SURFACE_SHAPES } from '../design-tokens/shapes';
+import { SurfacePaint } from '../surface/SurfacePaint';
+import { resolveSurfaceMaterial } from '../surface/resolve-surface-material';
+/**
+ * `Dialog` — WEB: a pure-DOM modal overlay rendered into Bloom's `Portal`.
+ *
+ * The native fork (`Dialog.tsx`) presents through Bloom's `BottomSheet`, which
+ * is built on react-native-gesture-handler + reanimated and has no web
+ * behaviour worth emulating. So this is not a port of that file; it is the
+ * other half of one contract, and the props are what the two agree on.
+ *
+ * This fork is also the family's only publisher of `BLOOM_DIALOG_CSS` — the
+ * stylesheet a web consumer adopts. Native has no counterpart, which is why
+ * the generated web barrel carries one line its native sibling cannot
+ * (`WEB_BARREL_EXTRAS` in `scripts/generate-platform-exports.mjs`).
+ */
+import React, {
+  type ComponentRef,
+  createContext,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import Animated, { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
+import { RemoveScrollBar } from 'react-remove-scroll-bar';
+import { ScrollArea } from '../layout/ScrollArea.web';
+
+import { Backdrop, OverlayRoot } from '../overlay';
+import { ModalKeyboard } from '../overlay/ModalKeyboard';
+import { StyledView } from '../styles/styled-primitives';
+import { Portal } from '../portal/index.web';
+import { adoptStyleSheet } from '../styles/adopt-style-sheet';
+import { SurfaceLevelProvider } from '../styles/surface-levels';
+import { Z_INDEX } from '../styles/z-index';
+import { WEB_POSITION_FIXED, type WebCssStyle } from '../styles/web-view-style';
+import { bloomShadowStyle } from '../design-tokens/shadows';
+import { useTheme } from '../theme/use-theme';
+import { useIsRtl } from '../hooks/use-is-rtl';
+import { Context, useDialogContext } from './context';
+import { DialogBody } from './DialogContent';
+import { DialogBottomSheet } from './DialogBottomSheet';
+import {
+  DIALOG_NAV_BAR_HEIGHT,
+  DialogHeaderProvider,
+  DialogLargeTitle,
+  DialogNavBarSpacer,
+  DialogNavHeader,
+  useDialogHeaderController,
+} from './DialogHeader';
+import { DialogMorphContent, useDialogMorph } from './DialogMorph';
+import {
+  ANIMATION_DURATION,
+  CENTER_FADE_OUT_DURATION,
+  DEFAULT_CENTER_MAX_WIDTH,
+  DEFAULT_DIALOG_CONTENT_PADDING,
+  DEFAULT_MAX_HEIGHT_RATIO,
+  DEFAULT_SIDE_WIDTH,
+  DIALOG_SHEET_BACKDROP_TESTID,
+  EASE_OUT,
+  resolveSideSheetWidth,
+  useResolvedPlacement,
+  physicalDialogSide,
+  type DialogSidePlacement,
+} from './placement';
+import type { DialogAction, DialogControlProps, DialogInset, DialogProps } from './types';
+import { useMessages } from '../locale/messages';
+import { DIALOG_MESSAGES } from './messages';
+
+const FADE_OUT_DURATION = CENTER_FADE_OUT_DURATION;
+
+/**
+ * The four CSS `animation` shorthands driving the centered card and its backdrop.
+ * `animation` has no `ViewStyle` key at all — react-native-web forwards it to the
+ * DOM node — so these are annotated `WebCssStyle` rather than cast. The
+ * `@keyframes` they name are self-injected by `useDialogCss()`.
+ */
+const ZOOM_FADE_IN: WebCssStyle = {
+  animation: 'bloomDialogZoomFadeIn cubic-bezier(0.16, 1, 0.3, 1) 0.3s',
+};
+const ZOOM_FADE_OUT: WebCssStyle = {
+  animation: `bloomDialogZoomFadeOut ease-in ${FADE_OUT_DURATION}ms forwards`,
+};
+/**
+ * Backdrop fade-in duration (ms). The card's zoom-fade is longer; the dim
+ * arriving first is what makes the card read as landing ON something.
+ */
+const BACKDROP_FADE_IN_DURATION = 150;
+
+const stopPropagation = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
+const ClosingContext = createContext(false);
+
+// ---------------------------------------------------------------------------
+//  Keyframe self-injection
+//
+//  The centered card + its backdrop animate via CSS `animation` shorthands that
+//  reference the `bloomDialog*` @keyframes. Those keyframes MUST exist in the
+//  document or the browser silently no-ops the animation (assigns an
+//  animation-name that resolves to nothing, then leaves the element at its
+//  static computed values — no error, no visible motion). We inject the
+//  required stylesheet once, keyed by id, exactly like `Button.web`'s
+//  `useButtonCss()`, so every consumer gets working dialog animations with zero
+//  app-side setup — no more "remember to paste BLOOM_DIALOG_CSS into your global
+//  stylesheet" footgun. The exported `BLOOM_DIALOG_CSS` string stays public for
+//  anyone already referencing it manually; a duplicate global copy is a harmless
+//  no-op because injection is guarded on the style id.
+// ---------------------------------------------------------------------------
+
+const DIALOG_STYLE_ID = 'bloom-dialog-web-css';
+
+function useDialogCss(): void {
+  useEffect(() => {
+    adoptStyleSheet(DIALOG_STYLE_ID, BLOOM_DIALOG_CSS);
+  }, []);
+}
+
+/**
+ * Web variant of `<Dialog>`.
+ *
+ * A centered modal card (default) rendered into the bloom Portal at the end of
+ * `document.body`, an anchored side-sheet for `left`/`right`, or — for
+ * `bottom` — bloom's cross-platform `BottomSheet` (the SAME component native
+ * uses), so the bottom placement drags-to-dismiss on web too. Same prop API as
+ * native, so call sites are platform agnostic.
+ *
+ * Open/close is driven by EITHER the imperative `control` (legacy) OR the
+ * controlled `open` prop. When `open` is provided it wins.
+ *
+ * Accessibility: the panel has `role="dialog"` and the `title`/`description`
+ * props (when provided) become the `aria-labelledby` / `aria-describedby`
+ * targets. Pressing the backdrop dismisses. Pressing `Escape` dismisses.
+ * While it is open the page behind is `inert` — provided the app wraps its
+ * content in `OverlayInertBoundary` (`OverlayRoot modal` below registers it).
+ *
+ * Web motion never uses reanimated `exiting` (which throws `removeChild` on
+ * concurrent React unmounts): the centered card uses CSS keyframes and the
+ * side modes use self-contained CSS transitions on a mounted-through-exit
+ * node. The bottom placement animates via `BottomSheet`'s shared-value/gesture
+ * animation (no `exiting` layout animation).
+ */
+export function Dialog({ placement, ...rest }: DialogProps) {
+  const resolvedPlacement = useResolvedPlacement(placement);
+
+  // `bottom` routes to the shared cross-platform `BottomSheet` surface — the
+  // SAME component native uses — so drag-to-dismiss works on web too and there
+  // is no duplicated CSS slide-up sheet. `center` (default) and the side-sheets
+  // keep their DOM-portal implementation below. Each branch is its own
+  // component so the dispatcher only ever calls `useResolvedPlacement`, keeping
+  // the rules-of-hooks contract intact across a responsive placement change.
+  if (resolvedPlacement === 'bottom') {
+    return <DialogBottomSheet {...rest} />;
+  }
+  return <CenterOrSideDialog {...rest} placement={resolvedPlacement} />;
+}
+
+/**
+ * Web `center` (default) and `left`/`right` placements. The centered card is a
+ * DOM-portal modal; the side placements are CSS-transition sheets. The `bottom`
+ * placement is handled separately by `DialogBottomSheet` (bloom's cross-platform
+ * `BottomSheet`).
+ */
+function CenterOrSideDialog({
+  material: surfaceMaterial = 'surface',
+  backdrop,
+  transition,
+  control,
+  open: controlledOpen,
+  startOpen,
+  presentation = 'default',
+  exitDuration: customExitDuration,
+  onClose,
+  testID,
+  title,
+  description,
+  actions,
+  header,
+  placement,
+  width = DEFAULT_SIDE_WIDTH,
+  minSideGutter,
+  maxWidth = DEFAULT_CENTER_MAX_WIDTH,
+  inset,
+  dismissOnBackdrop = true,
+  contentPadding = DEFAULT_DIALOG_CONTENT_PADDING,
+  maxHeightRatio,
+  scrollable,
+  morph,
+  style,
+  panelStyle,
+  panelClassName,
+  containerStyle,
+  containerClassName,
+  label,
+  children,
+}: Omit<DialogProps, 'placement'> & { placement: 'center' | DialogSidePlacement }) {
+  // Inject the required @keyframes on mount (before the panel ever appears —
+  // this component renders once with `isOpen=false` prior to opening, so the
+  // stylesheet is present by the time the animated surface mounts).
+  useDialogCss();
+
+  const dialogMessages = useMessages(DIALOG_MESSAGES).messages;
+  // Controlled mode is opt-in: when `open` is a boolean the host owns the
+  // visible state; otherwise the legacy imperative `control` path drives it.
+  const motion = useSurfaceTransition(transition);
+  const isControlled = controlledOpen !== undefined;
+  const resolvedPlacement = placement;
+
+  // Seed the initial visible state so a branch that mounts while the surface is
+  // already open (the imperative `startOpen` intent) or under a truthy
+  // controlled `open` renders open on its FIRST commit — this is what lets a
+  // responsive Dialog survive a placement swap (centered card ↔ bottom sheet on
+  // resize) without going blank. `startOpen` never flips the close semantics;
+  // the imperative `control.close()` still drives the exit + post-exit onClose.
+  const [isOpen, setIsOpen] = useState(() => controlledOpen ?? startOpen ?? false);
+  const [isClosing, setIsClosing] = useState(false);
+  const panelRef = useRef<ComponentRef<typeof View>>(null);
+  const closeCallbacksRef = useRef<(() => void)[]>([]);
+  // Read the latest controlled flag inside stable callbacks without re-binding.
+  const isControlledRef = useRef(isControlled);
+  isControlledRef.current = isControlled;
+
+  const open = useCallback(() => {
+    setIsClosing(false);
+    setIsOpen(true);
+  }, []);
+
+  // A dismissal request (backdrop, Escape, action button). In controlled mode
+  // it asks the host to close via `onClose` (the host flips `open`); in
+  // imperative mode it starts the exit animation directly. Either way an
+  // optional callback runs after the dialog has finished closing.
+  const close = useCallback<DialogControlProps['close']>((cb) => {
+    if (typeof cb === 'function') {
+      closeCallbacksRef.current.push(cb);
+    }
+    if (isControlledRef.current) {
+      onCloseRef.current?.();
+      return;
+    }
+    setIsClosing(true);
+  }, []);
+
+  // `onClose` mirrored into a ref so `close` stays referentially stable (the
+  // dialog context + imperative handle depend on it).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // In controlled mode, mirror the `open` prop into the internal open/closing
+  // state machine so both modes share the same exit-animation lifecycle.
+  useEffect(() => {
+    if (!isControlled) return;
+    if (controlledOpen) {
+      setIsClosing(false);
+      setIsOpen(true);
+    } else {
+      setIsClosing(true);
+    }
+  }, [isControlled, controlledOpen]);
+
+  const exitDuration =
+    presentation === 'custom'
+      ? (customExitDuration ?? 0)
+      : (motion.duration ??
+        (resolvedPlacement === 'center' ? FADE_OUT_DURATION : ANIMATION_DURATION));
+
+  useEffect(() => {
+    if (!isClosing) return;
+
+    const timer = setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+      const queued = closeCallbacksRef.current;
+      closeCallbacksRef.current = [];
+      for (const cb of queued) {
+        try {
+          cb();
+        } catch (e) {
+          if (typeof console !== 'undefined' && console.error) {
+            console.error('Dialog close callback error:', e);
+          }
+        }
+      }
+      // Imperative mode fires `onClose` when the exit settles. Controlled mode
+      // already requested the close through `onClose` (the host then flipped
+      // `open`), so it must NOT fire it a second time here.
+      if (!isControlledRef.current) onCloseRef.current?.();
+    }, exitDuration);
+
+    return () => clearTimeout(timer);
+  }, [isClosing, exitDuration]);
+
+  // The backdrop's fade rides a shared value, NOT a CSS `@keyframes opacity
+  // 0 → 1` handed to the layers. A running CSS animation outranks inline styles
+  // in the cascade, so those keyframes drove the DIM layer — whose inline
+  // opacity IS the dim (0.28) — all the way to 1, i.e. opaque black, and then
+  // dropped it back to 0.28 the instant the animation ended. That is the black
+  // flash every centered dialog opened with. `progress` is multiplied INTO each
+  // layer's own opacity by `Backdrop`, so the dim can only ever reach its own
+  // value. (The side-sheet path was never affected: it animates with a CSS
+  // *transition*, which interpolates the inline value instead of overriding it.)
+  const backdropFade = useSharedValue(0);
+
+  useEffect(() => {
+    if (!isOpen) {
+      backdropFade.value = 0;
+      return;
+    }
+    backdropFade.value = isClosing
+      ? withTiming(0, {
+          ...MOTION_RECIPES.dismiss,
+          duration: motion.duration ?? FADE_OUT_DURATION,
+          easing: transition ? motion.easing : Easing.in(Easing.ease),
+        })
+      : withTiming(1, {
+          ...MOTION_RECIPES.present,
+          duration: motion.duration ?? BACKDROP_FADE_IN_DURATION,
+          easing: transition ? motion.easing : Easing.out(Easing.ease),
+        });
+  }, [backdropFade, isOpen, isClosing, motion.duration, motion.easing, !!transition]);
+
+  useImperativeHandle(control?.ref, () => ({ open, close }), [open, close]);
+
+  const context = useMemo(() => ({ close, isWithinDialog: true, isClosing }), [close, isClosing]);
+
+  if (!isOpen) return null;
+
+  if (resolvedPlacement === 'center') {
+    return (
+      <Portal>
+        <Context.Provider value={context}>
+          <ClosingContext.Provider value={isClosing}>
+            <RemoveScrollBar />
+            {/* `OverlayRoot` takes this dialog's place in the open-order
+                overlay stack. It mounts here, inside the `isOpen` guard, which
+                is what makes the rank track OPENING rather than mounting — the
+                dialog is declared once at the app root and stays mounted for
+                the app's lifetime. `modal` makes the app's
+                `OverlayInertBoundary` take the page out of the tab order and
+                the accessibility tree while it is open. */}
+            <OverlayRoot modal style={containerStyle} className={containerClassName}>
+              <ModalKeyboard
+                panelRef={panelRef}
+                closing={isClosing}
+                dismissible={dismissOnBackdrop}
+                dismiss={close}
+              />
+              {/* The press target IS the full-viewport box, so it uses
+                  `Backdrop` (which opts back in from the Portal root's
+                  `pointer-events: none` via the `pointerEvents` PROP — the style
+                  form is dropped before it reaches the DOM, see `src/overlay`)
+                  and lays the panel out inside itself. */}
+              <Backdrop
+                onPress={() => close()}
+                disabled={!dismissOnBackdrop}
+                accessibilityLabel={
+                  label ? dialogMessages.dismissNamed(label) : dialogMessages.dismissDialog
+                }
+                // The fade rides on the LAYERS, never on the press target: an
+                // opacity animation on the blur's ancestor composites the group in
+                // isolation and leaves `backdrop-filter` nothing to sample.
+                progress={backdropFade}
+                {...backdrop}
+                dimOpacity={presentation === 'custom' ? 0 : backdrop?.dimOpacity}
+                blurIntensity={presentation === 'custom' ? 0 : backdrop?.blurIntensity}
+                style={[
+                  {
+                    position: WEB_POSITION_FIXED,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingHorizontal: presentation === 'custom' ? undefined : 20,
+                  },
+                  containerStyle,
+                ]}
+              >
+                <DialogPanel
+                  transition={transition}
+                  material={surfaceMaterial}
+                  presentation={presentation}
+                  panelRef={panelRef}
+                  testID={testID}
+                  label={label}
+                  title={title}
+                  description={description}
+                  actions={actions}
+                  header={header}
+                  style={[panelStyle, style]}
+                  maxWidth={maxWidth}
+                  contentPadding={contentPadding}
+                  maxHeightRatio={maxHeightRatio}
+                  scrollable={scrollable}
+                  morph={morph}
+                  isClosing={isClosing}
+                >
+                  {children}
+                </DialogPanel>
+              </Backdrop>
+            </OverlayRoot>
+          </ClosingContext.Provider>
+        </Context.Provider>
+      </Portal>
+    );
+  }
+
+  return (
+    <Portal>
+      <Context.Provider value={context}>
+        <ClosingContext.Provider value={isClosing}>
+          <RemoveScrollBar />
+          <SheetSurface
+            backdrop={backdrop}
+            transition={transition}
+            material={surfaceMaterial}
+            panelRef={panelRef}
+            testID={testID}
+            label={label}
+            title={title}
+            description={description}
+            actions={actions}
+            header={header}
+            scrollable={scrollable}
+            placement={resolvedPlacement}
+            shown={!isClosing}
+            minSideGutter={minSideGutter}
+            width={width}
+            inset={inset}
+            dismissOnBackdrop={dismissOnBackdrop}
+            contentPadding={contentPadding}
+            onDismiss={close}
+            panelStyle={panelStyle}
+            panelClassName={panelClassName}
+            containerStyle={containerStyle}
+            containerClassName={containerClassName}
+            style={style}
+          >
+            {children}
+          </SheetSurface>
+        </ClosingContext.Provider>
+      </Context.Provider>
+    </Portal>
+  );
+}
+
+function DialogPanel({
+  material: surfaceMaterial = 'surface',
+  transition,
+  presentation,
+  panelRef,
+  testID,
+  label,
+  title,
+  description,
+  actions,
+  header,
+  style,
+  maxWidth,
+  contentPadding,
+  maxHeightRatio,
+  scrollable,
+  morph,
+  isClosing,
+  children,
+}: {
+  material?: DialogProps['material'];
+  transition?: DialogProps['transition'];
+  presentation?: DialogProps['presentation'];
+  panelRef: React.RefObject<ComponentRef<typeof View> | null>;
+  testID?: string;
+  label?: string;
+  title?: string;
+  description?: string;
+  actions?: DialogAction[];
+  header?: DialogProps['header'];
+  style?: DialogProps['style'];
+  maxWidth: number;
+  contentPadding: number;
+  maxHeightRatio?: number;
+  scrollable?: boolean;
+  morph?: boolean;
+  isClosing: boolean;
+  children?: React.ReactNode;
+}) {
+  const motion = useSurfaceTransition(transition);
+  const panelMotion: WebCssStyle | undefined =
+    motion.duration === undefined
+      ? undefined
+      : {
+          animation: `${isClosing ? 'bloomDialogZoomFadeOut' : 'bloomDialogZoomFadeIn'} ${motion.cssEasing} ${motion.duration}ms${isClosing ? ' forwards' : ''}`,
+        };
+  const theme = useTheme();
+  const { close } = useDialogContext();
+  const titleId = useId();
+  const descriptionId = useId();
+  const headerController = useDialogHeaderController();
+  const { height: viewportHeight } = useWindowDimensions();
+  const heightRatio = maxHeightRatio ?? DEFAULT_MAX_HEIGHT_RATIO;
+  const material = resolveSurfaceMaterial({
+    fill: String(StyleSheet.flatten(style)?.backgroundColor ?? theme.colors.background),
+    parentFill: theme.colors.background,
+    level: 0,
+    paint: surfaceMaterial !== 'flat',
+  });
+  const { paintFill, publishedFill: surfaceFill } = material;
+
+  // Size morphing across an in-place content swap. The centered card is the one
+  // placement whose width can vary too, so `maxWidth` is handed over as well.
+  // The card's own `maxHeight` (the ratio percentage below) does the exact
+  // capping — the viewport is just the bound the reshape may not exceed.
+  const morphState = useDialogMorph({
+    enabled: presentation !== 'custom' && morph !== false,
+    measurable: scrollable !== false,
+    maxHeight: viewportHeight,
+    maxWidth,
+  });
+
+  const body = (
+    <DialogBody
+      titleId={titleId}
+      descriptionId={descriptionId}
+      title={title}
+      description={description}
+      actions={actions}
+    >
+      {/* The dialog uses the PAGE token as its tint and nominal surface.
+          On web a portal keeps React context from where the dialog was
+          rendered, so without this a dialog opened from inside a `ContentPanel`
+          would tell its content it is sitting on the panel's card. */}
+      {children}
+    </DialogBody>
+  );
+
+  return (
+    <Animated.View
+      ref={panelRef}
+      role="dialog"
+      aria-modal
+      // Focus lands on the panel itself when it holds nothing tabbable.
+      tabIndex={-1}
+      aria-label={label}
+      aria-labelledby={title ? titleId : undefined}
+      aria-describedby={description ? descriptionId : undefined}
+      testID={testID}
+      onLayout={morphState.onPanelLayout}
+      onStartShouldSetResponder={() => true}
+      onResponderRelease={stopPropagation}
+      {...({ onClick: stopPropagation } as Record<string, unknown>)}
+      style={[
+        {
+          position: 'relative',
+          ...(presentation === 'custom' ? {} : surfaceStyle(SURFACE_SHAPES.panel)),
+          width: '100%',
+          maxWidth,
+          // The Dialog OWNS the size cap + scroll boundary (its content renders
+          // bare, edge-to-edge). Short content stays natural; tall content is
+          // capped at `maxHeightRatio` of the viewport and scrolls inside the
+          // rounded card (via the ScrollView below) — consumers never add their
+          // own height cap / ScrollView. `overflow: hidden` clips to the radius.
+          maxHeight: presentation === 'custom' ? undefined : `${Math.round(heightRatio * 100)}%`,
+          overflow: presentation === 'custom' ? 'visible' : 'hidden',
+          backgroundColor: 'transparent',
+          // `--bloom-surface` on the element that carries the fill, so web CSS
+          // inside the dialog reads the dialog's colour and not the colour of
+          // whatever surface it was opened over.
+          ...material.vars,
+          borderWidth: presentation === 'custom' ? 0 : 1,
+          borderColor: theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          // Design-system overlay elevation (`shadow-m`) as a `boxShadow` — RN-Web
+          // deprecated the `shadow*` style props.
+          ...(presentation === 'custom' ? {} : bloomShadowStyle('m')),
+          // Above this surface's OWN backdrop, and nothing more: `OverlayRoot`
+          // sets a z-index and a fixed position, so it is a stacking context and
+          // this value is scoped inside it. Where this dialog sits relative to
+          // OTHER surfaces is the overlay stack's decision, made once on
+          // `OverlayRoot` (see `src/overlay/stack.ts`) — never a number here.
+          zIndex: Z_INDEX.raised,
+        },
+        presentation === 'custom' ? undefined : isClosing ? ZOOM_FADE_OUT : ZOOM_FADE_IN,
+        presentation === 'custom' ? undefined : panelMotion,
+        // Drives `height` (and `maxWidth`) only while a morph is in flight; at
+        // rest it resolves to `height: 'auto'` — the natural sizing above. Placed
+        // before `style` so a consumer's explicit size still wins.
+        morphState.panelStyle,
+        style,
+        { backgroundColor: surfaceMaterial === 'flat' ? paintFill : 'transparent' },
+      ]}
+    >
+      {presentation !== 'custom' && surfaceMaterial !== 'flat' && (
+        <SurfacePaint
+          fill={paintFill}
+          shape={{ curve: SURFACE_SHAPES.panel.curve }}
+          radius={StyleSheet.flatten(style)?.borderRadius ?? 20}
+        />
+      )}
+      <SurfaceLevelProvider level={material.level} fill={surfaceFill}>
+        {header ? (
+          // Nav-header mode: the Dialog OWNS a sticky gradient nav bar + a large
+          // collapsing title over its own scroll content (see `DialogHeader`). The
+          // bar overlays; the large title + screen body scroll under it, feeding
+          // the shared scroll offset that drives the small-title cross-fade.
+          <>
+            <DialogNavHeader
+              flatSurface={surfaceMaterial === 'flat'}
+              controller={headerController}
+              header={header}
+              onDismiss={close}
+              collapse={scrollable !== false}
+            />
+            {scrollable === false ? (
+              <DialogMorphContent morph={morphState} style={{ flex: 1, minHeight: 0 }}>
+                <DialogNavBarSpacer controller={headerController} header={header} />
+                <DialogHeaderProvider controller={headerController}>{body}</DialogHeaderProvider>
+              </DialogMorphContent>
+            ) : (
+              <ScrollArea
+                style={{ flexShrink: 1 }}
+                contentContainerStyle={{ paddingBottom: contentPadding }}
+                scrollEventThrottle={16}
+                onScroll={(e) => {
+                  headerController.scrollY.value = e.nativeEvent.contentOffset.y;
+                }}
+              >
+                <DialogMorphContent morph={morphState}>
+                  <DialogLargeTitle controller={headerController} header={header} />
+                  <DialogHeaderProvider controller={headerController}>{body}</DialogHeaderProvider>
+                </DialogMorphContent>
+              </ScrollArea>
+            )}
+          </>
+        ) : scrollable === false ? (
+          // The content owns its own scrolling (a FlatList / VirtualizedList or a
+          // nested ScrollView). Render it bare in a bounded flex box — the card's
+          // `maxHeight` + `overflow: hidden` cap it and `flex: 1` + `minHeight: 0`
+          // hand the child a bounded height to scroll into — with NO wrapping
+          // ScrollView, so a VirtualizedList never nests inside one.
+          <DialogMorphContent
+            morph={morphState}
+            style={{ flex: 1, minHeight: 0, padding: contentPadding }}
+          >
+            {body}
+          </DialogMorphContent>
+        ) : (
+          <ScrollArea style={{ flexShrink: 1 }} contentContainerStyle={{ padding: contentPadding }}>
+            <DialogMorphContent morph={morphState}>{body}</DialogMorphContent>
+          </ScrollArea>
+        )}
+      </SurfaceLevelProvider>
+    </Animated.View>
+  );
+}
+
+/**
+ * Side-sheet surface for the `left`/`right` placements. Pure CSS transitions:
+ * the node stays mounted through the exit while a `shown` flag drives the
+ * transform/opacity, so both directions animate without reanimated `exiting`.
+ *
+ * The `bottom` placement is NOT handled here — it routes through
+ * `DialogBottomSheet` (bloom's cross-platform `BottomSheet`) so it shares one
+ * implementation with native and supports drag-to-dismiss on web.
+ */
+function SheetSurface({
+  material: surfaceMaterial = 'surface',
+  backdrop,
+  transition,
+  panelRef,
+  testID,
+  label,
+  title,
+  description,
+  actions,
+  header,
+  scrollable,
+  placement,
+  shown,
+  width,
+  minSideGutter,
+  inset,
+  dismissOnBackdrop,
+  contentPadding,
+  onDismiss,
+  panelStyle,
+  panelClassName,
+  containerStyle,
+  containerClassName,
+  style,
+  children,
+}: {
+  material?: DialogProps['material'];
+  backdrop?: DialogProps['backdrop'];
+  transition?: DialogProps['transition'];
+  panelRef: React.RefObject<ComponentRef<typeof View> | null>;
+  testID?: string;
+  label?: string;
+  title?: string;
+  description?: string;
+  actions?: DialogAction[];
+  header?: DialogProps['header'];
+  scrollable?: boolean;
+  placement: DialogSidePlacement;
+  shown: boolean;
+  width: number;
+  minSideGutter?: number;
+  inset?: DialogInset;
+  dismissOnBackdrop: boolean;
+  contentPadding: number;
+  onDismiss: () => void;
+  panelStyle?: StyleProp<ViewStyle>;
+  panelClassName?: string;
+  containerStyle?: StyleProp<ViewStyle>;
+  containerClassName?: string;
+  style?: StyleProp<ViewStyle>;
+  children?: React.ReactNode;
+}) {
+  const motion = useSurfaceTransition(transition);
+  const dialogMessages = useMessages(DIALOG_MESSAGES).messages;
+  const theme = useTheme();
+  const titleId = useId();
+  const descriptionId = useId();
+  const headerController = useDialogHeaderController();
+  const { width: viewportWidth } = useWindowDimensions();
+  const rtl = useIsRtl();
+
+  // Defer the entry transition by a frame so the start state paints before the
+  // browser animates to `shown`. `entered` is false on the first committed
+  // frame, then flips true so the CSS transition runs.
+  const frameRef = useRef<FrameToken | null>(null);
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    frameRef.current = scheduleFrame(() => {
+      frameRef.current = scheduleFrame(() => setEntered(true));
+    });
+    return () => {
+      if (frameRef.current !== null) cancelFrame(frameRef.current);
+      frameRef.current = null;
+    };
+  }, []);
+
+  const visible = shown && entered;
+
+  const panelTransition = useMemo<WebCssStyle>(
+    () => ({
+      transitionProperty: 'transform, opacity',
+      transitionDuration: `${motion.duration ?? ANIMATION_DURATION}ms`,
+      transitionTimingFunction: transition ? motion.cssEasing : EASE_OUT,
+    }),
+    [motion.duration, motion.cssEasing, !!transition],
+  );
+
+  const backdropTransition = useMemo<WebCssStyle>(
+    () => ({
+      transitionProperty: 'opacity',
+      transitionDuration: `${motion.duration ?? ANIMATION_DURATION}ms`,
+      transitionTimingFunction: transition ? motion.cssEasing : EASE_OUT,
+    }),
+    [motion.duration, motion.cssEasing, !!transition],
+  );
+
+  const panelGeometry = useMemo<ViewStyle>(() => {
+    const insetTop = inset?.top ?? 0;
+    const insetBottom = inset?.bottom ?? 0;
+    const insetLeft = inset?.left ?? 0;
+    const insetRight = inset?.right ?? 0;
+    // `start`/`end` land on a physical edge read from `useIsRtl()`. The drawer
+    // is portaled outside any `dir` context, so react-native-web would resolve
+    // a logical key left-to-right; the physical edge is the one that is right.
+    const edge = physicalDialogSide(placement, rtl);
+    const anchorInset = edge === 'left' ? insetLeft : insetRight;
+    const oppositeInset = edge === 'left' ? insetRight : insetLeft;
+    const cappedWidth = resolveSideSheetWidth(
+      viewportWidth,
+      width,
+      anchorInset,
+      oppositeInset,
+      minSideGutter,
+    );
+    const hiddenSign = edge === 'left' ? '-100%' : '100%';
+
+    return {
+      top: insetTop,
+      bottom: insetBottom,
+      [edge]: anchorInset,
+      width: cappedWidth,
+      ...surfaceStyle(SURFACE_SHAPES.panel),
+      transform: [{ translateX: visible ? 0 : hiddenSign }],
+      opacity: visible ? 1 : 0,
+    };
+  }, [visible, placement, rtl, width, inset, viewportWidth, minSideGutter]);
+
+  const handleBackdropPress = useCallback(() => {
+    if (dismissOnBackdrop) onDismiss();
+  }, [dismissOnBackdrop, onDismiss]);
+
+  const material = resolveSurfaceMaterial({
+    fill: String(
+      StyleSheet.flatten([panelStyle, style])?.backgroundColor ?? theme.colors.background,
+    ),
+    parentFill: theme.colors.background,
+    level: 0,
+    paint: surfaceMaterial !== 'flat',
+  });
+  const { paintFill, publishedFill: surfaceFill } = material;
+
+  // The drawer uses the PAGE token as its tint and nominal surface for its
+  // content — see `DialogPanel`'s own wrap for why a portal does not do that on
+  // its own.
+  const surfaceChildren = <>{children}</>;
+
+  return (
+    <OverlayRoot style={[sheetStyles.root, containerStyle]} className={containerClassName} modal>
+      <ModalKeyboard
+        panelRef={panelRef}
+        closing={!shown}
+        dismissible={dismissOnBackdrop}
+        dismiss={onDismiss}
+      />
+      <Backdrop
+        {...backdrop}
+        testID={testID ? `${testID}-backdrop` : DIALOG_SHEET_BACKDROP_TESTID}
+        accessibilityLabel={
+          label ? dialogMessages.dismissNamed(label) : dialogMessages.dismissDialog
+        }
+        onPress={handleBackdropPress}
+        disabled={!dismissOnBackdrop}
+        // Same reason as the centred dialog: the transition and the opacity it
+        // animates belong to the layers, not to the press target above them.
+        // No `dimOpacity` override — one darkness for every Bloom surface.
+        layerStyle={backdropTransition}
+        style={[sheetStyles.backdrop, { opacity: visible ? 1 : 0 }]}
+      />
+
+      <StyledView
+        ref={panelRef}
+        role="dialog"
+        aria-modal
+        tabIndex={-1}
+        aria-label={label}
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={description ? descriptionId : undefined}
+        accessibilityViewIsModal
+        testID={testID}
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={stopPropagation}
+        {...({ onClick: stopPropagation } as Record<string, unknown>)}
+        className={panelClassName}
+        style={[
+          sheetStyles.panel,
+          material.vars,
+          {
+            backgroundColor: 'transparent',
+            // Above this surface's OWN backdrop, and nothing more: `OverlayRoot`
+            // sets a z-index and a fixed position, so it is a stacking context and
+            // this value is scoped inside it. Where this dialog sits relative to
+            // OTHER surfaces is the overlay stack's decision, made once on
+            // `OverlayRoot` (see `src/overlay/stack.ts`) — never a number here.
+            zIndex: Z_INDEX.raised,
+            pointerEvents: 'auto',
+            // Design-system overlay elevation (`shadow-m`) as a `boxShadow`.
+            ...bloomShadowStyle('m'),
+          },
+          panelGeometry,
+          panelTransition,
+          panelStyle,
+          style,
+          { backgroundColor: surfaceMaterial === 'flat' ? paintFill : 'transparent' },
+        ]}
+      >
+        {surfaceMaterial !== 'flat' && (
+          <SurfacePaint
+            fill={paintFill}
+            shape={{ curve: SURFACE_SHAPES.panel.curve }}
+            radius={
+              StyleSheet.flatten([panelStyle, style])?.borderRadius ?? SURFACE_SHAPES.panel.radius
+            }
+          />
+        )}
+        <SurfaceLevelProvider level={material.level} fill={surfaceFill}>
+          {header ? (
+            // Nav-header mode on a side drawer: a static titled bar (the drawer
+            // body does not own a Dialog scroll offset to drive a collapse) over
+            // the content, which is inset below the bar.
+            <View style={{ flex: 1, minHeight: 0 }}>
+              <DialogNavHeader
+                flatSurface={surfaceMaterial === 'flat'}
+                controller={headerController}
+                header={header}
+                onDismiss={onDismiss}
+                collapse={false}
+              />
+              {scrollable === false ? (
+                <View style={{ flex: 1, minHeight: 0, paddingBottom: contentPadding }}>
+                  <DialogNavBarSpacer controller={headerController} header={header} />
+                  <DialogHeaderProvider controller={headerController}>
+                    <DialogBody
+                      titleId={titleId}
+                      descriptionId={descriptionId}
+                      title={title}
+                      description={description}
+                      actions={actions}
+                    >
+                      {surfaceChildren}
+                    </DialogBody>
+                  </DialogHeaderProvider>
+                </View>
+              ) : (
+                <ScrollArea
+                  style={{ flexShrink: 1 }}
+                  contentContainerStyle={{
+                    paddingTop: DIALOG_NAV_BAR_HEIGHT,
+                    paddingBottom: contentPadding,
+                  }}
+                  scrollIndicatorInsets={{ top: DIALOG_NAV_BAR_HEIGHT }}
+                  scrollEventThrottle={16}
+                  onScroll={(e) => {
+                    headerController.scrollY.value = e.nativeEvent.contentOffset.y;
+                  }}
+                >
+                  <DialogHeaderProvider controller={headerController}>
+                    <DialogBody
+                      titleId={titleId}
+                      descriptionId={descriptionId}
+                      title={title}
+                      description={description}
+                      actions={actions}
+                    >
+                      {surfaceChildren}
+                    </DialogBody>
+                  </DialogHeaderProvider>
+                </ScrollArea>
+              )}
+            </View>
+          ) : (
+            <View
+              style={[
+                { padding: contentPadding },
+                scrollable === false && { flex: 1, minHeight: 0 },
+              ]}
+            >
+              <DialogBody
+                titleId={titleId}
+                descriptionId={descriptionId}
+                title={title}
+                description={description}
+                actions={actions}
+              >
+                {surfaceChildren}
+              </DialogBody>
+            </View>
+          )}
+        </SurfaceLevelProvider>
+      </StyledView>
+    </OverlayRoot>
+  );
+}
+
+/**
+ * Opaque token returned by `scheduleFrame`. `requestAnimationFrame` returns a
+ * number; the `setTimeout` fallback returns a timer handle.
+ */
+type FrameToken = { raf: number } | { timer: ReturnType<typeof setTimeout> };
+
+function scheduleFrame(cb: () => void): FrameToken {
+  if (typeof requestAnimationFrame === 'function') {
+    return { raf: requestAnimationFrame(cb) };
+  }
+  return { timer: setTimeout(cb, 0) };
+}
+
+function cancelFrame(token: FrameToken): void {
+  if ('raf' in token) {
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(token.raf);
+    return;
+  }
+  clearTimeout(token.timer);
+}
+
+// Annotated rather than cast: a plain object literal widens `position: 'absolute'`
+// to `string`, which is what the three `as ViewStyle` casts here used to silence.
+// The annotation supplies the contextual type instead, so the literals narrow and
+// a genuine mistake still fails.
+const sheetStyles: Record<'root' | 'backdrop' | 'panel', ViewStyle> = {
+  // No overlay `zIndex` here: `SheetSurface` renders an `OverlayRoot`, which
+  // assigns this drawer's depth from the open-order overlay stack, so a drawer
+  // opened on top of another surface paints above it (see
+  // `src/overlay/stack.ts`).
+  root: {
+    position: WEB_POSITION_FIXED,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  backdrop: {
+    // Geometry only: the colour and the dim level belong to `Backdrop`.
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  panel: {
+    position: 'absolute',
+    overflow: 'hidden',
+    // Elevation is applied at the usage site via `bloomShadowStyle('m')`
+    // (`boxShadow` on web); the deprecated `shadow*` props were removed.
+  },
+};
+
+/**
+ * CSS keyframes required for the web dialog's centered-card open/close motion.
+ *
+ * `<Dialog>` self-injects these automatically on web (see `useDialogCss`), so
+ * consumers do NOT need to do anything — a working zoom/fade animation ships
+ * with zero app-side setup. This constant remains exported for anyone who
+ * already references it manually (e.g. a hand-copied block in a global
+ * stylesheet); such a copy is a harmless duplicate because the runtime
+ * injection is guarded by a unique style id.
+ *
+ * ```css
+ * @keyframes bloomDialogZoomFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+ * @keyframes bloomDialogZoomFadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.95); } }
+ * ```
+ *
+ * The `left`/`right` placements do NOT depend on this — they animate via
+ * self-contained inline CSS transitions and need no keyframe injection. The
+ * `bottom` placement uses bloom's `BottomSheet` (reanimated) and needs none.
+ */
+export const BLOOM_DIALOG_CSS = `
+@keyframes bloomDialogZoomFadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes bloomDialogZoomFadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.95); } }
+`;

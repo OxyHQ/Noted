@@ -1,0 +1,153 @@
+/**
+ * `Popover` — WEB. An anchored panel positioned, portaled, ranked and dismissed
+ * by `floating/FloatingPanel`, which is also what the three menu families
+ * render. The popover's own contribution is its panel: the floating
+ * surface (`surface.ts` — 266px, `rounded-2xl`, 1px `border-button-default`,
+ * `bg-background-primary-default`, `p-2.5`, `shadow-dropdown`), resolved from
+ * the theme ramps and applied inline ahead of the caller's `style`. It centres
+ * on its trigger by default (shadcn's `align="center"`) and does not take the
+ * trigger's width as a floor.
+ */
+import React, { useCallback, useMemo, useRef } from 'react';
+import { useWindowDimensions, type View } from 'react-native';
+
+import { POPOVER_TRIGGER_POPUP } from '../floating/constants';
+import { FloatingPanel } from '../floating/FloatingPanel';
+import { hostElement, useReturnFocusOnClose } from '../floating/menu-keyboard';
+import { useMenuPalette } from '../floating/menu-palette';
+import { TriggerSlot } from '../floating/TriggerSlot';
+import { useAnchorRect } from '../floating/use-anchor-rect';
+import { useControllableState } from '../hooks/use-controllable-state';
+import { PopoverProvider, usePopover } from './context';
+import { classChromeOverrides, POPOVER_SIDE_OFFSET, resolvePopoverSurfaceStyle } from './surface';
+import type { PopoverContentProps, PopoverProps, PopoverTriggerProps } from './types';
+import { useMessages } from '../locale/messages';
+import { POPOVER_MESSAGES } from './messages';
+
+export function Popover({
+  children,
+  open,
+  defaultOpen = false,
+  onOpenChange,
+  modal = true,
+}: PopoverProps) {
+  const [isOpen, setOpen] = useControllableState<boolean>({
+    value: open,
+    defaultValue: defaultOpen,
+    onChange: onOpenChange,
+  });
+  const anchorRef = useRef<React.ComponentRef<typeof View> | null>(null);
+  const panelRef = useRef<React.ComponentRef<typeof View> | null>(null);
+  // The root survives conditionally mounted content, so a caller removing the
+  // panel on close still gets the same focus return as an animated exit.
+  useReturnFocusOnClose(
+    anchorRef,
+    isOpen,
+    (element) => hostElement(panelRef.current)?.contains(element) ?? false,
+  );
+  const value = useMemo(
+    () => ({ open: isOpen, setOpen, anchorRef, panelRef, modal }),
+    [isOpen, setOpen, modal],
+  );
+
+  return <PopoverProvider value={value}>{children}</PopoverProvider>;
+}
+
+export function PopoverTrigger({
+  children,
+  asChild,
+  disabled,
+  label,
+  className,
+  style,
+  testID,
+}: PopoverTriggerProps) {
+  const popover = usePopover();
+
+  return (
+    <TriggerSlot
+      asChild={asChild}
+      anchorRef={popover.anchorRef}
+      className={className}
+      style={style}
+      testID={testID}
+      handle={{
+        onPress: () => popover.setOpen(!popover.open),
+        disabled,
+        accessibilityLabel: label,
+        accessibilityRole: 'button',
+        'aria-haspopup': POPOVER_TRIGGER_POPUP,
+        'aria-expanded': popover.open,
+      }}
+    >
+      {children}
+    </TriggerSlot>
+  );
+}
+
+export function PopoverContent({
+  material,
+  children,
+  label: labelProp,
+  side,
+  align = 'center',
+  sideOffset = POPOVER_SIDE_OFFSET,
+  alignOffset,
+  dismissible,
+  minWidth,
+  maxWidth,
+  className,
+  style,
+  testID,
+}: PopoverContentProps) {
+  const { messages } = useMessages(POPOVER_MESSAGES);
+  const label = labelProp ?? messages.popover;
+  const popover = usePopover();
+  const anchor = useAnchorRect(popover.anchorRef, popover.open);
+  const attachPanel = useCallback(
+    (node: React.ComponentRef<typeof View> | null) => {
+      if (popover.panelRef) popover.panelRef.current = node;
+    },
+    [popover.panelRef],
+  );
+  const close = useCallback(() => popover.setOpen(false), [popover]);
+  const palette = useMenuPalette();
+  const { width: viewportWidth } = useWindowDimensions();
+  const overridden = useMemo(() => classChromeOverrides(className), [className]);
+  const chrome = useMemo(
+    () =>
+      resolvePopoverSurfaceStyle(
+        palette,
+        overridden,
+        maxWidth === undefined ? viewportWidth : undefined,
+      ),
+    [palette, overridden, maxWidth, viewportWidth],
+  );
+
+  return (
+    <FloatingPanel
+      material={material}
+      panelRef={attachPanel}
+      open={popover.open}
+      anchor={anchor}
+      role="dialog"
+      label={label}
+      side={side}
+      align={align}
+      sideOffset={sideOffset}
+      alignOffset={alignOffset}
+      dismissible={dismissible}
+      modal={popover.modal}
+      minWidth={minWidth}
+      maxWidth={maxWidth}
+      onDismiss={close}
+      className={className}
+      // The resolved panel FIRST, so the caller's `style` overrides any of it;
+      // properties the caller's `className` names were already left out.
+      style={[chrome, style]}
+      testID={testID}
+    >
+      {children}
+    </FloatingPanel>
+  );
+}

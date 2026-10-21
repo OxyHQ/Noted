@@ -1,0 +1,66 @@
+import type { ReactNode } from 'react';
+import type { BloomSize } from '../appearance';
+import type { BloomTone } from '../appearance';
+import type { StyleProp, ViewStyle, TextStyle } from 'react-native';
+
+export type CheckboxSize = BloomSize;
+
+export interface CheckboxProps {
+  /** Whether the checkbox is checked. */
+  checked?: boolean;
+  defaultChecked?: boolean;
+  /** Called when the checked state changes. */
+  onCheckedChange?: (checked: boolean) => void;
+  /** Optional label text. */
+  label?: string;
+  /** Decorative label layout, rendered in a View instead of Text. Supply
+   * `label` or `accessibilityLabel` for its accessible name. Do not nest controls. */
+  labelContent?: ReactNode;
+  /** Optional description shown below the label. */
+  description?: string;
+  /** Size preset. */
+  size?: CheckboxSize;
+  /** Whether the checkbox is disabled. */
+  disabled?: boolean;
+  /**
+   * Shows the state without taking input: the box and label at full strength
+   * (not dimmed like `disabled`), no press, hover or keyboard focus, and
+   * announced as a read-only checkbox. For a checkmark in a published,
+   * read-only page. `onCheckedChange` is never called.
+   */
+  readOnly?: boolean;
+  /** Whether the checkbox is in an indeterminate state. */
+  indeterminate?: boolean;
+  /** Semantic color when checked. Uses theme primary by default. */
+  tone?: BloomTone;
+  style?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
+  accessibilityLabel?: string;
+  /**
+   * The control's id. Inside a `Field` the field supplies one, so the label's
+   * `htmlFor` points at this control on web.
+   */
+  nativeID?: string;
+  testID?: string;
+}
+
+export interface CheckboxCardProps {
+  /** Whether the card's checkbox is checked. */
+  checked?: boolean;
+  defaultChecked?: boolean;
+  /** Called when the checked state changes. A press anywhere on the card toggles it. */
+  onCheckedChange?: (checked: boolean) => void;
+  /** The card's title (one line); also its accessible name. */
+  title: string;
+  /** Optional one-line description under the title. */
+  description?: string;
+  /** Dims the whole card and stops it toggling. */
+  disabled?: boolean;
+  /** Whether the checkbox is in an indeterminate state. */
+  indeterminate?: boolean;
+  /** Accent for the checked box. Uses the theme primary by default. */
+  tone?: BloomTone;
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+  testID?: string;
+}

@@ -1,0 +1,148 @@
+import type { ComponentRef, ReactNode, ReactElement, RefObject } from 'react';
+import type { BloomAppearance, BloomSize } from '../appearance';
+import type { BloomTone } from '../appearance';
+import type { StyleProp, ViewStyle, TextStyle, View } from 'react-native';
+
+export type RadioSize = BloomSize;
+
+/**
+ * One option in a {@link RadioGroupProps} group.
+ *
+ * Deliberately the same shape as the props a standalone {@link RadioProps}
+ * takes, minus the state the group owns: a group is the list of its options, not
+ * a second component with its own vocabulary.
+ */
+export interface RadioProps<Value extends string = string> {
+  /** The value this option stands for. */
+  value: Value;
+  /** Whether this option is the checked one. */
+  checked?: boolean;
+  /** Called with `value` when the option is chosen. Selecting the already-checked
+   * option is a no-op — a radio, unlike a checkbox, cannot be un-chosen. */
+  onValueChange?: (value: Value) => void;
+  /** Optional label text. */
+  label?: string;
+  /** Decorative label layout, rendered in a View instead of Text. Supply
+   * `label` or `accessibilityLabel` for its accessible name. Do not nest controls. */
+  labelContent?: ReactNode;
+  /** Optional description shown below the label. */
+  description?: string;
+  /** Size preset. */
+  size?: RadioSize;
+  /** Whether the option is disabled. */
+  disabled?: boolean;
+  /** Colour of the checked indicator. Uses the theme primary by default. */
+  tone?: BloomTone;
+  className?: string;
+  labelClassName?: string;
+  style?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
+  accessibilityLabel?: string;
+  /**
+   * The control's id. Inside a `Field` the field supplies one, so the label's
+   * `htmlFor` points at this control on web.
+   */
+  nativeID?: string;
+  testID?: string;
+}
+
+/** A pill-shaped radio with no separate indicator. */
+export interface RadioChipProps<Value extends string = string> extends RadioProps<Value> {
+  /** Paint of the selected option. Unselected chips retain a neutral outline. */
+  appearance?: BloomAppearance;
+}
+
+/** One option, as data, for {@link RadioGroupProps}. */
+export interface RadioOption<Value extends string = string> {
+  value: Value;
+  label?: string;
+  /** Decorative layout inside the radio; interactive siblings belong in renderOption. */
+  labelContent?: ReactNode;
+  accessibilityLabel?: string;
+  description?: string;
+  disabled?: boolean;
+  testID?: string;
+}
+
+export interface RadioOptionState {
+  checked: boolean;
+  disabled: boolean;
+  /** The group's actual radio host, suitable for Collapsible.returnFocusRef. Do not replace it. */
+  controlRef: RefObject<ComponentRef<typeof View> | null>;
+}
+
+export interface RadioGroupProps<Value extends string = string> {
+  /**
+   * The group's accessible name.
+   *
+   * A `radiogroup` with no name announces a list of options and nothing about
+   * what is being chosen, so this or an enclosing `Field`'s label has to supply
+   * one.
+   */
+  label?: string;
+  /** The selected value, or `undefined` for a group with nothing chosen yet. */
+  value?: Value;
+  /** Initial selection when uncontrolled. */
+  defaultValue?: Value;
+  /** Called with the newly chosen value. */
+  onValueChange?: (value: Value) => void;
+  /** The options, in order. */
+  options: ReadonlyArray<RadioOption<Value>>;
+  /** Wrap the owned control with sibling content. Render it once, unchanged;
+   * selection, accessible radio semantics and roving focus stay group-owned. */
+  renderOption?: (
+    option: Readonly<RadioOption<Value>>,
+    ownedControl: ReactElement,
+    state: Readonly<RadioOptionState>,
+  ) => ReactNode;
+  /** Size preset, applied to every option. */
+  size?: RadioSize;
+  /** Disables every option. An option may also disable itself. */
+  disabled?: boolean;
+  /** Colour of the checked indicator. Uses the theme primary by default. */
+  tone?: BloomTone;
+  style?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
+  /** Class recipe on the group layout; replaces its default layout. */
+  className?: string;
+  /** Class recipes for owned options and their built-in string labels. */
+  optionClassName?: string | ((state: Readonly<RadioOptionState>) => string | undefined);
+  optionLabelClassName?: string | ((state: Readonly<RadioOptionState>) => string | undefined);
+  /** Selected chip paint; used with variant="chip". Defaults to outline. */
+  appearance?: BloomAppearance;
+  /** Layout/style on each owned Radio, RadioCard or RadioChip. */
+  optionStyle?: StyleProp<ViewStyle>;
+  /**
+   * `default` renders each option as a `Radio` row; `card` as a `RadioCard`
+   * (title + description left, the dot right, the whole
+   * card selectable). `chip` renders a wrapping row of pill-shaped radios
+   * without an indicator. A card's title is the option's `label`.
+   */
+  variant?: 'default' | 'card' | 'chip';
+  testID?: string;
+}
+
+export interface RadioCardProps<Value extends string = string> {
+  /** The value this card stands for. */
+  value: Value;
+  /** Whether this card is the checked one. */
+  checked?: boolean;
+  /** Called with `value` when the card is chosen. Re-choosing it is a no-op. */
+  onValueChange?: (value: Value) => void;
+  /** The card's title (one line); also its accessible name. */
+  title: string;
+  /** Decorative label layout; title/accessibilityLabel still names the control. */
+  labelContent?: ReactNode;
+  /** Optional one-line description under the title. */
+  description?: string;
+  /** Dims the whole card and stops it selecting. */
+  disabled?: boolean;
+  /** Accent for the checked dot. Uses the theme primary by default. */
+  tone?: BloomTone;
+  className?: string;
+  labelClassName?: string;
+  labelStyle?: StyleProp<TextStyle>;
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+  testID?: string;
+}

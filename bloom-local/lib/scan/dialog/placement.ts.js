@@ -1,0 +1,154 @@
+import { useMemo } from 'react';
+import { useWindowDimensions } from 'react-native';
+
+import { BREAKPOINTS } from '../styles/breakpoints';
+
+/**
+ * Anchor a `<Dialog>` can render against.
+ *
+ * - `'center'` — the default centered modal card (current behavior).
+ * - `'left'` / `'right'` — an anchored side-sheet / drawer on that PHYSICAL edge.
+ * - `'start'` / `'end'` — the same drawer on the LOGICAL edge: `start` is the
+ *   left in a left-to-right layout and the right in a right-to-left one, and it
+ *   slides in from that edge. Resolved with `useIsRtl()`.
+ * - `'bottom'` — a bottom-sheet (drag handle, slide-up).
+ */
+export type DialogPlacement = 'center' | 'left' | 'right' | 'start' | 'end' | 'bottom';
+
+/** The four side-sheet placements, physical and logical. */
+export type DialogSidePlacement = 'left' | 'right' | 'start' | 'end';
+
+/**
+ * The PHYSICAL edge a side placement lands on. `left`/`right` are themselves;
+ * `start` is `left` left-to-right and `right` right-to-left, `end` the reverse.
+ * The panel's `translateX` sign, which no layout engine mirrors, follows this.
+ */
+export function physicalDialogSide(side: DialogSidePlacement, rtl: boolean): 'left' | 'right' {
+  if (side === 'start') return rtl ? 'right' : 'left';
+  if (side === 'end') return rtl ? 'left' : 'right';
+  return side;
+}
+
+/**
+ * A `<Dialog>` placement that may vary by viewport width.
+ *
+ * Either a single `DialogPlacement` (applied at every width) or a responsive
+ * map whose `base` applies below the first breakpoint and whose `sm`/`md`/`lg`/
+ * `xl` keys override it at and above the matching Tailwind breakpoint.
+ *
+ * The common store-drawer case is `{ base: 'bottom', md: 'left' }`; the common
+ * dialog-to-sheet case is `{ base: 'bottom', md: 'center' }`.
+ */
+export type ResponsiveDialogPlacement =
+  | DialogPlacement
+  | {
+      base: DialogPlacement;
+      sm?: DialogPlacement;
+      md?: DialogPlacement;
+      lg?: DialogPlacement;
+      xl?: DialogPlacement;
+    };
+
+/**
+ * Tailwind-default breakpoints (px), re-exported from the canonical
+ * {@link BREAKPOINTS} source. A responsive `placement` map resolves to the value
+ * for the largest key whose min-width is `<=` the current viewport width,
+ * falling back to `base`.
+ */
+export const BREAKPOINT_SM = BREAKPOINTS.sm;
+export const BREAKPOINT_MD = BREAKPOINTS.md;
+export const BREAKPOINT_LG = BREAKPOINTS.lg;
+export const BREAKPOINT_XL = BREAKPOINTS.xl;
+
+/** Ordered breakpoint table, widest first, so the first match wins. */
+const RESPONSIVE_KEYS = [
+  ['xl', BREAKPOINT_XL],
+  ['lg', BREAKPOINT_LG],
+  ['md', BREAKPOINT_MD],
+  ['sm', BREAKPOINT_SM],
+] as const;
+
+/** Default side-sheet width (px) on wide screens. */
+export const DEFAULT_SIDE_WIDTH = 460;
+
+/** Default centered-card max width (px). Matches the legacy `maxWidth: 480`. */
+export const DEFAULT_CENTER_MAX_WIDTH = 480;
+
+/** Default bottom-sheet max height as a fraction of the viewport height. */
+export const DEFAULT_MAX_HEIGHT_RATIO = 0.9;
+
+/** Corner radius shared by the side-sheet panel and the bottom-sheet top. */
+
+/**
+ * Default inner padding (px) of the dialog content container, applied uniformly
+ * across every placement (centered panel, side-sheet body, bottom-sheet body)
+ * so the chrome reads identically regardless of which surface resolves. This is
+ * the legacy value — omitting the `contentPadding` prop keeps 20px everywhere,
+ * byte-for-byte unchanged. A host that owns its own insets (e.g. custom
+ * `children` that already manage padding) can override it via
+ * `Dialog`'s `contentPadding` prop (e.g. `contentPadding={0}`).
+ */
+export const DEFAULT_DIALOG_CONTENT_PADDING = 20;
+
+/** Open/close transition duration (ms). ~280ms ease-out reads smooth. */
+export const ANIMATION_DURATION = 280;
+
+/** Centered-card fade-out duration (ms) — preserves the legacy timing. */
+export const CENTER_FADE_OUT_DURATION = 150;
+
+/** CSS approximation of reanimated's `Easing.out(Easing.cubic)`. */
+export const EASE_OUT = 'cubic-bezier(0.33, 1, 0.68, 1)';
+
+/** Stable testID for the dimmed backdrop of a side/bottom placement dialog. */
+export const DIALOG_SHEET_BACKDROP_TESTID = 'bloom-dialog-sheet-backdrop';
+
+/** Drag-handle pill geometry for the bottom-sheet. */
+export const HANDLE_WIDTH = 36;
+export const HANDLE_HEIGHT = 5;
+export const HANDLE_RADIUS = 3;
+
+/**
+ * Minimum gutter kept between a wide side-sheet and the opposite viewport edge
+ * when capping its width by default. Callers can opt into a zero gutter.
+ */
+export const SIDE_SHEET_MIN_GUTTER = 24;
+
+/** Shared native/web width cap; the gutter is separate from edge insets. */
+export function resolveSideSheetWidth(
+  viewportWidth: number,
+  width: number,
+  anchorInset: number,
+  oppositeInset: number,
+  minSideGutter = SIDE_SHEET_MIN_GUTTER,
+): number {
+  const gutter = Number.isFinite(minSideGutter)
+    ? Math.max(0, minSideGutter)
+    : SIDE_SHEET_MIN_GUTTER;
+  return Math.max(0, Math.min(width, viewportWidth - anchorInset - oppositeInset - gutter));
+}
+
+/**
+ * Resolve a (possibly responsive) `placement` to a concrete `DialogPlacement`
+ * for the current viewport width.
+ *
+ * A plain string placement resolves to itself. A responsive map picks the
+ * value for the largest breakpoint key whose min-width is `<=` the viewport
+ * width, falling back to `base` below the first breakpoint.
+ */
+export function useResolvedPlacement(
+  placement: ResponsiveDialogPlacement | undefined,
+): DialogPlacement {
+  const { width } = useWindowDimensions();
+
+  return useMemo<DialogPlacement>(() => {
+    if (placement === undefined) return 'center';
+    if (typeof placement === 'string') return placement;
+    for (const [key, minWidth] of RESPONSIVE_KEYS) {
+      if (width >= minWidth) {
+        const value = placement[key];
+        if (value !== undefined) return value;
+      }
+    }
+    return placement.base;
+  }, [placement, width]);
+}

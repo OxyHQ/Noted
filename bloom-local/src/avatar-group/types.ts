@@ -1,0 +1,122 @@
+import type { ReactNode } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
+
+import type { AvatarCharacter } from '../agent-avatar/character';
+
+/**
+ * A single member of an {@link AvatarGroup}. Mirrors the minimal shape needed to
+ * render an {@link Avatar} plus drive the optional hover card. `uri` carries the
+ * avatar value (routed into Avatar's `source` prop); `name`/`displayName`/
+ * `username` are used for the hover card and accessibility only.
+ */
+export interface AvatarGroupItem {
+  /** Stable identity used as a React key and passed back to handlers. */
+  id?: string;
+  /**
+   * Avatar value, routed into {@link Avatar}'s `source` prop. Accepts a full
+   * image URL OR a resolver-handled id (e.g. an Oxy file ID) — non-URL strings
+   * resolve through the consumer's ImageResolver. Null/undefined renders
+   * Avatar's neutral default placeholder.
+   */
+  uri?: string | null;
+  /** Name used for the hover card / accessibility when `displayName` is absent. */
+  name?: string;
+  /** Canonical, already-resolved display name (preferred over `name`). */
+  displayName?: string;
+  /** Handle without the leading `@`. */
+  username?: string;
+  /** `'bot'` with a `character` draws that character (a still at facepile sizes); see `Avatar`. */
+  kind?: string;
+  character?: AvatarCharacter | null;
+}
+
+export interface AvatarGroupProps {
+  /** Members to render, in stacking order (first item sits on top). */
+  items: AvatarGroupItem[];
+  /**
+   * How the avatars are arranged.
+   * - `'stack'` (default): overlapping horizontal facepile with a thin separator
+   *   ring, a trailing `+N` overflow chip, and the first item on top.
+   * - `'row'`: avatars placed adjacent with a positive `spacing` gap and NO
+   *   separator ring — an "adjacent row" of icons (e.g. a top-tokens strip).
+   *   Still collapses into the `+N` overflow chip at `max`.
+   * - `'cluster'`: a compact 2D "magnetic bubble cluster" (iMessage-style) —
+   *   avatars of VARYING sizes deterministically packed into a round bounding
+   *   box with a uniform gap: the first item (primary) is the largest and sits
+   *   centred/in front, the rest nestle around it. Scales from 2 (a "front +
+   *   behind" pair) up through a dense pack (~20), collapsing into a trailing
+   *   `+N` bubble past `max`. Unlike the horizontal layouts, `size` is the
+   *   overall box diameter (see `size`) and `max` defaults to 20 (see `max`), so
+   *   it drops in where a single round Avatar would.
+   */
+  layout?: 'stack' | 'row' | 'cluster';
+  /**
+   * Diameter in pixels. For `'stack'`/`'row'` this is the diameter of EACH
+   * avatar. For `'cluster'` this is the diameter of the whole bounding box (the
+   * packed bubbles are sized as fractions of it), so the cluster occupies the
+   * same footprint as a single `size`-px Avatar.
+   */
+  size?: number;
+  /**
+   * Rendition variant forwarded to each {@link Avatar}'s `variant` prop, which
+   * the consumer's ImageResolver uses to build the right rendition for file-ID
+   * items. Stacked avatars are small, so `'thumb'` is recommended. Defaults to
+   * `'thumb'`; pass `undefined` to request full-size renditions.
+   */
+  variant?: string;
+  /**
+   * Maximum number of avatars to render before collapsing into the overflow
+   * chip. Defaults to 5 for `'stack'`/`'row'`, and to 20 for `'cluster'` (which
+   * packs densely). In `'cluster'` the cap is inclusive of the `+N` bubble: past
+   * the cap the last slot becomes the overflow bubble.
+   */
+  max?: number;
+  /**
+   * Real total count of members. When provided and larger than the number of
+   * rendered avatars, the overflow chip shows `+ (total - shown)`. When omitted,
+   * overflow is derived from `items.length - shown`.
+   */
+  total?: number;
+  /**
+   * Horizontal overlap between adjacent avatars in pixels. Defaults to ~1/3 of
+   * `size`. Larger values pull avatars closer together. `layout='stack'` only.
+   */
+  overlap?: number;
+  /**
+   * Horizontal gap between adjacent avatars in pixels when `layout='row'`.
+   * Defaults to ~1/3 of `size`. `layout='row'` only.
+   */
+  spacing?: number;
+  /**
+   * Color of the thin ring/border drawn around each avatar so overlapping
+   * avatars separate cleanly. Defaults to the theme `background` color so the
+   * avatars read as punched out of the surface behind them.
+   */
+  ringColor?: string;
+  /**
+   * When true, an item with no `uri` renders {@link Avatar}'s colored
+   * deterministic initial (derived from its name) instead of the neutral
+   * default placeholder. Use for decorative/icon rows (e.g. a top-tokens strip)
+   * where distinct colors read better than identical grey circles. Defaults to
+   * `false` to preserve the neutral facepile placeholder for avatar-less people.
+   */
+  showInitials?: boolean;
+  /**
+   * Per-avatar press handler. When provided, each avatar (and the overflow chip)
+   * becomes pressable. When omitted, the group is purely presentational.
+   */
+  onPressItem?: (item: AvatarGroupItem, index: number) => void;
+  /**
+   * Enables the hover card on web. Hovering an avatar reveals a
+   * {@link UserHoverCard} for that item. No-op on native.
+   */
+  hoverCard?: boolean;
+  /**
+   * Per-item action slot rendered inside the hover card — typically the app's
+   * SDK FollowButton. Only used when `hoverCard` is enabled (web).
+   */
+  renderItemAction?: (item: AvatarGroupItem, index: number) => ReactNode;
+  /** Container style override. */
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}

@@ -1,0 +1,457 @@
+import { PanelErrorBoundary } from '../error-boundary/PanelErrorBoundary';
+import { resolveSurfaceMaterial } from '../surface/resolve-surface-material';
+/**
+ * Web variant of `ContentPanel` — the framed app-content surface.
+ *
+ * On the web, app content scrolls the DOCUMENT, and a multi-column shell keeps
+ * the routed content in a rounded, bordered center panel. Two problems follow
+ * from letting feed content bleed to the rounded panel edge, both solved here
+ * with sticky, full-viewport-height overlays inside the panel surface:
+ *
+ *  1. BLEED-MASK overlay (`z-30`): a `box-shadow` ring in the GUTTER color
+ *     (Bloom `background` token) drawn OVER content that bleeds into the thin
+ *     lateral gutter / rounded corners. The clip stays within the panel’s horizontal bounds
+ *     and covers the full declared vertical insets. It sits below opaque chrome (headers/banners),
+ *     so it only masks the content's bleed, never the chrome. No border.
+ *     (`clip-path` lives in the adopted sheet — RN-web drops it from `style`.)
+ *
+ *  2. BORDER-FRAME overlay (`z-[120]`): a single 1px rounded `border-border`
+ *     outline with a transparent interior, ABOVE all content. Being one element
+ *     above everything, it draws ONE continuous rounded border around all four
+ *     sides — no seams, no double lines, no per-chrome borders.
+ *
+ * Both overlays are `position: sticky; top: 8px` with a negative
+ * `margin-bottom` so they occupy zero layout height (they overlay the scrolled
+ * content rather than displacing it). They render BEFORE the content wrapper so
+ * z-index — not DOM order — decides layering.
+ *
+ * That sticky/`100dvh` sizing is itself a CHOICE, not the only mode — see
+ * `overlaySizing`. It is correct exactly when the panel's own DOM height can
+ * exceed one viewport in a document that actually scrolls (dvh gives the
+ * overlay a fixed, viewport-sized height that a percentage cannot: percentage
+ * heights need a definite ancestor height, which an auto-height document-flow
+ * ancestor never has). A consumer whose OWN shell already bounds the panel's
+ * height (no document scroll) doesn't have that problem, and viewport-sizing
+ * there is actively wrong — the overlay reads `100dvh` regardless of how much
+ * of the viewport is actually the panel's, so anything the consumer placed
+ * outside the panel (a header above it, say) gets painted over.
+ * `overlaySizing="panel"` is that second mode: CSS Grid layer-stacking (every
+ * child placed in the same `grid-area: 1/1`) instead of sticky/dvh/negative-
+ * margin — each child fills exactly the grid cell, i.e. exactly the panel's
+ * own box, whatever that box's real height is. No `position: absolute` (that
+ * takes the content wrapper out of flow, which is not what "panel" mode
+ * changes — only the two overlays' sizing mechanism changes) and no percentage
+ * margin (the well-known CSS quirk where a vertical margin percentage resolves
+ * against the containing block's WIDTH, not its height, so it cannot express
+ * "100% of my own height" at all).
+ *
+ * The bleed-mask's `clip-path` also changes with the mode, not just its box
+ * size: viewport mode allows just 1px of horizontal overlap, while the vertical
+ * halo and shadow expand to cover overlayInset. A former 12px horizontal halo
+ * painted over a neighbouring sidebar Fab when navigationGap was zero. A 1px
+ * horizontal overlap now covers device-pixel rounding without reaching that Fab. The old fixed inset(-12px)
+ * leaked a 4px strip with a 16px gutter and could not cover a 72px header
+ * inset. GUTTER_MASK_SPREAD (40px) remains the minimum shadow spread. A document-scroll
+ * consumer has nothing else positioned right above/below the panel for that
+ * halo to land on. A bounded-shell consumer might — the whole reason for
+ * `overlaySizing="panel"` is that something IS placed right outside the panel
+ * — so panel mode clips the shadow flush to the box (`inset(0)`, zero bleed)
+ * rather than merely resizing the box and leaving a smaller bleed that could
+ * still reach a close sibling.
+ *
+ * Framing is tri-state via the `framed` prop:
+ *
+ *  - `undefined` (DEFAULT) → RESPONSIVE, driven purely by NativeWind: full-bleed
+ *    below the `framedFrom` breakpoint, framed at/above it. The breakpoint is
+ *    configurable per consumer (`framedFrom`, default `768` / Tailwind `md`); the
+ *    rounding is gated by that breakpoint's `min-*:` variant and both overlays
+ *    are always rendered but carry the matching `max-*:hidden` literal
+ *    (`display:none` below the breakpoint), so the breakpoint is decided entirely
+ *    in CSS — no consumer JS breakpoint hook.
+ *  - `false` → NEVER framed (full-bleed at every size): a single flat surface,
+ *    no rounding, no overlays.
+ *  - `true` → ALWAYS framed (rounded + overlays at every size).
+ *
+ * The overlays are gated by VISIBILITY (a `max-*:hidden` literal for the chosen
+ * breakpoint) rather than by conditional mounting for the responsive case, so
+ * crossing the breakpoint never remounts them. The content wrapper likewise
+ * keeps a stable `key` so `{children}` reconciles in place across the breakpoint
+ * instead of remounting (which would reset feed scroll / the virtualizer +
+ * refetch).
+ *
+ * Native bundlers use `./index.tsx` (a plain rounded surface); web bundlers
+ * select this file via the `"browser"` export condition in `package.json`.
+ *
+ * Styling is NativeWind-className-first; the literal class strings below MUST
+ * stay literal so a consumer's Tailwind content-scan over `lib/**` picks them up
+ * (no dynamic concatenation of the arbitrary `web:[…]` / `rounded-[var(--bloom-panel-radius)]` /
+ * `md:` parts — whole class strings are selected per mode instead).
+ */
+import React, { memo, useInsertionEffect } from 'react';
+import { useSurfaceMaterial } from '../surface/use-surface-material.web';
+import { StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
+
+import { adoptStyleSheet } from '../styles/adopt-style-sheet';
+import type { WebCssStyle } from '../styles/web-view-style';
+import { surfaceStyle as resolveShapeStyle } from '../shapes/surface-style';
+import { StyledView } from '../styles/styled-primitives';
+
+import { useOptionalPanelChrome, usePanelShape } from '../styles/panel-chrome';
+import {
+  SurfaceLevelProvider,
+  surfaceFillVars,
+  useOptionalSurfaceFill,
+  useSurfaceLevelValue,
+} from '../styles/surface-levels';
+import { useTheme } from '../theme/use-theme';
+import { ContentPanelNestingContext, useContentPanelNestingGuard } from './context';
+import { usePanelSurfaceFill } from './shared';
+import type { ContentPanelFramedBreakpoint, ContentPanelProps } from './types';
+
+/** Width (in px) of the sticky gutter-mask box-shadow ring. */
+export const GUTTER_MASK_SPREAD = 40;
+/** Top sticky inset (px) the framed panel chrome pins to. */
+export const PANEL_TOP_INSET = 8;
+/** Bottom sticky inset (px) of the framed panel chrome. */
+export const PANEL_BOTTOM_INSET = 8;
+
+/**
+ * Per-breakpoint literal Tailwind variant tokens for the WEB responsive mode.
+ * Each field is a WHOLE literal class string (never assembled from parts at
+ * runtime) so the consumer's content-scan over `lib/**` picks up every
+ * arbitrary/`min-*`/`max-*`/`web:` token verbatim. Selecting a bundle by
+ * `framedFrom` value is the only runtime decision:
+ * - `surface`       → framing rounding on the surface at/above the breakpoint.
+ * - `content`       → the same rounding + a web-only horizontal clip on the
+ *   inner content wrapper (`web:<bp>:overflow-x-clip`, platform-first-then-
+ *   breakpoint — matching the consumer convention `web:sm:flex` in `@mercaria/ui`).
+ * - `overlayHidden` → `display:none` for the sticky overlays BELOW the breakpoint.
+ *   `min-[500px]:` (≥500) and `max-[500px]:` (<500) are exactly complementary
+ *   (meet at 500, no overlap/gap), mirroring the named `md:`/`max-md:` pair.
+ */
+const RESPONSIVE_WEB: Record<
+  ContentPanelFramedBreakpoint,
+  { surface: string; content: string; overlayHidden: string }
+> = {
+  500: {
+    surface: 'min-[500px]:rounded-[var(--bloom-panel-radius)]',
+    content: 'min-[500px]:rounded-[var(--bloom-panel-radius)] web:min-[500px]:overflow-x-clip',
+    overlayHidden: 'max-[500px]:hidden',
+  },
+  640: {
+    surface: 'sm:rounded-[var(--bloom-panel-radius)]',
+    content: 'sm:rounded-[var(--bloom-panel-radius)] web:sm:overflow-x-clip',
+    overlayHidden: 'max-sm:hidden',
+  },
+  768: {
+    surface: 'md:rounded-[var(--bloom-panel-radius)]',
+    content: 'md:rounded-[var(--bloom-panel-radius)] web:md:overflow-x-clip',
+    overlayHidden: 'max-md:hidden',
+  },
+  1024: {
+    surface: 'lg:rounded-[var(--bloom-panel-radius)]',
+    content: 'lg:rounded-[var(--bloom-panel-radius)] web:lg:overflow-x-clip',
+    overlayHidden: 'max-lg:hidden',
+  },
+};
+
+// The mask must reach the viewport edges for arbitrary shell gutters. Keep
+// horizontal bleed to one CSS pixel to cover fractional device-pixel seams
+// without reaching adjacent controls. CSS owns
+// responsive framing, including the sticky inset inherited by PageHeader.
+const PANEL_INSET_CSS = `
+
+[data-bloom-panel] { --bloom-panel-sticky-top: 0px; }
+[data-bloom-panel="framed"] { --bloom-panel-sticky-top: var(--bloom-panel-inset-top); }
+@media (min-width: 500px) { [data-bloom-panel="500"] { --bloom-panel-sticky-top: var(--bloom-panel-inset-top); } }
+@media (min-width: 640px) { [data-bloom-panel="640"] { --bloom-panel-sticky-top: var(--bloom-panel-inset-top); } }
+@media (min-width: 768px) { [data-bloom-panel="768"] { --bloom-panel-sticky-top: var(--bloom-panel-inset-top); } }
+@media (min-width: 1024px) { [data-bloom-panel="1024"] { --bloom-panel-sticky-top: var(--bloom-panel-inset-top); } }
+[data-bloom-panel-mask="viewport"] {
+  clip-path: inset(calc(-1 * max(12px, var(--bloom-panel-inset-top))) -1px calc(-1 * max(12px, var(--bloom-panel-inset-bottom))) -1px);
+}
+`;
+
+const ContentPanelComponent: React.FC<ContentPanelProps> = ({
+  children,
+  errorBoundary = false,
+  appearance = 'solid',
+  framed,
+  framedFrom = 768,
+  fill = false,
+  surfaceClassName,
+  surfaceStyle,
+  surfaceColor,
+  contentClassName,
+  contentStyle,
+  showStickyFrame,
+  chrome = 'elevated',
+  shadow,
+  maskColor,
+  overlaySizing = 'viewport',
+  overlayInset,
+}) => {
+  // Install only for a mounted panel. Insertion effects run before layout and
+  // paint on web, and never during SSR, so import remains side-effect free.
+  useInsertionEffect(() => {
+    adoptStyleSheet('bloom-content-panel-insets', PANEL_INSET_CSS);
+  }, []);
+  // Dev-only invariant — must run unconditionally (before deriving any
+  // mode-specific branch) so the hook order stays stable (rules of hooks).
+  useContentPanelNestingGuard();
+  const { colors } = useTheme();
+  // The floating-panel edge the `Sidebar` wears. Optional: the panel drew its
+  // own surface long before it had a shadow, so it must not start throwing
+  // outside a provider.
+  const panelShape = usePanelShape();
+  const radius = StyleSheet.flatten(surfaceStyle)?.borderRadius ?? panelShape.radius;
+  const curveStyle = resolveShapeStyle({ curve: panelShape.curve });
+  const panelStyle = { ...curveStyle, borderRadius: radius };
+  const panelVars: WebCssStyle = {
+    '--bloom-panel-radius':
+      typeof radius === 'string'
+        ? radius
+        : `${typeof radius === 'number' ? radius : panelShape.radius}px`,
+  };
+  const panelChrome = useOptionalPanelChrome();
+  // What the panel tells its subtree it is painted in (`./shared.ts`).
+  const rawFill = usePanelSurfaceFill(surfaceClassName, surfaceStyle, surfaceColor);
+  const defaultFill = rawFill;
+  const { width } = useWindowDimensions();
+  const parentFill = useOptionalSurfaceFill();
+  const parentLevel = useSurfaceLevelValue();
+  const isPlain = appearance === 'plain';
+  const paintsSurface =
+    !isPlain &&
+    Boolean(defaultFill) &&
+    parentFill !== undefined &&
+    (framed ?? width >= framedFrom) &&
+    chrome !== 'none';
+  const publishedFill = isPlain
+    ? parentFill
+    : rawFill && paintsSurface
+      ? resolveSurfaceMaterial({ fill: rawFill, parentFill: parentFill! }).publishedFill
+      : rawFill;
+  const materialStyle = useSurfaceMaterial(
+    '[data-bloom-panel-material]',
+    'bloom-content-panel-material',
+    defaultFill ?? 'transparent',
+  );
+
+  // Tri-state: `undefined` → responsive (md:-gated), `true` → always framed,
+  // `false` → never framed (full-bleed).
+  const responsive = framed === undefined;
+  const showOverlays = framed !== false;
+  // Responsive mode selects a pre-shipped literal breakpoint bundle by value;
+  // `framed === true`/`false` ignore `framedFrom` (fixed always/never framing).
+  const bp = RESPONSIVE_WEB[framedFrom];
+  const boundToPanel = overlaySizing === 'panel';
+
+  // Whole literal class strings selected per mode (the Tailwind content-scan
+  // over `lib/**` requires each arbitrary/`min-*`/`max-*`/`web:` token stay
+  // literal — the breakpoint tokens live whole in `RESPONSIVE_WEB` above and are
+  // only spliced in, never assembled from parts).
+  const surfaceBase = responsive
+    ? `flex-1 ${bp.surface}`
+    : framed
+      ? 'flex-1 rounded-[var(--bloom-panel-radius)]'
+      : 'flex-1';
+  const contentBase = responsive
+    ? `flex-1 ${bp.content}`
+    : framed
+      ? 'flex-1 rounded-[var(--bloom-panel-radius)] web:overflow-x-clip'
+      : 'flex-1';
+  // `fill`: the panel takes the height its parent gives it and the CONTENT
+  // scrolls inside. `min-h-0` on both boxes is the whole trick — a flex child's
+  // automatic minimum size is its content, so without it the panel grows past
+  // the box it was told to fit and the scroller never gets a height to scroll
+  // against. The overflow goes on the content wrapper, never the surface: the
+  // surface is what the frame and the mask are drawn to, and a scrolling
+  // surface would scroll the edge with it.
+  const fillSurface = fill ? 'min-h-0' : '';
+  const fillContent = fill ? 'min-h-0 web:[overflow-y:auto]' : '';
+  // `overlaySizing="panel"`: the surface becomes a single-cell CSS Grid so the
+  // overlays and the content wrapper below can all be placed in that ONE cell
+  // (`web:[grid-area:1/1]`) and each fill it exactly — `minmax(0,1fr)` (not
+  // `1fr` alone) on both axes so the track can still SHRINK below its content's
+  // intrinsic size, the grid-track equivalent of the flex `min-height: 0`
+  // fix — without it, a tall scrollable child would grow the row instead of
+  // being clipped/scrolled inside a fixed-height cell.
+  const gridStackClass = boundToPanel
+    ? 'web:grid web:[grid-template-columns:minmax(0,1fr)] web:[grid-template-rows:minmax(0,1fr)]'
+    : '';
+  const surfaceClass = [
+    surfaceBase,
+    fillSurface,
+    gridStackClass,
+    surfaceClassName ?? (isPlain || paintsSurface ? 'bg-transparent' : 'bg-card'),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const contentClass = [
+    contentBase,
+    fillContent,
+    boundToPanel ? 'web:[grid-area:1/1]' : '',
+    contentClassName,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  // The viewport-mode overlays are sized and positioned from literal Tailwind
+  // classes (`top-2`, `h-[calc(100dvh-16px)]`, the matching negative
+  // `margin-bottom`) because those values are constants known at build time.
+  // An INSET is a runtime number — a shell's gutter, a measured header — which
+  // a Tailwind arbitrary class cannot express (content-scanning needs the
+  // literal string in source, not a value computed later), so a non-default
+  // inset shifts the same three properties through inline `style` instead,
+  // which has no such constraint. The default (8/8) leaves the classes standing
+  // alone, and `panel` mode ignores the inset entirely — that mode already
+  // starts at the panel's own box.
+  //
+  // RN's `ViewStyle.height`/`marginBottom` types only accept a number or a
+  // `${number}%` string, not an arbitrary CSS `calc()`, because most of that
+  // type is shared with native where `calc()` does not exist. This file is
+  // web-only, where it is a real value react-native-web passes straight
+  // through.
+  const insetTop =
+    typeof overlayInset === 'number' ? overlayInset : (overlayInset?.top ?? PANEL_TOP_INSET);
+  const insetBottom =
+    typeof overlayInset === 'number' ? overlayInset : (overlayInset?.bottom ?? PANEL_BOTTOM_INSET);
+  const customInset = insetTop !== PANEL_TOP_INSET || insetBottom !== PANEL_BOTTOM_INSET;
+  const insetStyle =
+    !boundToPanel && customInset
+      ? ({
+          top: insetTop,
+          height: `calc(100dvh - ${insetTop + insetBottom}px)`,
+          marginBottom: `calc(-100dvh + ${insetTop + insetBottom}px)`,
+        } as unknown as ViewStyle)
+      : undefined;
+
+  const insetVars: WebCssStyle = {
+    '--bloom-panel-inset-top': `${insetTop}px`,
+    '--bloom-panel-inset-bottom': `${insetBottom}px`,
+  };
+  const maskSpread = boundToPanel
+    ? GUTTER_MASK_SPREAD
+    : Math.max(GUTTER_MASK_SPREAD, insetTop, insetBottom);
+
+  return (
+    <ContentPanelNestingContext.Provider value={true}>
+      <StyledView
+        testID="content-panel-surface"
+        {...{
+          dataSet: {
+            bloomPanelMaterial: paintsSurface ? 'framed' : undefined,
+            bloomPanel:
+              boundToPanel || framed === false
+                ? 'none'
+                : responsive
+                  ? String(framedFrom)
+                  : 'framed',
+          },
+        }}
+        className={surfaceClass}
+        style={[
+          // `--bloom-surface` rides the element that carries the fill, so CSS
+          // below the panel and `useOptionalSurfaceFill()` below the panel cannot
+          // disagree about what the panel painted.
+          surfaceFillVars(publishedFill),
+          insetVars,
+          panelVars,
+          curveStyle,
+          framed === true
+            ? { borderRadius: radius }
+            : framed === false
+              ? { borderRadius: 0 }
+              : null,
+          surfaceStyle,
+          paintsSurface ? materialStyle : null,
+          isPlain ? { backgroundColor: 'transparent' } : null,
+        ]}
+      >
+        {/* (1) Bleed-mask overlay — gutter box-shadow ring, below chrome. Not
+            rendered when never-framed; `max-md:hidden` (display:none <md) when
+            responsive, so the breakpoint is decided in CSS, not by remounting. */}
+        {showOverlays && (
+          <StyledView
+            key="bleed-mask"
+            testID="content-panel-bleed-mask"
+            {...{ dataSet: { bloomPanelMask: boundToPanel ? 'panel' : 'viewport' } }}
+            pointerEvents="none"
+            className={
+              boundToPanel
+                ? `web:[grid-area:1/1] z-30 h-full w-full rounded-[var(--bloom-panel-radius)] ${responsive ? bp.overlayHidden : ''} web:[clip-path:inset(0)]`
+                : responsive
+                  ? `web:sticky web:top-2 z-30 h-[calc(100dvh-16px)] w-full rounded-[var(--bloom-panel-radius)] ${bp.overlayHidden} web:[margin-bottom:calc(-100dvh+16px)]`
+                  : 'web:sticky web:top-2 z-30 h-[calc(100dvh-16px)] w-full rounded-[var(--bloom-panel-radius)] web:[margin-bottom:calc(-100dvh+16px)]'
+            }
+            style={{
+              ...panelStyle,
+              ...insetStyle,
+              boxShadow: `0 0 0 ${maskSpread}px ${maskColor ?? (isPlain ? parentFill : undefined) ?? colors.background}`,
+            }}
+          />
+        )}
+        {/* (2) Border-frame overlay — one continuous rounded border, above all.
+            Same visibility gating as the bleed-mask. */}
+        {showOverlays && showStickyFrame !== false && !isPlain && chrome !== 'none' && (
+          <StyledView
+            key="border-frame"
+            testID="content-panel-border-frame"
+            pointerEvents="none"
+            // The shadow rides the SAME element as the hairline, so the lift and
+            // the edge can never disagree about where the panel ends. It paints
+            // outward, into the gutter the page background shows.
+            style={[
+              panelStyle,
+              insetStyle,
+              chrome === 'elevated' && (shadow || panelChrome)
+                ? { boxShadow: shadow ?? panelChrome?.shadow }
+                : null,
+            ]}
+            className={
+              boundToPanel
+                ? `web:[grid-area:1/1] z-[120] h-full w-full rounded-[var(--bloom-panel-radius)] border border-border ${responsive ? bp.overlayHidden : ''}`
+                : responsive
+                  ? `web:sticky web:top-2 z-[120] h-[calc(100dvh-16px)] w-full rounded-[var(--bloom-panel-radius)] border border-border ${bp.overlayHidden} web:[margin-bottom:calc(-100dvh+16px)]`
+                  : 'web:sticky web:top-2 z-[120] h-[calc(100dvh-16px)] w-full rounded-[var(--bloom-panel-radius)] border border-border web:[margin-bottom:calc(-100dvh+16px)]'
+            }
+          />
+        )}
+        {/* Content wrapper — STABLE position + key so toggling `framed` reconciles
+            in place instead of remounting `{children}` (which would reset feed
+            scroll/virtualizer + refetch on a breakpoint cross). Clipped to the
+            rounded panel shape on web when framed. */}
+        <StyledView
+          key="content"
+          testID="content-panel-content"
+          className={contentClass}
+          style={[
+            curveStyle,
+            framed === true
+              ? { borderRadius: radius }
+              : framed === false
+                ? { borderRadius: 0 }
+                : null,
+            contentStyle,
+          ]}
+        >
+          {/* Solid panels publish their painted surface. Plain panels preserve
+              the enclosing surface so descendant scrims follow its real fill. */}
+          <SurfaceLevelProvider level={isPlain ? parentLevel : 1} fill={publishedFill}>
+            {errorBoundary === false ? (
+              children
+            ) : (
+              <PanelErrorBoundary {...(errorBoundary === true ? {} : errorBoundary)}>
+                {children}
+              </PanelErrorBoundary>
+            )}
+          </SurfaceLevelProvider>
+        </StyledView>
+      </StyledView>
+    </ContentPanelNestingContext.Provider>
+  );
+};
+
+export const ContentPanel = memo(ContentPanelComponent);
+ContentPanel.displayName = 'ContentPanel';

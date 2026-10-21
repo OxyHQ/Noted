@@ -1,0 +1,58 @@
+import type { ComponentRef } from 'react';
+import type { TextInput, TextInputProps, StyleProp, ViewStyle } from 'react-native';
+
+import type { ViewStyleProp, TextStyleProp } from '../styles';
+import type { TextFieldSize } from '../text-field';
+
+export type TextareaResize = 'none' | 'vertical';
+
+export type TextareaProps = Omit<
+  TextInputProps,
+  'value' | 'defaultValue' | 'onChangeText' | 'placeholder' | 'multiline' | 'style' | 'maxLength'
+> &
+  ViewStyleProp & {
+    /**
+     * Visible label above the field, and the input's accessible name. When
+     * omitted, pass `accessibilityLabel` (or at least a `placeholder`, which is
+     * used as the fallback name).
+     */
+    label?: string;
+    /** Caption under the field; painted in the error colour when invalid. */
+    hint?: string;
+    placeholder?: string;
+    value?: string;
+    defaultValue?: string;
+    onValueChange?: (value: string) => void;
+    onChangeText?: (value: string) => void;
+    /** Two insets: `md` (default) or `sm`. */
+    size?: TextFieldSize;
+    /** Resting height in lines, default `3`. Also the floor when `autoResize` is on. */
+    rows?: number;
+    /** Grow with the content instead of scrolling at `rows`. */
+    autoResize?: boolean;
+    /** Ceiling for `autoResize`, in lines. Past it the field scrolls. */
+    maxRows?: number;
+    /** Web's native grab handle, default `vertical`. Forced `none` under `autoResize`. */
+    resize?: TextareaResize;
+    /** Hard character limit. */
+    maxLength?: number;
+    /** Show the character counter under the field (`12/280` with `maxLength`). */
+    showCount?: boolean;
+    invalid?: boolean;
+    isInvalid?: boolean;
+    disabled?: boolean;
+    /** Append the required asterisk to the label. */
+    required?: boolean;
+    /** Show the info glyph after the label. */
+    tooltip?: boolean;
+    /** Style for the `TextInput` itself (the outer `style` is the whole field). */
+    inputStyle?: TextStyleProp['style'];
+    /** Opt-in recipes for borderless/autogrowing composed fields. */
+    className?: string;
+    fieldClassName?: string;
+    inputClassName?: string;
+    fieldStyle?: StyleProp<ViewStyle>;
+    inputRef?:
+      | React.RefObject<ComponentRef<typeof TextInput> | null>
+      | React.ForwardedRef<ComponentRef<typeof TextInput>>;
+  };

@@ -1,0 +1,230 @@
+import { APP_COLOR_NAMES, type AppColorName } from './color-presets';
+import { getPresetVars, type ExplicitAccents } from './preset-vars';
+
+/**
+ * The canonical set of Bloom theme token names — WITHOUT the leading `--`.
+ *
+ * This is the single source of truth for which tokens a preset produces. It
+ * covers exactly the keys returned by `getPresetVars(name, mode)` (the base
+ * shadcn palette plus the synthesized extended tokens: card/chart/content-area/
+ * sidebar-*). The list is intentionally hand-maintained and verified by
+ * `token-registry.test.ts` against the live `getPresetVars('oxy', 'light')`
+ * output, so any drift in the preset shape fails CI.
+ *
+ * Order mirrors `getPresetVars`'s insertion order: base tokens first (in the
+ * order they appear in the preset data), then the synthesized extended tokens.
+ */
+export const CANONICAL_TOKENS = [
+  'background',
+  'foreground',
+  'surface',
+  'surface-foreground',
+  'popover',
+  'popover-foreground',
+  'primary',
+  'primary-foreground',
+  'secondary',
+  'secondary-foreground',
+  'tertiary',
+  'tertiary-foreground',
+  'muted',
+  'muted-foreground',
+  'accent',
+  'accent-foreground',
+  'destructive',
+  'border',
+  'input',
+  'ring',
+  'sidebar',
+  'card',
+  'card-foreground',
+  'chart-1',
+  'chart-2',
+  'chart-3',
+  'chart-4',
+  'chart-5',
+  'chart-6',
+  'chart-7',
+  'chart-8',
+  'chart-9',
+  'chart-1-active',
+  'chart-2-active',
+  'chart-3-active',
+  'chart-4-active',
+  'chart-5-active',
+  'chart-6-active',
+  'chart-7-active',
+  'chart-8-active',
+  'chart-9-active',
+  'content-area',
+  'sidebar-foreground',
+  'sidebar-primary',
+  'sidebar-primary-foreground',
+  'sidebar-accent',
+  'sidebar-accent-foreground',
+  'sidebar-border',
+  'sidebar-ring',
+
+  // --- the accent families ---
+  // Each accent is a FAMILY, not a colour: a fill, the label that is legible on
+  // it, a `-text` form for a mark on the page, and a `-subtle` translucent tint
+  // for the surface behind one. A single value can only ever be a fill, which is
+  // why consumers hand-rolled the rest with hex-alpha arithmetic.
+  'primary-text',
+  'primary-subtle',
+  'secondary-text',
+  'secondary-subtle',
+  'tertiary-text',
+  'tertiary-subtle',
+
+  // --- semantic status, themed per mode ---
+  // Replaces four frozen hexes that all FAILED AA under white text (warning at
+  // 2.15, success 2.54, info 3.68, error 3.76) and had no subtle or text member.
+  'success',
+  'success-foreground',
+  'success-text',
+  'success-subtle',
+  'error',
+  'error-foreground',
+  'error-text',
+  'error-subtle',
+  'warning',
+  'warning-foreground',
+  'warning-text',
+  'warning-subtle',
+  'info',
+  'info-foreground',
+  'info-text',
+  'info-subtle',
+] as const;
+
+/** A canonical token name (no leading `--`). */
+export type CanonicalToken = (typeof CANONICAL_TOKENS)[number];
+
+/**
+ * Matches a shadcn-style raw HSL triple — `H S% L%`, optionally with an alpha
+ * tail `H S% L% / A`. The value starts with a digit (or a leading `-`) and
+ * carries at least one `%` (the saturation/lightness units), which distinguishes
+ * a bare triple from an already-resolved color (`rgb(...)`, `#fff`) or a
+ * unitless/length token (`--radius: 0.5rem`).
+ */
+const RAW_HSL_TRIPLE = /^-?\d[\d.]*\s+[\d.]+%/;
+
+/**
+ * Convert a shadcn-style HSL triple (`'H S% L%'`, optionally with an alpha tail
+ * `'H S% L% / A'`) into an sRGB `rgb(...)` string.
+ *
+ * Standard HSL→sRGB math with integer-rounded channels and modern
+ * space-separated output (`rgb(r g b)` / `rgb(r g b / a)`). This is the SINGLE
+ * conversion the whole library uses — web document writes, web scope vars, and
+ * native `rootVariables` all flow through `getResolvedTokens`, which calls this.
+ * The byte-for-byte output is frozen by the golden parity fixture
+ * (`__fixtures__/golden-resolved-tokens.json`), so the visible palette cannot
+ * drift.
+ *
+ * Task 2's `oklchToSrgb` (in `color-space.ts`) stays available for a FUTURE
+ * OKLCH re-authoring of the seed palette; it is intentionally NOT used here —
+ * routing through OKLCH would shift the rounded channels off the frozen palette.
+ *
+ * Pure function — no side effects.
+ */
+export function hslToSrgb(triple: string): string {
+  const [colorPart, alphaPart] = triple.split('/').map((part) => part.trim());
+  const channels = (colorPart ?? '').split(/\s+/).filter(Boolean);
+
+  const hue = parseFloat((channels[0] ?? '0').replace(/deg$/i, ''));
+  const sat = parseFloat((channels[1] ?? '0').replace('%', '')) / 100;
+  const light = parseFloat((channels[2] ?? '0').replace('%', '')) / 100;
+
+  const h = Number.isFinite(hue) ? hue : 0;
+  const s = Number.isFinite(sat) ? sat : 0;
+  const l = Number.isFinite(light) ? light : 0;
+
+  const chroma = (1 - Math.abs(2 * l - 1)) * s;
+  const huePrime = (((h % 360) + 360) % 360) / 60;
+  const second = chroma * (1 - Math.abs((huePrime % 2) - 1));
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (huePrime < 1) {
+    [r, g, b] = [chroma, second, 0];
+  } else if (huePrime < 2) {
+    [r, g, b] = [second, chroma, 0];
+  } else if (huePrime < 3) {
+    [r, g, b] = [0, chroma, second];
+  } else if (huePrime < 4) {
+    [r, g, b] = [0, second, chroma];
+  } else if (huePrime < 5) {
+    [r, g, b] = [second, 0, chroma];
+  } else {
+    [r, g, b] = [chroma, 0, second];
+  }
+
+  const match = l - chroma / 2;
+  const red = Math.round((r + match) * 255);
+  const green = Math.round((g + match) * 255);
+  const blue = Math.round((b + match) * 255);
+
+  if (alphaPart !== undefined && alphaPart !== '') {
+    const alpha = alphaPart.endsWith('%') ? parseFloat(alphaPart) / 100 : parseFloat(alphaPart);
+    const safeAlpha = Number.isFinite(alpha) ? alpha : 1;
+    return `rgb(${red} ${green} ${blue} / ${safeAlpha})`;
+  }
+
+  return `rgb(${red} ${green} ${blue})`;
+}
+
+/**
+ * Resolve a preset's canonical runtime color tokens to sRGB `rgb(...)` strings.
+ *
+ * THE single source of runtime color tokens for the whole library, on BOTH web
+ * and native. Takes the raw triple map from `getPresetVars(preset, mode)` (base
+ * + extended) and converts every value that looks like an HSL triple via
+ * `hslToSrgb`. Non-triple values (already-resolved colors, length/radius tokens)
+ * pass through unchanged. Keys retain the `--` prefix, so each `--x` token IS a
+ * full CSS color — no resolved-color companion universe, no per-platform wrapping.
+ *
+ * The result is frozen by the golden parity fixture
+ * (`__fixtures__/golden-resolved-tokens.json`), guaranteeing the visible palette
+ * matches the previous resolved-color pipeline byte-for-byte.
+ */
+export function getResolvedTokens(
+  preset: AppColorName,
+  mode: 'light' | 'dark',
+  accents?: ExplicitAccents,
+): Record<string, string> {
+  const raw = getPresetVars(preset, mode, accents);
+  const resolved: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    resolved[key] = RAW_HSL_TRIPLE.test(value) ? hslToSrgb(value) : value;
+  }
+  return resolved;
+}
+
+export { APP_COLOR_NAMES };
+
+/**
+ * Apply a preset's extended vars to `document.documentElement`. Web-only no-op
+ * on native. `BloomThemeProvider` already writes the base preset vars on web;
+ * call this only when an app needs the extended (card/chart/sidebar) tokens on
+ * the document root.
+ *
+ * Tokens are resolved via the single canonical `getResolvedTokens` pipeline
+ * (already full `rgb(...)` colours from the engine), so `var(--x)` — the form
+ * Tailwind v4 `@theme inline` compiles its color utilities to — resolves
+ * directly to a valid color on web.
+ */
+export function applyPresetVarsToDocument(colorName: AppColorName, mode: 'light' | 'dark'): void {
+  // Web-only: on native `document` is undefined, so this is a no-op there
+  // without needing a `react-native` Platform import (keeping this module —
+  // and `getPresetVars` — free of any RN dependency so it is importable from
+  // pure/web/test environments).
+  if (typeof document === 'undefined') return;
+
+  const vars = getResolvedTokens(colorName, mode);
+  const root = document.documentElement.style;
+  for (const [key, value] of Object.entries(vars)) {
+    root.setProperty(key, value);
+  }
+}

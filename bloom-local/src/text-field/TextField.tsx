@@ -1,0 +1,1066 @@
+import { useBloomAppearance } from '../appearance';
+import { FieldBox } from './FieldBox';
+import {
+  type ComponentRef,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  type AccessibilityProps,
+  Animated,
+  Platform,
+  StyleSheet,
+  TextInput,
+  type TextInputProps,
+  type TextStyle,
+  View,
+} from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
+
+import { useTheme } from '../theme/use-theme';
+import { useInteractionState } from '../hooks/use-interaction-state';
+import { useDirectionProps, useIsRtl } from '../hooks/use-is-rtl';
+import { useFieldControl } from '../field/context';
+import { mergeRefs } from '../hooks/merge-refs';
+import { atoms as a, web, android, platform, tokens, type TextStyleProp } from '../styles';
+import { RiInformationFill } from '../icons/remix/RiInformationFill';
+import { RiEyeLine } from '../icons/remix/RiEyeLine';
+import { RiEyeOffLine } from '../icons/remix/RiEyeOffLine';
+import { GlyphButton } from '../button/GlyphButton';
+import { useMessages } from '../locale/messages';
+import { TEXT_FIELD_MESSAGES } from './messages';
+import { Text } from '../typography';
+import {
+  SANS_FONT_FAMILY,
+  TEXT_FIELD_ADDON_PADDING,
+  TEXT_FIELD_GEOMETRY,
+  TEXT_FIELD_HINT_TEXT,
+  TEXT_FIELD_ICON_SIZE,
+  TEXT_FIELD_INPUT_INSET,
+  TEXT_FIELD_LEADING_GAP,
+  TEXT_FIELD_RADIUS,
+  TEXT_FIELD_RING_WIDTH,
+  TEXT_FIELD_STACK_GAP,
+  TEXT_FIELD_TEXT,
+  TEXT_FIELD_TRAILING_GAP,
+  TEXT_FIELD_WEB_TRANSITION,
+  resolveIconColor,
+  resolvePlaceholderColor,
+  resolveShellPaint,
+  useTextFieldPalette,
+  type TextFieldPalette,
+  type TextFieldSize,
+} from './shared';
+import type {
+  TextFieldHintProps,
+  TextFieldIconProps,
+  TextFieldInputProps,
+  TextFieldLabelProps,
+  TextFieldProps,
+  TextFieldRevealLabels,
+} from './types';
+
+import { useFieldMembership } from '../field/membership';
+import { IS_WEB } from '../styles/platform';
+
+interface TextFieldContextValue {
+  inputRef: React.RefObject<ComponentRef<typeof TextInput> | null>;
+  invalid: boolean;
+  /** Disabled by the root's `disabled` OR by the input reporting itself disabled. */
+  disabled: boolean;
+  /** Lets the input report `disabled` / `editable={false}` up to its siblings. */
+  setInputDisabled: (disabled: boolean) => void;
+  size: TextFieldSize;
+  palette: TextFieldPalette;
+  /** Corner radius of the input chrome. A large value (e.g. 999) reads as a pill. */
+  radius: number;
+  hovered: boolean;
+  onHoverIn: () => void;
+  onHoverOut: () => void;
+  focused: boolean;
+  onFocus: () => void;
+  onBlur: () => void;
+  /**
+   * The `leadingAddon` holds focus. Paints the shell's focus ring but NOT the input's `focus:` placeholder colour,
+   * which belongs to the input alone.
+   */
+  addonFocused: boolean;
+  /** Inside an `InputGroup`: the group paints the shell, so the field draws none. */
+  bare: boolean;
+  chromeClassName?: string;
+}
+
+/**
+ * The default is `null`, not an inert value object — see `useTextFieldContext`.
+ */
+const Context = createContext<TextFieldContextValue | null>(null);
+Context.displayName = 'BloomTextFieldContext';
+
+/**
+ * Set by `InputGroup`, which owns the filled shell and its ring. A `TextField`
+ * (or a self-wrapping `TextFieldInput`, or a `Search`) inside one renders BARE —
+ * no shell of its own, no side padding, and the group's size, invalid and
+ * disabled state — so the group reads as ONE field instead of a field
+ * nested in a field, each drawing its own fill and ring.
+ *
+ * Internal: not on the family barrel.
+ */
+export interface TextFieldGroupContextValue {
+  size: TextFieldSize;
+  invalid: boolean;
+  disabled: boolean;
+}
+export const TextFieldGroupContext = createContext<TextFieldGroupContextValue | null>(null);
+TextFieldGroupContext.displayName = 'BloomTextFieldGroupContext';
+
+/**
+ * The context, or an error naming what is missing.
+ *
+ * A filled-in default would let a part render OUTSIDE a `<TextField>` and look
+ * finished: an icon that never takes the invalid colour, a suffix stuck on the
+ * resting tint, a corner radius that ignores the field it is not inside. Nothing
+ * errors, nothing logs, and the field is simply wrong forever — the failure this
+ * whole library answers with a throw everywhere else (`useDropdownMenu`,
+ * `usePopover`, `useMenubar`, `useTheme`).
+ *
+ * `TextFieldInput` deliberately does NOT use this: it reads the context directly
+ * so that a `null` means "no root above me", which is the signal it uses to wrap
+ * itself in one. Standalone `<TextFieldInput>` is a supported spelling and by far
+ * the most common one in the fleet.
+ */
+function useTextFieldContext(): TextFieldContextValue {
+  const value = useContext(Context);
+  if (!value) {
+    throw new Error('TextField parts must be rendered inside a <TextField>.');
+  }
+  return value;
+}
+
+/**
+ * RN Web paints the browser's default focus outline on the underlying `<input>`.
+ * That rectangle follows the input's own box — NOT the TextField chrome — so on a
+ * pill (large radius) it pokes out of the corners and reads as a stray border on
+ * focus. Strip it so ONLY the TextField's own focus chrome (the inset ring)
+ * signals focus. `outlineStyle`/`outlineWidth` are RN-Web style properties absent
+ * from RN's core types; `web()` guarantees this object is never applied on native.
+ */
+const WEB_INPUT_OUTLINE_RESET: TextStyle | undefined =
+  Platform.OS === 'web'
+    ? ({ outlineWidth: 0, outlineStyle: 'none' } as unknown as TextStyle)
+    : undefined;
+
+/** `disabled:cursor-not-allowed`; RN's `cursor` type has no such value. */
+const WEB_INPUT_DISABLED_CURSOR: TextStyle | undefined = IS_WEB
+  ? ({ cursor: 'not-allowed' } as unknown as TextStyle)
+  : undefined;
+
+/** The textarea rests at three lines: 3 × 20 + 2 × 8. */
+const MULTILINE_MIN_HEIGHT = 3 * TEXT_FIELD_TEXT.lineHeight + 16;
+
+export function TextField({
+  children,
+  invalid: invalidNew,
+  isInvalid,
+  disabled: disabledProp = false,
+  size: sizeProp,
+  radius = TEXT_FIELD_RADIUS,
+  leadingAddon,
+  className,
+  chromeClassName,
+  style,
+}: TextFieldProps) {
+  const theme = useTheme();
+  const direction = useDirectionProps();
+  const invalidProp = invalidNew ?? isInvalid ?? false;
+  const group = useContext(TextFieldGroupContext);
+  const bare = group !== null;
+  // The enclosing `Field`, read HERE as well as in `TextFieldInput`: the shell
+  // is what paints the disabled and invalid chrome, and a shell that waited for
+  // its input to report up would paint nothing at all around a child that is not
+  // Bloom's input. Both directions are OR, so the two readings cannot disagree.
+  const member = useFieldMembership({ disabled: disabledProp, invalid: invalidProp });
+  const invalid = member.invalid || (group?.invalid ?? false);
+  const disabled = member.disabled || (group?.disabled ?? false);
+  // An `InputGroup` outranks everything: its members have to be one height. Then
+  // the caller's own prop, then the container's density (`BloomScope`), then
+  // `medium` — the precedence rule in `docs/composition.mdx`, with the group's
+  // geometry first because it is a constraint rather than a default.
+  const { size: scopedSize } = useBloomAppearance(
+    { size: sizeProp },
+    { size: 'md', tone: 'neutral' },
+  );
+  const inheritedSize = scopedSize;
+  const size = group?.size ?? inheritedSize;
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const [inputDisabled, setInputDisabled] = useState(false);
+  const { state: hovered, onIn: onHoverIn, onOut: onHoverOut } = useInteractionState();
+  const { state: focused, onIn: onFocus, onOut: onBlur } = useInteractionState();
+  const [addonFocused, setAddonFocused] = useState(false);
+  const hasAddon = leadingAddon !== undefined && leadingAddon !== null;
+
+  const palette = useTextFieldPalette();
+  const resolvedDisabled = disabled || inputDisabled;
+
+  const context = useMemo(
+    () => ({
+      inputRef,
+      hovered,
+      onHoverIn,
+      onHoverOut,
+      focused,
+      onFocus,
+      onBlur,
+      addonFocused,
+      invalid,
+      disabled: resolvedDisabled,
+      setInputDisabled,
+      size,
+      palette,
+      radius,
+      bare,
+      chromeClassName,
+    }),
+    [
+      inputRef,
+      hovered,
+      onHoverIn,
+      onHoverOut,
+      focused,
+      onFocus,
+      onBlur,
+      addonFocused,
+      invalid,
+      resolvedDisabled,
+      size,
+      palette,
+      radius,
+      bare,
+      chromeClassName,
+    ],
+  );
+
+  return (
+    <Context.Provider value={context}>
+      <FieldBox
+        {...direction}
+        className={className}
+        style={style}
+        baseStyle={[
+          a.flex_row,
+          a.align_center,
+          a.relative,
+          bare
+            ? { flex: 1, minWidth: 0 }
+            : [
+                a.w_full,
+                hasAddon
+                  ? TEXT_FIELD_ADDON_PADDING[size]
+                  : { paddingHorizontal: TEXT_FIELD_GEOMETRY[size].paddingHorizontal },
+              ],
+        ]}
+        {...(IS_WEB
+          ? ({
+              onClick: () => inputRef.current?.focus(),
+              onMouseOver: onHoverIn,
+              onMouseOut: onHoverOut,
+            } as Record<string, unknown>)
+          : undefined)}
+      >
+        {hasAddon ? (
+          <LeadingAddon onFocusChange={setAddonFocused}>{leadingAddon}</LeadingAddon>
+        ) : null}
+        {children}
+      </FieldBox>
+    </Context.Provider>
+  );
+}
+
+/**
+ * The `leadingAddon` slot: `shrink-0`, 2px before the input (`gap-0.5`).
+ *
+ * On web it also reports FOCUS WITHIN up to the shell, lighting the ring while
+ * the country-code trigger holds focus — except while that control reports
+ * `aria-expanded="true"`: the ring drops to the hover ring while the list is
+ * open and comes back on close. Bloom's trigger keeps DOM focus while its list
+ * is open, so the attribute is what marks the open state.
+ *
+ * Its click stops at the slot: the shell's own click focuses the input, which
+ * would take focus from the control the press was meant for.
+ */
+function LeadingAddon({
+  children,
+  onFocusChange,
+}: {
+  children: React.ReactNode;
+  onFocusChange: (focused: boolean) => void;
+}) {
+  const observer = useRef<MutationObserver | null>(null);
+  useEffect(() => () => observer.current?.disconnect(), []);
+
+  const webHandlers = IS_WEB
+    ? {
+        onClick: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+        onFocus: (event: { target: unknown; currentTarget: unknown }) => {
+          const target = event.target as HTMLElement;
+          // React bubbles focus through PORTALS too: a row of the addon's open
+          // list is a React descendant but not a DOM one, and is not "within".
+          if (!(event.currentTarget as HTMLElement).contains(target)) return;
+          const report = () => onFocusChange(target.getAttribute('aria-expanded') !== 'true');
+          observer.current?.disconnect();
+          if (typeof MutationObserver !== 'undefined') {
+            observer.current = new MutationObserver(report);
+            observer.current.observe(target, {
+              attributes: true,
+              attributeFilter: ['aria-expanded'],
+            });
+          }
+          report();
+        },
+        onBlur: (event: { target: unknown; currentTarget: unknown }) => {
+          if (!(event.currentTarget as HTMLElement).contains(event.target as HTMLElement)) return;
+          observer.current?.disconnect();
+          observer.current = null;
+          onFocusChange(false);
+        },
+      }
+    : undefined;
+
+  return (
+    <View
+      style={[a.z_20, { flexShrink: 0, marginInlineEnd: TEXT_FIELD_LEADING_GAP }]}
+      {...(webHandlers as Record<string, unknown> | undefined)}
+    >
+      {children}
+    </View>
+  );
+}
+
+/** The filled shell behind the input: fill + inset ring for the current state. */
+function Chrome({ invalid }: { invalid: boolean }) {
+  const ctx = useTextFieldContext();
+  if (ctx.bare) return null;
+  const paint = resolveShellPaint(ctx.palette, {
+    hovered: ctx.hovered,
+    focused: ctx.focused || ctx.addonFocused,
+    invalid,
+    disabled: ctx.disabled,
+  });
+  return (
+    <FieldBox
+      pointerEvents="none"
+      className={ctx.chromeClassName}
+      stateStyle={
+        ctx.disabled || invalid
+          ? paint
+          : ctx.focused || ctx.addonFocused
+            ? { borderColor: paint.borderColor }
+            : undefined
+      }
+      baseStyle={[
+        a.z_10,
+        a.absolute,
+        a.inset_0,
+        {
+          borderRadius: ctx.radius,
+          borderWidth: TEXT_FIELD_RING_WIDTH,
+          ...paint,
+        },
+        TEXT_FIELD_WEB_TRANSITION,
+      ]}
+    />
+  );
+}
+
+export function TextFieldInput({
+  label,
+  placeholder,
+  value,
+  onValueChange: onValueChangeProp,
+  onChangeText,
+  onFocus,
+  onBlur,
+  invalid: invalidNew,
+  isInvalid,
+  disabled,
+  size,
+  inputRef,
+  style,
+  floatingLabel = false,
+  secureTextEntry,
+  revealable = false,
+  revealLabels,
+  locale,
+  ...rest
+}: TextFieldInputProps) {
+  const theme = useTheme();
+  const rtl = useIsRtl();
+  const invalidProp = invalidNew ?? isInvalid;
+  // Hidden until asked. Only a secure field can be revealed; for any other the
+  // prop is inert, so `secureTextEntry` passes through untouched.
+  const [revealed, setRevealed] = useState(false);
+  const canReveal = revealable && secureTextEntry === true;
+  const secure = secureTextEntry === true && !(canReveal && revealed);
+  const onValueChange = onValueChangeProp ?? onChangeText;
+  // Read directly rather than through `useTextFieldContext`: a missing root is
+  // not an error here, it is the branch below.
+  const ctx = useContext(Context);
+  // The enclosing `Field`, when there is one. This is the input's half of the
+  // association contract (`field/context.ts`): the field owns the id the label
+  // points at, which hint is currently described, the invalid state and the
+  // disabled state, and the input applies them. `disabled` combines with `||`
+  // because it is a constraint — a field that is off cannot be turned back on
+  // from inside it — while the id and the name DEFER to the field, so the
+  // visible label and the announced name cannot disagree.
+  const field = useFieldControl();
+  const inputDisabled = disabled === true || rest.editable === false || field?.disabled === true;
+  const setInputDisabled = ctx?.setInputDisabled;
+
+  // Report up, so the icon and suffix beside the input dim with it.
+  useEffect(() => {
+    if (!setInputDisabled) return;
+    setInputDisabled(inputDisabled);
+    return () => setInputDisabled(false);
+  }, [setInputDisabled, inputDisabled]);
+
+  if (ctx === null) {
+    // A standalone input wraps ITSELF in a field shell. The shell has to carry
+    // the enclosing `Field`'s invalid and disabled state too, or the chrome
+    // paints as if nothing were wrong while the input inside it is inert — the
+    // one arrangement where the two halves of the control disagree.
+    return (
+      <TextField
+        invalid={invalidProp || field?.invalid === true}
+        disabled={disabled || field?.disabled === true}
+        size={size}
+      >
+        <TextFieldInput
+          label={label}
+          placeholder={placeholder}
+          value={value}
+          onValueChange={onValueChange}
+          invalid={invalidProp}
+          disabled={disabled}
+          floatingLabel={floatingLabel}
+          style={style}
+          inputRef={inputRef}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          secureTextEntry={secureTextEntry}
+          revealable={revealable}
+          revealLabels={revealLabels}
+          locale={locale}
+          {...rest}
+        />
+      </TextField>
+    );
+  }
+
+  const refs = mergeRefs(
+    [ctx.inputRef, inputRef].filter((ref): ref is NonNullable<typeof ref> => ref != null),
+  );
+
+  const invalid = ctx.invalid || invalidProp === true || field?.invalid === true;
+  const fieldDisabled = ctx.disabled || inputDisabled;
+  const state = {
+    hovered: ctx.hovered,
+    focused: ctx.focused,
+    invalid,
+    disabled: fieldDisabled,
+  };
+
+  // `editable` is what native reads; web additionally gets the real `disabled`
+  // attribute (react-native-web forwards it) so the control leaves the tab order
+  // and `:disabled` matches an `isDisabled` prop.
+  const disabledProps = {
+    editable: fieldDisabled ? false : rest.editable,
+    'aria-disabled': fieldDisabled || undefined,
+    'aria-invalid': invalid || undefined,
+  };
+  // The enclosing `Field`'s wiring. `rest` is spread BEFORE these, so an
+  // explicit `nativeID` or `aria-describedby` on the input still wins — an app
+  // that already wired its own association keeps it.
+  const fieldProps = field
+    ? {
+        nativeID: rest.nativeID ?? field.controlId,
+        'aria-describedby':
+          (rest as Record<string, unknown>)['aria-describedby'] ?? field.describedBy,
+        'aria-required': field.required || undefined,
+      }
+    : undefined;
+  // On web the `<label for>` already names the input, but `aria-label` would
+  // OVERRIDE it — so when the field has a text label the two must be the same
+  // string rather than two spellings of it. On native there is no association
+  // at all and this prop is the only name the control has.
+  const accessibleName = rest.accessibilityLabel ?? field?.labelText ?? label;
+  const webDisabled =
+    IS_WEB && fieldDisabled ? ({ disabled: true } as Record<string, unknown>) : undefined;
+  const reveal = canReveal ? (
+    <RevealButton
+      revealed={revealed}
+      onToggle={() => setRevealed((current) => !current)}
+      invalid={invalid}
+      labels={revealLabels}
+      locale={locale}
+    />
+  ) : null;
+
+  if (floatingLabel) {
+    // The ids and the described-by still travel, so the error is announced —
+    // but a floating label inside a `Field` that also draws a label shows the
+    // same words twice, once above the box and once inside it. They are
+    // alternatives, not layers: use one or the other. `docs/field.mdx` says so
+    // where a caller will read it.
+    return (
+      <>
+        <FloatingLabelInput
+          label={accessibleName}
+          value={value}
+          onValueChange={onValueChange}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          invalid={invalid}
+          refs={refs}
+          style={style}
+          {...rest}
+          {...fieldProps}
+          {...disabledProps}
+          {...webDisabled}
+          secureTextEntry={secure}
+        />
+        {reveal}
+      </>
+    );
+  }
+
+  const geometry = TEXT_FIELD_GEOMETRY[ctx.size];
+  const multiline = rest.multiline === true;
+
+  const flattened: TextStyle = StyleSheet.flatten([
+    a.relative,
+    a.z_20,
+    a.flex_1,
+    {
+      fontFamily: SANS_FONT_FAMILY,
+      fontSize: TEXT_FIELD_TEXT.fontSize,
+      fontWeight: TEXT_FIELD_TEXT.fontWeight,
+      color: fieldDisabled ? ctx.palette.textDisabled : ctx.palette.text,
+      minWidth: 0,
+      // Longhands, so caller-authored physical padding wins on
+      // web too — `paddingHorizontal` becomes `padding-inline`, which outranks it.
+      // Resolve against the field's layout direction, not the input's automatic
+      // text direction (an English query may live inside an Arabic interface).
+      paddingLeft: rtl ? 0 : TEXT_FIELD_INPUT_INSET,
+      paddingRight: rtl ? TEXT_FIELD_INPUT_INSET : 0,
+    },
+    multiline
+      ? {
+          lineHeight: TEXT_FIELD_TEXT.lineHeight,
+          textAlignVertical: 'top' as const,
+          minHeight: MULTILINE_MIN_HEIGHT,
+          paddingTop: 8,
+          paddingBottom: 8,
+        }
+      : {
+          // The input IS the shell's height, so the whole field is the hit area.
+          // Inside an `InputGroup` the group's 2px ring border takes its share.
+          height: ctx.bare ? geometry.height - 2 * TEXT_FIELD_RING_WIDTH : geometry.height,
+          paddingTop: 0,
+          paddingBottom: 0,
+          textAlignVertical: 'center' as const,
+        },
+    // A single-line iOS `TextInput` with a `lineHeight` sits its glyphs low, so
+    // the 20px line box is web's alone; native centres within the height.
+    !multiline ? web({ lineHeight: TEXT_FIELD_TEXT.lineHeight }) : undefined,
+    android({ includeFontPadding: false }),
+    WEB_INPUT_OUTLINE_RESET,
+    // `disabled:cursor-not-allowed` on the control.
+    fieldDisabled ? WEB_INPUT_DISABLED_CURSOR : undefined,
+    style,
+  ]) as TextStyle;
+
+  return (
+    <>
+      <TextInput
+        accessibilityHint={undefined}
+        hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        {...rest}
+        {...fieldProps}
+        {...disabledProps}
+        {...webDisabled}
+        accessibilityLabel={accessibleName}
+        ref={refs}
+        value={value}
+        onChangeText={onValueChange}
+        onFocus={(e) => {
+          ctx.onFocus();
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          ctx.onBlur();
+          onBlur?.(e);
+        }}
+        placeholder={placeholder === null ? undefined : placeholder || label}
+        placeholderTextColor={resolvePlaceholderColor(ctx.palette, state)}
+        keyboardAppearance={theme.mode === 'light' ? 'light' : 'dark'}
+        secureTextEntry={secure}
+        style={flattened}
+      />
+
+      {reveal}
+
+      <Chrome invalid={invalid} />
+    </>
+  );
+}
+
+/**
+ * The reveal button's box sits 4px inside the shell's height (28 in the 36px
+ * `md` shell, 24 in the 32px `sm`); its glyph is the 20px icon size, less
+ * where the box would crowd it (18 in 24).
+ */
+function revealGeometry(size: TextFieldSize): { box: number; glyph: number } {
+  const box = TEXT_FIELD_GEOMETRY[size].height - 8;
+  return { box, glyph: Math.min(TEXT_FIELD_ICON_SIZE, box - 6) };
+}
+
+/**
+ * Web: `preventDefault` on mousedown, so a pointer press never takes focus
+ * from the input. The click needs nothing here: react-native-web's
+ * `PressResponder` stops a pressable's click itself, so the shell's own
+ * click-to-focus never pulls a keyboard user off the button
+ * (`TextFieldRevealWeb.test.tsx` pins it).
+ */
+const KEEP_FOCUS_WHERE_IT_IS = IS_WEB
+  ? ({ onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() } as Record<
+      string,
+      unknown
+    >)
+  : undefined;
+
+/**
+ * The eye / eye-off after a `revealable` secure input. It sits where a trailing
+ * `TextFieldIcon` would, its GLYPH on the icon's 8px gap and the shell's
+ * padding — the round hover wash reaches past both, into the padding.
+ *
+ * Focus stays in the input. On web the mousedown is cancelled, so the input
+ * never blurs (and a caller's `onBlur` validation never runs mid-typing); on
+ * native a tap on a sibling does not blur a `TextInput`, and if something did
+ * (a parent `ScrollView` handling the tap), the input is focused again. A
+ * keyboard user who tabbed to the button keeps focus on the button.
+ *
+ * Its state is its NAME ("Show password" ↔ "Hide password"), so it carries no
+ * `aria-pressed`: a toggle whose label also flips announces its state twice.
+ */
+function RevealButton({
+  revealed,
+  onToggle,
+  invalid,
+  labels,
+  locale,
+}: {
+  revealed: boolean;
+  onToggle: () => void;
+  /** The input's own invalid state, which may be set without the field's. */
+  invalid: boolean;
+  labels?: TextFieldRevealLabels;
+  locale?: string;
+}) {
+  const ctx = useTextFieldContext();
+  const { messages } = useMessages(TEXT_FIELD_MESSAGES, locale);
+  const inputWasFocused = useRef(false);
+  const { box: size, glyph } = revealGeometry(ctx.size);
+  const inset = (size - glyph) / 2;
+  const label = revealed
+    ? (labels?.hide ?? messages.hidePassword)
+    : (labels?.show ?? messages.showPassword);
+
+  return (
+    <View
+      style={[
+        a.z_20,
+        { marginInlineStart: TEXT_FIELD_TRAILING_GAP - inset, marginInlineEnd: -inset },
+      ]}
+      onTouchStart={() => {
+        inputWasFocused.current = ctx.inputRef.current?.isFocused() ?? false;
+      }}
+      {...KEEP_FOCUS_WHERE_IT_IS}
+    >
+      <GlyphButton
+        size={size}
+        glyphSize={glyph}
+        icon={revealed ? RiEyeOffLine : RiEyeLine}
+        accessibilityLabel={label}
+        color={resolveIconColor(ctx.palette, { invalid, disabled: ctx.disabled })}
+        hoverColor={ctx.palette.text}
+        disabled={ctx.disabled}
+        onPress={() => {
+          onToggle();
+          const input = ctx.inputRef.current;
+          if (!IS_WEB && inputWasFocused.current && input && !input.isFocused()) input.focus();
+          inputWasFocused.current = false;
+        }}
+      />
+    </View>
+  );
+}
+
+/** Vertical band the floating label travels between rest (centered) and floated (top). */
+const FLOAT_TRAVEL = 11;
+/** Resting label size (matches the input text) vs. floated caption size. */
+const FLOAT_LABEL_REST_SIZE = TEXT_FIELD_TEXT.fontSize;
+const FLOAT_LABEL_FLOAT_SIZE = TEXT_FIELD_HINT_TEXT.fontSize;
+
+type FloatingLabelInputProps = Omit<TextInputProps, 'value' | 'onChangeText' | 'placeholder'> & {
+  label: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  invalid?: boolean;
+  refs: (instance: ComponentRef<typeof TextInput> | null) => void;
+};
+
+/**
+ * The floating-label rendering of {@link TextFieldInput}.
+ *
+ * State, not CSS, drives the motion so web and native behave identically:
+ * `floated = focused || hasValue`. A single `Animated.Value` (0 → rest, 1 →
+ * floated) interpolates the label's `top`, `fontSize`, and `color`; the same
+ * `Animated` API maps to CSS transforms on web via react-native-web, so no
+ * `:placeholder-shown` / `peer-focus` is needed. Reduced-motion snaps the value
+ * (duration 0) instead of animating.
+ *
+ * The native placeholder is intentionally suppressed — the floating label IS the
+ * placeholder at rest. The label still drives `accessibilityLabel`, and the
+ * chrome / focus / error / disabled paint is shared with the default variant.
+ *
+ * The floating label's geometry is Bloom's own (a taller field to hold the
+ * caption); its colours are the input palette.
+ */
+function FloatingLabelInput({
+  label,
+  value,
+  onValueChange,
+  onFocus,
+  onBlur,
+  invalid: invalidProp,
+  refs,
+  style,
+  ...rest
+}: FloatingLabelInputProps) {
+  const theme = useTheme();
+  const ctx = useTextFieldContext();
+  const reduceMotion = useReducedMotion();
+
+  const hasValue = (value?.length ?? 0) > 0;
+  const floated = ctx.focused || hasValue;
+  const invalid = ctx.invalid || invalidProp === true;
+  const palette = ctx.palette;
+
+  const progress = useRef(new Animated.Value(floated ? 1 : 0)).current;
+
+  useEffect(() => {
+    const target = floated ? 1 : 0;
+    if (reduceMotion) {
+      progress.setValue(target);
+      return;
+    }
+    const timing = Animated.timing(progress, {
+      toValue: target,
+      duration: tokens.animation.duration.fast,
+      useNativeDriver: false,
+    });
+    timing.start();
+    return () => timing.stop();
+  }, [floated, reduceMotion, progress]);
+
+  const labelTop = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [16, 16 - FLOAT_TRAVEL],
+  });
+  const labelSize = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [FLOAT_LABEL_REST_SIZE, FLOAT_LABEL_FLOAT_SIZE],
+  });
+  const restColor = invalid
+    ? palette.placeholderInvalid
+    : ctx.disabled
+      ? palette.textDisabled
+      : palette.placeholder;
+  const labelColor = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      restColor,
+      invalid ? palette.error : ctx.disabled ? palette.textDisabled : palette.hint,
+    ],
+  });
+
+  const inputStyle: TextStyle = StyleSheet.flatten([
+    a.relative,
+    a.z_20,
+    a.flex_1,
+    {
+      fontFamily: SANS_FONT_FAMILY,
+      fontSize: TEXT_FIELD_TEXT.fontSize,
+      fontWeight: TEXT_FIELD_TEXT.fontWeight,
+      color: ctx.disabled ? palette.textDisabled : palette.text,
+      lineHeight: TEXT_FIELD_TEXT.fontSize * 1.2,
+      minWidth: 0,
+      paddingLeft: tokens.space.xs,
+      paddingRight: tokens.space.xs,
+      paddingTop: 26,
+      paddingBottom: 8,
+    },
+    android({ paddingTop: 24, paddingBottom: 6 }),
+    web({ paddingTop: 25, paddingBottom: 7 }),
+    WEB_INPUT_OUTLINE_RESET,
+    style,
+  ]) as TextStyle;
+
+  return (
+    <>
+      <Animated.Text
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        aria-hidden
+        numberOfLines={1}
+        style={[
+          a.absolute,
+          a.z_30,
+          a.pointer_events_none,
+          {
+            fontFamily: SANS_FONT_FAMILY,
+            fontWeight: TEXT_FIELD_HINT_TEXT.fontWeight,
+            left: tokens.space.xs + tokens.space._2xs,
+            top: labelTop,
+            fontSize: labelSize,
+            color: labelColor,
+          },
+        ]}
+      >
+        {label}
+      </Animated.Text>
+
+      <TextInput
+        accessibilityHint={undefined}
+        hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        {...rest}
+        accessibilityLabel={label}
+        ref={refs}
+        value={value}
+        onChangeText={onValueChange}
+        onFocus={(e) => {
+          ctx.onFocus();
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          ctx.onBlur();
+          onBlur?.(e);
+        }}
+        placeholder={undefined}
+        placeholderTextColor={palette.placeholder}
+        keyboardAppearance={theme.mode === 'light' ? 'light' : 'dark'}
+        style={inputStyle}
+      />
+
+      <Chrome invalid={invalid} />
+    </>
+  );
+}
+
+/**
+ * The visible label ABOVE the field: `text-body-medium`
+ * (14/20 500) in `text-primary`, a `text-error-primary` asterisk and a 16px
+ * `foreground-icon-quaternary` info glyph, 2px apart, 4px above the shell.
+ */
+export function TextFieldLabel({
+  nativeID,
+  children,
+  required = false,
+  tooltip = false,
+  style,
+}: TextFieldLabelProps) {
+  const theme = useTheme();
+  const palette = useTextFieldPalette();
+  const { messages } = useMessages(TEXT_FIELD_MESSAGES);
+  return (
+    <View
+      style={[
+        a.flex_row,
+        a.align_center,
+        { gap: TEXT_FIELD_LEADING_GAP, marginBottom: TEXT_FIELD_STACK_GAP },
+        style,
+      ]}
+    >
+      <Text variant="body-medium" nativeID={nativeID} style={{ color: palette.text }}>
+        {children}
+      </Text>
+      {required ? (
+        <Text
+          variant="body-medium"
+          accessibilityLabel={messages.required}
+          style={{ color: palette.error }}
+        >
+          *
+        </Text>
+      ) : null}
+      {tooltip ? (
+        <RiInformationFill
+          size="sm"
+          aria-hidden
+          fill={palette.infoIcon}
+          style={{ flexShrink: 0 }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Caption under the field: `text-caption-1-medium`
+ * (12/16 500, tracking .15) in `text-secondary`, `text-error-primary` when
+ * invalid, 1px top inset, 4px below the shell.
+ */
+export function TextFieldHint({
+  children,
+  invalid: invalidProp,
+  isInvalid,
+  nativeID,
+  style,
+}: TextFieldHintProps) {
+  const theme = useTheme();
+  const invalid = invalidProp ?? isInvalid ?? false;
+  const palette = useTextFieldPalette();
+  return (
+    <Text
+      variant="caption-1-medium"
+      nativeID={nativeID}
+      style={[
+        {
+          paddingTop: 1,
+          marginTop: TEXT_FIELD_STACK_GAP,
+          color: invalid ? palette.error : palette.hint,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </Text>
+  );
+}
+
+/**
+ * A 20px adornment in `foreground-icon-tertiary` — dimmed when the field is
+ * disabled, red when it is invalid. The icon does not react to hover or
+ * focus; the ring does.
+ */
+export function TextFieldIcon({ icon: Comp, position = 'leading', size = 20 }: TextFieldIconProps) {
+  const ctx = useTextFieldContext();
+  const color = resolveIconColor(ctx.palette, {
+    invalid: ctx.invalid,
+    disabled: ctx.disabled,
+  });
+
+  return (
+    <View
+      style={[
+        a.z_20,
+        position === 'leading'
+          ? { marginInlineEnd: TEXT_FIELD_LEADING_GAP }
+          : { marginInlineStart: TEXT_FIELD_TRAILING_GAP },
+      ]}
+    >
+      <Comp
+        width={size}
+        height={size}
+        style={[
+          {
+            color,
+            pointerEvents: 'none',
+            flexShrink: 0,
+          },
+          TEXT_FIELD_WEB_TRANSITION,
+        ]}
+      />
+    </View>
+  );
+}
+
+export function TextFieldSuffix({
+  children,
+  label,
+  accessibilityHint,
+  style,
+}: React.PropsWithChildren<
+  TextStyleProp & {
+    label: string;
+    accessibilityHint?: AccessibilityProps['accessibilityHint'];
+  }
+>) {
+  const ctx = useTextFieldContext();
+  const color = ctx.disabled
+    ? ctx.palette.textDisabled
+    : ctx.hovered || ctx.focused
+      ? ctx.palette.text
+      : ctx.palette.hint;
+  return (
+    <Text
+      variant="body-regular"
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
+      numberOfLines={1}
+      style={
+        StyleSheet.flatten([
+          a.z_20,
+          {
+            marginLeft: TEXT_FIELD_TRAILING_GAP,
+            color,
+          },
+          a.pointer_events_none,
+          style,
+        ]) as TextStyle
+      }
+    >
+      {children}
+    </Text>
+  );
+}
+
+export function TextFieldGhost({ children, value }: { children: string; value: string }) {
+  const theme = useTheme();
+  const palette = useTextFieldPalette();
+  // Aligned with the typed text after a leading icon: icon + gap + input inset.
+  const textOffset = TEXT_FIELD_ICON_SIZE + TEXT_FIELD_LEADING_GAP + TEXT_FIELD_INPUT_INSET;
+  return (
+    <View
+      style={[
+        a.pointer_events_none,
+        a.absolute,
+        a.z_10,
+        platform({
+          native: {
+            paddingLeft: TEXT_FIELD_GEOMETRY.md.paddingHorizontal + textOffset,
+          },
+          web: {
+            paddingLeft: textOffset,
+          },
+        }),
+        web({ paddingRight: TEXT_FIELD_GEOMETRY.md.paddingHorizontal }),
+        a.overflow_hidden,
+        a.max_w_full,
+      ]}
+      aria-hidden={true}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Text variant="body-regular" style={[{ color: 'transparent' }, a.w_full]} numberOfLines={1}>
+        {children}
+        <Text variant="body-regular" style={{ color: palette.placeholder }}>
+          {value}
+        </Text>
+      </Text>
+    </View>
+  );
+}

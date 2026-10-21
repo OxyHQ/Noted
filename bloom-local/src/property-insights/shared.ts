@@ -1,0 +1,173 @@
+import { groupThousands } from '../chart-cards/primitives/format';
+import { resolveButtonRamps } from '../button/shared';
+import { srgbToOklch, type Oklch, oklchToRgbString } from '../theme/color-space';
+import { parseRgba } from '../theme/color-utils';
+import { quietTextOver } from '../styles/color-contrast';
+import { AA_TEXT, resolveSurfaceLevel, surfaceFillOn, hairlineOn } from '../styles/surface-levels';
+import type { Theme } from '../theme/types';
+import type { EnergyClass } from './types';
+import { contrastRatio, relativeLuminance } from '../styles/color-contrast';
+import { formatCompactCurrency, formatCurrency } from '../locale/format-number';
+
+/**
+ * Every neutral and accent colour the insight parts paint. Pure.
+ *
+ *                     light            dark
+ *   text              text             text
+ *   textSecondary     text-secondary   text-secondary
+ *   muted             text-tertiary    text-tertiary
+ *   hairline          neutral-200      neutral-800
+ *   track             neutral-100      neutral-800     (bar tracks, empty meter segments)
+ *   bar               neutral-300      neutral-700     (a comparison row that is not highlighted)
+ *   accent            primary          primary         (score fills, the highlighted row)
+ *   band              accent-200       accent-800      (the estimate range)
+ *   bandSoft          accent-100       accent-900      (the widened ends at low confidence)
+ *   iconSurface       neutral-100      neutral-800     (NearbyPlaces icon disc)
+ *   card              card             neutral-900     (the PriceEstimate surface)
+ *   ring              accent-500                       (keyboard focus)
+ */
+export interface InsightPalette {
+  text: string;
+  textSecondary: string;
+  muted: string;
+  hairline: string;
+  track: string;
+  bar: string;
+  accent: string;
+  band: string;
+  bandSoft: string;
+  iconSurface: string;
+  surface: string;
+  card: string;
+  ring: string;
+}
+
+export function resolveInsightPalette(theme: Theme): InsightPalette {
+  const c = theme.colors;
+  const { accent } = resolveButtonRamps(theme);
+  const dark = theme.isDark;
+  return {
+    text: c.text,
+    textSecondary: c.textSecondary,
+    // `theme.colors.textTertiary` is the theme's ONE quiet-text token, which is
+    // floored against the page — and this family paints quiet labels on `card`
+    // too. Read the rung off the card so the harder of the two surfaces decides.
+    muted: quietTextOver([c.background, resolveSurfaceLevel(theme, 1).background], c.text, AA_TEXT),
+    hairline: hairlineOn(theme, c.background),
+    track: surfaceFillOn(theme, c.background),
+    bar: c.textSecondary,
+    accent: c.primary,
+    band: dark ? accent[800] : accent[200],
+    bandSoft: dark ? accent[900] : accent[100],
+    iconSurface: surfaceFillOn(theme, c.background),
+    surface: c.background,
+    card: resolveSurfaceLevel(theme, 1).background,
+    ring: accent[500],
+  };
+}
+
+// ---------------------------------------------------------------------------
+//  Energy scale
+// ---------------------------------------------------------------------------
+
+export const ENERGY_CLASSES: readonly EnergyClass[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
+export interface EnergyTone {
+  fill: string;
+  /** Whichever of white / neutral-950 has the higher contrast on `fill`. */
+  foreground: string;
+}
+
+function lerpOklch(a: Oklch, b: Oklch, t: number): Oklch {
+  // Shortest way round the hue circle, so green → yellow does not pass through blue.
+  let dh = b.h - a.h;
+  if (dh > 180) dh -= 360;
+  if (dh < -180) dh += 360;
+  return {
+    l: a.l + (b.l - a.l) * t,
+    c: a.c + (b.c - a.c) * t,
+    h: (((a.h + dh * t) % 360) + 360) % 360,
+  };
+}
+
+function toOklch(color: string): Oklch | null {
+  const rgba = parseRgba(color);
+  return rgba ? srgbToOklch(rgba) : null;
+}
+
+/**
+ * Lightness and chroma per class, A → G: a dark green, brightening to a light
+ * yellow at D, darkening again to a deep red. The standard scale's shape —
+ * what makes neighbouring classes distinct — lives here; the HUES come from
+ * the theme.
+ */
+export const ENERGY_LIGHTNESS_CHROMA: readonly (readonly [l: number, c: number])[] = [
+  [0.52, 0.13],
+  [0.64, 0.17],
+  [0.76, 0.18],
+  [0.86, 0.17],
+  [0.76, 0.16],
+  [0.66, 0.19],
+  [0.57, 0.21],
+];
+
+/**
+ * The seven class colours, A → G. Each takes the lightness and chroma above
+ * and a hue from the theme's STATUS colours: A at `success`'s hue, E at
+ * `warning`'s (an amber — D, the lightest step, lands on yellow between the
+ * two), G at `error`'s, the classes between interpolated the short way round
+ * the hue circle. So a preset's own green, amber and red set the scale,
+ * while the steps stay evenly spaced whatever those colours' own lightness.
+ * The same in both modes: the scale is a standard, not a surface.
+ */
+export function resolveEnergyTones(theme: Theme): EnergyTone[] {
+  const hue = (color: string, fallback: number) => toOklch(color)?.h ?? fallback;
+  const green = hue(theme.colors.success, 150);
+  const amber = hue(theme.colors.warning, 70);
+  const red = hue(theme.colors.error, 27);
+  const fills = ENERGY_LIGHTNESS_CHROMA.map(([l, c], i) => {
+    const from = i < 4 ? green : amber;
+    const to = i < 4 ? amber : red;
+    const t = i < 4 ? i / 4 : (i - 4) / 2;
+    return oklchToRgbString(lerpOklch({ l, c, h: from }, { l, c, h: to }, t));
+  });
+  const dark = '#000000';
+  return fills.map((fill) => ({
+    fill,
+    foreground: contrastRatio(fill, '#ffffff') >= contrastRatio(fill, dark) ? '#fff' : dark,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+//  Formatting
+// ---------------------------------------------------------------------------
+
+/**
+ * The default price format: `€385,000` (en), `385.000 €` (es). Apps pass their
+ * own `format` for another currency.
+ */
+export const formatEuros = (value: number, locale?: string) => formatCurrency(value, 'EUR', locale);
+
+/** The default axis format: `€385K`, `€1.2M` (en), `385 mil €` (es). */
+export function formatEurosCompact(value: number, locale?: string): string {
+  return formatCompactCurrency(value, 'EUR', locale);
+}
+
+// ---------------------------------------------------------------------------
+//  Web CSS — the keyboard ring on the pressable parts
+// ---------------------------------------------------------------------------
+
+export const PROPERTY_INSIGHTS_STYLE_ID = 'bloom-property-insights-web-css';
+
+export const PROPERTY_INSIGHTS_CSS = `
+[data-bloom-insight-press] {
+  outline: none;
+  cursor: pointer;
+}
+[data-bloom-insight-press]:focus-visible {
+  outline: 2px solid var(--bloom-insight-ring, currentColor);
+  outline-offset: 2px;
+}
+`;
+
+export { contrastRatio, relativeLuminance };

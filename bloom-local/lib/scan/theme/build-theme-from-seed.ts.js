@@ -1,0 +1,163 @@
+import { chartColorsFromTokens } from './chart-colors';
+import { generateRoleColors, type RoleColors, type SchemeVariant } from './color-engine';
+import { buildSeedScopeVars } from './color-scope/seed-scope';
+import { STATUS_COLORS } from './build-theme';
+import { THEME_GRADIENTS } from './gradients';
+import type { Theme, ThemeColors } from './types';
+
+/**
+ * Optional explicit accent seeds for the arbitrary-seed theme path. Pinning a
+ * `secondarySeed` / `tertiarySeed` (`#rrggbb`) forces that accent family to the
+ * given brand colour instead of the derived hue-rotation — mirroring
+ * {@link GenerateOptions.secondarySeed}. For an artwork-derived theme, pass the
+ * ranked `seedsFromImagePixels` results (`seeds[1]` / `seeds[2]`).
+ */
+export interface SeedAccents {
+  secondarySeed?: string;
+  tertiarySeed?: string;
+}
+
+/**
+ * Build the JS `theme.colors` object from an ARBITRARY seed colour — the dynamic
+ * counterpart of `buildTheme(preset, …)`.
+ *
+ * This mirrors `buildColorsFromPreset` (`build-theme.ts`) field-for-field, but
+ * sources its tokens from `buildSeedScopeVars({ seed })` instead of a named
+ * preset, so a preset's seed reproduces that preset's JS theme exactly. Keeping
+ * the two in lockstep is enforced by `__tests__/build-theme-from-seed-parity.test.ts`.
+ *
+ * Token-backed fields read the resolved `rgb(...)` token map; the brand-tint
+ * family (primarySubtle / negative / …) reads the engine's container/error roles
+ * directly — identical to the preset path.
+ */
+function buildSeedThemeValues(
+  seed: string,
+  resolved: 'light' | 'dark',
+  variant?: SchemeVariant,
+  contrastLevel?: number,
+  accents?: SeedAccents,
+): Pick<Theme, 'colors' | 'chartColors'> {
+  const t = buildSeedScopeVars({
+    seed,
+    mode: resolved,
+    variant,
+    contrastLevel,
+    secondarySeed: accents?.secondarySeed,
+    tertiarySeed: accents?.tertiarySeed,
+  });
+  const isDark = resolved === 'dark';
+
+  // Read a resolved `rgb(...)` token by its bare name (no leading `--`).
+  const g = (k: string): string => t[`--${k}`] ?? 'rgb(0 0 0)';
+
+  const r: RoleColors = generateRoleColors({
+    seed,
+    variant,
+    isDark,
+    contrastLevel,
+    secondarySeed: accents?.secondarySeed,
+    tertiarySeed: accents?.tertiarySeed,
+  });
+
+  return {
+    chartColors: chartColorsFromTokens(t),
+    colors: {
+      background: g('background'),
+      backgroundSecondary: g('surface'),
+      backgroundTertiary: g('popover'),
+
+      text: g('foreground'),
+      textSecondary: g('muted-foreground'),
+      // The same ONE quiet-text colour `build-theme.ts` resolves — see the long
+      // note there. The parity suite walks every preset through both paths, so a
+      // change on one side that is not made on the other goes red.
+      textTertiary: g('muted-foreground'),
+
+      border: g('border'),
+      borderLight: g('input'),
+
+      primary: g('primary'),
+      primaryForeground: g('primary-foreground'),
+      primaryLight: g('surface'),
+      primaryDark: g('background'),
+
+      secondary: g('secondary'),
+      secondaryForeground: g('secondary-foreground'),
+      secondarySubtle: g('secondary-subtle'),
+      secondarySubtleForeground: g('secondary-text'),
+      tertiary: g('tertiary'),
+      tertiaryForeground: g('tertiary-foreground'),
+      tertiarySubtle: g('tertiary-subtle'),
+      tertiarySubtleForeground: g('tertiary-text'),
+
+      tint: g('primary'),
+      icon: g('muted-foreground'),
+      iconActive: g('primary'),
+
+      success: g('success'),
+      successForeground: g('success-foreground'),
+      error: g('error'),
+      errorForeground: g('error-foreground'),
+      warning: g('warning'),
+      warningForeground: g('warning-foreground'),
+      info: g('info'),
+      infoForeground: g('info-foreground'),
+
+      successSubtle: g('success-subtle'),
+      successSubtleForeground: g('success-text'),
+      errorSubtle: g('error-subtle'),
+      errorSubtleForeground: g('error-text'),
+      warningSubtle: g('warning-subtle'),
+      warningSubtleForeground: g('warning-text'),
+      infoSubtle: g('info-subtle'),
+      infoSubtleForeground: g('info-text'),
+
+      primarySubtle: g('primary-subtle'),
+      // The `-text` member, for the reason spelled out in `build-theme.ts`: the
+      // policy's translucent `--primary-subtle` and M3's `onPrimaryContainer` are
+      // not a pair, and pairing them made `mono` illegible.
+      primarySubtleForeground: g('primary-text'),
+      negative: r.error,
+      negativeForeground: r.onError,
+      negativeSubtle: g('error-subtle'),
+      negativeSubtleForeground: g('error-text'),
+      contrast50: g('muted'),
+
+      card: g('card'),
+      shadow: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)',
+      overlay: 'rgba(0, 0, 0, 0.5)',
+    },
+  };
+}
+
+/** Resolve only the color roles for consumers that do not need the full theme. */
+export function buildColorsFromSeed(
+  seed: string,
+  resolved: 'light' | 'dark',
+  variant?: SchemeVariant,
+  contrastLevel?: number,
+  accents?: SeedAccents,
+): ThemeColors {
+  return buildSeedThemeValues(seed, resolved, variant, contrastLevel, accents).colors;
+}
+
+/**
+ * Build a full `Theme` from a seed colour and a resolved light/dark mode. Unlike
+ * `buildTheme`, there is no adaptive (Material You / iOS dynamic) override — a
+ * seed IS the dynamic source here.
+ */
+export function buildThemeFromSeed(
+  seed: string,
+  resolved: 'light' | 'dark',
+  variant?: SchemeVariant,
+  contrastLevel?: number,
+  accents?: SeedAccents,
+): Theme {
+  return {
+    mode: resolved,
+    ...buildSeedThemeValues(seed, resolved, variant, contrastLevel, accents),
+    gradients: THEME_GRADIENTS,
+    isDark: resolved === 'dark',
+    isLight: resolved === 'light',
+  };
+}

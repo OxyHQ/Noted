@@ -1,0 +1,35 @@
+import { createContext, useContext } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
+
+export interface ScreenContextValue {
+  active: boolean;
+  scrollY: SharedValue<number>;
+  collapseProgress: SharedValue<number>;
+  collapseTarget: SharedValue<number>;
+  activeScrollerId: SharedValue<string | null>;
+  /** Document-flow Screen has already reserved its content clearance. */
+  contentInsetsHandled?: boolean;
+  /** Web `documentScroll`: the window is this screen's scroller, so content stays in document flow. */
+  documentScroll?: boolean;
+  topInset: number;
+  bottomInset: number;
+}
+
+export type ScreenNavigationState = Pick<
+  ScreenContextValue,
+  'collapseProgress' | 'collapseTarget' | 'activeScrollerId'
+> & { bottomInset?: number };
+export const ScreenNavigationContext = createContext<ScreenNavigationState | null>(null);
+
+/** Only the Screen header slot owns chrome positioning; content headers remain independent. */
+export const ScreenHeaderContext = createContext<ScreenContextValue | null>(null);
+
+export const ScreenContext = createContext<ScreenContextValue | null>(null);
+export function useScreenContext() {
+  return useContext(ScreenContext);
+}
+export function useScreen(): ScreenContextValue {
+  const screen = useScreenContext();
+  if (!screen) throw new Error('Screen content must be rendered inside <Screen>.');
+  return screen;
+}

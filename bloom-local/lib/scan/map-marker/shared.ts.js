@@ -1,0 +1,108 @@
+/**
+ * The colours and web CSS every map piece shares.
+ *
+ *                      light              dark
+ *   surface            card               neutral-800
+ *   hairline           neutral-200        neutral-700
+ *   hover hairline     neutral-300        neutral-500
+ *   hover surface      neutral-100        neutral-700 @60% over neutral-800
+ *   label              text-primary       text-primary
+ *   active fill        text-primary       text-primary      (inverted)
+ *   active label       card               neutral-900
+ *   visited fill       neutral-100        neutral-900
+ *   visited hairline   neutral-200        neutral-700
+ *   visited label      neutral-500        neutral-400
+ *   saved heart        red-500            red-500
+ *   saved heart, active red-400           red-700   (on the inverted fill)
+ *   area                accent-500         accent-400  (fill at 15%, 1.5px edge)
+ *
+ * The surface family is `floating/menu-palette.ts`'s — a marker, the preview
+ * card and the search pill are floating things over a map, painted like a
+ * menu panel. The elevations are the design tokens' `shadow-s` (at rest) and
+ * `shadow-m` (active marker, preview card, search pill).
+ */
+
+import { colorRamp, DANGER_TABLE, resolveButtonRamps } from '../button/shared';
+import { resolveMenuPalette } from '../floating/menu-palette';
+import type { Theme } from '../theme/types';
+import { IS_WEB } from '../styles/platform';
+
+export interface MapMarkerPaint {
+  surface: string;
+  border: string;
+  hoverBorder: string;
+  hoverSurface: string;
+  label: string;
+  labelSecondary: string;
+  activeFill: string;
+  activeLabel: string;
+  visitedFill: string;
+  visitedBorder: string;
+  visitedLabel: string;
+  heart: string;
+  activeHeart: string;
+  /** Photo placeholder behind an image that has not loaded. */
+  placeholder: string;
+  ring: string;
+  /** The approximate-area circle's edge; its fill is this at {@link AREA_FILL_OPACITY}. */
+  area: string;
+}
+
+/** The approximate-area circle's fill opacity. */
+export const AREA_FILL_OPACITY = 0.15;
+/** The approximate-area circle's edge width. */
+export const AREA_BORDER_WIDTH = 1.5;
+
+/** Pure, so it can be walked over presets and modes. */
+export function resolveMapMarkerPaint(theme: Theme): MapMarkerPaint {
+  const menu = resolveMenuPalette(theme);
+  const { accent } = resolveButtonRamps(theme);
+  // `error`, not `negative` — the same red as the listing card's heart: dark
+  // mode's `negative` is a pale tint for text and reads salmon on a pill.
+  const red = colorRamp(theme.colors.error, DANGER_TABLE);
+  const dark = theme.isDark;
+  return {
+    surface: menu.surface,
+    border: menu.border,
+    hoverBorder: menu.trigger.hoverBorder,
+    hoverSurface: menu.trigger.hoverBackground,
+    label: menu.text,
+    labelSecondary: theme.colors.textSecondary,
+    activeFill: theme.colors.text,
+    activeLabel: theme.colors.background,
+    visitedFill: theme.colors.backgroundSecondary,
+    visitedBorder: theme.colors.border,
+    visitedLabel: theme.colors.textSecondary,
+    heart: red[500],
+    activeHeart: dark ? red[700] : red[400],
+    placeholder: theme.colors.backgroundTertiary,
+    ring: accent[500],
+    area: dark ? accent[400] : accent[500],
+  };
+}
+
+/** The web-only `dataSet` hook an adopted sheet's selectors hang off. */
+export function mapWebData(data: Record<string, string>): Record<string, unknown> {
+  return IS_WEB ? { dataSet: data } : {};
+}
+
+export const MAP_MARKER_STYLE_ID = 'bloom-map-marker-web-css';
+
+/**
+ * Cursor and keyboard focus ring for every pressable map piece, none of which
+ * an inline style can carry.
+ */
+export const MAP_MARKER_CSS = `
+[data-bloom-map-pressable] {
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+[data-bloom-map-pressable]:focus-visible {
+  outline: 2px solid var(--bloom-map-ring, currentColor);
+  outline-offset: 2px;
+}
+[data-bloom-map-pressable][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+`;

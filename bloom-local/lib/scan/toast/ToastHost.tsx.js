@@ -1,0 +1,97 @@
+/**
+ * Bloom-original — the WEB / default toast host. Metro selects
+ * `ToastHost.native.tsx` on iOS and Android; every other bundler (and a
+ * consumer's `tsc`) sees this file, matching the `.native` split convention
+ * `design-tokens/shadows.ts` already uses.
+ *
+ * Two jobs, both of which are why the rest of the engine can stay universal:
+ *
+ *  - W7: it portals into `#bloom-portal-root` and provides a `position: fixed`,
+ *    full-viewport containing block. `Positioner`'s `position: 'absolute'` would
+ *    otherwise anchor to the nearest positioned ancestor — react-native-web's
+ *    `View` defaults to `relative`, so a deeply-mounted outlet would anchor to a
+ *    provider somewhere in the tree instead of the viewport. A `Positioner.web`
+ *    with `position: fixed` would NOT be enough: `fixed` is still contained by any
+ *    ancestor `transform`/`filter`/`contain`, which is exactly why `Dialog` and
+ *    `BottomSheet` portal too. Sharing the one portal root also keeps a single
+ *    document-level overlay layer rather than a second competing one.
+ *  - W8: portaled content sits outside the app-root `GestureHandlerRootView`, so
+ *    swipe-to-dismiss would never receive touches. This provides its own, exactly
+ *    as `bottom-sheet/index.web.tsx` does. Web consumers need no setup.
+ *
+ * `OverlayRoot`'s `box-none` keeps the empty area click-through while the rows
+ * themselves stay interactive.
+ */
+import * as React from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+import { OverlayRoot, TOAST_LAYER_Z } from '../overlay';
+import { Portal } from '../portal/index.web';
+import { WEB_POSITION_FIXED } from '../styles/web-view-style';
+import type { ToastHostProps } from './types';
+import { toastStore } from './toast-store';
+
+export function ToastHost({ children, ToasterOverlayWrapper }: ToastHostProps) {
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    // A toast stack is non-modal. Observe outside presses rather than covering
+    // the app with a dismissal target: its first click must reach the control.
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !toastStore.getSnapshot().isExpanded) return;
+      const insideToast = event
+        .composedPath()
+        .some((node) => node instanceof Element && node.hasAttribute('data-bloom-toast-host'));
+      if (!insideToast) toastStore.collapse();
+    };
+    document.addEventListener('pointerdown', onPointerDown, {
+      capture: true,
+      passive: true,
+    });
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, []);
+
+  const content = (
+    // `OverlayRoot` carries the pointer-events opt-in as a PROP; as a style
+    // entry it never reached the DOM, so the rows inherited the portal root's
+    // `pointer-events: none` and no toast could be pressed or swiped away.
+    <OverlayRoot zIndex={TOAST_LAYER_Z} style={styles.host}>
+      {/* Also `box-none`: as the direct child of a box-none root it would
+          otherwise be handed `pointer-events: auto` and, spanning the whole
+          viewport, block the app underneath while a toast is up. */}
+      <GestureHandlerRootView
+        pointerEvents="box-none"
+        style={StyleSheet.absoluteFill}
+        {...{ dataSet: { bloomToastHost: '' } }}
+      >
+        {children}
+      </GestureHandlerRootView>
+    </OverlayRoot>
+  );
+
+  return (
+    <Portal>
+      {ToasterOverlayWrapper ? <ToasterOverlayWrapper>{content}</ToasterOverlayWrapper> : content}
+    </Portal>
+  );
+}
+
+ToastHost.displayName = 'ToastHost';
+
+const styles = StyleSheet.create({
+  host: {
+    // Full-viewport containing block for `Positioner`'s `position: 'absolute'`.
+    position: WEB_POSITION_FIXED,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // The depth is `TOAST_LAYER_Z`, applied by `OverlayRoot` via its `zIndex`
+    // prop — a toast is a notification, not a modal surface, so it is pinned
+    // above the whole open-order overlay stack rather than taking a rank in it
+    // (see `src/overlay/stack.ts`). It must not be set here as well: a style
+    // z-index would fight the prop and, being a fixed number again, would land
+    // back under any surface that outranked it — which is how toasts were
+    // already being lost behind an open bottom sheet.
+  },
+});

@@ -1,0 +1,117 @@
+import { useBloomAppearance } from '../appearance';
+import React, { memo, useEffect, useMemo, useState } from 'react';
+import { Pressable, View, type GestureResponderEvent } from 'react-native';
+
+import { RiHeart3Fill } from '../icons/remix/RiHeart3Fill';
+import { RiHeart3Line } from '../icons/remix/RiHeart3Line';
+import { adoptStyleSheet } from '../styles/adopt-style-sheet';
+import { borderRadius, DISABLED_OPACITY } from '../styles/tokens';
+import type { WebCssStyle } from '../styles/web-view-style';
+import { webDataSet } from '../styles/web-data';
+import { useTheme } from '../theme/use-theme';
+import { MEDIA_CONTROLS_CSS, MEDIA_CONTROLS_STYLE_ID, resolveMediaControlsPaint } from './shared';
+import type { LikeButtonProps, LikeButtonSize } from './types';
+import { useMessages } from '../locale/messages';
+import { MEDIA_CONTROLS_MESSAGES } from './messages';
+import { IS_WEB } from '../styles/platform';
+import { useInteractionState } from '../hooks/use-interaction-state';
+
+/**
+ * The heart that saves a track, album or playlist to the library.
+ *
+ *            glyph   hit area
+ *   small    16      32
+ *   medium   20      32
+ *   large    24      40
+ *
+ *   rest    outline heart, muted neutral; hover: the text colour
+ *   liked   filled heart in the theme accent (or `activeColor`)
+ *
+ * Colour change only — no scale, no bounce.
+ *
+ * Accessibility: a toggle button, so it carries its state in both spellings —
+ * `aria-pressed` for web and `accessibilityState.selected` for native (React
+ * Native has no pressed state). The NAME says what pressing does ("Save to Your
+ * Library" / "Remove from Your Library"). The press does not reach a pressable
+ * row behind it.
+ */
+
+const SIZE_CONFIG: Record<LikeButtonSize, { glyph: number; box: number }> = {
+  sm: { glyph: 16, box: 32 },
+  md: { glyph: 20, box: 32 },
+  lg: { glyph: 24, box: 40 },
+};
+
+function LikeButtonComponent({
+  liked,
+  onLikedChange,
+  size: sizeProp,
+  activeColor,
+  disabled = false,
+  accessibilityLabel: accessibilityLabelProp,
+  style,
+  testID,
+}: LikeButtonProps) {
+  const { size: inheritedSize } = useBloomAppearance(
+    { size: sizeProp },
+    { size: 'md', tone: 'neutral' },
+  );
+  const size = inheritedSize === 'xs' ? 'sm' : inheritedSize;
+
+  const { messages } = useMessages(MEDIA_CONTROLS_MESSAGES);
+  const accessibilityLabel = accessibilityLabelProp ?? messages.saveToLibrary;
+  const theme = useTheme();
+  useEffect(() => {
+    adoptStyleSheet(MEDIA_CONTROLS_STYLE_ID, MEDIA_CONTROLS_CSS);
+  }, []);
+  const paint = useMemo(() => resolveMediaControlsPaint(theme), [theme]);
+  const { state: hovered, onIn: onHoverIn, onOut: onHoverOut } = useInteractionState();
+  const { glyph, box } = SIZE_CONFIG[size];
+
+  const color = liked
+    ? (activeColor ?? paint.accent)
+    : hovered && !disabled
+      ? paint.text
+      : paint.textMuted;
+  const Glyph = liked ? RiHeart3Fill : RiHeart3Line;
+
+  const rootStyle: WebCssStyle = {
+    width: box,
+    height: box,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: disabled ? DISABLED_OPACITY : 1,
+    '--bloom-media-ring': paint.ring,
+  };
+
+  return (
+    <Pressable
+      {...webDataSet({ bloomMediaFocusable: '', bloomLikeButton: liked ? 'liked' : '' })}
+      role="button"
+      accessibilityLabel={accessibilityLabel}
+      aria-pressed={liked}
+      accessibilityState={{ selected: liked, disabled }}
+      aria-disabled={disabled || undefined}
+      disabled={disabled}
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
+      onPress={(event: GestureResponderEvent) => {
+        if (IS_WEB) {
+          event.preventDefault?.();
+          event.stopPropagation?.();
+        }
+        onLikedChange(!liked);
+      }}
+      style={[rootStyle, style]}
+      testID={testID}
+    >
+      <View pointerEvents="none" style={{ width: glyph, height: glyph }}>
+        <Glyph width={glyph} height={glyph} fill={color} />
+      </View>
+    </Pressable>
+  );
+}
+
+export const LikeButton = memo(LikeButtonComponent);
+LikeButton.displayName = 'LikeButton';

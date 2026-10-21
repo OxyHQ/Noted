@@ -1,0 +1,142 @@
+import type { ComponentType } from 'react';
+import type { GestureResponderEvent, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import type { BloomIconComponent } from '../icons/icon-component';
+
+/**
+ * The strip's look.
+ *
+ * - `underline` — a 1px baseline with a sliding 2px accent underline. The
+ *   default.
+ * - `pill` — a sliding accent-tinted pill behind the selected trigger.
+ * - `filled` — the same, with a neutral pill and a text-primary label.
+ *   Quieter, for scope/filter rows.
+ */
+export type TabsVariant = 'underline' | 'pill' | 'filled';
+
+/**
+ * A Remix-style icon component (`RiSettings3Line`, not `<RiSettings3Line />`),
+ * sized and tinted by the trigger.
+ */
+/** @deprecated Use `BloomIconComponent` from `@oxy.so/bloom/icons`; this is an alias of it. */
+export type TabsIconComponent = BloomIconComponent;
+
+export interface TabsProps {
+  /**
+   * The currently selected tab value — the CONTROLLED path, where the bar owns
+   * the underline and reports presses through {@link TabsProps.onValueChange}.
+   *
+   * OMIT it for the focus-driven path, where each trigger supplies its own
+   * {@link TabsTriggerProps.isFocused} and performs its own navigation. That is
+   * how `@oxy.so/bloom/tabs/expo-router` keeps the underline correct through
+   * deep links, browser Back and back gestures — none of which pass through a
+   * press handler. Providing both would put two writers on one shared value.
+   */
+  value?: string;
+  /** Called when a tab is selected. Controlled path only. */
+  onValueChange?: (value: string) => void;
+  /**
+   * Focus-driven path only: whether ANY trigger is currently focused.
+   *
+   * `false` fades the underline out where it stands. This is not the same as
+   * "the selection moved", and it is not hypothetical: a strip rendered by a
+   * LAYOUT keeps rendering while the layout's other, non-tab children are
+   * showing — a profile's `/followers` sits beside its tab routes under one
+   * layout — and without this the underline stays parked on whichever tab was
+   * last visited, asserting a selection that is not there.
+   *
+   * Fading is the whole response; the underline is deliberately NOT moved,
+   * because there is no position that means "nowhere" and travelling to a
+   * sentinel would drag it across every tab on the way out.
+   *
+   * `RouterTabs` sets it, so an app author never passes it by hand. Defaults to
+   * `true`, which is correct for the controlled path (a `value` naming no
+   * trigger simply leaves the underline where it was, as it always has).
+   */
+  hasSelection?: boolean;
+  /** Visual variant for the tab bar. */
+  variant?: TabsVariant;
+  /**
+   * When true, the tab bar spans the full container width and each trigger
+   * takes an equal share of it (edge to edge), instead of the default
+   * content-sized, horizontally scrollable layout. Best for a small, fixed
+   * set of tabs (e.g. 2–3). Defaults to `false`.
+   */
+  fullWidth?: boolean;
+  /**
+   * The strip's accessible name — the `tablist`'s `aria-label` on web ("Account
+   * sections"). The tab labels name the TABS, not the set of them. Ignored on
+   * native, where naming the container would fold its tabs into one element.
+   */
+  label?: string;
+  /**
+   * The tab items: `TabsTrigger`s. `Tabs` IS the strip, and `TabsContent` is
+   * optional — a strip with no panels (views switched somewhere else, keyed on
+   * `value`) is `Tabs` with `value`/`onValueChange` and triggers alone. A
+   * control that is not a tab (an "add view" button) belongs beside the
+   * strip, not in it: the strip is a `tablist`, which owns tabs only.
+   */
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+export interface TabsTriggerProps {
+  /** Unique value identifying this tab. */
+  value: string;
+  /** Tab label text. */
+  label: string;
+  /**
+   * A pre-rendered node before the label. The caller sizes and colours it; prefer
+   * {@link TabsTriggerProps.leadingIcon}, which follows the selection.
+   */
+  leading?: React.ReactNode;
+  /**
+   * Icon component before the label — 16px on `underline`, 20px on the pill
+   * variants — painted in the label's colour for the current state. Wins over
+   * `icon`.
+   */
+  leadingIcon?: TabsIconComponent;
+  /**
+   * Optional tally rendered as a small count badge beside the label (accent
+   * when the tab is selected, muted otherwise). Omitted
+   * (or `0`) renders nothing. The underline tracks the trigger's measured
+   * width, so a count never changes where it sits.
+   */
+  count?: number;
+  /**
+   * Whether the ROUTER considers this tab focused — the focus-driven path.
+   * Supplying it makes this trigger, not the bar, the writer of the shared
+   * underline, and suppresses {@link TabsProps.onValueChange} on press because
+   * navigation is then the caller's job. Leave it `undefined` on the controlled
+   * path.
+   */
+  isFocused?: boolean;
+  /** Whether this tab is disabled. */
+  disabled?: boolean;
+  /** Extra press handler. Runs on both paths, before any selection is reported. */
+  onPress?: () => void;
+  /**
+   * Called on a long press: a tab's own menu (rename, duplicate, delete). It
+   * does not select the tab; a long press does not also fire `onPress`. A
+   * disabled tab does not call it.
+   */
+  onLongPress?: (event: GestureResponderEvent) => void;
+  /**
+   * A node after the label and count, inside the tab's chrome (the pill and
+   * the underline span it), that is NOT part of the tab's press target: a
+   * settings or close icon button. It is the tab's sibling, never its child,
+   * so pressing it does not select the tab and no button nests in another.
+   * It keeps its own interactivity; the caller disables it with the tab.
+   */
+  trailing?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+}
+
+export interface TabsContentProps {
+  /** The tab value this panel corresponds to. */
+  value: string;
+  /** Panel content. */
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}

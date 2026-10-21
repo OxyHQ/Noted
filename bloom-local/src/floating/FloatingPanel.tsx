@@ -1,0 +1,618 @@
+import { MOTION_RECIPES } from '../motion/recipes';
+import { resolveSurfaceMaterial } from '../surface/resolve-surface-material';
+import { surfaceStyle } from '../shapes/surface-style';
+import { SURFACE_SHAPES } from '../design-tokens/shapes';
+/**
+ * The anchored surface every WEB fork of `Popover`, `DropdownMenu`,
+ * `ContextMenu`, `Menubar` and `Select` renders. WEB ONLY — imported by
+ * `.web.tsx` files and nothing else, which is why it names `../portal/index.web`
+ * outright rather than relying on a platform extension.
+ *
+ * What it encodes, once, instead of five times:
+ *
+ *  - The portal body sits inside `<OverlayRoot>`, and that `OverlayRoot` is
+ *    inside the visibility guard — so the surface's rank in `overlay/stack.ts` is
+ *    taken on MOUNT and a menu opened from inside a dialog paints above it. No
+ *    surface here carries a `zIndex` of its own.
+ *  - The dismiss layer is the shared `<Backdrop>` with its blur and dim turned
+ *    off: an anchored surface is not modal, so it gets a transparent hit box
+ *    rather than the wash a Dialog or a sheet uses. Routing it through
+ *    `Backdrop` (instead of a bare full-screen `Pressable`) is what keeps the
+ *    `pointer-events` opt-in correct — the web `Portal` root is
+ *    `pointer-events: none` and the property inherits.
+ *  - Placement goes through `overlay/dropdown-placement`, which fits, flips and
+ *    clamps on the axis `side` names and aligns-then-clamps on the other one.
+ *  - The menu surfaces' geometry — radius, border width, inset — is a class
+ *    string (`MENU_PANEL_CLASS`, `LISTBOX_PANEL_CLASS`) and their colours are
+ *    inline from `menu-palette.ts`. The `popover` surface carries NO chrome of
+ *    its own here: `popover/surface.ts` resolves the whole panel inline and
+ *    hands it over as `style`, so a caller's `className` can still override
+ *    any one piece of it (see that module).
+ *
+ * `alignOffset` is applied by SHIFTING THE ANCHOR before resolving, not by
+ * nudging the result: the resolver's own clamp then still owns the align axis,
+ * so an offset can never push the surface off the viewport edge. It shifts the
+ * anchor on whichever axis `align` acts on — horizontal under a vertical `side`,
+ * VERTICAL under `'left'`/`'right'`. Nudging the result, or hardcoding the
+ * horizontal pair here, would silently move a submenu along the wrong axis.
+ *
+ * ── MOTION ───────────────────────────────────────────────────────────────────
+ *
+ * The one popover motion, on every surface: 150ms `ease-out`, fade +
+ * `scale-95` + 2px blur, no slide, scaling from the corner nearest the trigger
+ * — and the same shape reversed on the way out.
+ *
+ * Driven IMPERATIVELY from one shared value, which is the only mechanism
+ * available here and is what both platform rules point at:
+ *
+ *  - A reanimated `entering` would have to be a PREDEFINED builder, and no
+ *    predefined builder combines a fade with a scale and a slide. A custom
+ *    `Keyframe` or custom builder additionally schedules a cleanup that PINS the
+ *    element (`position: absolute` + a frozen box) at `duration × 5`.
+ *  - A reanimated `exiting` is not available at all: it animates a CLONE
+ *    appended to the element's parent, and this whole portal subtree unmounts
+ *    together, so there is no surviving parent to hold one. `Dialog.web.tsx`
+ *    reached the same conclusion from the other direction (`removeChild` throws
+ *    on a concurrent unmount) and keeps its own node mounted through the exit,
+ *    which is what the `phase` machine below does.
+ *
+ * `progress` is listed in `useAnimatedStyle`'s deps, and that is what makes it
+ * tick: with no worklets babel plugin — the production reality for every Oxy
+ * RN-Web app — a mapper subscribes to the shared values in its DEPS ARRAY rather
+ * than to the ones it reads, so an omitted value runs the mapper once and
+ * freezes it.
+ */
+import React, {
+  type ComponentRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+
+import { Backdrop, OverlayRoot } from '../overlay';
+import { resolveDropdownPlacement, type DropdownPlacement } from '../overlay/dropdown-placement';
+import { useSurfaceMaterial } from '../surface/use-surface-material.web';
+import { Portal } from '../portal/index.web';
+import { StyledView } from '../styles/styled-primitives';
+import { SurfaceLevelProvider, surfaceFillVars, useSurfaceFill } from '../styles/surface-levels';
+import { WEB_POSITION_FIXED } from '../styles/web-view-style';
+import {
+  DEFAULT_ALIGN_OFFSET,
+  DEFAULT_SIDE_OFFSET,
+  LISTBOX_PANEL_CLASS,
+  MENU_MOTION_BLUR,
+  MENU_MOTION_DURATION,
+  MENU_MOTION_EASING,
+  MENU_MOTION_SCALE_FROM,
+  MENU_PANEL_CLASS,
+  VIEWPORT_GUTTER,
+} from './constants';
+import { parseRgba } from '../theme/color-utils';
+import { useMenuPalette } from './menu-palette';
+import { pushFloatingEscape } from './escape-stack';
+import { cx } from './shared';
+import type { FloatingPanelProps, FloatingSide } from './types';
+import { useFrameThrottle } from './use-frame-throttle';
+import { useCommonMessages } from '../locale/common-messages';
+
+/**
+ * The one node: the panel's own chrome, the caller's classes, the computed
+ * position and the motion transform all land on it. Built once at module scope,
+ * because an element type constructed during render remounts its subtree every
+ * time. Same pattern, and the same reason, as `button/Button.tsx`.
+ */
+const PANEL_CURVE = surfaceStyle({ curve: SURFACE_SHAPES.menu.curve });
+
+const AnimatedPanel = Animated.createAnimatedComponent(StyledView);
+
+/** Tailwind v4 `ease-out`, the menu curve. */
+const MENU_EASING = Easing.bezier(...MENU_MOTION_EASING);
+
+/**
+ * The ONE motion every anchored surface runs: 150ms `ease-out`, fade +
+ * `scale-95` + 2px blur, no slide, scaling from the corner nearest the
+ * trigger, and the same shape reversed on the way out. It was written out
+ * three times, once per surface, with only the chrome differing — three
+ * spellings of one decision, any of which could be edited alone.
+ */
+const MENU_MOTION = {
+  duration: MENU_MOTION_DURATION,
+  easing: MENU_EASING,
+  scaleFrom: MENU_MOTION_SCALE_FROM,
+  slide: 0,
+  blur: MENU_MOTION_BLUR,
+} as const;
+
+/**
+ * The per-surface chrome. `menu` and `listbox` use the menu recipe
+ * (`constants.ts`'s `MENU_PANEL_CLASS` / `LISTBOX_PANEL_CLASS`) with colours
+ * from `menu-palette.ts`; `popover` carries NO chrome of its own here, because
+ * `popover/surface.ts` resolves the whole panel inline and hands it over as
+ * `style` so a caller's `className` can still override any one piece of it.
+ */
+const SURFACE = {
+  popover: { ...MENU_MOTION, className: '' },
+  menu: { ...MENU_MOTION, className: MENU_PANEL_CLASS },
+  listbox: { ...MENU_MOTION, className: LISTBOX_PANEL_CLASS },
+} as const;
+
+/**
+ * `closed` renders nothing; `closing` keeps the panel mounted and frozen in
+ * place while it animates out, then falls back to `closed`.
+ */
+type Phase = 'closed' | 'open' | 'closing';
+
+/**
+ * Which side of the anchor the surface ACTUALLY landed on, read back from the
+ * resolved position rather than from the requested `side` — the resolver flips
+ * when the preferred side does not fit, and the slide and the transform origin
+ * both have to describe where the panel is, not where it asked to be.
+ */
+function resolvedSide(
+  requested: FloatingSide,
+  placement: DropdownPlacement,
+  anchorStart: number,
+): FloatingSide {
+  const horizontal = requested === 'left' || requested === 'right';
+  if (horizontal) return placement.left >= anchorStart ? 'right' : 'left';
+  return placement.top >= anchorStart ? 'bottom' : 'top';
+}
+
+/**
+ * Did the surface land in the same place? A placement is two numbers, and while
+ * the page scrolls most passes produce the two it already had — the trigger sits
+ * in a fixed header, or in an ancestor the gesture is not scrolling.
+ */
+function samePlacement(a: DropdownPlacement | null, b: DropdownPlacement | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.top === b.top && a.left === b.left;
+}
+
+/** The corner the panel grows from: the one nearest its trigger. */
+function transformOriginFor(side: FloatingSide, align: string): string {
+  const cross = align === 'end' ? 'end' : align === 'center' ? 'center' : 'start';
+  if (side === 'bottom' || side === 'top') {
+    const y = side === 'bottom' ? 'top' : 'bottom';
+    const x = cross === 'end' ? 'right' : cross === 'center' ? 'center' : 'left';
+    return `${x} ${y}`;
+  }
+  const x = side === 'right' ? 'left' : 'right';
+  const y = cross === 'end' ? 'bottom' : cross === 'center' ? 'center' : 'top';
+  return `${x} ${y}`;
+}
+
+export function FloatingPanel({
+  material: surfaceMaterial = 'surface',
+  open,
+  anchor,
+  side = 'bottom',
+  align = 'start',
+  sideOffset = DEFAULT_SIDE_OFFSET,
+  alignOffset = DEFAULT_ALIGN_OFFSET,
+  dismissible = true,
+  modal = true,
+  onDismiss,
+  label,
+  role,
+  minWidth,
+  maxWidth,
+  className,
+  style,
+  testID,
+  children,
+  surface = 'popover',
+  panelRef,
+}: FloatingPanelProps) {
+  const common = useCommonMessages();
+  const parentFill = useSurfaceFill();
+  const chrome = SURFACE[surface];
+  const isMenuSurface = surface !== 'popover';
+  const palette = useMenuPalette();
+  const ownFill = StyleSheet.flatten(style)?.backgroundColor ?? palette.surface;
+  const parsedFill = typeof ownFill === 'string' ? parseRgba(ownFill) : null;
+  const publishedFill =
+    typeof ownFill === 'string'
+      ? resolveSurfaceMaterial({
+          fill: ownFill,
+          parentFill: parentFill,
+          paint: surfaceMaterial !== 'flat',
+        }).publishedFill
+      : undefined;
+  const materialStyle = useSurfaceMaterial(
+    '.bloom-floating-surface',
+    'bloom-floating-surface-css',
+    typeof ownFill === 'string' ? ownFill : 'transparent',
+    surfaceMaterial !== 'flat',
+  );
+  const transparentFill = ownFill === 'transparent' || parsedFill?.a === 0;
+  // The mounted panel as STATE, not a bare ref: placement has to measure it,
+  // and `Portal` renders null on its first pass (it resolves its host in its own
+  // layout effect), so the node lands one render after the panel mounts. An
+  // effect keyed only on `open` would measure nothing.
+  const [panelNode, setPanelNode] = useState<ComponentRef<typeof View> | null>(null);
+  const [placement, setPlacement] = useState<DropdownPlacement | null>(null);
+  // What was last published, mirrored so a pass that resolves to the position
+  // the panel already holds never reaches the dispatcher. Returning the current
+  // state from a `setState` updater is not the same thing: React still
+  // re-renders once before it bails out, which on a scroll is a render per frame
+  // for a surface that did not move.
+  const published = useRef<DropdownPlacement | null>(null);
+  const [phase, setPhase] = useState<Phase>(open ? 'open' : 'closed');
+  const [lastOpen, setLastOpen] = useState(open);
+  const reducedMotion = useReducedMotion();
+  const progress = useSharedValue(0);
+
+  const panelRefRef = useRef(panelRef);
+  panelRefRef.current = panelRef;
+  const attach = useCallback((node: ComponentRef<typeof View> | null) => {
+    setPanelNode(node);
+    panelRefRef.current?.(node);
+  }, []);
+
+  const store = useCallback((next: DropdownPlacement | null) => {
+    if (samePlacement(published.current, next)) return;
+    published.current = next;
+    setPlacement(next);
+  }, []);
+
+  // `open` drives the phase; a close goes through `closing` so the exit has time
+  // to run before the subtree leaves the tree.
+  //
+  // Adjusted DURING RENDER rather than in an effect, and that is load-bearing.
+  // `useAnchorRect` clears the anchor from a LAYOUT effect, which schedules its
+  // re-render before any passive effect runs — so an effect-driven phase would
+  // leave one committed render where `phase` is still `'open'` and `anchor` is
+  // already `null`. That render resolves the placement to nothing and returns
+  // null, which unmounts the panel and takes the exit animation with it.
+  if (open !== lastOpen) {
+    setLastOpen(open);
+    // A surface that was never open has nothing to animate out — going through
+    // `closing` there would mount an invisible panel for the exit's duration.
+    setPhase(open ? 'open' : phase === 'open' ? 'closing' : 'closed');
+  }
+
+  useEffect(() => {
+    if (phase !== 'closing') return;
+    // Deliberately the SAME constant the exit animates over, so the unmount can
+    // never land before the animation finishes or long after it.
+    const timer = setTimeout(() => setPhase('closed'), reducedMotion ? 0 : chrome.duration);
+    return () => clearTimeout(timer);
+  }, [phase, reducedMotion, chrome.duration]);
+
+  // ONE pass of the placement: two forced layout reads (`getBoundingClientRect`
+  // and the `offset*` pair) and, at most, one state update. Split out of the
+  // effect that used to own it so the listeners below can be registered once and
+  // still call the CURRENT closure.
+  const resolve = useCallback(() => {
+    // While closing, the panel holds the position it was last placed at: the
+    // anchor is already gone (`useAnchorRect` clears it on close) and a
+    // re-resolve would snap the surface somewhere else mid-exit.
+    if (phase === 'closing') return;
+    // react-native-web resolves a `View` ref to the DOM element itself. Read
+    // through the one method needed rather than asserting the whole
+    // `HTMLElement` interface, and capture it as a local so the narrowing holds
+    // below — a property check does not survive into a closure.
+    const element = panelNode as unknown as {
+      getBoundingClientRect?: () => DOMRect;
+      offsetWidth?: number;
+      offsetHeight?: number;
+    } | null;
+    const measure = element?.getBoundingClientRect;
+    if (
+      phase !== 'open' ||
+      !anchor ||
+      typeof window === 'undefined' ||
+      typeof measure !== 'function'
+    ) {
+      store(null);
+      return;
+    }
+
+    const box = measure.call(element);
+    // The LAYOUT box, not the visual one. `getBoundingClientRect` reports the
+    // TRANSFORMED rectangle, and this panel is measured while its own enter is
+    // still at `scale(0.95)` — so the rect is 5% small. `far` placements never
+    // read the extent and looked perfect; the FLIPPED and `align="end"` ones
+    // do, and were out by 5% of the surface. Measured: a 256px sub-panel read
+    // as 243.2 and flipped 12.8px over its parent. `offsetWidth`/`offsetHeight`
+    // are the untransformed border box, integer-rounded, which is the right
+    // precision for a fit/flip decision. The rect is still the fallback for a
+    // non-DOM node (a jsdom stub has neither).
+    const layoutWidth = element?.offsetWidth ?? box.width;
+    const layoutHeight = element?.offsetHeight ?? box.height;
+    // Measured BEFORE `minWidth` is applied, so the laid-out surface can only
+    // be wider than the box read here — and a wider surface wraps less, so the
+    // measured height is an upper bound. Erring that way flips early in a tie,
+    // never late. The panel's own `min-w-*` CLASS is already in the box, since
+    // a stylesheet rule applies before a layout effect can read the node.
+    const width = Math.max(layoutWidth, minWidth ?? 0);
+    // The align axis is the one `side` does not name.
+    const alignsVertically = side === 'left' || side === 'right';
+    const shiftY = alignsVertically ? alignOffset : 0;
+    const shiftX = alignsVertically ? 0 : alignOffset;
+    const next = resolveDropdownPlacement({
+      anchor: {
+        top: anchor.top + shiftY,
+        bottom: anchor.bottom + shiftY,
+        left: anchor.left + shiftX,
+        right: anchor.right + shiftX,
+      },
+      size: { width, height: layoutHeight },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      offset: sideOffset,
+      gutter: VIEWPORT_GUTTER,
+      align,
+      side,
+    });
+    // A scroll that did not move this surface resolves to the same two numbers,
+    // and storing a NEW object for them would re-render the panel and rebuild
+    // its motion style for a position it already holds. Dropping the update is
+    // what makes a settled panel free to scroll past.
+    store(next);
+  }, [store, phase, anchor, panelNode, side, align, sideOffset, alignOffset, minWidth]);
+
+  // Coalesced to one pass per frame: a scroll gesture dispatches a stream of
+  // events (one per nested scroller, several per frame) and the browser paints
+  // once between them.
+  // No cancel needed on close: `resolve` is guarded by `phase`, so a frame that
+  // lands after the panel left `'open'` either holds the exit's position or
+  // clears a placement that is already null.
+  const [schedule] = useFrameThrottle(resolve);
+
+  // Whenever an INPUT changes — the anchor moved, the side flipped, the panel
+  // node arrived — the pass runs SYNCHRONOUSLY, before paint, so the surface is
+  // never painted a frame behind the thing it is anchored to.
+  useLayoutEffect(() => {
+    resolve();
+  }, [resolve]);
+
+  // Registered ONCE per open. `schedule` is stable for the panel's whole life,
+  // so a re-measurement no longer detaches and re-attaches this pair — which it
+  // did on every scroll event, because the effect that read the anchor was also
+  // the effect that owned the listeners.
+  useEffect(() => {
+    if (phase !== 'open' || typeof window === 'undefined') return;
+    window.addEventListener('resize', schedule);
+    window.addEventListener('scroll', schedule, true);
+    return () => {
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('scroll', schedule, true);
+    };
+  }, [phase, schedule]);
+
+  // Where the panel ended up, which is what both the slide and the origin
+  // describe. Held across the exit with the placement itself.
+  const landed = useMemo(() => {
+    if (!placement || !anchor) return null;
+    const horizontal = side === 'left' || side === 'right';
+    const resolved = resolvedSide(side, placement, horizontal ? anchor.right : anchor.bottom);
+    return { side: resolved, origin: transformOriginFor(resolved, align) };
+  }, [placement, anchor, side, align]);
+
+  const [held, setHeld] = useState(landed);
+  if (landed && landed !== held) setHeld(landed);
+  const geometry = landed ?? held;
+
+  const slideX =
+    geometry?.side === 'right' ? -chrome.slide : geometry?.side === 'left' ? chrome.slide : 0;
+  const slideY =
+    geometry?.side === 'bottom' ? -chrome.slide : geometry?.side === 'top' ? chrome.slide : 0;
+
+  // The one imperative drive. It only starts once a placement exists, so the
+  // panel never paints a frame at the wrong position — before that `progress` is
+  // 0, which is also fully transparent.
+  useEffect(() => {
+    if (phase === 'open') {
+      if (!placement) return;
+      progress.value = reducedMotion
+        ? 1
+        : withTiming(1, {
+            ...MOTION_RECIPES.present,
+            duration: chrome.duration,
+            easing: chrome.easing,
+          });
+      return;
+    }
+    if (phase === 'closing') {
+      progress.value = reducedMotion
+        ? 0
+        : withTiming(0, {
+            ...MOTION_RECIPES.dismiss,
+            duration: chrome.duration,
+            easing: chrome.easing,
+          });
+      return;
+    }
+    progress.value = 0;
+  }, [phase, placement, reducedMotion, progress, chrome]);
+
+  // `progress`, `slideX` and `slideY` are ALL in the deps: the shared value
+  // because that is what subscribes the mapper to it without the worklets babel
+  // plugin, and the two numbers because the mapper closes over them.
+  //
+  // A menu surface also un-blurs (`blur-[2px]` → none). The resting value is
+  // `'none'`, not `blur(0px)`, so a settled panel is not left on a filter layer.
+  const scaleFrom = chrome.scaleFrom;
+  const blurFrom = chrome.blur;
+  const motionStyle = useAnimatedStyle(
+    () => ({
+      opacity: progress.value,
+      transform: [
+        { translateX: slideX * (1 - progress.value) },
+        { translateY: slideY * (1 - progress.value) },
+        { scale: scaleFrom + (1 - scaleFrom) * progress.value },
+      ],
+      ...(blurFrom > 0
+        ? {
+            filter: progress.value >= 1 ? 'none' : `blur(${blurFrom * (1 - progress.value)}px)`,
+          }
+        : null),
+    }),
+    [progress, slideX, slideY, scaleFrom, blurFrom],
+  );
+
+  // Escape dismisses the INNERMOST open surface and nothing under it — a Select
+  // inside a Dialog closes its list, not the dialog (`escape-stack.ts`). The
+  // entry is taken once per open and calls the CURRENT `onDismiss` through a
+  // ref: re-pushing it whenever the callback's identity changed would move a
+  // re-rendered parent menu above its own open submenu.
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+  useEffect(() => {
+    if (phase !== 'open' || !dismissible || typeof document === 'undefined') return;
+    return pushFloatingEscape(() => onDismissRef.current());
+  }, [phase, dismissible]);
+
+  // The NON-modal outside press. Deliberately `pointerdown` in the CAPTURE
+  // phase and never `preventDefault`: the surface has to be gone before the
+  // click resolves, and the click itself has to carry on to whatever is under
+  // it. The anchor is excluded by GEOMETRY rather than by node, because a
+  // context menu's anchor is a bare point with no element behind it — and
+  // excluding it is what lets a trigger keep toggling its own surface closed
+  // instead of reopening it after this handler shut it.
+  useEffect(() => {
+    if (phase !== 'open' || !dismissible || modal || typeof document === 'undefined') return;
+    const onPointerDown = (event: PointerEvent) => {
+      const node = panelNode as unknown as Node | null;
+      const target = event.target as Node | null;
+      if (node && target && node.contains(target)) return;
+      if (
+        anchor &&
+        event.clientX >= anchor.left &&
+        event.clientX <= anchor.right &&
+        event.clientY >= anchor.top &&
+        event.clientY <= anchor.bottom
+      ) {
+        return;
+      }
+      onDismiss();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [phase, dismissible, modal, onDismiss, panelNode, anchor]);
+
+  if (phase === 'closed') return null;
+  if (phase === 'open' && !anchor) return null;
+
+  return (
+    <Portal>
+      <OverlayRoot>
+        {dismissible && modal && phase === 'open' ? (
+          <Backdrop
+            style={styles.backdrop}
+            onPress={onDismiss}
+            // An anchored surface dims nothing: this layer exists only to catch
+            // the outside press. `Backdrop` still owns the pointer-events
+            // contract, which is the whole reason it is not a bare Pressable.
+            blurIntensity={0}
+            dimOpacity={0}
+            accessibilityLabel={common.dismiss}
+          />
+        ) : null}
+        <AnimatedPanel
+          ref={attach}
+          role={role}
+          aria-label={label}
+          testID={testID}
+          className={cx(
+            surfaceMaterial !== 'flat' && 'bloom-floating-surface',
+            chrome.className,
+            className,
+          )}
+          style={[
+            styles.panel,
+            PANEL_CURVE,
+            surfaceFillVars(publishedFill),
+            // `bg-background-primary-default border-border-button-default
+            // shadow-dropdown`, resolved from the theme. Inline, and BEFORE the
+            // caller's `style`, which still overrides it.
+            isMenuSurface
+              ? {
+                  backgroundColor: palette.surface,
+                  borderColor: palette.border,
+                  boxShadow: palette.shadow,
+                }
+              : null,
+            {
+              // Before the first measurement the panel sits at the anchor, on
+              // the side it will end up on — so the box it is measured in is
+              // already the shape it will be laid out at. It is invisible until
+              // then because `progress` is still 0.
+              left:
+                placement?.left ??
+                (anchor
+                  ? side === 'right'
+                    ? anchor.right + sideOffset
+                    : side === 'left'
+                      ? anchor.left - sideOffset
+                      : anchor.left
+                  : 0),
+              top:
+                placement?.top ??
+                (anchor
+                  ? side === 'left' || side === 'right'
+                    ? anchor.top
+                    : anchor.bottom + sideOffset
+                  : 0),
+              minWidth,
+              maxWidth,
+              transformOrigin: geometry?.origin,
+              // A closing panel is inert: the row under the pointer must not be
+              // pressable while it fades, and the press has to reach the app.
+              pointerEvents: phase === 'open' ? 'auto' : 'none',
+            },
+            motionStyle,
+            style,
+            materialStyle,
+          ]}
+        >
+          {/*
+            The panel IS a surface, so it publishes the rung its children sit on.
+            Without it a `TextField` inside a menu or popover stepped off the PAGE
+            and landed on the panel's own fill — 1.000:1, no shell at all
+            (`styles/surface-levels.ts`).
+
+            Level 1 for EVERY surface, not only `isMenuSurface`: that flag says
+            who PAINTS the chrome (`popover` resolves its own in
+            `popover/surface.ts`), not whether there is one. Keying the rung off
+            it published level 0 inside a popover, which is the case the ladder
+            exists for.
+          */}
+          <SurfaceLevelProvider level={transparentFill ? 0 : 1} fill={publishedFill}>
+            {children}
+          </SurfaceLevelProvider>
+        </AnimatedPanel>
+      </OverlayRoot>
+    </Portal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    position: WEB_POSITION_FIXED,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    // Opt back in from the Portal root's `pointer-events: none`.
+    pointerEvents: 'auto',
+  },
+  // Only what a class cannot say: `position: fixed` has no Tailwind counterpart
+  // react-native-web would honour on a `View`, and it belongs with the `left` /
+  // `top` the resolver computes anyway.
+  panel: {
+    position: WEB_POSITION_FIXED,
+  },
+});

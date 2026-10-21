@@ -1,0 +1,530 @@
+import type { ComponentRef, ReactNode, Ref } from 'react';
+import type { BloomIconComponent } from '../icons/icon-component';
+import type {
+  StyleProp,
+  ViewStyle,
+  ScrollViewProps,
+  GestureResponderEvent,
+  View,
+} from 'react-native';
+
+/** A Remix-style icon: `width` / `height` / `fill`. */
+/** @deprecated Use `BloomIconComponent` from `@oxy.so/bloom/icons`; this is an alias of it. */
+export type SidebarIcon = BloomIconComponent;
+
+/**
+ * The avatar tints for initials: `neutral`, `blue` (the accent ramp),
+ * `lime` (the success ramp) and `pink` (the accent rotated to pink).
+ */
+export type SidebarAvatarColor = 'neutral' | 'blue' | 'lime' | 'pink';
+
+export interface SidebarAvatar {
+  /** Image URI. Wins over `initials`. */
+  source?: string;
+  initials?: string;
+  color?: SidebarAvatarColor;
+}
+
+/** A navigation row. Rows without `href` / `onPress` are decoration only. */
+export interface SidebarNavItem {
+  className?: string;
+  style?: StyleProp<ViewStyle>;
+  key: string;
+  label: string;
+  icon: SidebarIcon;
+  /** The glyph while selected, e.g. the filled icon. Used by the `rail` variant. */
+  activeIcon?: SidebarIcon;
+  /** Link target. On web the row renders a real anchor. */
+  href?: string;
+  /** Counter badge at the row's end (the right in LTR); primary-tinted when the row is selected. */
+  badge?: string | number;
+  /**
+   * An ACTION row (Settings → a modal): intercepts the navigation. When set,
+   * `onNavigate` is not called for this row.
+   */
+  onPress?: () => void;
+  /** Secondary touch action. Also expose it through a keyboard-accessible menu. */
+  onLongPress?: () => void;
+  /**
+   * Web: a keyboard shortcut, e.g. `⌥⌃1` or `Ctrl+Shift+H`. Shown on hover and
+   * BOUND by the sidebar — pressing it does what pressing the row does. Don't
+   * bind it again in the app.
+   */
+  shortcut?: string;
+}
+
+/** One mode of a {@link SidebarModeSwitcherProps.modes} switcher. */
+export interface SidebarMode {
+  key: string;
+  label: string;
+  icon: SidebarIcon;
+  /**
+   * Web: a keyboard shortcut, e.g. `⌥⌃1`. Shown on hover and BOUND by the
+   * `Sidebar` that lists the mode — the key calls `onModeChange(key)`. Don't bind
+   * it again in the app.
+   */
+  shortcut?: string;
+}
+
+export interface SidebarModeSwitcherProps {
+  modes: ReadonlyArray<SidebarMode>;
+  /** Key of the selected mode. */
+  value: string;
+  onValueChange: (key: string) => void;
+  /** Collapses the labels and hints, leaving the icons. */
+  collapsed?: boolean;
+  /** The radio group's accessible name (`"Mode"` in English). */
+  accessibilityLabel?: string;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+export interface SidebarItemProps {
+  icon?: SidebarIcon;
+  /** An avatar or other visual in place of the icon. Kept visible while collapsed. */
+  leading?: ReactNode;
+  label: string;
+  /** Secondary information under the label. Hidden with the label on collapse. */
+  description?: string;
+  /** Accent selection is the default; neutral uses the sidebar's tertiary surface. */
+  selectedAppearance?: 'accent' | 'neutral';
+  className?: string;
+  labelClassName?: string;
+  descriptionClassName?: string;
+  ref?: Ref<ComponentRef<typeof View>>;
+  disabled?: boolean;
+  nativeID?: string;
+  accessibilityLabel?: string;
+  'aria-expanded'?: boolean;
+  'aria-haspopup'?: 'menu' | 'dialog' | 'listbox' | 'tree' | 'grid';
+  'aria-describedby'?: string;
+  /**
+   * The row's size. Inside a `Sidebar` it is inherited from the panel — pass
+   * it only for a row standing on its own.
+   */
+  size?: SidebarSize;
+  href?: string;
+  /** Sits at the row's end while expanded; over the icon's top-end corner while collapsed. */
+  badge?: ReactNode;
+  /**
+   * The badge shown over the icon while collapsed, when it should differ from
+   * `badge` — e.g. a capped count (`max={99}`) that fits the square. Defaults
+   * to `badge`.
+   */
+  collapsedBadge?: ReactNode;
+  /** Web: a shortcut hint at the row's end, shown on hover. Binding it is the `Sidebar`'s job. */
+  shortcut?: string;
+  selected?: boolean;
+  /** Icon-only square matching the sidebar size (40px for md). */
+  collapsed?: boolean;
+  onPress?: (event: GestureResponderEvent) => void;
+  /** Secondary touch action. Also expose it through a keyboard-accessible menu. */
+  onLongPress?: (event: GestureResponderEvent) => void;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+/** A fixed header row whose search expands across the adjacent action slots. */
+export interface SidebarToolbarProps {
+  actions?: ReadonlyArray<ReactNode>;
+  search: {
+    value: string;
+    onValueChange: (value: string) => void;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    accessibilityLabel?: string;
+    placeholder?: string;
+    closeLabel?: string;
+  };
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+export interface SidebarRailItemProps {
+  /** Keep the accessible name while hiding the visual caption. Default visible. */
+  labelVisibility?: 'visible' | 'hidden';
+  /** Selected pill, or emphasis on the glyph alone. Default pill. */
+  selectedAppearance?: 'pill' | 'icon';
+  icon: SidebarIcon;
+  /** The glyph while selected (e.g. the filled icon); defaults to `icon`. */
+  activeIcon?: SidebarIcon;
+  label: string;
+  href?: string;
+  /** Sits over the indicator's top-end corner (top-right in LTR). */
+  badge?: ReactNode;
+  selected?: boolean;
+  onPress?: () => void;
+  /** Secondary touch action. Also expose it through a keyboard-accessible menu. */
+  onLongPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+/**
+ * - `panel`  the floating sidebar: account, quick search, rows, theme toggle,
+ *            team or plan card; collapsible
+ * - `rail`   an 80px navigation rail: icon over label, items centred, the
+ *            selected icon on a 48 × 32 pill. Navigation only
+ */
+export type SidebarVariant = 'panel' | 'rail';
+
+/**
+ * The panel's own SURFACE — what the sidebar looks like as an object on the
+ * page, independent of what it contains. It is the axis two apps differ on
+ * most: the same rows read as a different product behind a different edge.
+ *
+ * - `card` (default) the floating panel: shared panel radius (28 by default), a hairline and the panel
+ *   shadow, on the panel fill. A sidebar that sits IN the page.
+ * - `plain` no edge at all — no radius, no border, no shadow: the rows sit
+ *   straight on the page. The social/reader look, and what a revealed mobile
+ *   drawer uses.
+ * - `docked` a column flush to the window's edge: no radius, one hairline on
+ *   the INNER edge only, the panel fill, and it stretches the full height.
+ *   The workspace look (a channel list, a file tree).
+ */
+export type SidebarSurface = 'card' | 'plain' | 'docked';
+
+/**
+ * How big the rows are, and with them the panel. One axis, three rungs, every
+ * measurement in `SIDEBAR_METRICS`:
+ *
+ * - `sm`  a 30px square, an 18px glyph, `body-2-medium`; 232 expanded, 46 collapsed
+ * - `md` (default) 40 / 22 / `headline-medium`; 260 expanded, 56 collapsed
+ * - `lg`  44 / 24 / `title-3-medium`; 300 expanded, 60 collapsed — the
+ *   destination-first rail a social app reads with at arm's length
+ */
+export type SidebarSize = 'sm' | 'md' | 'lg';
+
+/** A row in the team menu. */
+export interface SidebarMenuItem {
+  key: string;
+  label: string;
+  icon: SidebarIcon;
+  badge?: string | number;
+  selected?: boolean;
+  href?: string;
+  onPress?: () => void;
+}
+
+export interface SidebarMenuGroup {
+  /** Optional controls below the group rows (for example, appearance settings). */
+  content?: ReactNode;
+  id: string;
+  /** Section label above the rows ("Company"). */
+  label?: string;
+  items: SidebarMenuItem[];
+}
+
+/** The team card at the bottom of the rail and the menu it opens. */
+export interface SidebarTeam {
+  name: string;
+  email?: string;
+  avatar?: SidebarAvatar;
+  groups?: SidebarMenuGroup[];
+  /** Footer line: product name and an optional version chip. */
+  footer?: { label: string; version?: string };
+  /** Names the menu the card opens. Default `` `${name} menu` ``. */
+  menuLabel?: string;
+}
+
+export interface SidebarAccountUser {
+  id: string;
+  name: string;
+  avatar?: SidebarAvatar;
+  selected?: boolean;
+  onPress?: () => void;
+}
+
+/**
+ * The brand at the top of the sidebar. Give a mark, a wordmark or both.
+ */
+export interface SidebarLogo {
+  /**
+   * The mark (a logo glyph, an SVG, an image). Centred in a 36 × 36 box and
+   * kept while the sidebar is collapsed; size it yourself — 24–28px reads right.
+   */
+  icon?: ReactNode;
+  /**
+   * The wordmark beside the mark, hidden while collapsed. A string renders as
+   * the product name in `headline-semibold`; anything else renders as given.
+   */
+  wordmark?: ReactNode;
+  /** Link target (a real anchor on web). On native, pass `onPress` too. */
+  href?: string;
+  /** Called on press — a router's navigation to home, say. */
+  onPress?: () => void;
+  /** The logo's accessible name. Defaults to a string `wordmark`. */
+  accessibilityLabel?: string;
+}
+
+export interface SidebarLogoViewProps {
+  logo: SidebarLogo;
+  /** Collapses the wordmark, keeping the mark. */
+  collapsed?: boolean;
+  /** Renders the mark only (the navigation rail). Defaults to true. */
+  showWordmark?: boolean;
+  testID?: string;
+}
+
+/** The account switcher at the top of the rail and the menu it opens. */
+export interface SidebarAccount {
+  name: string;
+  avatar?: SidebarAvatar;
+  /** "Users with access". */
+  users?: SidebarAccountUser[];
+  usersLabel?: string;
+  onAddUser?: () => void;
+  onManage?: () => void;
+  addUserLabel?: string;
+  manageLabel?: string;
+  /** Names the menu the switcher opens (`"Account menu"` in English). */
+  menuLabel?: string;
+}
+
+export interface SidebarTeamMenuProps {
+  team: SidebarTeam;
+  collapsed?: boolean;
+  /** Repaints the expanded card (the flat mobile variant). */
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+export interface SidebarUserMenuProps {
+  account: SidebarAccount;
+  collapsed?: boolean;
+  /** Suppresses the hover pill until the pointer next leaves (set after expanding). */
+  suppressHover?: boolean;
+  onHoverSuppressionEnd?: () => void;
+  /** Background of the 32px avatar (the flat mobile variant repaints it). */
+  avatarBackground?: string;
+  testID?: string;
+}
+
+export interface SidebarProps {
+  className?: string;
+  /**
+   * Replaces the account/logo header row (logo, account, the collapse control). The panel still
+   * owns its fixed chrome and scroll area. `false` draws no header row at all.
+   */
+  header?: ReactNode | ((state: { collapsed: boolean }) => ReactNode);
+  /**
+   * A fixed row UNDER the header, above the modes and quick search: the header (logo, account,
+   * collapse control) stays. A conversations sidebar puts its search and tools here.
+   */
+  toolbar?: ReactNode | ((state: { collapsed: boolean }) => ReactNode);
+  /** Expanded panel inset, also used to measure app-owned scroll content. Defaults to the size's inset. */
+  contentPadding?: number;
+  /** Center the main navigation group in space above the persistent footer. */
+  contentAlignment?: 'start' | 'center';
+  /** App-owned destination content after the built-in rows/tree, inside the same
+   * scroll viewport. Hidden and noninteractive while collapsed; remains mounted
+   * so pagination and disclosure state survive. Not rendered in variant="rail".
+   * Compose rows here, never another ScrollView. Quick search filters only the
+   * built-in items/tree; disable it when your content owns search.
+   */
+  content?: ReactNode;
+  /** Observes the destination viewport after Bloom updates its edge fades.
+   * Useful for loading another page of history. No separate scroll owner.
+   */
+  onScroll?: ScrollViewProps['onScroll'];
+  /** Additional persistent bottom content, outside destination scrolling.
+   * Receives the rendered state: true in a rail, false in a mobile panel.
+   * Existing account/theme/team controls remain; omit account when supplying your own account footer.
+   */
+  footer?: ReactNode | ((state: { collapsed: boolean }) => ReactNode);
+  /** Persistent primary action below destinations. Its label collapses to a named icon button. */
+  primaryAction?: {
+    label: string;
+    icon: SidebarIcon;
+    onPress: () => void;
+    disabled?: boolean;
+  };
+  /** Defaults to `panel`. */
+  variant?: SidebarVariant;
+  /** Rail captions; hidden retains accessible names and native browser tooltips. */
+  railLabels?: 'visible' | 'hidden';
+  /** Rail selection uses an accent pill by default, or only an emphasized icon. */
+  railSelection?: 'pill' | 'icon';
+  /** Rail width, owned by the navigation layout. Default 80, minimum 64. */
+  railWidth?: number;
+  /** Primary navigation rows. */
+  items?: SidebarNavItem[];
+  /**
+   * A mode switcher under the header (Search / Computer): a vertical segmented
+   * control of icon + label rows. Rendered when given; see `SidebarModeSwitcher`.
+   */
+  modes?: ReadonlyArray<SidebarMode>;
+  /** Key of the selected mode. */
+  mode?: string;
+  onModeChange?: (key: string) => void;
+  /** The mode group's accessible name (`"Mode"` in English). */
+  modesLabel?: string;
+  /** Rows pinned to the bottom above the team card (Support, Settings). */
+  secondaryItems?: SidebarNavItem[];
+  /** Key of the selected row. */
+  selected?: string;
+  /**
+   * Called when a row with `href` is pressed. When provided on web, the
+   * browser's own navigation is prevented, so a router can take over.
+   */
+  onNavigate?: (item: SidebarNavItem) => void;
+
+  /** Controlled collapsed state. */
+  collapsed?: boolean;
+  defaultCollapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
+
+  /** Rendered inside a mobile drawer: always expanded, close button instead of collapse. */
+  mobile?: boolean;
+  onClose?: () => void;
+
+  /** The landmark's accessible name (`"Sidebar"` in English). */
+  accessibilityLabel?: string;
+  /** Names the collapse control while expanded (`"Collapse sidebar"` in English). */
+  collapseLabel?: string;
+  /** Names the same control while collapsed (`"Expand sidebar"` in English). */
+  expandLabel?: string;
+  /** Names the `mobile` close button (`"Close sidebar"` in English). */
+  closeLabel?: string;
+  /** Expanded width fills the container instead of the size's own width. */
+  fluid?: boolean;
+  /** The panel's edge. Defaults to `card`. */
+  surface?: SidebarSurface;
+  /** The row size, and the panel width that follows it. Defaults to `md`. */
+  size?: SidebarSize;
+
+  /** Shows `ThemeToggle` above the secondary rows. Defaults to true. */
+  showThemeToggle?: boolean;
+  /** Quick search over the rows. Defaults to true. */
+  showSearch?: boolean;
+  /** Controlled quick-search text; also lets app-owned content filter the same query. */
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
+  /** Shortcut hint on the quick-search button. Defaults to "⌘L". */
+  searchShortcutLabel?: string;
+  /** Binds ⌘L / Ctrl+L on web. Defaults to true. */
+  searchShortcut?: boolean;
+  /** Names the quick-search button (`"Quick Search"` in English). */
+  searchLabel?: string;
+  /** Names the search button in a flat `mobile` header (`"Search"` in English). */
+  searchButtonLabel?: string;
+  /** Placeholder. Defaults `"Search navigation…"`, or `"Search..."` in a flat `mobile` header. */
+  searchPlaceholder?: string;
+  /** Names the search field (`"Filter navigation"` in English). */
+  filterLabel?: string;
+  /** Names the button that clears and closes the search (`"Clear navigation search"` in English). */
+  clearSearchLabel?: string;
+  /** (`"No results"` in English). */
+  noResultsLabel?: string;
+
+  /**
+   * The brand at the top: a mark and/or a wordmark. In the panel it takes the
+   * header row beside the collapse control — the account switcher, if given
+   * too, moves to its own row under it. The rail shows the mark above its
+   * items.
+   */
+  logo?: SidebarLogo;
+  account?: SidebarAccount;
+  team?: SidebarTeam;
+
+  /**
+   * Labelled sections under the primary rows: each lists its own rows directly
+   * (a "Recently viewed" list) and/or expandable folders (the AI chat's
+   * "Repositories", a user's saved folders). One section or several, in order.
+   * Quick search filters them too. With a tree, the header and search stay put
+   * and only the rows scroll. Hidden while collapsed.
+   */
+  tree?: SidebarTree | ReadonlyArray<SidebarTree>;
+  /** Key of the selected tree row, in any section. */
+  selectedTreeItem?: string;
+  /**
+   * A tree row was pressed. `folder` is the row's folder, absent for a row
+   * listed directly under its section label.
+   */
+  // Method form keeps an existing `(item, folder: SidebarTreeFolder) => …`
+  // handler assignable now that `folder` can be absent.
+  onTreeItemPress?(item: SidebarTreeItem, folder?: SidebarTreeFolder): void;
+  /** The plan card at the foot of the rail, in place of the team card. */
+  plan?: SidebarPlan;
+
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+/** A row of a tree section, directly under its label or inside a folder. */
+export interface SidebarTreeItem {
+  /** Secondary controls beside the row, never nested inside its press target. */
+  actions?: ReactNode;
+  /** Warm navigation data on hover/touch and before selection. */
+  onPrefetch?: () => void;
+  onLongPress?: () => void;
+  key: string;
+  label: string;
+  /** A short chip at the row's end (the right in LTR), e.g. a relative time (`34m`, `now`). */
+  meta?: string;
+  /** Link target (a real anchor on web). */
+  href?: string;
+}
+
+export interface SidebarTreeFolder {
+  /** Secondary controls beside the disclosure, such as edit/create menus. */
+  actions?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  key: string;
+  label: string;
+  items: ReadonlyArray<SidebarTreeItem>;
+  /** Expanded on first render. */
+  defaultOpen?: boolean;
+}
+
+/** One labelled section of the sidebar's tree. */
+export interface SidebarTree {
+  /** Identity among several sections; defaults to `label`. */
+  key?: string;
+  /** Collection actions, e.g. create a project, beside the section label. */
+  actions?: ReactNode;
+  /** The section label, e.g. `Repositories`. */
+  label: string;
+  /**
+   * Rows listed directly under the label, before any folders — a section that
+   * IS its list (`Recently viewed`). Same row, selection, meta, actions, link
+   * and prefetch behaviour as a folder's rows.
+   */
+  items?: ReadonlyArray<SidebarTreeItem>;
+  /** Expandable folders, for collections the user made (saved folders). */
+  folders?: ReadonlyArray<SidebarTreeFolder>;
+}
+
+export interface SidebarFolderProps {
+  folder: SidebarTreeFolder;
+  /** Controlled expansion. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hold the folder open regardless (a search is filtering it). */
+  forceOpen?: boolean;
+  selectedItem?: string;
+  onItemPress?: (item: SidebarTreeItem, folder: SidebarTreeFolder) => void;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+/** The plan card: an avatar, the workspace and its plan, and an action button. */
+export interface SidebarPlan {
+  name: string;
+  /** The plan line under the name, e.g. `Pro Plan`. */
+  plan: string;
+  avatar?: SidebarAvatar;
+  /** (`'Upgrade'` in English). */
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
+export interface SidebarPlanCardProps {
+  plan: SidebarPlan;
+  /** The 36px avatar-only form for a collapsed rail. */
+  collapsed?: boolean;
+  /** Repaints the card (the flat variant sits it on the panel colour). */
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}

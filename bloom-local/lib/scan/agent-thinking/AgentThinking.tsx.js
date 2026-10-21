@@ -1,0 +1,581 @@
+import React, { memo, useEffect, useRef, useState } from 'react';
+import { Pressable, View, type ViewStyle } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+
+import { useControllableState } from '../hooks/use-controllable-state';
+import { useDirectionProps } from '../hooks/use-is-rtl';
+import { RiArrowDownSLine } from '../icons/remix/RiArrowDownSLine';
+import { useMessages } from '../locale/messages';
+import { dataHook } from '../styles/data-hook';
+import { interactiveWebCss, useInteractiveWebCss } from '../styles/interactive-web-css';
+import { useRingOffsetStyle } from '../styles/surface-levels';
+import { space } from '../styles/tokens';
+import type { WebCssStyle } from '../styles/web-view-style';
+import { withAlpha } from '../theme/color-utils';
+import type { Theme } from '../theme/types';
+import { useTheme } from '../theme/use-theme';
+import { Text } from '../typography';
+import { ThinkingLabel } from './ThinkingLabel';
+import { ThinkingReasoning } from './ThinkingReasoning';
+import { AGENT_THINKING_MESSAGES } from './messages';
+import type { AgentThinkingProps, AgentThinkingTone, AgentThinkingVariant } from './types';
+import { IS_WEB } from '../styles/platform';
+
+/**
+ * Agent Thinking: the agent "thinking" state that sits above a chat composer
+ * while a response is worked on.
+ *
+ *   row        flex row, items centred, gap 10 (`gap-2.5`), `role="status"`
+ *   wave/spin  3×3 grid of 4px dots, 2px gap, radius 1; an 80ms ticker moves a
+ *              comet (trail 0.3, floor opacity 0.12) and each dot eases its
+ *              opacity over 220ms
+ *   stars      21×21 box, five 4-point sparkles (14px × scale) twinkling
+ *              scale 0→1→0.8→0 over 1.4s, staggered 0.196s; light mode softens
+ *              the glyphs to 75% of the tone
+ *   infinity   32×16 figure-eight (viewBox 56×28, pulled in 4px per side), a
+ *              15% track and an 11% comet lapping it every 1.2s
+ *   label      `body-medium`, shimmer 2.6s (tone 55% → tone → tone 55%)
+ *   timer      `caption-1-regular` mono, text-tertiary, tabular, `0.0s`
+ *
+ * Under reduced motion the dots rest on their seed frame, stars rest visible at
+ * 0.7, the comet stops and the label drops its shimmer.
+ */
+
+// ---------------------------------------------------------------------------
+//  Tone
+// ---------------------------------------------------------------------------
+
+const VARIANT_TONE: Record<AgentThinkingVariant, AgentThinkingTone> = {
+  wave: 'default',
+  spin: 'default',
+  stars: 'subtle',
+  infinity: 'default',
+};
+
+/** Canonical theme surfaces, foregrounds and focus roles. */
+function resolveTone(theme: Theme, tone: AgentThinkingTone): string {
+  switch (tone) {
+    case 'subtle':
+      return theme.colors.textTertiary;
+    case 'primary':
+      return theme.colors.text;
+    case 'accent':
+      return theme.colors.primarySubtleForeground;
+    default:
+      return theme.colors.textSecondary;
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  Dots (wave / spin)
+// ---------------------------------------------------------------------------
+
+const DOTS_GRID = 3;
+const DOTS_SIZE = 4;
+const DOTS_GAP = 2;
+const DOTS_TICK_MS = 80;
+const DOTS_FADE_MS = 220;
+const DOTS_TRAIL = 0.3;
+const DOTS_MIN_OPACITY = 0.12;
+const DOTS_PHASE_STEP = 1 / 8;
+/** CSS `ease`. */
+const EASE = Easing.bezier(0.25, 0.1, 0.25, 1);
+
+/** Static first frame, and the resting state under reduced motion. */
+const DOTS_SEED = [0.55, 0.3, 0.15, 0.85, 0.55, 0.3, 1, 0.85, 0.55];
+
+/**
+ * How far along the pattern's travel direction each cell sits, in [0, 1). The
+ * wave scalar is compressed below 1 so the phase wrap reads as the front leaving
+ * the grid and re-entering; the spin angle is naturally cyclic.
+ */
+function dotScalar(variant: 'wave' | 'spin', col: number, row: number): number {
+  const m = DOTS_GRID - 1;
+  if (variant === 'wave') {
+    return ((col + row) / (2 * m)) * (DOTS_GRID / (DOTS_GRID + 1));
+  }
+  const center = m / 2;
+  return (Math.atan2(row - center, col - center) / (2 * Math.PI) + 1) % 1;
+}
+
+/** @internal Exported for the test. */
+export function dotOpacities(variant: 'wave' | 'spin', phase: number): number[] {
+  return Array.from({ length: DOTS_GRID * DOTS_GRID }, (_, i) => {
+    const s = dotScalar(variant, i % DOTS_GRID, Math.floor(i / DOTS_GRID));
+    // Comet: bright head at the phase front, tail fading behind it.
+    const behind = (phase - s + 1) % 1;
+    const lit = Math.max(0, 1 - behind / DOTS_TRAIL) ** 1.5;
+    return DOTS_MIN_OPACITY + (1 - DOTS_MIN_OPACITY) * lit;
+  });
+}
+
+function Dot({ opacity, color }: { opacity: number; color: string }) {
+  const value = useSharedValue(opacity);
+  useEffect(() => {
+    value.value = withTiming(opacity, { duration: DOTS_FADE_MS, easing: EASE });
+  }, [opacity, value]);
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: value.value }), [value]);
+  return <Animated.View style={[DOT_STYLE, { backgroundColor: color }, animatedStyle]} />;
+}
+
+const DOT_STYLE: ViewStyle = { width: DOTS_SIZE, height: DOTS_SIZE, borderRadius: 1 };
+
+function DotsIndicator({
+  variant,
+  color,
+  reducedMotion,
+}: {
+  variant: 'wave' | 'spin';
+  color: string;
+  reducedMotion: boolean;
+}) {
+  const [opacities, setOpacities] = useState<number[]>(DOTS_SEED);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    let phase = 0;
+    const id = setInterval(() => {
+      phase = (phase + DOTS_PHASE_STEP) % 1;
+      setOpacities(dotOpacities(variant, phase));
+    }, DOTS_TICK_MS);
+    return () => clearInterval(id);
+  }, [variant, reducedMotion]);
+
+  return (
+    <View aria-hidden testID="agent-thinking-dots" style={DOTS_BOX}>
+      {opacities.map((opacity, i) => (
+        <Dot key={i} opacity={opacity} color={color} />
+      ))}
+    </View>
+  );
+}
+
+const DOTS_EDGE = DOTS_GRID * DOTS_SIZE + (DOTS_GRID - 1) * DOTS_GAP;
+const DOTS_BOX: ViewStyle = {
+  width: DOTS_EDGE,
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  rowGap: DOTS_GAP,
+  columnGap: DOTS_GAP,
+  flexShrink: 0,
+};
+
+// ---------------------------------------------------------------------------
+//  Stars
+// ---------------------------------------------------------------------------
+
+const STAR_PERIOD_MS = 1400;
+const STAR_SIZE = 14;
+const STAR_BOX = STAR_SIZE * 1.5;
+const STAR_LAYOUT = [
+  { x: 50, y: 46, scale: 1 },
+  { x: 18, y: 22, scale: 0.55 },
+  { x: 82, y: 26, scale: 0.45 },
+  { x: 78, y: 76, scale: 0.55 },
+  { x: 22, y: 78, scale: 0.4 },
+] as const;
+const STAR_PATH = 'M12 0C13 7 17 11 24 12C17 13 13 17 12 24C11 17 7 13 0 12C7 11 11 7 12 0Z';
+/** CSS `ease-in-out`, applied per keyframe segment exactly as CSS does. */
+const EASE_IN_OUT = Easing.bezier(0.42, 0, 0.58, 1);
+
+function Star({
+  index,
+  star,
+  color,
+  reducedMotion,
+}: {
+  index: number;
+  star: (typeof STAR_LAYOUT)[number];
+  color: string;
+  reducedMotion: boolean;
+}) {
+  const size = STAR_SIZE * star.scale;
+  const scale = useSharedValue(reducedMotion ? 1 : 0);
+  const opacity = useSharedValue(reducedMotion ? 0.7 : 0);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      scale.value = 1;
+      opacity.value = 0.7;
+      return;
+    }
+    // Keyframes 0% (0, 0) → 40% (1, 1) → 60% (0.8, 0.9) → 100% (0, 0).
+    const seg = (fraction: number) => ({
+      duration: STAR_PERIOD_MS * fraction,
+      easing: EASE_IN_OUT,
+    });
+    const delay = (index * STAR_PERIOD_MS * 0.7) / STAR_LAYOUT.length;
+    scale.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(withTiming(1, seg(0.4)), withTiming(0.8, seg(0.2)), withTiming(0, seg(0.4))),
+        -1,
+      ),
+    );
+    opacity.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(withTiming(1, seg(0.4)), withTiming(0.9, seg(0.2)), withTiming(0, seg(0.4))),
+        -1,
+      ),
+    );
+    return () => {
+      cancelAnimation(scale);
+      cancelAnimation(opacity);
+    };
+  }, [index, reducedMotion, scale, opacity]);
+
+  const animatedStyle = useAnimatedStyle(
+    () => ({ opacity: opacity.value, transform: [{ scale: scale.value }] }),
+    [scale, opacity],
+  );
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          width: size,
+          height: size,
+          left: (STAR_BOX * star.x) / 100 - size / 2,
+          top: (STAR_BOX * star.y) / 100 - size / 2,
+        },
+        animatedStyle,
+      ]}
+    >
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path d={STAR_PATH} fill={color} />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+function StarsIndicator({ color, reducedMotion }: { color: string; reducedMotion: boolean }) {
+  return (
+    <View
+      aria-hidden
+      testID="agent-thinking-stars"
+      style={{ position: 'relative', width: STAR_BOX, height: STAR_BOX, flexShrink: 0 }}
+    >
+      {STAR_LAYOUT.map((star, i) => (
+        <Star key={i} index={i} star={star} color={color} reducedMotion={reducedMotion} />
+      ))}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  Infinity
+// ---------------------------------------------------------------------------
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+const INFINITY_WIDTH = 32;
+/** Share of the lap the comet occupies, in `pathLength=100` units. */
+const INFINITY_TRAIL = 11;
+const INFINITY_STROKE = 2.75;
+const INFINITY_DURATION_MS = 1200;
+const INFINITY_PATH = 'M28 14C33 5 47 5 47 14C47 23 33 23 28 14C23 5 9 5 9 14C9 23 23 23 28 14Z';
+/**
+ * The figure-eight's real length in viewBox units (four cubics, measured).
+ * Normalising with `pathLength={100}` is not honoured by react-native-svg on
+ * every platform, so the dash is scaled to this length instead.
+ */
+const INFINITY_LENGTH = 101.2956;
+
+function InfinityIndicator({ color, reducedMotion }: { color: string; reducedMotion: boolean }) {
+  const offset = useSharedValue(0);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      offset.value = 0;
+      return;
+    }
+    offset.value = 0;
+    offset.value = withRepeat(
+      withTiming(-INFINITY_LENGTH, { duration: INFINITY_DURATION_MS, easing: Easing.linear }),
+      -1,
+    );
+    return () => cancelAnimation(offset);
+  }, [reducedMotion, offset]);
+
+  const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: offset.value }), [offset]);
+  const dash = (INFINITY_TRAIL / 100) * INFINITY_LENGTH;
+
+  return (
+    <View
+      aria-hidden
+      testID="agent-thinking-infinity"
+      // The figure-eight spans x 9–47 of the 56-wide viewBox, so the box carries
+      // ~4px of dead space per side at this width; pull it back in so the label
+      // sits at the loader's real gap.
+      style={{
+        width: INFINITY_WIDTH,
+        height: INFINITY_WIDTH / 2,
+        marginLeft: -4,
+        marginRight: -4,
+        flexShrink: 0,
+      }}
+    >
+      <Svg width={INFINITY_WIDTH} height={INFINITY_WIDTH / 2} viewBox="0 0 56 28" fill="none">
+        <Path
+          d={INFINITY_PATH}
+          fill="none"
+          stroke={color}
+          strokeWidth={INFINITY_STROKE}
+          opacity={0.15}
+        />
+        <AnimatedPath
+          d={INFINITY_PATH}
+          fill="none"
+          stroke={color}
+          strokeWidth={INFINITY_STROKE}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${INFINITY_LENGTH - dash}`}
+          animatedProps={animatedProps}
+        />
+      </Svg>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  Timer
+// ---------------------------------------------------------------------------
+
+const MONO_FAMILY = IS_WEB ? 'var(--bloom-font-mono)' : 'JetBrains Mono';
+
+function ElapsedTimer({ color }: { color: string }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const started = Date.now();
+    const id = setInterval(() => setElapsed((Date.now() - started) / 1000), 100);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <Text
+      testID="agent-thinking-timer"
+      variant="caption-1-regular"
+      style={{ color, fontFamily: MONO_FAMILY, fontVariant: ['tabular-nums'] }}
+    >
+      {`${elapsed.toFixed(1)}s`}
+    </Text>
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  Loader
+// ---------------------------------------------------------------------------
+
+/** `durationMs` as whole minutes and the seconds left over. */
+function splitDuration(durationMs: number) {
+  const total = Math.max(0, Math.round(durationMs / 1000));
+  return { minutes: Math.floor(total / 60), seconds: total % 60 };
+}
+
+/** The words of the row: the status label while thinking, the "Thought for N s" header once done. */
+function useThinkingText({
+  label,
+  thinking,
+  durationMs,
+}: Pick<AgentThinkingProps, 'label' | 'durationMs'> & { thinking: boolean }): string {
+  const { messages } = useMessages(AGENT_THINKING_MESSAGES);
+  if (label !== undefined) return label;
+  if (thinking) return messages.thinking;
+  if (durationMs === undefined) return messages.reasoning;
+  const { minutes, seconds } = splitDuration(durationMs);
+  return minutes === 0 && seconds === 0
+    ? messages.thoughtBriefly
+    : messages.thoughtFor(minutes, seconds);
+}
+
+type ThinkingRowProps = Omit<
+  AgentThinkingProps,
+  'children' | 'open' | 'defaultOpen' | 'onOpenChange'
+> & {
+  /** The row is the status itself, unless it sits inside the disclosure's button. */
+  statusRole?: boolean;
+};
+
+/** The indicator, its label and the timer: what `AgentThinking` has always drawn. */
+function ThinkingRow({
+  variant = 'wave',
+  label: labelProp,
+  tone,
+  shimmer = true,
+  showTimer = true,
+  thinking = true,
+  durationMs,
+  statusRole = true,
+  style,
+  testID,
+}: ThinkingRowProps) {
+  const theme = useTheme();
+  const reducedMotion = useReducedMotion();
+  const color = resolveTone(theme, tone ?? VARIANT_TONE[variant]);
+  const label = useThinkingText({ label: labelProp, thinking, durationMs });
+
+  if (!thinking) {
+    return (
+      <View testID={testID} style={style}>
+        <ThinkingLabel
+          testID={testID ? `${testID}-label` : undefined}
+          color={color}
+          shimmer={false}
+        >
+          {label}
+        </ThinkingLabel>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      role={statusRole ? 'status' : undefined}
+      testID={testID}
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, style]}
+    >
+      {(variant === 'wave' || variant === 'spin') && (
+        <DotsIndicator variant={variant} color={color} reducedMotion={reducedMotion} />
+      )}
+      {variant === 'stars' && (
+        <StarsIndicator
+          // Light mode softens the glyphs (not the label) to 75% of the tone:
+          // they read heavier than the dot grids there. Dark keeps the full tone.
+          color={theme.isDark ? color : withAlpha(color, 0.75)}
+          reducedMotion={reducedMotion}
+        />
+      )}
+      {variant === 'infinity' && <InfinityIndicator color={color} reducedMotion={reducedMotion} />}
+      <ThinkingLabel
+        testID={testID ? `${testID}-label` : undefined}
+        color={color}
+        shimmer={shimmer}
+      >
+        {label}
+      </ThinkingLabel>
+      {showTimer && <ElapsedTimer color={resolveTone(theme, 'subtle')} />}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+//  Disclosure: the same row with the model's reasoning folded under it
+// ---------------------------------------------------------------------------
+
+const TOGGLE_STYLE_ID = 'bloom-agent-thinking-toggle-web-css';
+const TOGGLE_CSS = interactiveWebCss({
+  selector: '[data-bloom-agent-thinking-toggle]',
+  varPrefix: 'bloom-agent-thinking',
+  reset: 'none',
+  transition: 'none',
+});
+
+/**
+ * The row, a chevron, and a body that opens under it. Opening follows `thinking`
+ * (open while the model reasons, shut once it is done) until the user takes
+ * over: a press settles it for the rest of that run and the next run starts open.
+ */
+function ThinkingDisclosure({
+  children,
+  open: openProp,
+  defaultOpen,
+  onOpenChange,
+  showTimer = false,
+  thinking = true,
+  style,
+  testID,
+  ...row
+}: AgentThinkingProps) {
+  const theme = useTheme();
+  const direction = useDirectionProps();
+  const ringOffset = useRingOffsetStyle();
+  useInteractiveWebCss(TOGGLE_STYLE_ID, TOGGLE_CSS);
+  const [open, setOpen] = useControllableState({
+    value: openProp,
+    defaultValue: defaultOpen ?? thinking,
+    onChange: onOpenChange,
+  });
+
+  const accessibleLabel = useThinkingText({
+    label: row.label,
+    thinking,
+    durationMs: row.durationMs,
+  });
+  const userToggled = useRef(false);
+  const wasThinking = useRef(thinking);
+  useEffect(() => {
+    if (wasThinking.current === thinking) return;
+    wasThinking.current = thinking;
+    if (thinking) userToggled.current = false;
+    if (!userToggled.current) setOpen(thinking);
+  }, [thinking, setOpen]);
+
+  const toggle = () => {
+    userToggled.current = true;
+    setOpen(!open);
+  };
+
+  const headerStyle: WebCssStyle = {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    '--bloom-agent-thinking-ring': theme.colors.primary,
+    ...ringOffset,
+  };
+
+  return (
+    <View {...direction} testID={testID} style={[{ alignSelf: 'stretch' }, style]}>
+      <Pressable
+        {...dataHook('bloomAgentThinkingToggle')}
+        role="button"
+        accessibilityLabel={accessibleLabel}
+        aria-expanded={open}
+        accessibilityState={{ expanded: open }}
+        onPress={toggle}
+        testID={testID ? `${testID}-header` : undefined}
+        style={headerStyle}
+      >
+        <ThinkingRow
+          {...row}
+          testID={testID ? `${testID}-row` : undefined}
+          thinking={thinking}
+          showTimer={showTimer}
+          statusRole={false}
+        />
+        <RiArrowDownSLine
+          width={16}
+          height={16}
+          fill={theme.colors.textTertiary}
+          style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}
+        />
+      </Pressable>
+      <ThinkingReasoning open={open} testID={testID ? `${testID}-body` : undefined}>
+        {children}
+      </ThinkingReasoning>
+    </View>
+  );
+}
+
+function AgentThinkingComponent(props: AgentThinkingProps) {
+  return props.children == null ? <ThinkingRow {...props} /> : <ThinkingDisclosure {...props} />;
+}
+
+export const AgentThinking = memo(AgentThinkingComponent);
+AgentThinking.displayName = 'AgentThinking';

@@ -1,0 +1,1228 @@
+{
+  "name": "@oxy.so/bloom",
+  "version": "11.0.0",
+  "packageManager": "bun@1.4.3",
+  "description": "Bloom UI — Oxy ecosystem component library for React Native + Expo + Web",
+  "main": "lib/commonjs/index.js",
+  "module": "lib/module/index.js",
+  "types": "lib/typescript/commonjs/index.d.ts",
+  "react-native": "src/index.ts",
+  "source": "src/index.ts",
+  "sideEffects": [
+    "**/theme/init-css-interop.*",
+    "**/toast/use-stack-hover.*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "browser": "./src/index.web.ts",
+      "react-native": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./provider": {
+      "react-native": "./src/provider/index.ts",
+      "default": "./src/provider/index.ts"
+    },
+    "./surfaces": {
+      "browser": "./src/surfaces/index.web.ts",
+      "react-native": "./src/surfaces/index.ts",
+      "default": "./src/surfaces/index.ts"
+    },
+    "./surface": {
+      "browser": "./src/surface/index.web.ts",
+      "react-native": "./src/surface/index.ts",
+      "default": "./src/surface/index.ts"
+    },
+    "./image-resolver": {
+      "react-native": "./src/image-resolver/index.ts",
+      "default": "./src/image-resolver/index.ts"
+    },
+    "./locale": {
+      "react-native": "./src/locale/index.ts",
+      "default": "./src/locale/index.ts"
+    },
+    "./image-aspect-ratio-cache": {
+      "react-native": "./src/image-aspect-ratio-cache/index.ts",
+      "default": "./src/image-aspect-ratio-cache/index.ts"
+    },
+    "./theme": {
+      "browser": "./src/theme/index.web.ts",
+      "react-native": "./src/theme/index.ts",
+      "default": "./src/theme/index.ts"
+    },
+    "./color-presets": {
+      "react-native": "./src/theme/color-presets.ts",
+      "default": "./src/theme/color-presets.ts"
+    },
+    "./preset-vars": {
+      "react-native": "./src/theme/preset-vars.ts",
+      "default": "./src/theme/preset-vars.ts"
+    },
+    "./design-tokens": {
+      "react-native": "./src/design-tokens/index.ts",
+      "default": "./src/design-tokens/index.ts"
+    },
+    "./tailwind-preset": {
+      "react-native": "./src/design-tokens/tailwind-preset.ts",
+      "default": "./src/design-tokens/tailwind-preset.ts"
+    },
+    "./portal": {
+      "browser": "./src/portal/index.web.ts",
+      "react-native": "./src/portal/index.ts",
+      "default": "./src/portal/index.ts"
+    },
+    "./connection-status": {
+      "browser": "./src/connection-status/index.web.ts",
+      "react-native": "./src/connection-status/index.ts",
+      "default": "./src/connection-status/index.ts"
+    },
+    "./overlay": {
+      "react-native": "./src/overlay/index.ts",
+      "default": "./src/overlay/index.ts"
+    },
+    "./dialog": {
+      "browser": "./src/dialog/index.web.ts",
+      "react-native": "./src/dialog/index.ts",
+      "default": "./src/dialog/index.ts"
+    },
+    "./appearance": {
+      "react-native": "./src/appearance/index.ts",
+      "default": "./src/appearance/index.ts"
+    },
+    "./screen": {
+      "react-native": "./src/screen/index.ts",
+      "default": "./src/screen/index.ts"
+    },
+    "./bottom-bar": {
+      "browser": "./src/bottom-bar/index.web.ts",
+      "react-native": "./src/bottom-bar/index.ts",
+      "default": "./src/bottom-bar/index.ts"
+    },
+    "./button": {
+      "browser": "./src/button/index.web.ts",
+      "react-native": "./src/button/index.ts",
+      "default": "./src/button/index.ts"
+    },
+    "./button-group": {
+      "browser": "./src/button-group/index.web.ts",
+      "react-native": "./src/button-group/index.ts",
+      "default": "./src/button-group/index.ts"
+    },
+    "./layout": {
+      "browser": "./src/layout/index.web.ts",
+      "react-native": "./src/layout/index.ts",
+      "default": "./src/layout/index.ts"
+    },
+    "./viewport": {
+      "browser": "./src/viewport/index.web.ts",
+      "react-native": "./src/viewport/index.ts",
+      "default": "./src/viewport/index.ts"
+    },
+    "./collapsible": {
+      "browser": "./src/collapsible/index.web.ts",
+      "react-native": "./src/collapsible/index.ts",
+      "default": "./src/collapsible/index.ts"
+    },
+    "./fab": {
+      "browser": "./src/fab/index.web.ts",
+      "react-native": "./src/fab/index.ts",
+      "default": "./src/fab/index.ts"
+    },
+    "./frosted-icon-button": {
+      "browser": "./src/frosted-icon-button/index.web.ts",
+      "react-native": "./src/frosted-icon-button/index.ts",
+      "default": "./src/frosted-icon-button/index.ts"
+    },
+    "./divider": {
+      "react-native": "./src/divider/index.ts",
+      "default": "./src/divider/index.ts"
+    },
+    "./breadcrumb": {
+      "react-native": "./src/breadcrumb/index.ts",
+      "default": "./src/breadcrumb/index.ts"
+    },
+    "./pagination": {
+      "react-native": "./src/pagination/index.ts",
+      "default": "./src/pagination/index.ts"
+    },
+    "./agent-avatar": {
+      "react-native": "./src/agent-avatar/index.ts",
+      "default": "./src/agent-avatar/index.ts"
+    },
+    "./avatar-flight": {
+      "browser": "./src/avatar-flight/index.web.ts",
+      "react-native": "./src/avatar-flight/index.ts",
+      "default": "./src/avatar-flight/index.ts"
+    },
+    "./conversation-sidebar": {
+      "browser": "./src/conversation-sidebar/index.web.ts",
+      "react-native": "./src/conversation-sidebar/index.ts",
+      "default": "./src/conversation-sidebar/index.ts"
+    },
+    "./agent-creator": {
+      "browser": "./src/agent-creator/index.web.ts",
+      "react-native": "./src/agent-creator/index.ts",
+      "default": "./src/agent-creator/index.ts"
+    },
+    "./project-board": {
+      "browser": "./src/project-board/index.web.ts",
+      "react-native": "./src/project-board/index.ts",
+      "default": "./src/project-board/index.ts"
+    },
+    "./multi-agent-chat": {
+      "browser": "./src/multi-agent-chat/index.web.ts",
+      "react-native": "./src/multi-agent-chat/index.ts",
+      "default": "./src/multi-agent-chat/index.ts"
+    },
+    "./agent-limits-card": {
+      "react-native": "./src/agent-limits-card/index.ts",
+      "default": "./src/agent-limits-card/index.ts"
+    },
+    "./carousel": {
+      "react-native": "./src/carousel/index.ts",
+      "default": "./src/carousel/index.ts"
+    },
+    "./file-upload": {
+      "react-native": "./src/file-upload/index.ts",
+      "default": "./src/file-upload/index.ts"
+    },
+    "./social-button": {
+      "browser": "./src/social-button/index.web.ts",
+      "react-native": "./src/social-button/index.ts",
+      "default": "./src/social-button/index.ts"
+    },
+    "./notification": {
+      "react-native": "./src/notification/index.ts",
+      "default": "./src/notification/index.ts"
+    },
+    "./announcement": {
+      "react-native": "./src/announcement/index.ts",
+      "default": "./src/announcement/index.ts"
+    },
+    "./data-table": {
+      "react-native": "./src/data-table/index.ts",
+      "default": "./src/data-table/index.ts"
+    },
+    "./chart-cards": {
+      "react-native": "./src/chart-cards/index.ts",
+      "default": "./src/chart-cards/index.ts"
+    },
+    "./chart-cards/sparkline": {
+      "react-native": "./src/chart-cards/sparkline.ts",
+      "default": "./src/chart-cards/sparkline.ts"
+    },
+    "./calendar": {
+      "react-native": "./src/calendar/index.ts",
+      "default": "./src/calendar/index.ts"
+    },
+    "./stat-cards": {
+      "react-native": "./src/stat-cards/index.ts",
+      "default": "./src/stat-cards/index.ts"
+    },
+    "./recent-hires-card": {
+      "react-native": "./src/recent-hires-card/index.ts",
+      "default": "./src/recent-hires-card/index.ts"
+    },
+    "./ai-profile-card": {
+      "react-native": "./src/ai-profile-card/index.ts",
+      "default": "./src/ai-profile-card/index.ts"
+    },
+    "./important-alerts-card": {
+      "react-native": "./src/important-alerts-card/index.ts",
+      "default": "./src/important-alerts-card/index.ts"
+    },
+    "./patient-info-card": {
+      "react-native": "./src/patient-info-card/index.ts",
+      "default": "./src/patient-info-card/index.ts"
+    },
+    "./sidebar": {
+      "react-native": "./src/sidebar/index.ts",
+      "default": "./src/sidebar/index.ts"
+    },
+    "./app-shell": {
+      "browser": "./src/app-shell/index.web.ts",
+      "react-native": "./src/app-shell/index.ts",
+      "default": "./src/app-shell/index.ts"
+    },
+    "./page-header": {
+      "react-native": "./src/page-header/index.ts",
+      "default": "./src/page-header/index.ts"
+    },
+    "./page-footer": {
+      "react-native": "./src/page-footer/index.ts",
+      "default": "./src/page-footer/index.ts"
+    },
+    "./cover-header": {
+      "react-native": "./src/cover-header/index.ts",
+      "default": "./src/cover-header/index.ts"
+    },
+    "./notification-center": {
+      "react-native": "./src/notification-center/index.ts",
+      "default": "./src/notification-center/index.ts"
+    },
+    "./theme-toggle": {
+      "react-native": "./src/theme-toggle/index.ts",
+      "default": "./src/theme-toggle/index.ts"
+    },
+    "./settings-modal": {
+      "react-native": "./src/settings-modal/index.ts",
+      "default": "./src/settings-modal/index.ts"
+    },
+    "./settings-modal/rows": {
+      "react-native": "./src/settings-modal/rows.ts",
+      "default": "./src/settings-modal/rows.ts"
+    },
+    "./settings-modal/modal": {
+      "react-native": "./src/settings-modal/modal.ts",
+      "default": "./src/settings-modal/modal.ts"
+    },
+    "./settings-modal/fields": {
+      "react-native": "./src/settings-modal/fields.ts",
+      "default": "./src/settings-modal/fields.ts"
+    },
+    "./auth-card": {
+      "react-native": "./src/auth-card/index.ts",
+      "default": "./src/auth-card/index.ts"
+    },
+    "./agent-thinking": {
+      "react-native": "./src/agent-thinking/index.ts",
+      "default": "./src/agent-thinking/index.ts"
+    },
+    "./agent-reply": {
+      "react-native": "./src/agent-reply/index.ts",
+      "default": "./src/agent-reply/index.ts"
+    },
+    "./agent-log": {
+      "react-native": "./src/agent-log/index.ts",
+      "default": "./src/agent-log/index.ts"
+    },
+    "./markdown": {
+      "react-native": "./src/markdown/index.ts",
+      "default": "./src/markdown/index.ts"
+    },
+    "./agent-progress": {
+      "react-native": "./src/agent-progress/index.ts",
+      "default": "./src/agent-progress/index.ts"
+    },
+    "./composer-loader": {
+      "browser": "./src/composer-loader/index.web.ts",
+      "react-native": "./src/composer-loader/index.ts",
+      "default": "./src/composer-loader/index.ts"
+    },
+    "./voice": {
+      "react-native": "./src/voice/index.ts",
+      "default": "./src/voice/index.ts"
+    },
+    "./composer-panel": {
+      "browser": "./src/composer-panel/index.web.ts",
+      "react-native": "./src/composer-panel/index.ts",
+      "default": "./src/composer-panel/index.ts"
+    },
+    "./questionnaire": {
+      "react-native": "./src/questionnaire/index.ts",
+      "default": "./src/questionnaire/index.ts"
+    },
+    "./web-search": {
+      "react-native": "./src/web-search/index.ts",
+      "default": "./src/web-search/index.ts"
+    },
+    "./task-list": {
+      "react-native": "./src/task-list/index.ts",
+      "default": "./src/task-list/index.ts"
+    },
+    "./agent-chat": {
+      "browser": "./src/agent-chat/index.web.ts",
+      "react-native": "./src/agent-chat/index.ts",
+      "default": "./src/agent-chat/index.ts"
+    },
+    "./ai-chat": {
+      "browser": "./src/ai-chat/index.web.ts",
+      "react-native": "./src/ai-chat/index.ts",
+      "default": "./src/ai-chat/index.ts"
+    },
+    "./radio-indicator": {
+      "react-native": "./src/radio-indicator/index.ts",
+      "default": "./src/radio-indicator/index.ts"
+    },
+    "./radio": {
+      "react-native": "./src/radio/index.ts",
+      "default": "./src/radio/index.ts"
+    },
+    "./error-boundary": {
+      "react-native": "./src/error-boundary/index.ts",
+      "default": "./src/error-boundary/index.ts"
+    },
+    "./shapes": {
+      "react-native": "./src/shapes/index.ts",
+      "default": "./src/shapes/index.ts"
+    },
+    "./avatar": {
+      "react-native": "./src/avatar/index.ts",
+      "default": "./src/avatar/index.ts"
+    },
+    "./avatar-group": {
+      "browser": "./src/avatar-group/index.web.ts",
+      "react-native": "./src/avatar-group/index.ts",
+      "default": "./src/avatar-group/index.ts"
+    },
+    "./user-hover-card": {
+      "react-native": "./src/user-hover-card/index.ts",
+      "default": "./src/user-hover-card/index.ts"
+    },
+    "./loading": {
+      "browser": "./src/loading/index.web.ts",
+      "react-native": "./src/loading/index.ts",
+      "default": "./src/loading/index.ts"
+    },
+    "./switch": {
+      "react-native": "./src/switch/index.ts",
+      "default": "./src/switch/index.ts"
+    },
+    "./toast": {
+      "react-native": "./src/toast/index.ts",
+      "default": "./src/toast/index.ts"
+    },
+    "./styles": {
+      "react-native": "./src/styles/index.ts",
+      "default": "./src/styles/index.ts"
+    },
+    "./hooks": {
+      "react-native": "./src/hooks/index.ts",
+      "default": "./src/hooks/index.ts"
+    },
+    "./icons": {
+      "react-native": "./src/icons/index.ts",
+      "default": "./src/icons/index.ts"
+    },
+    "./icons/Ri*": {
+      "react-native": "./src/icons/remix/Ri*.tsx",
+      "default": "./src/icons/remix/Ri*.tsx"
+    },
+    "./icons/SiSubstack": {
+      "react-native": "./src/icons/simple-icons/SiSubstack.tsx",
+      "default": "./src/icons/simple-icons/SiSubstack.tsx"
+    },
+    "./typography": {
+      "react-native": "./src/typography/index.ts",
+      "default": "./src/typography/index.ts"
+    },
+    "./skeleton": {
+      "react-native": "./src/skeleton/index.ts",
+      "default": "./src/skeleton/index.ts"
+    },
+    "./grid": {
+      "react-native": "./src/grid/index.ts",
+      "default": "./src/grid/index.ts"
+    },
+    "./fill": {
+      "react-native": "./src/fill/index.ts",
+      "default": "./src/fill/index.ts"
+    },
+    "./media-inset-border": {
+      "react-native": "./src/media-inset-border/index.ts",
+      "default": "./src/media-inset-border/index.ts"
+    },
+    "./zoomable-media-gallery": {
+      "browser": "./src/zoomable-media-gallery/index.web.ts",
+      "react-native": "./src/zoomable-media-gallery/index.ts",
+      "default": "./src/zoomable-media-gallery/index.ts"
+    },
+    "./zoomable-image-gallery": {
+      "browser": "./src/zoomable-media-gallery/index.web.ts",
+      "react-native": "./src/zoomable-media-gallery/index.ts",
+      "default": "./src/zoomable-media-gallery/index.ts"
+    },
+    "./media-flight": {
+      "browser": "./src/media-flight/index.web.ts",
+      "react-native": "./src/media-flight/index.ts",
+      "default": "./src/media-flight/index.ts"
+    },
+    "./video-view": {
+      "react-native": "./src/video-view/index.ts",
+      "default": "./src/video-view/index.ts"
+    },
+    "./teleport": {
+      "react-native": "./src/teleport/index.ts",
+      "default": "./src/teleport/index.ts"
+    },
+    "./pressable-scale": {
+      "react-native": "./src/pressable-scale/index.ts",
+      "default": "./src/pressable-scale/index.ts"
+    },
+    "./subtle-hover": {
+      "react-native": "./src/subtle-hover/index.ts",
+      "default": "./src/subtle-hover/index.ts"
+    },
+    "./motion": {
+      "browser": "./src/motion/index.web.ts",
+      "react-native": "./src/motion/index.ts",
+      "default": "./src/motion/index.ts"
+    },
+    "./animated-check": {
+      "react-native": "./src/animated-check/index.ts",
+      "default": "./src/animated-check/index.ts"
+    },
+    "./icon-circle": {
+      "react-native": "./src/icon-circle/index.ts",
+      "default": "./src/icon-circle/index.ts"
+    },
+    "./empty-state": {
+      "react-native": "./src/empty-state/index.ts",
+      "default": "./src/empty-state/index.ts"
+    },
+    "./connection-dots": {
+      "browser": "./src/connection-dots/index.web.ts",
+      "react-native": "./src/connection-dots/index.ts",
+      "default": "./src/connection-dots/index.ts"
+    },
+    "./composition-bar": {
+      "react-native": "./src/composition-bar/index.ts",
+      "default": "./src/composition-bar/index.ts"
+    },
+    "./stat-bar": {
+      "browser": "./src/stat-bar/index.web.ts",
+      "react-native": "./src/stat-bar/index.ts",
+      "default": "./src/stat-bar/index.ts"
+    },
+    "./activity-heatmap": {
+      "react-native": "./src/activity-heatmap/index.ts",
+      "default": "./src/activity-heatmap/index.ts"
+    },
+    "./text-field": {
+      "react-native": "./src/text-field/index.ts",
+      "default": "./src/text-field/index.ts"
+    },
+    "./segmented-control": {
+      "react-native": "./src/segmented-control/index.ts",
+      "default": "./src/segmented-control/index.ts"
+    },
+    "./textarea": {
+      "react-native": "./src/textarea/index.ts",
+      "default": "./src/textarea/index.ts"
+    },
+    "./input-otp": {
+      "react-native": "./src/input-otp/index.ts",
+      "default": "./src/input-otp/index.ts"
+    },
+    "./phone-input": {
+      "react-native": "./src/phone-input/index.ts",
+      "default": "./src/phone-input/index.ts"
+    },
+    "./table": {
+      "react-native": "./src/table/index.ts",
+      "default": "./src/table/index.ts"
+    },
+    "./date-picker": {
+      "react-native": "./src/date-picker/index.ts",
+      "default": "./src/date-picker/index.ts"
+    },
+    "./search": {
+      "react-native": "./src/search/index.ts",
+      "default": "./src/search/index.ts"
+    },
+    "./admonition": {
+      "react-native": "./src/admonition/index.ts",
+      "default": "./src/admonition/index.ts"
+    },
+    "./dropdown-menu": {
+      "browser": "./src/dropdown-menu/index.web.ts",
+      "react-native": "./src/dropdown-menu/index.ts",
+      "default": "./src/dropdown-menu/index.ts"
+    },
+    "./tooltip": {
+      "browser": "./src/tooltip/index.web.ts",
+      "react-native": "./src/tooltip/index.ts",
+      "default": "./src/tooltip/index.ts"
+    },
+    "./select": {
+      "browser": "./src/select/index.web.ts",
+      "react-native": "./src/select/index.ts",
+      "default": "./src/select/index.ts"
+    },
+    "./bottom-sheet": {
+      "browser": "./src/bottom-sheet/index.web.ts",
+      "react-native": "./src/bottom-sheet/index.ts",
+      "default": "./src/bottom-sheet/index.ts"
+    },
+    "./context-menu": {
+      "browser": "./src/context-menu/index.web.ts",
+      "react-native": "./src/context-menu/index.ts",
+      "default": "./src/context-menu/index.ts"
+    },
+    "./menubar": {
+      "browser": "./src/menubar/index.web.ts",
+      "react-native": "./src/menubar/index.ts",
+      "default": "./src/menubar/index.ts"
+    },
+    "./popover": {
+      "browser": "./src/popover/index.web.ts",
+      "react-native": "./src/popover/index.ts",
+      "default": "./src/popover/index.ts"
+    },
+    "./hover-card": {
+      "browser": "./src/hover-card/index.web.ts",
+      "react-native": "./src/hover-card/index.ts",
+      "default": "./src/hover-card/index.ts"
+    },
+    "./aspect-ratio": {
+      "react-native": "./src/aspect-ratio/index.ts",
+      "default": "./src/aspect-ratio/index.ts"
+    },
+    "./alert-dialog": {
+      "browser": "./src/alert-dialog/index.web.ts",
+      "react-native": "./src/alert-dialog/index.ts",
+      "default": "./src/alert-dialog/index.ts"
+    },
+    "./command": {
+      "browser": "./src/command/index.web.ts",
+      "react-native": "./src/command/index.ts",
+      "default": "./src/command/index.ts"
+    },
+    "./label": {
+      "react-native": "./src/label/index.ts",
+      "default": "./src/label/index.ts"
+    },
+    "./kbd": {
+      "react-native": "./src/kbd/index.ts",
+      "default": "./src/kbd/index.ts"
+    },
+    "./item": {
+      "react-native": "./src/item/index.ts",
+      "default": "./src/item/index.ts"
+    },
+    "./field": {
+      "react-native": "./src/field/index.ts",
+      "default": "./src/field/index.ts"
+    },
+    "./input-group": {
+      "react-native": "./src/input-group/index.ts",
+      "default": "./src/input-group/index.ts"
+    },
+    "./slider": {
+      "react-native": "./src/slider/index.ts",
+      "default": "./src/slider/index.ts"
+    },
+    "./stepper": {
+      "react-native": "./src/stepper/index.ts",
+      "default": "./src/stepper/index.ts"
+    },
+    "./sticker": {
+      "browser": "./src/sticker/index.web.ts",
+      "react-native": "./src/sticker/index.ts",
+      "default": "./src/sticker/index.ts"
+    },
+    "./rating": {
+      "browser": "./src/rating/index.web.ts",
+      "react-native": "./src/rating/index.ts",
+      "default": "./src/rating/index.ts"
+    },
+    "./media-controls": {
+      "react-native": "./src/media-controls/index.ts",
+      "default": "./src/media-controls/index.ts"
+    },
+    "./chat-indicators": {
+      "react-native": "./src/chat-indicators/index.ts",
+      "default": "./src/chat-indicators/index.ts"
+    },
+    "./call-ui": {
+      "react-native": "./src/call-ui/index.ts",
+      "default": "./src/call-ui/index.ts"
+    },
+    "./chat-people": {
+      "react-native": "./src/chat-people/index.ts",
+      "default": "./src/chat-people/index.ts"
+    },
+    "./chat-people/contact-row": {
+      "react-native": "./src/chat-people/contact-row.ts",
+      "default": "./src/chat-people/contact-row.ts"
+    },
+    "./chat-screen": {
+      "react-native": "./src/chat-screen/index.ts",
+      "default": "./src/chat-screen/index.ts"
+    },
+    "./chat-composer": {
+      "browser": "./src/chat-composer/index.web.ts",
+      "react-native": "./src/chat-composer/index.ts",
+      "default": "./src/chat-composer/index.ts"
+    },
+    "./message-media": {
+      "react-native": "./src/message-media/index.ts",
+      "default": "./src/message-media/index.ts"
+    },
+    "./message-bubble": {
+      "react-native": "./src/message-bubble/index.ts",
+      "default": "./src/message-bubble/index.ts"
+    },
+    "./chat-list": {
+      "react-native": "./src/chat-list/index.ts",
+      "default": "./src/chat-list/index.ts"
+    },
+    "./creator-studio": {
+      "react-native": "./src/creator-studio/index.ts",
+      "default": "./src/creator-studio/index.ts"
+    },
+    "./media-card": {
+      "react-native": "./src/media-card/index.ts",
+      "default": "./src/media-card/index.ts"
+    },
+    "./media-shelf": {
+      "react-native": "./src/media-shelf/index.ts",
+      "default": "./src/media-shelf/index.ts"
+    },
+    "./queue-panel": {
+      "react-native": "./src/queue-panel/index.ts",
+      "default": "./src/queue-panel/index.ts"
+    },
+    "./lyrics": {
+      "react-native": "./src/lyrics/index.ts",
+      "default": "./src/lyrics/index.ts"
+    },
+    "./music-library": {
+      "react-native": "./src/music-library/index.ts",
+      "default": "./src/music-library/index.ts"
+    },
+    "./media-player": {
+      "react-native": "./src/media-player/index.ts",
+      "default": "./src/media-player/index.ts"
+    },
+    "./media-header": {
+      "react-native": "./src/media-header/index.ts",
+      "default": "./src/media-header/index.ts"
+    },
+    "./track-list": {
+      "react-native": "./src/track-list/index.ts",
+      "default": "./src/track-list/index.ts"
+    },
+    "./stay-filters": {
+      "react-native": "./src/stay-filters/index.ts",
+      "default": "./src/stay-filters/index.ts"
+    },
+    "./stay-search": {
+      "react-native": "./src/stay-search/index.ts",
+      "default": "./src/stay-search/index.ts"
+    },
+    "./home-search": {
+      "react-native": "./src/home-search/index.ts",
+      "default": "./src/home-search/index.ts"
+    },
+    "./listing-details": {
+      "react-native": "./src/listing-details/index.ts",
+      "default": "./src/listing-details/index.ts"
+    },
+    "./property-insights": {
+      "react-native": "./src/property-insights/index.ts",
+      "default": "./src/property-insights/index.ts"
+    },
+    "./booking": {
+      "react-native": "./src/booking/index.ts",
+      "default": "./src/booking/index.ts"
+    },
+    "./listing-actions": {
+      "react-native": "./src/listing-actions/index.ts",
+      "default": "./src/listing-actions/index.ts"
+    },
+    "./listing-card": {
+      "react-native": "./src/listing-card/index.ts",
+      "default": "./src/listing-card/index.ts"
+    },
+    "./offering-badge": {
+      "react-native": "./src/offering-badge/index.ts",
+      "default": "./src/offering-badge/index.ts"
+    },
+    "./category-bar": {
+      "react-native": "./src/category-bar/index.ts",
+      "default": "./src/category-bar/index.ts"
+    },
+    "./map-marker": {
+      "react-native": "./src/map-marker/index.ts",
+      "default": "./src/map-marker/index.ts"
+    },
+    "./place-card": {
+      "react-native": "./src/place-card/index.ts",
+      "default": "./src/place-card/index.ts"
+    },
+    "./place-details": {
+      "react-native": "./src/place-details/index.ts",
+      "default": "./src/place-details/index.ts"
+    },
+    "./place-list": {
+      "react-native": "./src/place-list/index.ts",
+      "default": "./src/place-list/index.ts"
+    },
+    "./map-controls": {
+      "react-native": "./src/map-controls/index.ts",
+      "default": "./src/map-controls/index.ts"
+    },
+    "./location-puck": {
+      "react-native": "./src/location-puck/index.ts",
+      "default": "./src/location-puck/index.ts"
+    },
+    "./navigation-banner": {
+      "react-native": "./src/navigation-banner/index.ts",
+      "default": "./src/navigation-banner/index.ts"
+    },
+    "./map-attribution": {
+      "react-native": "./src/map-attribution/index.ts",
+      "default": "./src/map-attribution/index.ts"
+    },
+    "./order-status": {
+      "react-native": "./src/order-status/index.ts",
+      "default": "./src/order-status/index.ts"
+    },
+    "./price-breakdown": {
+      "react-native": "./src/price-breakdown/index.ts",
+      "default": "./src/price-breakdown/index.ts"
+    },
+    "./checkout-summary": {
+      "react-native": "./src/checkout-summary/index.ts",
+      "default": "./src/checkout-summary/index.ts"
+    },
+    "./delivery-slot": {
+      "react-native": "./src/delivery-slot/index.ts",
+      "default": "./src/delivery-slot/index.ts"
+    },
+    "./order-confirmation": {
+      "react-native": "./src/order-confirmation/index.ts",
+      "default": "./src/order-confirmation/index.ts"
+    },
+    "./vendor-card": {
+      "react-native": "./src/vendor-card/index.ts",
+      "default": "./src/vendor-card/index.ts"
+    },
+    "./menu-item": {
+      "react-native": "./src/menu-item/index.ts",
+      "default": "./src/menu-item/index.ts"
+    },
+    "./cart-panel": {
+      "react-native": "./src/cart-panel/index.ts",
+      "default": "./src/cart-panel/index.ts"
+    },
+    "./address": {
+      "react-native": "./src/address/index.ts",
+      "default": "./src/address/index.ts"
+    },
+    "./route-stops": {
+      "react-native": "./src/route-stops/index.ts",
+      "default": "./src/route-stops/index.ts"
+    },
+    "./directions": {
+      "react-native": "./src/directions/index.ts",
+      "default": "./src/directions/index.ts"
+    },
+    "./shipment-request": {
+      "react-native": "./src/shipment-request/index.ts",
+      "default": "./src/shipment-request/index.ts"
+    },
+    "./carrier-quote": {
+      "react-native": "./src/carrier-quote/index.ts",
+      "default": "./src/carrier-quote/index.ts"
+    },
+    "./vehicle-picker": {
+      "react-native": "./src/vehicle-picker/index.ts",
+      "default": "./src/vehicle-picker/index.ts"
+    },
+    "./place-picker": {
+      "react-native": "./src/place-picker/index.ts",
+      "default": "./src/place-picker/index.ts"
+    },
+    "./payment-method": {
+      "react-native": "./src/payment-method/index.ts",
+      "default": "./src/payment-method/index.ts"
+    },
+    "./card-form": {
+      "react-native": "./src/card-form/index.ts",
+      "default": "./src/card-form/index.ts"
+    },
+    "./payment-status": {
+      "react-native": "./src/payment-status/index.ts",
+      "default": "./src/payment-status/index.ts"
+    },
+    "./job-board": {
+      "react-native": "./src/job-board/index.ts",
+      "default": "./src/job-board/index.ts"
+    },
+    "./earnings": {
+      "react-native": "./src/earnings/index.ts",
+      "default": "./src/earnings/index.ts"
+    },
+    "./proof-of-delivery": {
+      "react-native": "./src/proof-of-delivery/index.ts",
+      "default": "./src/proof-of-delivery/index.ts"
+    },
+    "./mail-list": {
+      "react-native": "./src/mail-list/index.ts",
+      "default": "./src/mail-list/index.ts"
+    },
+    "./mail-thread": {
+      "react-native": "./src/mail-thread/index.ts",
+      "default": "./src/mail-thread/index.ts"
+    },
+    "./mail-compose": {
+      "react-native": "./src/mail-compose/index.ts",
+      "default": "./src/mail-compose/index.ts"
+    },
+    "./swipe-row": {
+      "react-native": "./src/swipe-row/index.ts",
+      "default": "./src/swipe-row/index.ts"
+    },
+    "./tenancy": {
+      "react-native": "./src/tenancy/index.ts",
+      "default": "./src/tenancy/index.ts"
+    },
+    "./eviction": {
+      "react-native": "./src/eviction/index.ts",
+      "default": "./src/eviction/index.ts"
+    },
+    "./place-reviews": {
+      "react-native": "./src/place-reviews/index.ts",
+      "default": "./src/place-reviews/index.ts"
+    },
+    "./wizard": {
+      "react-native": "./src/wizard/index.ts",
+      "default": "./src/wizard/index.ts"
+    },
+    "./sortable-media": {
+      "react-native": "./src/sortable-media/index.ts",
+      "default": "./src/sortable-media/index.ts"
+    },
+    "./listing-editor": {
+      "react-native": "./src/listing-editor/index.ts",
+      "default": "./src/listing-editor/index.ts"
+    },
+    "./contact-card": {
+      "react-native": "./src/contact-card/index.ts",
+      "default": "./src/contact-card/index.ts"
+    },
+    "./pipeline": {
+      "react-native": "./src/pipeline/index.ts",
+      "default": "./src/pipeline/index.ts"
+    },
+    "./activity-feed": {
+      "react-native": "./src/activity-feed/index.ts",
+      "default": "./src/activity-feed/index.ts"
+    },
+    "./lead-score": {
+      "react-native": "./src/lead-score/index.ts",
+      "default": "./src/lead-score/index.ts"
+    },
+    "./note-card": {
+      "react-native": "./src/note-card/index.ts",
+      "default": "./src/note-card/index.ts"
+    },
+    "./note-editor": {
+      "react-native": "./src/note-editor/index.ts",
+      "default": "./src/note-editor/index.ts"
+    },
+    "./tag-field": {
+      "react-native": "./src/tag-field/index.ts",
+      "default": "./src/tag-field/index.ts"
+    },
+    "./outline-nav": {
+      "react-native": "./src/outline-nav/index.ts",
+      "default": "./src/outline-nav/index.ts"
+    },
+    "./card": {
+      "react-native": "./src/card/index.ts",
+      "default": "./src/card/index.ts"
+    },
+    "./badge": {
+      "react-native": "./src/badge/index.ts",
+      "default": "./src/badge/index.ts"
+    },
+    "./chip": {
+      "react-native": "./src/chip/index.ts",
+      "default": "./src/chip/index.ts"
+    },
+    "./tabs": {
+      "react-native": "./src/tabs/index.ts",
+      "default": "./src/tabs/index.ts"
+    },
+    "./tabs/expo-router": {
+      "react-native": "./src/tabs/expo-router/index.ts",
+      "default": "./src/tabs/expo-router/index.ts"
+    },
+    "./checkbox": {
+      "react-native": "./src/checkbox/index.ts",
+      "default": "./src/checkbox/index.ts"
+    },
+    "./accordion": {
+      "browser": "./src/accordion/index.web.ts",
+      "react-native": "./src/accordion/index.ts",
+      "default": "./src/accordion/index.ts"
+    },
+    "./settings-list": {
+      "react-native": "./src/settings-list/index.ts",
+      "default": "./src/settings-list/index.ts"
+    },
+    "./link-preview": {
+      "react-native": "./src/link-preview/index.ts",
+      "default": "./src/link-preview/index.ts"
+    },
+    "./code": {
+      "react-native": "./src/code/index.ts",
+      "default": "./src/code/index.ts"
+    },
+    "./fonts": {
+      "browser": "./src/fonts/index.web.ts",
+      "react-native": "./src/fonts/index.ts",
+      "default": "./src/fonts/index.ts"
+    },
+    "./scroll": {
+      "browser": "./src/scroll/index.web.ts",
+      "react-native": "./src/scroll/index.ts",
+      "default": "./src/scroll/index.ts"
+    },
+    "./scroll/expo-router": {
+      "react-native": "./src/scroll/expo-router/index.ts",
+      "default": "./src/scroll/expo-router/index.ts"
+    },
+    "./content-panel": {
+      "browser": "./src/content-panel/index.web.ts",
+      "react-native": "./src/content-panel/index.ts",
+      "default": "./src/content-panel/index.ts"
+    },
+    "./list": {
+      "browser": "./src/list/index.web.ts",
+      "react-native": "./src/list/index.ts",
+      "default": "./src/list/index.ts"
+    },
+    "./rail": {
+      "react-native": "./src/rail/index.ts",
+      "default": "./src/rail/index.ts"
+    },
+    "./tab-bar": {
+      "browser": "./src/tab-bar/index.web.ts",
+      "react-native": "./src/tab-bar/index.ts",
+      "default": "./src/tab-bar/index.ts"
+    },
+    "./tab-bar/expo-router": {
+      "react-native": "./src/tab-bar/expo-router/index.ts",
+      "default": "./src/tab-bar/expo-router/index.ts"
+    },
+    "./progressive-blur": {
+      "browser": "./src/progressive-blur/index.web.ts",
+      "react-native": "./src/progressive-blur/index.ts",
+      "default": "./src/progressive-blur/index.ts"
+    },
+    "./design-tokens/theme.css": "./src/design-tokens/theme.css",
+    "./design-tokens/tokens.json": "./src/design-tokens/tokens.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NOTICE",
+    "scripts/migrate-icons-to-remix.mjs",
+    "scripts/migrations/unify-bloom-api.mjs",
+    "src",
+    "lib",
+    "docs/*.mdx",
+    "!**/__tests__/**",
+    "!**/__fixtures__/**",
+    "!**/__mocks__/**",
+    "!**/*.stories.*",
+    "!**/*.test.*",
+    "!**/*.spec.*",
+    "assets/character-runtime"
+  ],
+  "workspaces": [
+    "packages/*"
+  ],
+  "keywords": [
+    "react-native",
+    "expo",
+    "ui",
+    "components",
+    "dialog",
+    "alert",
+    "toast",
+    "button",
+    "theme",
+    "avatar",
+    "avatar-group",
+    "user-hover-card",
+    "loading",
+    "divider",
+    "error-boundary",
+    "icons",
+    "typography",
+    "skeleton",
+    "grid",
+    "text-field",
+    "segmented-control",
+    "search",
+    "admonition",
+    "menu",
+    "tooltip",
+    "select",
+    "context-menu",
+    "bottom-sheet",
+    "card",
+    "badge",
+    "chip",
+    "tabs",
+    "checkbox",
+    "accordion",
+    "code",
+    "fonts",
+    "popover",
+    "command",
+    "alert-dialog",
+    "slider",
+    "field",
+    "input-group",
+    "label",
+    "kbd",
+    "item",
+    "list",
+    "virtual-list",
+    "ai",
+    "data-table",
+    "table",
+    "charts",
+    "dashboard",
+    "app-shell",
+    "sidebar",
+    "breadcrumb",
+    "pagination",
+    "date-picker",
+    "calendar",
+    "phone-input",
+    "input-otp",
+    "textarea",
+    "file-upload",
+    "notification",
+    "chat",
+    "agent",
+    "composer",
+    "remix-icon",
+    "inter"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OxyHQ/Bloom.git"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "peerDependencies": {
+    "@lottiefiles/dotlottie-react": ">=0.13.0",
+    "@react-native-community/netinfo": ">=11.1.0",
+    "expo": "*",
+    "expo-blur": "*",
+    "expo-font": "*",
+    "expo-haptics": "*",
+    "expo-image": "*",
+    "expo-router": ">=3.0.0",
+    "expo-symbols": ">=0.4.5",
+    "expo-video": "*",
+    "lottie-react-native": ">=7.0.0",
+    "nativewind": ">=5.0.0 || 5.0.0-rc.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "react-native": ">=0.73.0",
+    "react-native-gesture-handler": ">=2.16.1",
+    "react-native-keyboard-controller": ">=1.11.4",
+    "react-native-reanimated": ">=3.13.0",
+    "react-native-safe-area-context": ">=5.0.0",
+    "react-native-screens": ">=3.16.0",
+    "react-native-svg": ">=13.0.0",
+    "react-native-webview": ">=13.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@lottiefiles/dotlottie-react": {
+      "optional": true
+    },
+    "@react-native-community/netinfo": {
+      "optional": true
+    },
+    "expo": {
+      "optional": true
+    },
+    "expo-font": {
+      "optional": true
+    },
+    "expo-haptics": {
+      "optional": true
+    },
+    "expo-router": {
+      "optional": true
+    },
+    "expo-video": {
+      "optional": true
+    },
+    "lottie-react-native": {
+      "optional": true
+    },
+    "nativewind": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "react-native-keyboard-controller": {
+      "optional": true
+    },
+    "react-native-webview": {
+      "optional": true
+    }
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "exclude": "{**/{__tests__,__fixtures__,__mocks__}/**,**/*.stories.{ts,tsx},**/*.{test,spec}.{ts,tsx}}",
+    "targets": [
+      [
+        "commonjs",
+        {
+          "esm": true
+        }
+      ],
+      [
+        "module",
+        {
+          "esm": true
+        }
+      ],
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
+    ]
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.3",
+    "react-native-css": "3.1.0-rc.0",
+    "react-remove-scroll-bar": "^2.3.8"
+  },
+  "overrides": {
+    "basic-ftp": "5.2.2",
+    "defu": "6.1.7",
+    "handlebars": "4.7.9",
+    "lodash": "4.18.1",
+    "lightningcss": "1.30.1",
+    "lightningcss-linux-x64-gnu": "1.30.1",
+    "lightningcss-linux-x64-musl": "1.30.1",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/core": "3.31.4",
+    "@tiptap/react": "3.31.4",
+    "@tiptap/extensions": "3.31.4",
+    "@tiptap/extension-bold": "3.31.4",
+    "@tiptap/extension-code": "3.31.4",
+    "@tiptap/extension-link": "3.31.4",
+    "@tiptap/extension-list": "3.31.4",
+    "@tiptap/extension-text": "3.31.4",
+    "@tiptap/extension-image": "3.31.4",
+    "@tiptap/extension-italic": "3.31.4",
+    "@tiptap/extension-strike": "3.31.4",
+    "@tiptap/extension-heading": "3.31.4",
+    "@tiptap/extension-history": "3.31.4",
+    "@tiptap/extension-document": "3.31.4",
+    "@tiptap/extension-paragraph": "3.31.4",
+    "@tiptap/extension-underline": "3.31.4",
+    "@tiptap/extension-blockquote": "3.31.4",
+    "@tiptap/extension-text-align": "3.31.4",
+    "@tiptap/extension-floating-menu": "3.31.4",
+    "@tiptap/extension-bubble-menu": "3.31.4"
+  }
+}

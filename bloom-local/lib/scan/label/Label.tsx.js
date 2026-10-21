@@ -1,0 +1,88 @@
+import { useBloomAppearance } from '../appearance';
+import React, { memo } from 'react';
+
+import { Text } from '../typography';
+import type { TypeScaleVariant } from '../typography';
+import {
+  TEXT_FIELD_LEADING_GAP,
+  TEXT_FIELD_STACK_GAP,
+  useTextFieldPalette,
+} from '../text-field/shared';
+import { useMessages } from '../locale/messages';
+import { LABEL_MESSAGES } from './messages';
+import type { LabelProps } from './types';
+import { IS_WEB } from '../styles/platform';
+
+/**
+ * The field `Label` (`base/input/label.tsx`): `text-body-medium` in
+ * `text-primary`, a `text-error-primary` asterisk 2px after it, 4px above the
+ * control (the field's `gap-1`) — the same label `TextFieldLabel` draws, so a
+ * `Field` and a `TextField` stack identically.
+ *
+ *   xs   body-2-medium    13/18
+ *   sm   body-medium      14/20   (default)
+ *   md   headline-medium  16/22
+ */
+const SIZE_VARIANT: Record<NonNullable<LabelProps['size']>, TypeScaleVariant> = {
+  xs: 'body-2-medium',
+  sm: 'body-medium',
+  md: 'headline-medium',
+};
+
+const LabelComponent = function Label({
+  children,
+  nativeID,
+  htmlFor,
+  required = false,
+  requiredLabel,
+  disabled = false,
+  size: sizeProp,
+  style,
+  testID,
+}: LabelProps) {
+  const { size: inheritedSize } = useBloomAppearance(
+    { size: sizeProp },
+    { size: 'sm', tone: 'neutral' },
+  );
+  const size: NonNullable<LabelProps['size']> = inheritedSize === 'lg' ? 'md' : inheritedSize;
+  const palette = useTextFieldPalette();
+  const { messages } = useMessages(LABEL_MESSAGES);
+
+  // `null` is DISTINCT from omitted: omitted falls back to the control's id,
+  // `null` says the label names a group and points at nothing.
+  const webProps: Record<string, unknown> = IS_WEB
+    ? { htmlFor: htmlFor === null ? undefined : (htmlFor ?? nativeID) }
+    : {};
+
+  return (
+    <Text
+      {...webProps}
+      variant={SIZE_VARIANT[size]}
+      nativeID={nativeID}
+      testID={testID}
+      style={[
+        {
+          marginBottom: TEXT_FIELD_STACK_GAP,
+          color: disabled ? palette.placeholder : palette.text,
+        },
+        style,
+      ]}
+    >
+      {children}
+      {required ? (
+        <Text
+          variant={SIZE_VARIANT[size]}
+          accessibilityLabel={requiredLabel ?? messages.required}
+          // `gap-0.5`: an inline margin on web; a nested native
+          // `Text` ignores margins, so a thin space stands in for it there.
+          style={[{ color: palette.error }, IS_WEB ? { marginLeft: TEXT_FIELD_LEADING_GAP } : null]}
+        >
+          {IS_WEB ? '*' : ' *'}
+        </Text>
+      ) : null}
+    </Text>
+  );
+};
+
+export const Label = memo(LabelComponent);
+Label.displayName = 'Label';

@@ -1,0 +1,410 @@
+import { surfaceStyle } from '../shapes/surface-style';
+import { SURFACE_SHAPES } from '../design-tokens/shapes';
+import React, { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef } from 'react';
+import { Platform, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, type AnimatedStyle } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { BottomSheet, type BottomSheetRef } from '../bottom-sheet';
+import { useSheetKeyboardHeight } from '../bottom-sheet/context';
+import { useTheme } from '../theme/use-theme';
+import { StyledView } from '../styles/styled-primitives';
+import { Context } from './context';
+import { DialogBody } from './DialogContent';
+import {
+  DIALOG_NAV_BAR_HEIGHT,
+  DialogHeaderProvider,
+  DialogLargeTitle,
+  DialogNavHeader,
+  useDialogHeaderController,
+} from './DialogHeader';
+import { DialogMorphContent, useDialogMorph } from './DialogMorph';
+import { DEFAULT_DIALOG_CONTENT_PADDING, DEFAULT_MAX_HEIGHT_RATIO } from './placement';
+import type { DialogControlProps, DialogProps } from './types';
+import { useCssSafeAreaInsets } from '../hooks/use-css-safe-area-insets';
+
+/**
+ * Shared `BottomSheet`-backed surface for the `bottom` placement, used by BOTH
+ * `Dialog.tsx` (native) and `Dialog.web.tsx` (web). `BottomSheet` is itself a
+ * single cross-platform implementation (react-native-gesture-handler +
+ * reanimated, drag-to-dismiss on web and native alike), so routing the bottom
+ * placement through here gives ONE code path with drag working everywhere — no
+ * duplicated CSS slide-up sheet.
+ *
+ * This component owns the entire open↔present/dismiss bridge and the Dialog →
+ * BottomSheet prop mapping in one place:
+ *
+ *   - `open` (controlled) / `control` (imperative) → `present()` / `dismiss()`
+ *   - `onClose`                                     → fired once the sheet settles
+ *   - `maxHeightRatio`                              → sheet `maxHeight`
+ *   - `showHandle` / `dismissOnBackdrop` / `label`  → forwarded to the surface
+ *   - `panelStyle`                                  → paints the sheet surface
+ *   - `containerStyle`                              → wraps the content subtree
+ *     so a host's CSS-var theme scope (`vars()`) still applies to descendants
+ *   - `title` / `description` / `actions` / `children` → declarative body
+ */
+export function DialogBottomSheet({
+  backdrop,
+  transition,
+  control,
+  open: controlledOpen,
+  startOpen,
+  onClose,
+  testID,
+  title,
+  description,
+  actions,
+  header,
+  material: surfaceMaterial = 'surface',
+  maxHeightRatio = DEFAULT_MAX_HEIGHT_RATIO,
+  showHandle = true,
+  dismissOnBackdrop = true,
+  contentPadding = DEFAULT_DIALOG_CONTENT_PADDING,
+  scrollable,
+  morph,
+  style,
+  panelStyle,
+  panelClassName,
+  containerStyle,
+  containerClassName,
+  label,
+  children,
+}: DialogBottomSheetProps) {
+  const isControlled = controlledOpen !== undefined;
+  const theme = useTheme();
+  const { height: viewportHeight } = useWindowDimensions();
+  const ref = useRef<BottomSheetRef>(null);
+  const closeCallbacks = useRef<(() => void)[]>([]);
+  const titleId = useId();
+  const descriptionId = useId();
+  const headerController = useDialogHeaderController();
+  // The sheet is flush with the bottom of the window (a `<Modal>` drawn
+  // edge-to-edge on Android, and under the home indicator on iOS), and
+  // `BottomSheet` deliberately leaves the safe area to its content. This Dialog
+  // IS the content's chrome, so it owns the inset (the spacer after the body).
+  const { bottom: bottomInset } = useCssSafeAreaInsets(useSafeAreaInsets());
+
+  // Read the latest controlled flag / `onClose` inside stable callbacks without
+  // re-binding them (the context + imperative handle depend on `close` staying
+  // referentially stable).
+  const isControlledRef = useRef(isControlled);
+  isControlledRef.current = isControlled;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const controlledOpenRef = useRef(controlledOpen);
+  controlledOpenRef.current = controlledOpen;
+
+  // Drain queued close callbacks atomically — capturing the list and resetting
+  // it before invocation ensures a callback that synchronously re-opens the
+  // dialog (and queues fresh callbacks) does not see the old ones replayed
+  // against the new session.
+  const callQueuedCallbacks = useCallback(() => {
+    const queued = closeCallbacks.current;
+    closeCallbacks.current = [];
+    for (const cb of queued) {
+      try {
+        cb();
+      } catch (e) {
+        if (typeof console !== 'undefined' && console.error) {
+          console.error('Dialog close callback error:', e);
+        }
+      }
+    }
+  }, []);
+
+  const open = useCallback(() => {
+    ref.current?.present();
+  }, []);
+
+  // A dismissal request (backdrop, pan-to-close, action button). In controlled
+  // mode it asks the host to close via `onClose` (the host flips `open`); in
+  // imperative mode it dismisses the surface directly. The optional callback
+  // runs once the dialog has finished closing.
+  const close = useCallback<DialogControlProps['close']>((cb) => {
+    if (typeof cb === 'function') {
+      closeCallbacks.current.push(cb);
+    }
+    if (isControlledRef.current) {
+      onCloseRef.current?.();
+      return;
+    }
+    ref.current?.dismiss();
+  }, []);
+
+  // Fired when the sheet has finished closing. Drains queued callbacks, then
+  // fires `onClose` in imperative mode. In controlled mode a close the HOST
+  // made (it flipped `open` to false, usually after `close()` asked it to) was
+  // already requested through `onClose`, so firing it again would double-call
+  // it — but a close the SHEET made on its own (the backdrop, a drag, Escape)
+  // arrives with `open` still true, and the host has to hear about it or its
+  // state says open over a closed sheet.
+  const handleDismiss = useCallback(() => {
+    callQueuedCallbacks();
+    if (!isControlledRef.current || controlledOpenRef.current) onCloseRef.current?.();
+  }, [callQueuedCallbacks]);
+
+  // In controlled mode, mirror the `open` prop onto the underlying sheet so both
+  // modes share one lifecycle.
+  useEffect(() => {
+    if (!isControlled) return;
+    if (controlledOpen) {
+      ref.current?.present();
+    } else {
+      ref.current?.dismiss();
+    }
+  }, [isControlled, controlledOpen]);
+
+  useImperativeHandle(control?.ref, () => ({ open, close }), [open, close]);
+
+  const context = useMemo(() => ({ close, isWithinDialog: true }), [close]);
+
+  // Backdrop press → dismiss, unless the host disabled it. Returning `false`
+  // from `onDismissAttempt` blocks the BottomSheet's own backdrop/pan dismissal,
+  // which is how `dismissOnBackdrop: false` maps onto the single sheet API.
+  const onDismissAttempt = useCallback(() => dismissOnBackdrop, [dismissOnBackdrop]);
+
+  const scrollableResolved = scrollable ?? true;
+
+  // Size morphing across an in-place content swap. The sheet is anchored at the
+  // bottom, so animating its height makes it grow/shrink from that edge; its
+  // width is fixed by the placement. The sheet's own `maxHeight` (the ratio
+  // percentage + the safe-area clamp inside `BottomSheet`) does the exact
+  // capping — the viewport is just the bound the reshape may not exceed.
+  const morphState = useDialogMorph({
+    enabled: morph !== false,
+    measurable: scrollableResolved,
+    maxHeight: viewportHeight,
+  });
+
+  // `panelStyle` paints the sheet surface (e.g. a brand background). It composes
+  // AFTER the BottomSheet's internal background so a host palette wins; the
+  // shape (radius, max height) is supplied here and remains overridable.
+  const sheetStyle = useMemo<StyleProp<AnimatedStyle<ViewStyle>>>(() => {
+    const maxHeightPercent: `${number}%` = `${Math.round(maxHeightRatio * 100)}%`;
+    return [
+      {
+        backgroundColor: theme.colors.background,
+        ...surfaceStyle(SURFACE_SHAPES.sheet),
+        maxHeight: maxHeightPercent,
+      },
+      panelStyle,
+      // Drives the card's `height` only while a morph is in flight; at rest it
+      // resolves to `height: 'auto'` — the sheet's normal content sizing.
+      morphState.panelStyle,
+    ];
+  }, [theme.colors.background, maxHeightRatio, panelStyle, morphState.panelStyle]);
+
+  // Does this dialog render bloom's declarative chrome (title / description /
+  // actions)? This no longer gates the SCROLL decision (that is now the explicit
+  // `scrollable` prop below) — it only opts declarative dialogs into the
+  // gorhom-style pan coordination for their internal ScrollView. A declarative
+  // dialog overflowing on a small viewport needs the coordinated pan so the body
+  // scrolls instead of the drag stealing every vertical gesture; pure-custom
+  // children keep the legacy always-active pan.
+  const hasDeclarativeChrome =
+    title !== undefined ||
+    description !== undefined ||
+    (actions !== undefined && actions.length > 0);
+
+  const dialogBody = (
+    <DialogBody
+      titleId={titleId}
+      descriptionId={descriptionId}
+      title={title}
+      description={description}
+      actions={actions}
+    >
+      {children}
+    </DialogBody>
+  );
+
+  // Nav-header mode: the Dialog OWNS a sticky gradient nav bar + a large
+  // collapsing title over the sheet's OWN scroll content. The bar floats via the
+  // BottomSheet `headerOverlay` slot; the sheet's scroll offset feeds the shared
+  // controller (`scrollY`) that drives the small-title cross-fade. `contentPadding`
+  // is dropped (the large title + screens own their padding).
+  const headerBody = header ? (
+    scrollableResolved ? (
+      <>
+        <DialogLargeTitle controller={headerController} header={header} />
+        <DialogHeaderProvider controller={headerController}>{dialogBody}</DialogHeaderProvider>
+      </>
+    ) : (
+      <>
+        <View style={{ height: DIALOG_NAV_BAR_HEIGHT }} />
+        <DialogHeaderProvider controller={headerController}>{dialogBody}</DialogHeaderProvider>
+      </>
+    )
+  ) : null;
+
+  return (
+    <BottomSheet
+      backdrop={backdrop}
+      transition={transition}
+      material={surfaceMaterial}
+      accessibilityLabel={label ?? header?.title}
+      aria-labelledby={!header && title ? titleId : undefined}
+      aria-describedby={!header && description ? descriptionId : undefined}
+      ref={ref}
+      // Seed the sheet's open state so a fresh mount that should be open renders
+      // visible on its FIRST commit instead of relying on a present()-in-effect
+      // that races the mount and flashes blank. In controlled mode that seed is
+      // `controlledOpen`; in imperative mode it is the surface's `startOpen`
+      // intent — which is what lets a responsive Dialog survive a resize
+      // placement swap (centered card → bottom sheet) STILL OPEN.
+      open={isControlled ? controlledOpen : startOpen}
+      onDismiss={handleDismiss}
+      onDismissAttempt={onDismissAttempt}
+      enablePanDownToClose
+      // Nav-header mode hides the drag handle (the nav bar sits at the very top);
+      // drag-to-dismiss still works via the coordinated body pan.
+      showHandle={header ? false : showHandle}
+      // Content scrolls inside the sheet's internal ScrollView by default; the
+      // Dialog owns the scroll boundary. A surface whose content owns its own
+      // scroller (a FlatList / VirtualizedList) passes `scrollable={false}` to
+      // opt OUT so there is exactly ONE scroll container (no scroll-in-scroll,
+      // no "VirtualizedList inside a plain ScrollView" warning).
+      scrollable={scrollableResolved}
+      // Declarative dialogs (title/description/actions) that overflow — AND every
+      // nav-header page (its scroll content overflows by design) — need
+      // gorhom-style pan coordination: the drag-to-dismiss pan only activates
+      // when the ScrollView is at the top AND the finger moves down >8dp —
+      // otherwise the ScrollView owns the touch. Without this the always-active
+      // legacy body-pan steals vertical drags and a tall body cannot scroll
+      // (dragging up dismisses the sheet / bleeds into the parent instead). The
+      // standalone `BottomSheet` API keeps its legacy `manualActivation={false}`
+      // default, so direct consumers are unaffected.
+      manualActivation={header ? scrollableResolved : hasDeclarativeChrome}
+      // Feed the sheet's scroll offset into the nav header's collapse controller.
+      scrollY={header ? headerController.scrollY : undefined}
+      // Float the sticky nav bar over the scroll body (clipped to the sheet top).
+      headerOverlay={
+        header ? (
+          <DialogNavHeader
+            flatSurface={surfaceMaterial === 'flat'}
+            controller={headerController}
+            header={header}
+            onDismiss={close}
+            collapse={scrollableResolved}
+          />
+        ) : undefined
+      }
+      // Stronger dim than a lone sheet so an underlying sheet's handle/content
+      // doesn't bleed through when a Dialog is stacked over one.
+      // Measures the sheet card — the size a morph starts from.
+      onLayout={morphState.onPanelLayout}
+      style={sheetStyle}
+    >
+      <Context.Provider value={context}>
+        <StyledView
+          testID={testID}
+          accessibilityLabel={Platform.OS === 'web' ? undefined : label}
+          aria-labelledby={Platform.OS === 'web' ? undefined : title ? titleId : undefined}
+          aria-describedby={
+            Platform.OS === 'web' ? undefined : description ? descriptionId : undefined
+          }
+          // Bottom placement renders ONE node for both, so the two classes are
+          // joined rather than spread twice — the second spread used to
+          // overwrite the first, so `containerClassName` was silently dropped on
+          // this branch and the cast type-checked it anyway.
+          className={[containerClassName, panelClassName].filter(Boolean).join(' ') || undefined}
+          style={[
+            // Nav-header mode: the large title + screens own their padding, so the
+            // wrapper adds none. Otherwise the Dialog's uniform content padding.
+            header ? null : { padding: contentPadding },
+            // A `scrollable={false}` body hands its scrolling to the children,
+            // which need a BOUNDED height for it: the sheet's own non-scrollable
+            // body is `flex: 1, minHeight: 0` for exactly that, and these two
+            // wrappers have to pass the bound on rather than grow to content —
+            // otherwise a nested ScrollView never scrolls and anything under it
+            // (a sticky footer) is pushed past the sheet's edge.
+            scrollableResolved ? null : FILL_BOUNDED,
+            // `containerStyle` carries the host's CSS-var theme scope; it wraps
+            // the content subtree so descendants read the scoped palette.
+            containerStyle,
+            style,
+            panelStyle,
+          ]}
+        >
+          {/* The morph layer is its own node INSIDE the class-name'd container:
+              a className'd component's `onLayout` never fires on web, and this
+              one has to measure the incoming frame. */}
+          <DialogMorphContent
+            morph={morphState}
+            style={scrollableResolved ? undefined : FILL_BOUNDED}
+          >
+            {header ? headerBody : dialogBody}
+          </DialogMorphContent>
+          {/* The bottom safe area, INSIDE the scroll content. Without it the
+              last row of every bottom-placement Dialog was painted under the
+              Android gesture bar / iOS home indicator (a 2400px Pixel put a
+              "Having trouble?" link at 2297–2356px), and a body that outgrew
+              the sheet could not scroll its last rows out from under the bar —
+              the scroll range ended exactly where the bar began. A spacer
+              rather than a padding: the content box keeps the caller's
+              `padding`/`contentPadding` untouched on both platforms, and the
+              morph layer above still measures the content alone. */}
+          {bottomInset > 0 ? (
+            <SafeAreaSpacer testID={SAFE_AREA_SPACER_TESTID} inset={bottomInset} />
+          ) : null}
+        </StyledView>
+      </Context.Provider>
+    </BottomSheet>
+  );
+}
+
+/** Test handle for the bottom safe-area spacer. */
+const SAFE_AREA_SPACER_TESTID = 'dialog-sheet-safe-area';
+
+/**
+ * The gesture bar's height under the content — folded while the keyboard is
+ * up, because the keyboard covers the bar: the sheet already rides on top of
+ * the keyboard, and a spacer left standing floated its buttons a bar's height
+ * above it (Pixel 8a, Android 16). A child of the sheet, so it reads the
+ * sheet's own keyboard value.
+ */
+function SafeAreaSpacer({ inset, testID }: { inset: number; testID: string }) {
+  const keyboard = useSheetKeyboardHeight();
+  const style = useAnimatedStyle(
+    () => ({ height: keyboard.value > 0 ? 0 : inset }),
+    [keyboard, inset],
+  );
+  return <Animated.View testID={testID} style={style} />;
+}
+
+/** Passes a bounded height down to a `scrollable={false}` body. */
+const FILL_BOUNDED = { flex: 1, minHeight: 0 } as const;
+
+/**
+ * Props the shared bottom-sheet surface consumes — the `bottom`-relevant subset
+ * of `DialogProps`. `width`, `maxWidth`, and `inset` are placement-specific to
+ * the side/centered surfaces and intentionally excluded.
+ */
+export type DialogBottomSheetProps = Pick<
+  DialogProps,
+  | 'backdrop'
+  | 'transition'
+  | 'control'
+  | 'open'
+  | 'startOpen'
+  | 'onClose'
+  | 'testID'
+  | 'title'
+  | 'description'
+  | 'actions'
+  | 'header'
+  | 'material'
+  | 'maxHeightRatio'
+  | 'showHandle'
+  | 'dismissOnBackdrop'
+  | 'contentPadding'
+  | 'scrollable'
+  | 'morph'
+  | 'style'
+  | 'panelStyle'
+  | 'panelClassName'
+  | 'containerStyle'
+  | 'containerClassName'
+  | 'label'
+  | 'children'
+>;
