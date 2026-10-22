@@ -3,7 +3,7 @@ import { useFonts } from 'expo-font';
 import { Navigator, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { Fragment, useCallback, useEffect, useMemo } from 'react';
-import { OxyProvider, useOxy } from '@oxy.so/services/ui/client';
+import { OxyProvider, useAccountColor, useOxy } from '@oxy.so/services/ui/client';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { OverlayInertBoundary } from '@oxy.so/bloom/overlay';
@@ -98,6 +98,7 @@ function WebRoutes() {
 
 function AppContent() {
   const { colors } = useColorScheme();
+  useAccountColor();
 
   return (
     <AuthSetup>
