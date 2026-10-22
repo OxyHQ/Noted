@@ -9,9 +9,10 @@ import {
   SelectItem,
   SelectItemText,
 } from '@oxy.so/bloom/select';
-import { COLOR_PRESET_REGISTRY, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
+import { COLOR_PRESET_REGISTRY } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
 import { getNativeLanguageName } from '@oxy.so/core';
-import { useOxy } from '@oxy.so/services/ui/client';
+import { useAccountColorSave, useOxy } from '@oxy.so/services/ui/client';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { AppLockSection } from './app-lock-section';
@@ -23,7 +24,7 @@ import { useNotedSettings } from './settings-provider';
 
 export function GeneralSection() {
   const { mode, setColorScheme } = useColorScheme();
-  const { colorPreset, setColorPreset } = useBloomTheme();
+  const { colors, value: colorValue, saveColor } = useAccountColorSave();
   const { t } = useTranslation();
   const { currentLanguage, currentLanguages, showBottomSheet } = useOxy();
   const { afterClose } = useNotedSettings();
@@ -34,11 +35,12 @@ export function GeneralSection() {
     value,
     label: t(`settings.appearance.${value}`),
   }));
-  // Bloom owns the preset catalogue and its display names; new presets must not
-  // become missing translation keys in this app. Respect reserved/premium gates.
-  const colors = COLOR_PRESET_REGISTRY.filter(
-    (preset) => !preset.gate || preset.name === colorPreset,
-  ).map((preset) => ({ value: preset.name, label: preset.displayName }));
+  // Bloom owns the preset catalogue and its display names; Oxy decides which
+  // presets this account may wear.
+  const colorOptions = colors.map((name) => ({
+    value: name,
+    label: COLOR_PRESET_REGISTRY.find((preset) => preset.name === name)?.displayName ?? name,
+  }));
   const languages = currentLanguages.length ? currentLanguages : [currentLanguage];
   return (
     <View className="gap-6">
@@ -76,17 +78,18 @@ export function GeneralSection() {
           </SettingsRow>
           <SettingsRow label={t('settings.accentColor.title')}>
             <Select
-              value={colorPreset}
+              value={colorValue}
               onValueChange={(value) => {
-                if (colors.some((color) => color.value === value))
-                  setColorPreset(value as AppColorName);
+                const next = colors.find((name) => name === value);
+                if (next)
+                  saveColor(next).catch(() => toast.error(t('settings.accentColor.saveFailed')));
               }}
             >
               <SelectTrigger label={t('settings.accentColor.title')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent
-                items={colors}
+                items={colorOptions}
                 renderItem={(item) => (
                   <SelectItem value={item.value} label={item.label}>
                     <SelectItemText>{item.label}</SelectItemText>
