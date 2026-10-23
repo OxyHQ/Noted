@@ -25,7 +25,6 @@ function Scene({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const publicRoute =
     pathname.startsWith('/settings') ||
-    pathname.startsWith('/authorize') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password';
   const content = publicRoute ? (
