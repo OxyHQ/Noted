@@ -61,8 +61,8 @@ Kaana.
 Kaana is the sole hosted inference data plane. Its only canonical signed origin
 is `https://kaana.ai`, never a hostname under `oxy.so`. Provider keys live only
 encrypted in Kaana PostgreSQL/KMS and must never be placed in Noted source,
-PostgreSQL tables, GitHub secrets or environment variables. Noted's Oxy service
-credential is an application identity, not a provider key. Any future
+PostgreSQL tables, GitHub secrets or environment variables. Own backend calls
+use Nilo's Oxy workload identity, without customer keys or app scopes. Any future
 application, bot or agent binding must use its byte-exact opaque primary key;
 display-name, sorted-list and first-result fallbacks are forbidden.
 
@@ -240,3 +240,14 @@ decision must be revisited before that surface ships.
 - [Repository README](https://github.com/OxyHQ/Noted/blob/main/README.md)
 - [Contributing](https://github.com/OxyHQ/Noted/blob/main/CONTRIBUTING.md)
 - [Frontend](https://github.com/OxyHQ/Noted/blob/main/packages/frontend/README.md)
+
+## Own-product authentication
+
+Noted uses its existing Oxy account session through the shared linked transport
+for Nilo requests, including feedback. The app keeps complete Nilo response
+envelopes and its local sync account checks, while Oxy owns refresh, destination
+validation and cookie-free requests. Alia's text SDK uses that same account.
+Own products do not show app-scope consent. The retired local Codea/Cowork/bot
+authorization page and its permission strings have been removed: external OAuth
+connections belong to Oxy's explicit external flow, and channel linking belongs
+to Alia. Noted does not implement those server routes.
