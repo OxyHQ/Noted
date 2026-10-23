@@ -21,7 +21,6 @@ import { QueryProvider } from '@/lib/query-client';
 import { configureLottieWeb } from '@/lib/lottieWeb';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
-import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { oxyServices } from '@/lib/oxy';
 import { OXY_CLIENT_ID } from '@/lib/oxy-client-id';
@@ -104,51 +103,50 @@ function AppContent() {
     <AuthSetup>
       <QueryProvider>
         <LocalStoreProvider>
-          <KeyboardProvider>
-            <NotedSettingsProvider>
-              {/* Native Portal appends into this provider/outlet pair (web portals to
+          {/* OxyProvider mounts the one KeyboardProvider; a second one nested with it took the native keyboard events. */}
+          <NotedSettingsProvider>
+            {/* Native Portal appends into this provider/outlet pair (web portals to
                   document.body). The outlet sits after the content it paints over and
                   outside the inert boundary, so surfaces never hide themselves. The
                   gesture root must contain the outlet or sheet gestures are dead. */}
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <PortalProvider>
-                  <OverlayInertBoundary>
-                    {Platform.OS === 'web' ? (
-                      // The initial route comes from `unstable_settings` above: expo-router 58's
-                      // Navigator reads it from the route node and takes no prop for it.
-                      <Navigator>
-                        <WebRoutes />
-                      </Navigator>
-                    ) : (
-                      <Stack
-                        screenOptions={{
-                          contentStyle: {
-                            backgroundColor: colors.background,
-                          },
-                        }}
-                      >
-                        <Stack.Screen name="(app)" options={{ headerShown: false }} />
-                        {/* Editor presented as a transparent modal ABOVE the (app) shell so
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <PortalProvider>
+                <OverlayInertBoundary>
+                  {Platform.OS === 'web' ? (
+                    // The initial route comes from `unstable_settings` above: expo-router 58's
+                    // Navigator reads it from the route node and takes no prop for it.
+                    <Navigator>
+                      <WebRoutes />
+                    </Navigator>
+                  ) : (
+                    <Stack
+                      screenOptions={{
+                        contentStyle: {
+                          backgroundColor: colors.background,
+                        },
+                      }}
+                    >
+                      <Stack.Screen name="(app)" options={{ headerShown: false }} />
+                      {/* Editor presented as a transparent modal ABOVE the (app) shell so
                     the masonry grid + sidebar stay mounted and visible behind it —
                     Keep-style overlay, not a page change. */}
-                        <Stack.Screen
-                          name="n/[id]"
-                          options={{
-                            presentation: 'transparentModal',
-                            animation: 'fade',
-                            headerShown: false,
-                            // Keep the native shell visible beneath the editor scene.
-                            contentStyle: { backgroundColor: 'transparent' },
-                          }}
-                        />
-                      </Stack>
-                    )}
-                  </OverlayInertBoundary>
-                  <PortalOutlet />
-                </PortalProvider>
-              </GestureHandlerRootView>
-            </NotedSettingsProvider>
-          </KeyboardProvider>
+                      <Stack.Screen
+                        name="n/[id]"
+                        options={{
+                          presentation: 'transparentModal',
+                          animation: 'fade',
+                          headerShown: false,
+                          // Keep the native shell visible beneath the editor scene.
+                          contentStyle: { backgroundColor: 'transparent' },
+                        }}
+                      />
+                    </Stack>
+                  )}
+                </OverlayInertBoundary>
+                <PortalOutlet />
+              </PortalProvider>
+            </GestureHandlerRootView>
+          </NotedSettingsProvider>
         </LocalStoreProvider>
       </QueryProvider>
     </AuthSetup>
