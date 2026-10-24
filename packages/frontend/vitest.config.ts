@@ -3,9 +3,8 @@ import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  // The app resolves `@/…` through babel-plugin-module-resolver, which vitest
-  // does not run; without this the suite fails to load rather than fail an
-  // assertion.
+  // Metro resolves `@/…` from tsconfig.json `paths`, which vitest does not read;
+  // without this the suite fails to load rather than fail an assertion.
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, '.'),
