@@ -246,7 +246,9 @@ decision must be revisited before that surface ships.
 Noted uses its existing Oxy account session through the shared linked transport
 for Nilo requests, including feedback. The app keeps complete Nilo response
 envelopes and its local sync account checks, while Oxy owns refresh, destination
-validation and cookie-free requests. Alia's text SDK uses that same account.
+validation and cookie-free requests. Socket handshakes also resolve through that
+linked transport; account changes cancel pending handshakes and disconnect the
+previous account's notifications and notes stream. Alia's text SDK uses that same account.
 Own products do not show app-scope consent. The retired local Codea/Cowork/bot
 authorization page and its permission strings have been removed: external OAuth
 connections belong to Oxy's explicit external flow, and channel linking belongs

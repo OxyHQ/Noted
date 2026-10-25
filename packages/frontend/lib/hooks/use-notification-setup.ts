@@ -37,12 +37,9 @@ if (Platform.OS !== 'web') {
 }
 
 export function useNotificationSetup() {
-  const { user, oxyServices, isAuthenticated } = useOxy();
+  const { user, oxyServices, isAuthenticated, activeSessionId } = useOxy();
   const router = useRouter();
   const queryClient = useQueryClient();
-  // Re-establish the notification socket when the access token changes so the
-  // handshake always carries a valid token.
-  const accessToken = oxyServices.session.accessToken;
   const tokenRef = useRef<string | null>(null);
   const webPushRegisteredRef = useRef(false);
 
@@ -174,7 +171,11 @@ export function useNotificationSetup() {
 
   // ── Socket.IO real-time notification subscription ──────────────
   useEffect(() => {
-    if (!isAuthenticated || !accessToken) return;
+    if (!isAuthenticated || !user?.id || !activeSessionId) return;
+    const linked = oxyServices.createLinkedClient({ baseURL: config.apiUrl });
+    const handshake = new AbortController();
+    const epoch = oxyServices.http.getSessionEpoch();
+    const current = () => !handshake.signal.aborted && oxyServices.http.getSessionEpoch() === epoch;
 
     const socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
@@ -182,20 +183,38 @@ export function useNotificationSetup() {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
-      // Callback form so each (re)connect reads a FRESH token; the server
-      // verifies it (io.use(authSocket())) and auto-joins the user's room.
-      auth: (cb) => cb({ token: oxyServices.session.accessToken ?? '' }),
+      auth: (callback) => {
+        void linked.getAccessToken(config.apiUrl, { signal: handshake.signal }).then(
+          (token) => {
+            if (current()) callback({ token });
+          },
+          () => {
+            // Surface an authentication failure without sending a stale bearer.
+            if (current()) callback({});
+          },
+        );
+      },
+    });
+
+    const unsubscribe = oxyServices.http.addTokenChangeListener(() => {
+      if (oxyServices.http.getSessionEpoch() === epoch) return;
+      handshake.abort();
+      socket.disconnect();
     });
 
     socket.on('notification', () => {
+      if (!current()) return;
       // Invalidate React Query caches so notification list + unread count refresh
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     });
 
     return () => {
+      handshake.abort();
+      unsubscribe();
+      linked.dispose();
       socket.disconnect();
     };
-  }, [isAuthenticated, accessToken, oxyServices, queryClient]);
+  }, [isAuthenticated, user?.id, activeSessionId, oxyServices, queryClient]);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
