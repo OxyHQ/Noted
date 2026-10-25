@@ -40,9 +40,8 @@ export function createNotedClient(oxy: OxyServices, baseURL: string, timeoutMs =
     // One deadline covers headers, response body and the SDK's bounded 401 retry.
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await linked.client.requestAuthenticatedResponse({
+      const response = await linked.fetch(url, {
         method,
-        url,
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,

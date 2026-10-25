@@ -8,7 +8,6 @@ Disallow: /trash
 Disallow: /labels
 Disallow: /reminders
 Disallow: /notifications
-Disallow: /authorize
 Disallow: /forgot-password
 Disallow: /reset-password
 

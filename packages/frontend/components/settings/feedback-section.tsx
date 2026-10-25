@@ -3,9 +3,9 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useState } from 'react';
-import { useOxy } from '@oxy.so/services/ui/client';
 import { useNotedSettings } from './settings-provider';
-import { generateAPIUrl } from '@/lib/generate-api-url';
+import apiClient from '@/lib/api/client';
+import { responseErrorMessage } from '@/lib/api/noted-client';
 import { MessageSquare, Bug, Lightbulb, Sparkles, Star } from 'lucide-react-native';
 
 import { toast } from '@oxy.so/bloom/toast';
@@ -50,7 +50,6 @@ const feedbackTypes: FeedbackTypeOption[] = [
 export function FeedbackSection() {
   const { t } = useTranslation();
   const { close } = useNotedSettings();
-  const { oxyServices } = useOxy();
   const [selectedType, setSelectedType] = useState<FeedbackType | null>(null);
   const [message, setMessage] = useState('');
   const [rating, setRating] = useState<number | null>(null);
@@ -75,39 +74,23 @@ export function FeedbackSection() {
     try {
       setSubmitting(true);
 
-      const apiUrl = generateAPIUrl('/feedback');
-      const token = oxyServices.session.accessToken;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          type: selectedType,
-          message: message.trim(),
-          rating: rating,
-          metadata: {
-            platform: Platform.OS,
-            appVersion: '1.0.0',
-          },
-        }),
+      await apiClient.post('/feedback', {
+        type: selectedType,
+        message: message.trim(),
+        rating,
+        metadata: {
+          platform: Platform.OS,
+          appVersion: '1.0.0',
+        },
       });
-
-      if (response.ok) {
-        toast.success(t('feedback.thankYou'));
-        setSelectedType(null);
-        setMessage('');
-        setRating(null);
-        close();
-      } else {
-        const error = await response.json();
-        toast.error(error.error || t('feedback.submitFailed'));
-      }
+      toast.success(t('feedback.thankYou'));
+      setSelectedType(null);
+      setMessage('');
+      setRating(null);
+      close();
     } catch (error) {
       console.error('Error submitting feedback:', error);
-      toast.error(t('feedback.submitFailed'));
+      toast.error(responseErrorMessage(error) || t('feedback.submitFailed'));
     } finally {
       setSubmitting(false);
     }

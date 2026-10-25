@@ -23,13 +23,14 @@ import config from '@/lib/config';
 import { requestSync } from '@/lib/db/use-local-store';
 
 export function useNotesRealtime() {
-  const { oxyServices, isAuthenticated } = useOxy();
-  // Re-establish the socket when the access token changes (sign-in/out, refresh)
-  // so the handshake always carries a valid token.
-  const accessToken = oxyServices.session.accessToken;
+  const { oxyServices, isAuthenticated, user, activeSessionId } = useOxy();
 
   useEffect(() => {
-    if (!isAuthenticated || !accessToken) return;
+    if (!isAuthenticated || !user?.id || !activeSessionId) return;
+    const linked = oxyServices.createLinkedClient({ baseURL: config.apiUrl });
+    const handshake = new AbortController();
+    const epoch = oxyServices.http.getSessionEpoch();
+    const current = () => !handshake.signal.aborted && oxyServices.http.getSessionEpoch() === epoch;
 
     const socket: Socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
@@ -37,12 +38,28 @@ export function useNotesRealtime() {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
-      // Callback form so each (re)connect reads a FRESH token; the server
-      // verifies it (io.use(authSocket())) and auto-joins the user's room.
-      auth: (cb) => cb({ token: oxyServices.session.accessToken ?? '' }),
+      auth: (callback) => {
+        void linked.getAccessToken(config.apiUrl, { signal: handshake.signal }).then(
+          (token) => {
+            if (current()) callback({ token });
+          },
+          () => {
+            // Surface an authentication failure without sending a stale bearer.
+            if (current()) callback({});
+          },
+        );
+      },
     });
 
-    const onServerChange = () => requestSync();
+    const unsubscribe = oxyServices.http.addTokenChangeListener(() => {
+      if (oxyServices.http.getSessionEpoch() === epoch) return;
+      handshake.abort();
+      socket.disconnect();
+    });
+
+    const onServerChange = () => {
+      if (current()) requestSync();
+    };
 
     // A reconnect means this client was out of touch for a while, so whatever
     // happened during the gap arrives through the same pull — and the room has
@@ -52,7 +69,7 @@ export function useNotesRealtime() {
       void apiClient
         .get<{ workspace: { id: string } }>('/workspaces/personal')
         .then(({ data }) => {
-          if (socket.connected) socket.emit('workspace:join', data.workspace.id);
+          if (current() && socket.connected) socket.emit('workspace:join', data.workspace.id);
         })
         .catch(() => undefined);
     };
@@ -62,11 +79,14 @@ export function useNotesRealtime() {
     socket.on('workspace:reset', onServerChange);
 
     return () => {
+      handshake.abort();
+      unsubscribe();
+      linked.dispose();
       socket.off('connect', onConnect);
       socket.off('workspace:changed', onServerChange);
       socket.off('database:changed', onServerChange);
       socket.off('workspace:reset', onServerChange);
       socket.disconnect();
     };
-  }, [isAuthenticated, accessToken, oxyServices]);
+  }, [isAuthenticated, user?.id, activeSessionId, oxyServices]);
 }

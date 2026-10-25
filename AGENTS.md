@@ -63,8 +63,8 @@ Use Bun only. Package order is `shared-types` before the frontend.
   origin is `https://kaana.ai`. Never add a Kaana hostname under `oxy.so`, a
   direct provider adapter, provider routing or an AI provider environment key.
   Provider keys live only encrypted in Kaana PostgreSQL/KMS.
-- Oxy `ApplicationCredential` values identify Noted as a service. They are not
-  provider keys and never replace a human account. If a product/app/agent
+- Own service calls use Oxy workload identity; customer API keys are external
+  credentials and never replace a human account. If a product/app/agent
   binding is introduced, use the exact opaque primary key; never discover by
   display name, sorted list, first result or fallback.
 
