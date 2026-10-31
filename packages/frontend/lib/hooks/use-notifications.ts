@@ -29,8 +29,10 @@ export function useNotifications(limit = 30) {
   return useQuery<NotificationsResponse>({
     queryKey: ['notifications', viewerId, 'list', limit],
     queryFn: async () => {
+      if (!viewerId) throw new Error('No active account');
       const res = await apiClient.get<NotificationsResponse>('/notifications', {
         params: { limit },
+        expectedViewerId: viewerId,
       });
       return res.data;
     },
@@ -48,7 +50,10 @@ export function useUnreadCount() {
   return useQuery<{ count: number }>({
     queryKey: ['notifications', viewerId, 'unread-count'],
     queryFn: async () => {
-      const res = await apiClient.get<{ count: number }>('/notifications/unread-count');
+      if (!viewerId) throw new Error('No active account');
+      const res = await apiClient.get<{ count: number }>('/notifications/unread-count', {
+        expectedViewerId: viewerId,
+      });
       return res.data;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes — socket invalidates on real events
