@@ -1,6 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '../api/client';
+import { useOwnedNotificationMutation } from './use-owned-notification-mutation';
 
 export interface Notification {
   _id: string;
@@ -64,43 +65,28 @@ export function useUnreadCount() {
 }
 
 export function useMarkAsRead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (notificationId: string) => {
-      const res = await apiClient.patch(`/notifications/${notificationId}/read`);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    },
+  return useOwnedNotificationMutation(async (notificationId: string, viewerId) => {
+    const res = await apiClient.patch(`/notifications/${notificationId}/read`, undefined, {
+      expectedViewerId: viewerId,
+    });
+    return res.data;
   });
 }
 
 export function useMarkAllAsRead() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.post('/notifications/read-all');
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    },
+  return useOwnedNotificationMutation<void>(async (_unused, viewerId) => {
+    const res = await apiClient.post('/notifications/read-all', undefined, {
+      expectedViewerId: viewerId,
+    });
+    return res.data;
   });
 }
 
 export function useDismissNotification() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (notificationId: string) => {
-      const res = await apiClient.patch(`/notifications/${notificationId}/dismiss`);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    },
+  return useOwnedNotificationMutation(async (notificationId: string, viewerId) => {
+    const res = await apiClient.patch(`/notifications/${notificationId}/dismiss`, undefined, {
+      expectedViewerId: viewerId,
+    });
+    return res.data;
   });
 }
