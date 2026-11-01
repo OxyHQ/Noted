@@ -32,6 +32,12 @@ function indexOfName(name: string): number | null {
   return found ? Number(found[1]) : null;
 }
 
+function isNotFound(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && 'name' in error && error.name === 'NotFoundError'
+  );
+}
+
 /**
  * The DOM types, plus the two members this build's `lib.dom` has not caught up
  * with.
@@ -61,6 +67,28 @@ class OpfsChunkBackend implements ChunkBackend {
     return (await opfs.getDirectoryHandle(ROOT, { create })) as IterableDirectory;
   }
 
+  private async findRoot(): Promise<IterableDirectory | null> {
+    if (!hasOpfs()) throw new Error('OPFS is not available');
+    const opfs = await navigator.storage.getDirectory();
+    try {
+      return (await opfs.getDirectoryHandle(ROOT, { create: false })) as IterableDirectory;
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  private async findCapture(captureId: string): Promise<IterableDirectory | null> {
+    const root = await this.findRoot();
+    if (root === null) return null;
+    try {
+      return (await root.getDirectoryHandle(captureId, { create: false })) as IterableDirectory;
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
   private async capture(captureId: string, create: boolean): Promise<IterableDirectory> {
     const root = await this.root(create);
     return (await root.getDirectoryHandle(captureId, { create })) as IterableDirectory;
@@ -84,19 +112,14 @@ class OpfsChunkBackend implements ChunkBackend {
   }
 
   async indices(captureId: string): Promise<number[]> {
-    try {
-      const directory = await this.capture(captureId, false);
-      const found: number[] = [];
-      for await (const name of directory.keys()) {
-        const index = indexOfName(name);
-        if (index !== null) found.push(index);
-      }
-      return found;
-    } catch {
-      // A capture with nothing stored has no directory. That is an answer, not a
-      // failure — the caller asked what is there and the answer is nothing.
-      return [];
+    const directory = await this.findCapture(captureId);
+    if (directory === null) return [];
+    const found: number[] = [];
+    for await (const name of directory.keys()) {
+      const index = indexOfName(name);
+      if (index !== null) found.push(index);
     }
+    return found;
   }
 
   async read(captureId: string, index: number): Promise<Uint8Array> {
@@ -105,23 +128,24 @@ class OpfsChunkBackend implements ChunkBackend {
   }
 
   async captures(): Promise<string[]> {
-    try {
-      const root = await this.root(false);
-      const found: string[] = [];
-      for await (const name of root.keys()) found.push(name);
-      return found;
-    } catch {
-      return [];
-    }
+    const root = await this.findRoot();
+    if (root === null) return [];
+    const found: string[] = [];
+    for await (const name of root.keys()) found.push(name);
+    return found;
   }
 
   async readManifest(captureId: string): Promise<string | null> {
+    const directory = await this.findCapture(captureId);
+    if (directory === null) return null;
+    let handle: FileSystemFileHandle;
     try {
-      const handle = await (await this.capture(captureId, false)).getFileHandle(MANIFEST);
-      return await (await handle.getFile()).text();
-    } catch {
-      return null;
+      handle = await directory.getFileHandle(MANIFEST);
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
     }
+    return (await handle.getFile()).text();
   }
 
   async writeManifest(captureId: string, json: string): Promise<void> {
@@ -129,18 +153,13 @@ class OpfsChunkBackend implements ChunkBackend {
   }
 
   async remove(captureId: string): Promise<void> {
+    const root = await this.findRoot();
+    if (root === null) return;
     try {
-      await (await this.root(false)).removeEntry(captureId, { recursive: true });
+      await root.removeEntry(captureId, { recursive: true });
     } catch (error) {
       // A missing directory is already deleted; access and I/O failures are not.
-      if (
-        typeof error !== 'object' ||
-        error === null ||
-        !('name' in error) ||
-        error.name !== 'NotFoundError'
-      ) {
-        throw error;
-      }
+      if (!isNotFound(error)) throw error;
     }
   }
 }
