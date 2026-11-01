@@ -92,7 +92,11 @@ pub fn partial_size(dir: &Path, name: &str) -> Result<u64, String> {
 /// Size of a finished model, if there is one.
 pub fn size_of(dir: &Path, name: &str) -> Result<Option<u64>, String> {
     checked(name)?;
-    Ok(fs::metadata(dir.join(name)).ok().map(|m| m.len()))
+    match fs::metadata(dir.join(name)) {
+        Ok(metadata) => Ok(Some(metadata.len())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 pub fn remove(dir: &Path, name: &str) -> Result<(), String> {
@@ -266,6 +270,29 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
         assert!(result.is_err(), "metadata failure must not look like a missing file");
         assert_eq!(retained, b"hello");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inaccessible_model_is_not_reported_as_missing() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch("model-metadata-failure");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("m.bin"), b"model").unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::metadata(dir.join("m.bin")).is_ok() {
+            // A root-run environment can bypass directory permission bits.
+            fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+            fs::remove_dir_all(&dir).unwrap();
+            return;
+        }
+        let result = size_of(&dir, "m.bin");
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+        let retained = fs::read(dir.join("m.bin")).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+        assert!(result.is_err(), "metadata failure must not look like a missing file");
+        assert_eq!(retained, b"model");
     }
 
     #[test]
