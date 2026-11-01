@@ -20,17 +20,29 @@ jobs:
   windows-inventory:
     if: ${{ contains(github.event.head_commit.message, '[windows-only]') }}
     runs-on: windows-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - name: Inspect preinstalled WebView2 runtime and managed SDK
         shell: pwsh
         run: |
           $runtime = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
           if ($runtime) { Write-Output "WebView2 runtime version: $($runtime.pv)" } else { Write-Output 'WebView2 runtime registry entry: absent' }
-          $roots = @("${env:ProgramFiles}\Microsoft Visual Studio", "${env:ProgramFiles(x86)}\Microsoft Visual Studio", "$env:USERPROFILE\.nuget\packages\microsoft.web.webview2") | Where-Object { Test-Path $_ }
-          $assemblies = @($roots | ForEach-Object { Get-ChildItem -Path $_ -Filter Microsoft.Web.WebView2.WinForms.dll -File -Recurse -ErrorAction SilentlyContinue })
-          $loaders = @($roots | ForEach-Object { Get-ChildItem -Path $_ -Filter WebView2Loader.dll -File -Recurse -ErrorAction SilentlyContinue })
-          Write-Output "Preinstalled WinForms assemblies: $($assemblies.Count)"
-          Write-Output "Preinstalled loader DLLs: $($loaders.Count)"
-          $assemblies | Select-Object -First 3 | ForEach-Object { Write-Output "Assembly version: $($_.VersionInfo.FileVersion)" }
-          $loaders | Select-Object -First 3 | ForEach-Object { Write-Output "Loader version: $($_.VersionInfo.FileVersion)" }
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = if (Test-Path $vswhere) { & $vswhere -latest -products '*' -property installationPath } else { $null }
+          $roots = @("$env:USERPROFILE\.nuget\packages\microsoft.web.webview2")
+          if ($vs) { $roots += "$vs\Common7\IDE\CommonExtensions" }
+          $assembly = $null
+          foreach ($root in $roots) {
+            if (Test-Path $root) {
+              $assembly = Get-ChildItem -Path $root -Filter Microsoft.Web.WebView2.WinForms.dll -File -Recurse -Depth 8 -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($assembly) { break }
+            }
+          }
+          if ($assembly) {
+            Write-Output 'Managed WebView2 SDK: present in searched paths'
+            Write-Output "Assembly version: $($assembly.VersionInfo.FileVersion)"
+            $core = Join-Path $assembly.DirectoryName 'Microsoft.Web.WebView2.Core.dll'
+            Write-Output "Core DLL alongside WinForms: $(Test-Path $core)"
+          } else {
+            Write-Output 'Managed WebView2 SDK: not found in targeted paths (max depth 8)'
+          }
