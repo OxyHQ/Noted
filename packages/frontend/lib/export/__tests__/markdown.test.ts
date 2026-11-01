@@ -101,6 +101,11 @@ describe('noteFilename', () => {
     expect(long.endsWith('.md')).toBe(true);
   });
 
+  it('does not split an emoji at the filename length limit', () => {
+    expect(noteFilename(note({ title: `${'x'.repeat(59)}📝` }))).toBe(`${'x'.repeat(59)}.md`);
+    expect(noteFilename(note({ title: `${'x'.repeat(58)}📝` }))).toBe(`${'x'.repeat(58)}📝.md`);
+  });
+
   it('falls back to the id, never to a shared name', () => {
     // Two notes called `note.md` means the second export silently replaces the
     // first — worse than an ugly filename.
