@@ -1,0 +1,29 @@
+# Realtime WAV writer experiment
+
+This branch is an isolated experiment. It does not connect the writer to the
+recording screen, provide a native file adapter, or make recording safe to ship.
+
+Noted's current `RealtimeTranscriber` call provides an output path but no `fs`
+dependency. In the locked whisper.rn 0.7.2 the writer is initialized only when
+both are present. The contract test runs the actual class and reproduces the
+missing writer. It also demonstrates that an injected adapter's append error is
+swallowed: stopping resolves with a 44-byte header and no error callback.
+
+The experimental incremental writer writes one PCM chunk at a time into a
+caller-provided reserved handle, patches the header without reading the entire
+file, remembers errors and rejects a queue overflow or short write. The long
+test simulates three hours through an in-memory *counter*, not a native file or
+real-time device. Its storage keeps up by construction; it does not measure
+throughput, power, memory use on a phone, or actual session behavior.
+
+Before adoption, the caller must provide a native no-symlink exclusive
+reservation, keep its descriptor across writes, bind it to an authenticated
+account and database operation, and recover interruptions without overwriting
+existing files. Confirm the recording stream stops before finalization and that
+all asynchronous chunks finish. Detect underlying failures, including partial
+writes and failure to close; validate the completed file before publishing the
+reference. A callback that checks the account before and after close does not
+make the subsequent SQLite commit atomic with the identity lifecycle. Cancellation
+must preserve recoverable audio or safely remove only a file whose ownership is
+proven. Real Android and iOS builds, device tests and long-duration measurements
+remain necessary. Nothing here resolves legacy shared-file ownership or #248.
