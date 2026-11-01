@@ -102,7 +102,7 @@ export function parseMarkdown(filename: string, text: string): ParsedNote {
   // The first line that is not blank decides the title: a leading `# Heading`
   // is the title (and leaves the body), anything else keeps the filename.
   const first = lines.findIndex((line) => line.trim() !== '');
-  const heading = first >= 0 ? /^#\s+(.+?)\s*#*\s*$/.exec(lines[first]) : null;
+  const heading = first >= 0 ? /^#\s+(.+?)(?:[ \t]+#+)?\s*$/.exec(lines[first]) : null;
   const title = heading ? heading[1].trim() : titleFromFilename(filename);
   const body = (heading ? lines.slice(first + 1) : lines).join('\n').trim();
 
