@@ -38,7 +38,8 @@ export function recordVerifiedGeneration(generation: string): Statement[] {
  * Add this to the SAME transaction as the edit. A pre-existing unknown,
  * mismatched or blocked intent rejects the edit rather than overwriting it.
  * The transaction runner must enforce expectedRowsAffected and roll back all
- * preceding statements on failure. First edits made offline remain unknown.
+ * preceding statements on failure. A new intent is unknown if no generation was
+ * recorded; a previously recorded generation may be stale while offline.
  */
 export function guardedEnqueue(entityId: string, op: 'upsert' | 'delete', now: string): Statement {
   return {

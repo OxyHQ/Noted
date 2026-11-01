@@ -132,7 +132,7 @@ describe('disconnected outbox generation experiment', () => {
     });
   });
 
-  it('keeps an offline new intent unknown after a later verified generation', () => {
+  it('keeps an offline new intent unknown when no generation was recorded', () => {
     for (const sql of RESEARCH_MIGRATION) db.exec(sql);
     db.exec(
       "INSERT INTO notes (id, title, created_at, updated_at) VALUES ('note', 'first', 'now', 'now')",
@@ -142,6 +142,26 @@ describe('disconnected outbox generation experiment', () => {
     setGeneration('A');
     expect(preflight('A').mayConsider).toBe(false);
     expect(() => edit('note', 'overwritten')).toThrow('generation guard');
+    expect(db.prepare("SELECT title FROM notes WHERE id = 'note'").get()).toMatchObject({
+      title: 'offline',
+    });
+  });
+
+  it('captures the last recorded generation offline, which can become stale', () => {
+    for (const sql of RESEARCH_MIGRATION) db.exec(sql);
+    db.exec(
+      "INSERT INTO notes (id, title, created_at, updated_at) VALUES ('note', 'first', 'now', 'now')",
+    );
+    setGeneration('A');
+    edit('note', 'offline');
+    expect(
+      db.prepare("SELECT generation FROM outbox WHERE entity_id = 'note'").get(),
+    ).toMatchObject({ generation: 'A' });
+    // A real server can advance to B while this device is offline; until the
+    // device observes B, the local result cannot prove the server still accepts A.
+    expect(preflight('A').mayConsider).toBe(true);
+    setGeneration('B');
+    expect(preflight('B')).toMatchObject({ total: 1, blocked: 1, mayConsider: false });
     expect(db.prepare("SELECT title FROM notes WHERE id = 'note'").get()).toMatchObject({
       title: 'offline',
     });

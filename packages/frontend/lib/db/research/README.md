@@ -25,10 +25,12 @@ The experimental statements model a conservative alternative:
    a block. The original outbox, notes, children and audio references remain in
    place: there is no automatic replay or local reset.
 3. Each local note edit and the guarded enqueue must commit together. A new
-   offline intent has an unknown generation. An existing unknown, old or blocked
-   intent rejects a later edit instead of silently collapsing its contents into
-   another epoch. A caller must surface that failure and give the user a safe
-   recovery path, which does not yet exist. The transaction executor must check
+   intent has an unknown generation only if no generation was recorded. When
+   offline, the last recorded generation may already be stale; every server
+   mutation must still carry it for server-side validation. An existing unknown,
+   old or blocked intent rejects a later edit instead of silently collapsing its
+   contents into another epoch. A caller must surface that failure and give the
+   user a safe recovery path, which does not yet exist. The transaction executor must check
    `expectedRowsAffected` and fail the whole transaction if it is not one.
 4. Preflight detects any blocked row and refuses to even consider sending the
    batch. It is a diagnostic, not authorization. The server must check the
