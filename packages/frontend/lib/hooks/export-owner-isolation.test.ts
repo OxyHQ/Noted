@@ -22,6 +22,7 @@ const fixture = vi.hoisted(() => ({
   toast: vi.fn(),
   available: vi.fn(),
   write: vi.fn(),
+  remove: vi.fn(),
   share: vi.fn(),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => fixture.auth }));
@@ -61,6 +62,9 @@ vi.mock('expo-file-system', () => ({
     uri = 'file:///synthetic-export';
     exists = false;
     create() {}
+    delete() {
+      fixture.remove();
+    }
     write(value: unknown) {
       return fixture.write(value);
     }
@@ -81,9 +85,15 @@ let oxy: OxyServices;
 let root: ReturnType<typeof create> | undefined;
 let jsonExport: () => Promise<void>;
 let zipExport: () => Promise<void>;
+let jsonBusy: boolean;
+let zipBusy: boolean;
 function Harness() {
-  jsonExport = useExportAll().exportAll;
-  zipExport = useExportMarkdownZip().exportZip;
+  const json = useExportAll();
+  const zip = useExportMarkdownZip();
+  jsonExport = json.exportAll;
+  jsonBusy = json.exporting;
+  zipExport = zip.exportZip;
+  zipBusy = zip.exportingZip;
   return null;
 }
 function switchAccount(viewer: string) {
@@ -123,6 +133,7 @@ beforeEach(() => {
   fixture.toast.mockReset();
   fixture.available.mockReset().mockResolvedValue(true);
   fixture.write.mockReset();
+  fixture.remove.mockReset();
   fixture.share.mockReset().mockResolvedValue(undefined);
 });
 afterEach(async () => {
@@ -131,9 +142,272 @@ afterEach(async () => {
   fixture.api.dispose();
   oxy.dispose();
   globalThis.fetch = originalFetch;
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('export ownership', () => {
+  it.each(['json', 'zip'] as const)('exports normally for the current owner (%s)', async (kind) => {
+    globalThis.fetch = vi.fn(
+      async () => new Response(JSON.stringify({ owner: 'A' }), { status: 200 }),
+    ) as typeof fetch;
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    await act(async () => {
+      await (kind === 'json' ? jsonExport() : zipExport());
+    });
+    expect(kind === 'json' ? fixture.saveText : fixture.saveBinary).toHaveBeenCalledOnce();
+    expect(fixture.toast).not.toHaveBeenCalled();
+  });
+
+  it('does not let an unfinished A request block B or clear B busy state', async () => {
+    let releaseA!: (response: Response) => void;
+    let releaseB!: (response: Response) => void;
+    let startedA!: () => void;
+    let startedB!: () => void;
+    const waitA = new Promise<void>((resolve) => {
+      startedA = resolve;
+    });
+    const waitB = new Promise<void>((resolve) => {
+      startedB = resolve;
+    });
+    globalThis.fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      const auth = new Headers(init?.headers).get('authorization');
+      if (auth === `Bearer ${jwt('A')}`) {
+        startedA();
+        return new Promise<Response>((resolve) => {
+          releaseA = resolve;
+        });
+      }
+      if (auth === `Bearer ${jwt('B')}`) {
+        startedB();
+        return new Promise<Response>((resolve) => {
+          releaseB = resolve;
+        });
+      }
+      throw new Error('unexpected bearer');
+    }) as typeof fetch;
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    let a!: Promise<void>;
+    await act(async () => {
+      a = jsonExport();
+      await waitA;
+    });
+    expect(jsonBusy).toBe(true);
+    await act(async () => switchAccount('B'));
+    expect(jsonBusy).toBe(false);
+    let b!: Promise<void>;
+    await act(async () => {
+      b = jsonExport();
+      await waitB;
+    });
+    expect(jsonBusy).toBe(true);
+    await act(async () => {
+      releaseA(new Response('{}', { status: 200 }));
+      await a;
+    });
+    expect(jsonBusy).toBe(true);
+    expect(fixture.toast).not.toHaveBeenCalled();
+    await act(async () => {
+      releaseB(new Response('{}', { status: 200 }));
+      await b;
+    });
+    expect(jsonBusy).toBe(false);
+    expect(fixture.saveText).toHaveBeenCalledOnce();
+  });
+
+  it('drops a pending export after leaving the settings section', async () => {
+    let release!: (rows: unknown[]) => void;
+    fixture.execute.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = zipExport();
+      await Promise.resolve();
+    });
+    expect(zipBusy).toBe(true);
+    await act(async () => {
+      root?.unmount();
+      root = undefined;
+    });
+    await act(async () => {
+      release([{ viewer: 'A' }]);
+      await pending;
+    });
+    expect(fixture.execute).toHaveBeenCalledOnce();
+    expect(fixture.saveBinary).not.toHaveBeenCalled();
+  });
+
+  it('continues through a same-session token refresh', async () => {
+    let finish!: (rows: unknown[]) => void;
+    fixture.execute.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = zipExport();
+      await Promise.resolve();
+    });
+    const epoch = oxy.http.getSessionEpoch();
+    await act(async () => {
+      oxy.session.setAccessToken(jwt('A', 'fresh'));
+    });
+    expect(oxy.http.getSessionEpoch()).toBe(epoch);
+    await act(async () => {
+      finish([{ viewer: 'A' }]);
+      await pending;
+    });
+    expect(fixture.saveBinary).toHaveBeenCalledOnce();
+  });
+
+  it('does not start when the authenticated projection is unavailable', async () => {
+    fixture.auth.isAuthenticated = false;
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    await act(async () => {
+      await jsonExport();
+      await zipExport();
+    });
+    expect(fixture.execute).not.toHaveBeenCalled();
+    expect(fixture.saveText).not.toHaveBeenCalled();
+    expect(fixture.saveBinary).not.toHaveBeenCalled();
+  });
+
+  it('does not start native writing after A to B to A during availability', async () => {
+    const native = await import('@/lib/export/save.native');
+    fixture.saveBinary.mockImplementation(native.saveBinaryFile);
+    let release!: (value: boolean) => void;
+    let started!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    fixture.available.mockImplementation(() => {
+      started();
+      return new Promise<boolean>((resolve) => {
+        release = resolve;
+      });
+    });
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = zipExport();
+      await waiting;
+    });
+    await act(async () => switchAccount('B'));
+    await act(async () => switchAccount('A'));
+    await act(async () => {
+      release(true);
+      await pending;
+    });
+    expect(fixture.write).not.toHaveBeenCalled();
+    expect(fixture.share).not.toHaveBeenCalled();
+  });
+
+  it('does not open native sharing after a session change during the write', async () => {
+    const native = await import('@/lib/export/save.native');
+    fixture.saveBinary.mockImplementation(native.saveBinaryFile);
+    let release!: () => void;
+    let started!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    fixture.write.mockImplementation(() => {
+      started();
+      return new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = zipExport();
+      await waiting;
+    });
+    await act(async () => switchAccount('B'));
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(fixture.write).toHaveBeenCalledOnce();
+    expect(fixture.share).not.toHaveBeenCalled();
+    expect(fixture.remove).not.toHaveBeenCalled();
+    expect(fixture.toast).not.toHaveBeenCalled();
+  });
+
+  it('cannot retract native sharing once it has started', async () => {
+    const native = await import('@/lib/export/save.native');
+    fixture.saveBinary.mockImplementation(native.saveBinaryFile);
+    let release!: () => void;
+    let started!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    fixture.share.mockImplementation(() => {
+      started();
+      return new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = zipExport();
+      await waiting;
+    });
+    await act(async () => switchAccount('B'));
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(fixture.share).toHaveBeenCalledOnce();
+    expect(fixture.remove).not.toHaveBeenCalled();
+    expect(fixture.toast).not.toHaveBeenCalled();
+  });
+
+  it('does not click a web download after ownership changes while creating its link', async () => {
+    const web = await import('@/lib/export/save.web');
+    let current = true;
+    const link = { href: '', download: '', click: vi.fn(), remove: vi.fn() };
+    vi.stubGlobal('document', {
+      createElement: () => link,
+      body: {
+        appendChild: () => {
+          current = false;
+        },
+      },
+    });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:synthetic');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    expect(() =>
+      web.saveBinaryFile('test.zip', new Uint8Array([1]), 'application/zip', () => current),
+    ).toThrow('active account changed');
+    expect(link.click).not.toHaveBeenCalled();
+    expect(link.remove).toHaveBeenCalledOnce();
+    expect(revoke).toHaveBeenCalledWith('blob:synthetic');
+  });
   it.each(['json', 'zip'] as const)(
     'does not write or share a %s export if the owner changes during native availability',
     async (kind) => {
