@@ -50,3 +50,13 @@ rotation. Viewer and session projections in that test are controlled values,
 not the running React provider, and no live device or SQLite commit is involved.
 The identity guard therefore remains an experiment rather than a complete
 session or database barrier.
+
+One possible drain protocol is for the native recorder to tag each PCM event
+with a recording operation ID and a consecutive sequence, stop the microphone,
+wait for its producer to terminate, and return the last produced sequence. The
+JavaScript side would wait for every event through that sequence and fail on a
+gap, timeout, overflow, or an unexpected operation ID before sealing the gate.
+It must account for events arriving before or after the stop response; the
+response alone is not a bridge ordering guarantee. A bounded event flow and
+explicit error reporting are required, including when JavaScript cannot keep up.
+This is a proposed protocol, not behavior established by the current recorder.
