@@ -270,6 +270,46 @@ it('reports an uncertain outcome when a real SQLite commit succeeds but its ackn
   }
 });
 
+it('documents that a fresh engine does not retain the in-memory reconciliation gate', async () => {
+  const test = await fixture(null, false, false, false, false, true);
+  try {
+    await expect(
+      test.client.executeTransactionPinnedToViewer([insert('maybe-committed')], 'A'),
+    ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
+    await test.client.recoverQuarantinedConnection();
+    expect(test.client.isDbAvailable()).toBe(false);
+
+    vi.resetModules();
+    const freshClient = await import('@/lib/db/client-engine');
+    const freshDb = new DatabaseSync(test.path);
+    const driverDb = {
+      async execAsync(sql: string) {
+        freshDb.exec(sql);
+      },
+      async runAsync(sql: string, params: readonly (string | number | null)[] = []) {
+        return { changes: Number(freshDb.prepare(sql).run(...params).changes) };
+      },
+      async getFirstAsync(sql: string, params: readonly (string | number | null)[] = []) {
+        return freshDb.prepare(sql).get(...params) ?? null;
+      },
+      async getAllAsync(sql: string, params: readonly (string | number | null)[] = []) {
+        return freshDb.prepare(sql).all(...params);
+      },
+      async closeAsync() {
+        freshDb.close();
+      },
+    };
+    freshClient.setDatabaseDriver({ open: async () => driverDb, addChangeListener() {} } as never);
+    await freshClient.setActiveViewer('A');
+    expect(await freshClient.execute('SELECT id FROM transcript_segments', [], 'A')).toEqual([
+      { id: 'maybe-committed' },
+    ]);
+    await freshClient.closeDb();
+  } finally {
+    await test.dispose();
+  }
+});
+
 it('retains viewer and quarantine if recovery close fails, then permits a retry', async () => {
   const test = await fixture(null, false, false, true, true);
   try {
