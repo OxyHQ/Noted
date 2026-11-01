@@ -6,6 +6,13 @@ client-engine operation that acquires the SQL queue and then the local viewer
 lifecycle queue, checks the viewer, and keeps that lifecycle queue through
 COMMIT or ROLLBACK. Existing transaction callers do not opt into this operation.
 
+For the experimental operation, a failed `BEGIN` is treated as potentially
+having opened a transaction. The code attempts rollback before releasing the
+lifecycle; if rollback also fails, it enters the same uncertain state. This is
+deliberately conservative: a BEGIN that failed before starting any transaction
+can also be quarantined when the driver's rollback reports no active transaction.
+The existing non-opt-in BEGIN behavior is unchanged.
+
 The operation accepts SQL statements as data; it does not invoke caller-provided
 callbacks inside either queue. The database driver and its hooks must not call
 and await another queued database operation while an operation is running. A
@@ -16,15 +23,22 @@ and do not require re-entering the lifecycle queue.
 When rollback of this experimental operation fails, the connection is marked
 uncertain. The prototype refuses further queued reads/writes and local viewer
 switches, clear, normal close or driver replacement. An explicit recovery call
-retries rollback and attempts to close that connection. It clears the quarantine
-only when the driver reports a successful close; a failed close retains the
-viewer and quarantine. A failed close may have partially completed, and there is
-currently no supported user-facing recovery if retry continues to fail.
+retries rollback and attempts to close that connection. A failed close retains
+the viewer and quarantine. A successful close moves the state to *awaiting
+reconciliation*, where operations and viewer changes remain blocked. A generation
+also rejects operations submitted before or during the uncertain state even if
+they run after an acknowledgement clears it. A failed close may have partially
+completed, and there is no supported user-facing recovery if retry continues to
+fail.
 The operation returns `TransactionOutcomeUncertainError` when rollback fails:
 the original COMMIT might have succeeded even though its acknowledgement failed.
 Closing and recovering the connection does not reveal whether the prior write
 committed. Callers must reconcile the affected data before retrying; blindly
 repeating a non-idempotent transaction can apply it twice.
+The experimental `acknowledgeTransactionReconciled` method only models an
+explicit, same-viewer acknowledgement; it **does not verify evidence** and the
+prototype does not yet provide a safe read path for reconciliation while the
+gate is closed. It must not be called by production code as proof of recovery.
 Recovery itself holds both queues: a driver operation that never settles also
 prevents local viewer changes indefinitely. It deliberately does not time out
 and release the viewer while the driver may still own the handle.
