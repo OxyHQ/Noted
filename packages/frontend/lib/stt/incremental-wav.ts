@@ -30,6 +30,7 @@ export class IncrementalWavWriter {
       throw new Error('Invalid WAV queue limit');
     const writer = new IncrementalWavWriter(file, maxPendingBytes);
     try {
+      if ((await file.size()) !== 0) throw new Error('Reserved WAV file is not empty');
       await writer.writeExactly(0, wavHeader(0));
       return writer;
     } catch (error) {

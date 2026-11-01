@@ -71,6 +71,14 @@ describe('incremental WAV prototype', () => {
     expect(file.closed).toBe(true);
   });
 
+  it('refuses to overwrite a nonempty handle even if reservation was wrong', async () => {
+    const file = new MemoryFile();
+    file.bytes = Uint8Array.of(1, 2, 3, 4);
+    await expect(IncrementalWavWriter.create(file, 1024)).rejects.toThrow('not empty');
+    expect(Array.from(file.bytes)).toEqual([1, 2, 3, 4]);
+    expect(file.closed).toBe(true);
+  });
+
   it('rejects a short append and still closes', async () => {
     const file = new MemoryFile();
     const writer = await IncrementalWavWriter.create(file, 1024);
