@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { noteToMarkdown } from '@/lib/export/markdown';
 import { parseEnex, parseImportFile, parseKeep, parseMarkdown } from '@/lib/import/parse';
 
 let counter = 0;
@@ -9,6 +10,15 @@ describe('parseMarkdown', () => {
     const note = parseMarkdown('x.md', '\n# Weekly plan\n\nSee the roadmap.\n');
     expect(note.title).toBe('Weekly plan');
     expect(note.body).toBe('See the roadmap.');
+  });
+
+  it('preserves hashes attached to a title while accepting closing heading markers', () => {
+    for (const title of ['C#', 'F#', 'C##']) {
+      const exported = noteToMarkdown({ title, blocks: [] });
+      expect(parseMarkdown('note.md', exported).title).toBe(title);
+    }
+    expect(parseMarkdown('note.md', '# C# ##\n\nBody').title).toBe('C#');
+    expect(parseMarkdown('note.md', '# F#\t###').title).toBe('F#');
   });
 
   it('falls back to the filename when there is no heading', () => {
