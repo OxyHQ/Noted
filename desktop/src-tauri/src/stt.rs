@@ -179,10 +179,38 @@ fn sidecar_path() -> Result<PathBuf, String> {
     }
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let name = if cfg!(windows) { "whisper-cli.exe" } else { "whisper-cli" };
-    Ok(executable
+    let directory = executable
         .parent()
-        .ok_or_else(|| "the app has no directory".to_string())?
-        .join(name))
+        .ok_or_else(|| "the app has no directory".to_string())?;
+    #[cfg(all(feature = "whisper-cpu-dispatch", target_arch = "x86_64"))]
+    {
+        let optimized = directory.join(if cfg!(windows) {
+            "whisper-avx2.exe"
+        } else {
+            "whisper-avx2"
+        });
+        if supports_optimized_sidecar() && optimized.is_file() {
+            return Ok(optimized);
+        }
+    }
+    Ok(directory.join(name))
+}
+
+#[cfg(all(feature = "whisper-cpu-dispatch", target_arch = "x86_64"))]
+fn supports_optimized_sidecar() -> bool {
+    supports_optimized_features([
+        std::is_x86_feature_detected!("sse4.2"),
+        std::is_x86_feature_detected!("avx"),
+        std::is_x86_feature_detected!("avx2"),
+        std::is_x86_feature_detected!("bmi2"),
+        std::is_x86_feature_detected!("fma"),
+        std::is_x86_feature_detected!("f16c"),
+    ])
+}
+
+#[cfg(all(feature = "whisper-cpu-dispatch", target_arch = "x86_64"))]
+fn supports_optimized_features(features: [bool; 6]) -> bool {
+    features.iter().all(|supported| *supported)
 }
 
 /// Transcribe `samples` (base64 of 16 kHz mono `f32`s) with a model the app has
@@ -235,6 +263,16 @@ pub async fn stt_transcribe(
 mod tests {
     use super::*;
 
+    #[cfg(all(feature = "whisper-cpu-dispatch", target_arch = "x86_64"))]
+    #[test]
+    fn optimized_sidecar_requires_every_build_feature() {
+        assert!(super::supports_optimized_features([true; 6]));
+        for missing in 0..6 {
+            let mut features = [true; 6];
+            features[missing] = false;
+            assert!(!super::supports_optimized_features(features));
+        }
+    }
     const SAMPLE_OUTPUT: &str = r#"{
       "systeminfo": "ignored",
       "model": {"type": "tiny"},

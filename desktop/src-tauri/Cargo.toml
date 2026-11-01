@@ -6,6 +6,10 @@ edition = "2021"
 rust-version = "1.77"
 publish = false
 
+[features]
+# Opt-in research build; normal packages still use their existing sidecar.
+whisper-cpu-dispatch = []
+
 [lib]
 name = "noted_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
