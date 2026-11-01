@@ -1,7 +1,11 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Statement } from '@/lib/db/client';
-const state = vi.hoisted(() => ({ db: null as DatabaseSync | null, patch: vi.fn() }));
+const state = vi.hoisted(() => ({
+  db: null as DatabaseSync | null,
+  patch: vi.fn(),
+  post: vi.fn(),
+}));
 function db(): DatabaseSync {
   if (!state.db) throw new Error('no db');
   return state.db;
@@ -51,7 +55,7 @@ vi.mock('@/lib/api/client', () => ({
   default: {
     isAccountActive: () => true,
     get: vi.fn(),
-    post: vi.fn(),
+    post: (...args: unknown[]) => state.post(...args),
     patch: (...args: unknown[]) => state.patch(...args),
     delete: vi.fn(),
   },
@@ -68,6 +72,7 @@ import {
 
 beforeEach(() => {
   state.patch.mockReset();
+  state.post.mockReset();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-13T10:00:00.000Z'));
   state.db = new DatabaseSync(':memory:');
@@ -114,14 +119,30 @@ it('reproduces the current lost outbox on a same-millisecond edit', async () => 
   expect(db().prepare('SELECT COUNT(*) AS n FROM outbox').get()).toMatchObject({ n: 0 });
 });
 
-it('reproduces current removal of a newer edit after an older 410', async () => {
-  const { flush, reject } = await heldPush();
+it('reproduces current removal of a newer edit after a create returns 410', async () => {
+  await createNote('n', { title: 'First' });
+  let reject!: (reason: Error) => void;
+  let started!: () => void;
+  const running = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  state.post.mockImplementation(() => {
+    started();
+    return new Promise((_, fail) => {
+      reject = fail;
+    });
+  });
+  const flush = flushOutbox('alice');
+  await running;
+  expect(state.post.mock.calls[0]?.[1]).toMatchObject({ id: 'n', title: 'First' });
   db()
     .prepare(`INSERT INTO captures (id, note_id, state, started_at, audio_path, created_at, updated_at)
     VALUES ('capture', 'n', 'done', ?, 'audio:fixture', ?, ?)`)
     .run('t', 't', 't');
   await updateNote('n', { title: 'Second' });
-  reject(Object.assign(new Error('Gone'), { response: { status: 410 } }));
+  reject(
+    Object.assign(new Error('Gone'), { response: { status: 410, data: { code: 'NOTE_DELETED' } } }),
+  );
   await flush;
   expect(db().prepare('SELECT title FROM notes').get()).toBeUndefined();
   expect(db().prepare('SELECT note_id, audio_path FROM captures').get()).toMatchObject({

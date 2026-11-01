@@ -7,8 +7,10 @@ sync, activate Nilo's generation protocol, or change deletion and recovery.
 Noted's current acknowledgement compares the sent note's `updated_at` with the
 current value. Two edits can share a millisecond. If a second edit lands while an
 older PATCH is in flight, its response can clear `dirty` and delete the single
-outbox row, leaving the newer content unsent. A 410 response can also delete a
-newer edit. The tests reproduce both using the real note repository, syncer,
+outbox row, leaving the newer content unsent. A delayed 410 `NOTE_DELETED`
+response to a create can also delete a newer edit. Nilo currently returns 404
+for a PATCH of a missing note; the 410 comes from recreating a tombstoned ID.
+The tests reproduce both using the real note repository, syncer,
 SQLite migrations and SQLite, with a controlled API transport and database
 adapter. No Nilo server, native/web SQLite driver or physical audio is involved.
 
