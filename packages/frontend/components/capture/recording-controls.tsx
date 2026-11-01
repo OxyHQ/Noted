@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
+import { toast } from '@oxy.so/bloom/toast';
 
 import { Text } from '@/components/ui/text';
 import {
@@ -109,7 +110,9 @@ export function RecordingControls({ noteId }: { noteId: string }) {
                       part.kind === 'audio'
                         ? deleteRecordingAudio(capture)
                         : deleteRecordingTranscript(capture);
-                    void work.finally(() => setBusy(false));
+                    void work
+                      .catch(() => toast.error(t('capture.retention.removeFailed')))
+                      .finally(() => setBusy(false));
                   }}
                   accessibilityLabel={t(`capture.retention.${part.kind}`)}
                   className="h-8 w-8 items-center justify-center rounded-full bg-muted active:opacity-70"

@@ -1253,7 +1253,8 @@
       "audioCost": "Playback stops working.",
       "audioKeeps": "The transcript and the note stay.",
       "transcriptCost": "Generated lines stop being checkable.",
-      "transcriptKeeps": "The note stays, word for word."
+      "transcriptKeeps": "The note stays, word for word.",
+      "removeFailed": "No s’ha pogut suprimir. Torna-ho a provar."
     },
     "retryEnhancement": "Retry enhancement"
   },
