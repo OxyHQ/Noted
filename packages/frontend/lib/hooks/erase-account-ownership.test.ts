@@ -45,6 +45,7 @@ vi.mock('../stores/notes-ui-store', () => ({
 }));
 
 import { useEraseAccountData } from './use-erase-account-data';
+import { createNotedClient } from '../api/noted-client';
 
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
 const jwt = (id: string) =>
@@ -55,6 +56,7 @@ let root: { update(element: React.ReactNode): void; unmount(): void } | undefine
 let invoke: () => Promise<void>;
 let fire: () => void;
 let shown = true;
+const originalFetch = globalThis.fetch;
 function Harness() {
   const mutation = useEraseAccountData();
   invoke = mutation.mutateAsync;
@@ -93,6 +95,7 @@ afterEach(async () => {
   root = undefined;
   oxy.dispose();
   client.clear();
+  globalThis.fetch = originalFetch;
 });
 async function mount() {
   await act(async () => {
@@ -129,6 +132,23 @@ describe('erase account ownership', () => {
     });
     expect(fixture.post).not.toHaveBeenCalled();
     expect(fixture.error).not.toHaveBeenCalled();
+  });
+  it('blocks the old confirmation before the real Noted client can send B credentials', async () => {
+    const notedClient = createNotedClient(oxy, 'https://noted.example');
+    fixture.post.mockImplementation(notedClient.post);
+    const sent = vi.fn();
+    globalThis.fetch = sent as typeof fetch;
+    try {
+      await mount();
+      const confirmA = invoke;
+      await switchToB();
+      await act(async () => {
+        await expect(confirmA()).rejects.toThrow();
+      });
+      expect(sent).not.toHaveBeenCalled();
+    } finally {
+      notedClient.dispose();
+    }
   });
   it('rejects a retained confirmation after the settings screen unmounts', async () => {
     await mount();
