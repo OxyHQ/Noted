@@ -21,11 +21,9 @@ type Owner = {
  * Erase everything Noted holds for this account: the server first, then this
  * device.
  *
- * In that order on purpose. If the server call fails nothing has changed and the
- * person can try again; if it succeeded and clearing the device then failed, the
- * data is already gone from the only copy that mattered, and the message says so
- * rather than reporting a failure that did not happen. The reverse order could
- * wipe the phone and leave the account untouched.
+ * In that order on purpose: clearing the device first could discard unsynced
+ * data while leaving the server untouched. A failed or aborted network request
+ * can be ambiguous because the server may already have processed it.
  */
 export function useEraseAccountData() {
   const { t } = useTranslation();
