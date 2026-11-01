@@ -98,6 +98,111 @@ describe('desktop model downloads', () => {
     expect(writes.reduce((n, w) => n + decodeLen(w.args.chunk), 0)).toBe(big.bytes);
   });
 
+  it.each([
+    { partial: 0, status: 200 },
+    { partial: 4, status: 206 },
+  ])(
+    'bounds oversized stream chunks (partial=$partial, status=$status)',
+    async ({ partial, status }) => {
+      const size = CHUNK_BYTES * 2 + 5;
+      const body = new Uint8Array(size);
+      for (let i = 0; i < body.length; i += 1) body[i] = i % 251;
+      const rust = fakeRust(null, undefined, partial);
+      const requests: Array<RequestInit | undefined> = [];
+      const models = createDesktopModels(
+        async () => rust.invoke,
+        async (_url, init) => {
+          requests.push(init);
+          return new Response(streamOf(body).body, { status });
+        },
+      );
+      await models.download({ ...MODEL, bytes: size + partial });
+      expect(requests[0]?.headers).toEqual(partial ? { Range: `bytes=${partial}-` } : undefined);
+      const writes = rust.calls.filter((call) => call.command === 'model_write');
+      expect(writes.map((write) => decodeLen(write.args.chunk))).toEqual([
+        CHUNK_BYTES,
+        CHUNK_BYTES,
+        5,
+      ]);
+      expect(writes.map((write) => write.args.reset)).toEqual([partial === 0, false, false]);
+      const received = Buffer.concat(
+        writes.map((write) => Buffer.from(String(write.args.chunk), 'base64')),
+      );
+      expect(received.equals(Buffer.from(body))).toBe(true);
+    },
+  );
+
+  it('preserves order when a read crosses a chunk boundary', async () => {
+    const first = new Uint8Array(CHUNK_BYTES - 2).fill(17);
+    const second = new Uint8Array([1, 2, 3, 4, 5]);
+    const rust = fakeRust();
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () => streamOf(first, second),
+    );
+    await models.download({ ...MODEL, bytes: first.length + second.length });
+    const writes = rust.calls.filter((call) => call.command === 'model_write');
+    expect(writes.map((write) => decodeLen(write.args.chunk))).toEqual([CHUNK_BYTES, 3]);
+    const received = Buffer.concat(
+      writes.map((write) => Buffer.from(String(write.args.chunk), 'base64')),
+    );
+    expect(received.equals(Buffer.concat([Buffer.from(first), Buffer.from(second)]))).toBe(true);
+  });
+
+  it('does not let the producer reuse a pending chunk buffer before flush', async () => {
+    const shared = new Uint8Array([1, 2]);
+    let step = 0;
+    const stream = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          if (step++ === 0) controller.enqueue(shared);
+          else if (step === 2) {
+            shared.fill(9);
+            controller.enqueue(new Uint8Array([3]));
+          } else controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const rust = fakeRust();
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () => new Response(stream),
+    );
+    await models.download({ ...MODEL, bytes: 3 });
+    const write = rust.calls.find((call) => call.command === 'model_write');
+    expect([...Buffer.from(String(write?.args.chunk), 'base64')]).toEqual([1, 2, 3]);
+  });
+
+  it('cancels the stream and never commits when a later bounded write fails', async () => {
+    const rust = fakeRust();
+    let writeCount = 0;
+    let cancelled = false;
+    const invoke: Invoke = async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'model_write' && ++writeCount === 2) throw new Error('disk unavailable');
+      return rust.invoke<T>(command, args);
+    };
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(CHUNK_BYTES * 2 + 1));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const models = createDesktopModels(
+      async () => invoke,
+      async () => new Response(body),
+    );
+    await expect(models.download({ ...MODEL, bytes: CHUNK_BYTES * 2 + 1 })).rejects.toThrow(
+      'disk unavailable',
+    );
+    expect(cancelled).toBe(true);
+    expect(writeCount).toBe(2);
+    expect(rust.calls.some((call) => call.command === 'model_commit')).toBe(false);
+    expect(rust.calls.some((call) => call.command === 'model_remove')).toBe(false);
+  });
+
   it('does nothing when the model is already there', async () => {
     const rust = fakeRust(10);
     let fetched = false;

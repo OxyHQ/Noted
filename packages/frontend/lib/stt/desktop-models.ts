@@ -105,11 +105,17 @@ export function createDesktopModels(
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
-          pending.push(value);
-          pendingBytes += value.length;
-          received += value.length;
-          onProgress?.(Math.min(received / model.bytes, 0.99));
-          if (pendingBytes >= CHUNK_BYTES) await flush();
+          let offset = 0;
+          while (offset < value.length) {
+            const count = Math.min(CHUNK_BYTES - pendingBytes, value.length - offset);
+            // The producer can reuse its buffer before the next read settles.
+            pending.push(value.slice(offset, offset + count));
+            pendingBytes += count;
+            received += count;
+            offset += count;
+            onProgress?.(Math.min(received / model.bytes, 0.99));
+            if (pendingBytes === CHUNK_BYTES) await flush();
+          }
         }
         await flush();
         if (first) await invoke('model_write', { name, chunk: '', reset: true });
