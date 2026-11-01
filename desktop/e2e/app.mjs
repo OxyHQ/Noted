@@ -148,11 +148,19 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
     const server = createServer((request, response) => {
       response.setHeader('Access-Control-Allow-Origin', '*');
       response.setHeader('Access-Control-Allow-Headers', 'Range');
+      if (request.url !== '/hidden') {
+        response.setHeader('Access-Control-Expose-Headers', 'Content-Range');
+      }
       if (request.method === 'OPTIONS') {
         response.writeHead(204).end();
         return;
       }
-      const body = request.url === '/good' ? good : request.url === '/corrupt' ? corrupt : null;
+      const body =
+        request.url === '/good' || request.url === '/hidden'
+          ? good
+          : request.url === '/corrupt'
+            ? corrupt
+            : null;
       if (!body) {
         response.writeHead(404).end();
         return;
@@ -196,6 +204,9 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
        window.__NOTED_E2E_HOOK__.seedPartial('tiny', arguments[0]).then(done, (e) => done({ hookError: String(e) }));`,
       [good.subarray(0, half).toString('base64')],
     );
+    // CORS must expose Content-Range to the shell. A hidden header must fail
+    // before writing; the following success verifies that the partial survived.
+    const hidden = await download('/hidden');
     const resumed = await download('/good');
     await runAsync(
       `const done = arguments[arguments.length - 1];
@@ -203,7 +214,12 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
       [],
     );
     server.close();
-    const report = { refused, accepted, removed, resume: { seeded, half, resumed, ranges } };
+    const report = {
+      refused,
+      accepted,
+      removed,
+      resume: { seeded, half, hidden, resumed, ranges },
+    };
     console.log(JSON.stringify({ modelDownload: report }, null, 2));
     if (process.env.GITHUB_STEP_SUMMARY) {
       appendFileSync(
@@ -219,10 +235,12 @@ await withSession(application, async ({ run, runAsync, screenshot }) => {
       accepted?.error ||
       removed !== 'absent' ||
       seeded !== half ||
+      hidden?.after !== 'absent' ||
+      !String(hidden?.error).includes('invalid Content-Range') ||
       resumed?.after !== 'ready' ||
       resumed?.error ||
-      ranges.length !== 1 ||
-      ranges[0] !== `bytes=${half}-`
+      ranges.length !== 2 ||
+      ranges.some((range) => range !== `bytes=${half}-`)
     ) {
       console.error('::error::model download did not behave end to end inside the shell');
       process.exitCode = 1;

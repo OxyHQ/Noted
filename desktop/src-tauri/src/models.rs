@@ -61,26 +61,22 @@ fn sha256_hex(path: &Path) -> Result<String, String> {
     Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// Verify the partial download and give it its final name. On any mismatch the
-/// partial file is deleted, so a bad download is never half-trusted next time.
+/// Verify the partial download and give it its final name. Confirmed size or
+/// digest mismatches are deleted; I/O failures leave the partial for retry.
 pub fn commit(dir: &Path, name: &str, bytes: u64, sha256: &str) -> Result<(), String> {
     checked(name)?;
     let part = part_path(dir, name);
-    let outcome = (|| {
-        let size = fs::metadata(&part).map_err(|e| e.to_string())?.len();
-        if size != bytes {
-            return Err(format!("size mismatch: got {size} bytes, expected {bytes}"));
-        }
-        let digest = sha256_hex(&part)?;
-        if !digest.eq_ignore_ascii_case(sha256) {
-            return Err("sha256 mismatch".to_string());
-        }
-        fs::rename(&part, dir.join(name)).map_err(|e| e.to_string())
-    })();
-    if outcome.is_err() {
+    let size = fs::metadata(&part).map_err(|e| e.to_string())?.len();
+    if size != bytes {
         let _ = fs::remove_file(&part);
+        return Err(format!("size mismatch: got {size} bytes, expected {bytes}"));
     }
-    outcome
+    let digest = sha256_hex(&part)?;
+    if !digest.eq_ignore_ascii_case(sha256) {
+        let _ = fs::remove_file(&part);
+        return Err("sha256 mismatch".to_string());
+    }
+    fs::rename(&part, dir.join(name)).map_err(|e| e.to_string())
 }
 
 /// How much of a download is already on disk, so it can resume instead of restarting.
@@ -192,6 +188,44 @@ mod tests {
         assert!(!part_path(&dir, "m.bin").exists());
         assert_eq!(size_of(&dir, "m.bin").unwrap(), None);
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn verified_partial_survives_a_publish_failure() {
+        let dir = scratch("publish-failure");
+        write_part(&dir, "m.bin", b"hello world", true).unwrap();
+        fs::create_dir(dir.join("m.bin")).unwrap();
+        assert!(commit(&dir, "m.bin", 11, HELLO).is_err());
+        assert_eq!(fs::read(part_path(&dir, "m.bin")).unwrap(), b"hello world");
+        fs::remove_dir(dir.join("m.bin")).unwrap();
+        commit(&dir, "m.bin", 11, HELLO).unwrap();
+        assert_eq!(size_of(&dir, "m.bin").unwrap(), Some(11));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_partial_survives_a_hash_read_failure() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch("hash-read-failure");
+        write_part(&dir, "m.bin", b"hello world", true).unwrap();
+        let part = part_path(&dir, "m.bin");
+        fs::set_permissions(&part, fs::Permissions::from_mode(0o000)).unwrap();
+        if File::open(&part).is_ok() {
+            // Some environments, such as a root-run container, bypass permission bits.
+            fs::set_permissions(&part, fs::Permissions::from_mode(0o600)).unwrap();
+            fs::remove_dir_all(&dir).unwrap();
+            return;
+        }
+        let result = commit(&dir, "m.bin", 11, HELLO);
+        let retained = part.exists();
+        if retained {
+            fs::set_permissions(&part, fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        fs::remove_dir_all(&dir).unwrap();
+        assert!(result.is_err());
+        assert!(retained, "a hash read failure must not delete the partial");
     }
 
     #[test]

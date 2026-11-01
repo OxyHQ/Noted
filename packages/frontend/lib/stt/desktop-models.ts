@@ -89,6 +89,11 @@ export function createDesktopModels(
       // models are hundreds of megabytes. Whether the stitched file is right is not
       // trusted to the network, only to Rust's sha256 at the end.
       const have = (await invoke<number>('model_partial', { name })) ?? 0;
+      if (have === model.bytes) {
+        await invoke('model_commit', { name, bytes: model.bytes, sha256: model.sha256 });
+        onProgress?.(1);
+        return;
+      }
       const resume = have > 0 && have < model.bytes;
       const response = await fetchImpl(
         model.url,
