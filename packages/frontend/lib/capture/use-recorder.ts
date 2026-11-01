@@ -35,6 +35,7 @@ import { createLogger } from '@oxy.so/core/logger';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { beginCapture, failCapture, finishCapture } from '@/lib/capture/captures-repo';
+import { captureOwnerKey, nativeCaptureReference } from '@/lib/audio/capture-owner';
 import {
   dbToLevel,
   pushLevel,
@@ -52,8 +53,9 @@ const logger = createLogger('NotedCapture');
 const STATE_POLL_MS = 50;
 
 /** Where a capture's audio lives. One directory per capture, so deleting it is one call. */
-export function captureDirectory(captureId: string): Directory {
-  return new Directory(Paths.document, 'captures', captureId);
+export function captureDirectory(ownerKey: string, captureId: string): Directory {
+  nativeCaptureReference(ownerKey, captureId, 'wav');
+  return new Directory(Paths.document, 'captures-v2', ownerKey, captureId);
 }
 
 /**
@@ -105,6 +107,7 @@ export function useRecorder(
   // every transcript timestamp.
   const startedAtRef = useRef<Date | null>(null);
   const viewerRef = useRef<string | null>(null);
+  const ownerKeyRef = useRef<string | null>(null);
 
   // Read through a ref so re-rendering with a new string (a language change)
   // does not re-run the effect that owns the microphone.
@@ -143,7 +146,12 @@ export function useRecorder(
         // where there is a file system: on web `expo-file-system`'s Directory is
         // a stub, and the recorder hands back a blob URL that needs no home.
         if (isCaptureDurable()) {
-          captureDirectory(captureId).create({ intermediates: true, idempotent: true });
+          const ownerKey = await captureOwnerKey(expectedViewerId);
+          if (!active) return;
+          if (getActiveViewerId() !== expectedViewerId)
+            throw new Error('Recording account changed');
+          ownerKeyRef.current = ownerKey;
+          captureDirectory(ownerKey, captureId).create({ intermediates: true, idempotent: true });
         }
 
         // The row is written BEFORE the microphone opens. If the process dies a
@@ -214,12 +222,15 @@ export function useRecorder(
         // Moved out of the recorder's temporary location into a directory this
         // app owns, so the audio outlives the process that made it.
         const extension = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
-        const directory = captureDirectory(captureId);
+        if (extension !== 'm4a') throw new Error('Unsupported recording format');
+        const ownerKey = ownerKeyRef.current;
+        if (!ownerKey) throw new Error('Recording account is unavailable');
+        const directory = captureDirectory(ownerKey, captureId);
         directory.create({ intermediates: true, idempotent: true });
         const destination = new File(directory, `audio.${extension}`);
         if (destination.exists) destination.delete();
         new File(uri).move(destination);
-        audioPath = `captures/${captureId}/audio.${extension}`;
+        audioPath = nativeCaptureReference(ownerKey, captureId, extension);
       }
 
       await finishCapture(captureId, durationRef.current, audioPath, viewerRef.current);

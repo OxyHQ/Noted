@@ -13,6 +13,7 @@
 
 import { AudioArtifactStore, captureIdOfRef } from '@/lib/audio/artifact-store';
 import { createChunkBackend } from '@/lib/audio/backend';
+import { eraseNativeCaptureAudio } from '@/lib/audio/native-erasure';
 
 let store: AudioArtifactStore | null = null;
 
@@ -54,6 +55,29 @@ export function releasePlaybackUrl(url: string | null): void {
 }
 
 /** Forget a recording's audio, wherever it is stored. */
-export async function deleteCaptureAudio(reference: string, captureId: string): Promise<void> {
-  await getAudioStore().remove(captureIdOfRef(reference) ?? captureId);
+export async function deleteCaptureAudio(
+  reference: string,
+  captureId: string,
+  expectedViewerId?: string | null,
+): Promise<void> {
+  if (!captureId || captureId.length > 128 || /[^A-Za-z0-9_-]/.test(captureId)) {
+    throw new Error('Invalid capture identifier');
+  }
+  const referencedCapture = captureIdOfRef(reference);
+  if (referencedCapture !== null) {
+    if (referencedCapture !== captureId) throw new Error('Audio reference does not match capture');
+  } else if (reference !== '') {
+    const match = /^captures-v2\/([a-f0-9]{64})\//.exec(reference);
+    const ownerKey = match?.[1];
+    const extension =
+      ownerKey && reference === `captures-v2/${ownerKey}/${captureId}/audio.wav`
+        ? 'wav'
+        : ownerKey && reference === `captures-v2/${ownerKey}/${captureId}/audio.m4a`
+          ? 'm4a'
+          : null;
+    if (!ownerKey || !extension) throw new Error('Capture audio ownership is unverified');
+    await eraseNativeCaptureAudio(expectedViewerId ?? null, ownerKey, captureId, extension);
+    return;
+  }
+  await getAudioStore().remove(captureId);
 }

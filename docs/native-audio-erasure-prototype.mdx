@@ -1,0 +1,80 @@
+# Native audio erasure: prototype and blockers
+
+This is a draft, not a rollout plan. The existing native recorder stores files
+under `captures/<captureId>/`; native chunks use `audio/<captureId>/`. Neither
+path records which account owns it. A capture row is held in an account-scoped
+database, but an equal capture ID or row reference does not prove that a file in
+the shared directory belongs to that account. Do not erase or migrate a legacy
+file based on that equality.
+
+The prototype places new native WAV and M4A files under
+`captures-v2/<sha256(viewerId)>/<captureId>/`. The viewer is captured at
+recording start. Deletion accepts only the exact v2 reference, recomputes the
+namespace from the expected active viewer and holds the local account lifecycle
+until the native call finishes. This lease serializes the local database viewer
+lifecycle, not an independent Oxy session transition; the relationship between
+those transitions still needs an integration test and review. The native bridge accepts fixed components,
+opens each directory without following a final symlink and removes only the
+named regular file. Only `ENOENT` is treated as already absent; other OS errors
+propagate. Empty directories remain. This uses the app's in-process identity
+and assumes its code is trusted; it is not a capability against arbitrary code
+already executing inside the app.
+
+The write side is not safe yet: the compressed recorder currently deletes an
+existing destination before moving its temporary file. The realtime recorder
+passes an output path to Whisper, but supplies no filesystem adapter. With the
+locked `whisper.rn` 0.7.2, that means the WAV writer is not initialized and the
+path alone does not create a recording. If an adapter is added, it must not
+reopen an untrusted pathname. Neither recorder currently reserves a destination
+exclusively or proves that the directory chain still names the original
+directories. This draft must not be used for recording or deletion in production.
+
+Legacy native file references and unowned native chunk directories fail closed
+and retain their rows. A binary without the bridge fails closed too. This means
+users with existing native recordings cannot yet delete those recordings or
+notes that depend on them through this prototype. Do not enable it globally or
+ship it until a recoverable user path exists.
+
+## Recovery design still needed
+
+A possible recovery tool must first establish a complete, trustworthy local
+inventory of every account and database that can own a legacy capture,
+including signed-out accounts, interrupted recordings and missing databases.
+It must compare all references, preserve ambiguous or unreadable cases and
+never interpret an incomplete scan or absent account as proof of ownership.
+There is currently no such complete inventory or owner marker. A migration must
+record and test its evidence before copying or deleting anything, be resumable
+after interruption, and offer the user a clear recovery/export path. Asking
+the currently signed-in user alone is not proof that a shared file is theirs.
+
+An implementation for new recordings also needs a recoverable write protocol:
+
+1. Bind an operation to the authenticated account and capture row, and reserve
+   its destination exclusively through an anchored, no-symlink native operation.
+   An existing destination is a conflict, never a reason to delete it.
+2. Ensure the actual audio writer uses that reservation, not a pathname it can
+   reopen through a changed directory. Whisper currently accepts an output path;
+   its filesystem adapter would need to write to a retained native handle. The
+   locked writer catches append and finalization errors, so those failures must
+   also be reported and file integrity checked before declaring success. This
+   may require a native adapter or an upstream change.
+3. Journal the intended owner and file state before publishing the reference;
+   reconcile interruptions and account changes without discarding either a
+   recorded file or an existing file. A filesystem move and SQLite commit are
+   not one atomic transaction, so test crashes between every transition.
+4. Serialize deletion with active writers and account transitions, including
+   the actual Oxy session lifecycle. Exercise ID reuse, symlink replacement,
+   simultaneous stop/delete, failed database commits and permission errors on
+   both supported native platforms.
+
+These are requirements for a future design, not guarantees of this prototype.
+
+Before integration, separately validate both recorder adapters and their
+recovery after interruption, account switches during an operation, active
+recorders, file creation/move paths and races, and unexpected or symbolic-link
+entries. The prototype's deletion bridge does not prove that recording writes
+never follow a link, that an active native recorder cannot recreate a file, or
+that unowned chunks are gone. Its controlled-adapter tests do not exercise the
+real filesystem. Android and iOS native builds and device tests are still
+required. A new native binary is needed; an over-the-air update alone does not
+add the bridge.

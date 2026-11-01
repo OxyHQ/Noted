@@ -23,12 +23,21 @@ const HERE = import.meta.dirname;
 const read = (path: string): string => readFileSync(join(HERE, '..', '..', path), 'utf8');
 
 const NATIVE = read('capture/use-realtime-recorder.native.ts');
+const COMPRESSED = read('capture/use-recorder.ts');
 const WEB = read('capture/use-realtime-recorder.web.ts');
 const COORDINATOR = read('capture/coordinator.ts');
 const REALTIME_NATIVE = read('stt/realtime.native.ts');
 const REALTIME_WEB = read('stt/realtime.web.ts');
 const ENGINE_NATIVE = read('stt/engine.native.ts');
 const ENGINE_WEB = read('stt/engine.web.ts');
+
+it('routes both native recorder paths through the account namespace', () => {
+  for (const source of [NATIVE, COMPRESSED]) {
+    expect(source).toContain('captureOwnerKey(expectedViewerId)');
+    expect(source).toContain('nativeCaptureReference(ownerKey, captureId,');
+    expect(source).not.toContain(`captures/\${captureId}/audio.`);
+  }
+});
 
 const RECORDERS: readonly (readonly [string, string])[] = [
   ['native', NATIVE],

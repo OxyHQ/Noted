@@ -140,7 +140,7 @@ describe('capture account ownership', () => {
     state.viewer = 'account-b';
     finish();
     await expect(pending).rejects.toThrow('active account changed');
-    expect(state.deleteAudio).toHaveBeenCalledWith('capture-a.wav', 'capture-a');
+    expect(state.deleteAudio).toHaveBeenCalledWith('capture-a.wav', 'capture-a', 'account-a');
     expect(state.writes).toEqual([]);
   });
 });
