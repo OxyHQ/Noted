@@ -28,7 +28,9 @@ account and database operation, and recover interruptions without overwriting
 existing files. Confirm the recording stream stops before finalization and that
 all asynchronous chunks finish. Detect underlying failures, including partial
 writes and failure to close; validate the completed file before publishing the
-reference. A callback that checks the account before and after close does not
+reference. Closing a file and checking its length do not themselves guarantee
+durability after a power loss: define and test the required file and directory
+sync policy together with the database journal. A callback that checks the account before and after close does not
 make the subsequent SQLite commit atomic with the identity lifecycle. Cancellation
 must preserve recoverable audio or safely remove only a file whose ownership is
 proven. Real Android and iOS builds, device tests and long-duration measurements
