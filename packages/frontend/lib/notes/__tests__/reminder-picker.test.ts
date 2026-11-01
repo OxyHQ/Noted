@@ -37,6 +37,81 @@ afterEach(async () => {
 });
 
 describe('reminder picker', () => {
+  it('does not rewrite the later occurrence when an existing repeated time is unchanged', async () => {
+    vi.setSystemTime(new Date('2027-11-01T12:00:00.000Z'));
+    const onPick = vi.fn();
+    const onOpenChange = vi.fn();
+    await act(async () => {
+      root = create(
+        React.createElement(ReminderPickerDialog, {
+          open: true,
+          current: '2027-11-07T06:30:00.000Z',
+          onPick,
+          onOpenChange,
+        }),
+      );
+    });
+    const save = defined(root, 'rendered picker')
+      .root.findAllByType('Button')
+      .find(
+        (button: { props: { children: unknown } }) => button.props.children === 'notes.setReminder',
+      );
+    expect(save?.props.disabled).toBe(false);
+    await act(async () => save?.props.onPress());
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('allows keeping the later occurrence when the first has already passed', async () => {
+    vi.setSystemTime(new Date('2027-11-07T05:45:00.000Z'));
+    const onPick = vi.fn();
+    await act(async () => {
+      root = create(
+        React.createElement(ReminderPickerDialog, {
+          open: true,
+          current: '2027-11-07T06:30:00.000Z',
+          onPick,
+          onOpenChange: vi.fn(),
+        }),
+      );
+    });
+    const save = defined(root, 'rendered picker')
+      .root.findAllByType('Button')
+      .find(
+        (button: { props: { children: unknown } }) => button.props.children === 'notes.setReminder',
+      );
+    expect(save?.props.disabled).toBe(false);
+    await act(async () => save?.props.onPress());
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('still saves a changed reminder time', async () => {
+    vi.setSystemTime(new Date('2027-11-01T12:00:00.000Z'));
+    const onPick = vi.fn();
+    await act(async () => {
+      root = create(
+        React.createElement(ReminderPickerDialog, {
+          open: true,
+          current: '2027-11-07T06:30:00.000Z',
+          onPick,
+          onOpenChange: vi.fn(),
+        }),
+      );
+    });
+    await act(async () =>
+      defined(root, 'rendered picker').root.findByType('TimeField').props.onChange('02:30'),
+    );
+    const save = defined(root, 'rendered picker')
+      .root.findAllByType('Button')
+      .find(
+        (button: { props: { children: unknown } }) => button.props.children === 'notes.setReminder',
+      );
+    expect(save?.props.disabled).toBe(false);
+    await act(async () => save?.props.onPress());
+    expect(onPick).toHaveBeenCalledOnce();
+    expect(onPick.mock.calls[0]?.[0].toISOString()).toBe('2027-11-07T07:30:00.000Z');
+  });
+
   it('explains a skipped local time, prevents saving and accepts a valid replacement', async () => {
     const onPick = vi.fn();
     const onOpenChange = vi.fn();
