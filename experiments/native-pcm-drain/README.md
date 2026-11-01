@@ -15,6 +15,10 @@ flight. The current `@fugood/react-native-audio-pcm-stream` stop methods expose
 no usable promise: Android only flips a flag while the read thread may emit
 again; iOS also exports a void method. A native stop implementation, lifecycle
 cleanup, event emission and JS reception need integration tests on both systems.
+Apple documents synchronous stopping with [`AudioQueueStop(..., true)`](https://developer.apple.com/documentation/audiotoolbox/audioqueuestop%28_%3A_%3A%29),
+but that does not establish React Native event delivery. Android documents the
+blocking and nonblocking read modes in [`AudioRecord`](https://developer.android.com/reference/android/media/AudioRecord);
+the lifecycle and behavior on actual devices still need measurement.
 
 After the marker is returned the ledger cannot revoke it if the native producer
 incorrectly emits or fails later. A real producer must prevent that condition

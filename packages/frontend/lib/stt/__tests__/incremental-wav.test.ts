@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { IncrementalWavWriter, type ReservedWavFile } from '../incremental-wav';
 import { PcmInputGate } from '../pcm-input-gate';
+import { PcmSequenceDrain } from '../pcm-sequence-drain';
 
 class MemoryFile implements ReservedWavFile {
   bytes = new Uint8Array();
@@ -120,10 +121,46 @@ describe('incremental WAV prototype', () => {
   it('fails closed if the queue cannot keep up', async () => {
     const file = new MemoryFile();
     const writer = await IncrementalWavWriter.create(file, 2);
-    writer.append(Uint8Array.of(1, 2));
-    writer.append(Uint8Array.of(3, 4));
+    expect(writer.append(Uint8Array.of(1, 2))).toBe(true);
+    expect(writer.append(Uint8Array.of(3, 4))).toBe(false);
     await expect(writer.finish(() => {})).rejects.toThrow('capacity');
     expect(file.closed).toBe(true);
+  });
+
+  it('withholds credit if a chunk does not enter the bounded writer', async () => {
+    const file = new MemoryFile();
+    const writer = await IncrementalWavWriter.create(file, 2);
+    let acknowledged = 0;
+    const drain = new PcmSequenceDrain('A', 8, (bytes) => {
+      if (!writer.append(bytes)) throw new Error('WAV queue rejected audio');
+      acknowledged++;
+    });
+    const stopped = drain.waitForStop(1, 1000);
+    expect(drain.receive('A', 0, Uint8Array.of(1, 2))).toBe(true);
+    expect(drain.receive('A', 1, Uint8Array.of(3, 4))).toBe(false);
+    await expect(stopped).rejects.toThrow('WAV queue rejected audio');
+    expect(acknowledged).toBe(1);
+    await expect(writer.finish(() => {})).rejects.toThrow('capacity');
+  });
+
+  it('fails finalization if acknowledged audio later fails to write', async () => {
+    const file = new MemoryFile();
+    const originalWrite = file.writeAt.bind(file);
+    file.writeAt = async (offset, bytes) => {
+      if (offset === 44) throw new Error('disk full');
+      return originalWrite(offset, bytes);
+    };
+    const writer = await IncrementalWavWriter.create(file, 8);
+    let acknowledged = 0;
+    const drain = new PcmSequenceDrain('A', 8, (bytes) => {
+      if (!writer.append(bytes)) throw new Error('WAV queue rejected audio');
+      acknowledged++;
+    });
+    const stopped = drain.waitForStop(0, 1000);
+    expect(drain.receive('A', 0, Uint8Array.of(1, 2))).toBe(true);
+    await expect(stopped).resolves.toBeUndefined();
+    expect(acknowledged).toBe(1);
+    await expect(writer.finish(() => {})).rejects.toThrow('disk full');
   });
 
   it('waits for an in-flight append before finishing', async () => {

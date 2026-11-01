@@ -39,12 +39,12 @@ export class IncrementalWavWriter {
     }
   }
 
-  append(samples: Uint8Array): void {
+  append(samples: Uint8Array): boolean {
     if (this.state !== 'open') throw new Error('WAV writer is not open');
-    if (this.failure) return;
+    if (this.failure) return false;
     if (samples.length % 2 || this.pendingBytes + samples.length > this.maxPendingBytes) {
       this.failure = new Error('Invalid audio or WAV queue capacity exceeded');
-      return;
+      return false;
     }
     const copy = samples.slice();
     this.pendingBytes += copy.length;
@@ -61,6 +61,7 @@ export class IncrementalWavWriter {
         this.pendingBytes -= copy.length;
       }
     });
+    return true;
   }
 
   async finish(assertOwner: () => void): Promise<number> {
