@@ -136,6 +136,9 @@ export function createDesktopModels(
           if (rangeEnd !== null && value.length > rangeEnd + 1 - received) {
             throw new Error('model resume response exceeds its Content-Range');
           }
+          if (value.length > model.bytes - received) {
+            throw new Error('model download exceeds its expected size');
+          }
           let offset = 0;
           while (offset < value.length) {
             const count = Math.min(CHUNK_BYTES - pendingBytes, value.length - offset);
