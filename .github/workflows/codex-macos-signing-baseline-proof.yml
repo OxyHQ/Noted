@@ -1,0 +1,56 @@
+name: macOS signing baseline diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-macos-signing-baseline-proof.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 3855a466174ff576504553921806c19fc08c9c81
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Stage a Mach-O test sidecar and empty frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'int main(void) { return 0; }\n' > "$RUNNER_TEMP/sidecar.c"
+          clang "$RUNNER_TEMP/sidecar.c" -o "$RUNNER_TEMP/sidecar"
+          node desktop/sidecar/stage.mjs "$RUNNER_TEMP/sidecar"
+          mkdir -p packages/frontend/dist
+          echo '<!doctype html><title>Noted signature diagnostic</title>' > packages/frontend/dist/index.html
+      - name: Build baseline main app
+        working-directory: desktop/src-tauri
+        run: npx --yes @tauri-apps/cli@2.12.2 build --bundles app --ci -- --locked
+      - name: Inspect and compare temporary ad hoc signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=$(find desktop/src-tauri/target/release/bundle -type d -name '*.app' | head -1)
+          test -n "$app"
+          codesign -dv "$app" 2>&1 || true
+          if codesign --verify --deep --strict --verbose=2 "$app"; then
+            echo 'Baseline app verifies strictly'
+          else
+            echo 'Baseline app does not verify strictly'
+          fi
+          copy="$RUNNER_TEMP/signed.app"
+          ditto "$app" "$copy"
+          codesign --force --sign - "$copy/Contents/MacOS/whisper-cli"
+          codesign --force --sign - "$copy"
+          codesign --verify --deep --strict --verbose=2 "$copy"
+          echo 'Fresh ad hoc signatures verify; they do not identify a trusted publisher'
+          printf x >> "$copy/Contents/MacOS/whisper-cli"
+          if codesign --verify --deep --strict --verbose=2 "$copy"; then
+            echo 'Tampered signed app unexpectedly passed verification' >&2
+            exit 1
+          fi
+          echo 'Tampering was detected by explicit verification'
