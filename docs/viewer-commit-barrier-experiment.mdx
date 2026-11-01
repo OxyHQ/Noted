@@ -58,3 +58,29 @@ existing transaction call sites, and does not prove power-loss durability. The
 web/desktop client uses a separate broker and does not expose this experimental
 API. Mobile devices, process termination, rollback/close combinations and the
 user experience after quarantine require further testing and design.
+
+## Possible durable reconciliation direction
+
+One candidate for a narrowly defined database-only mutation is an operation ID
+and an intent recorded before attempting the mutation. The mutation and an
+`applied` record bearing that ID would commit in the same SQLite transaction.
+After reopening the original account's verified database, an applied record
+could distinguish that transaction from one that did not commit. A missing or
+unreadable database, failed inspection, incomplete intent, or changed account
+must stay unresolved; opening a newly created empty database is not proof that
+an old operation did not commit.
+
+The intent's own commit may be ambiguous and must be checked before proceeding.
+This design also needs explicit sync/durability guarantees, an owner binding,
+unique IDs, deterministic operation semantics and tests across crashes at every
+boundary. Generic SQL can include operations or effects for which a database
+marker is insufficient. Audio files and remote requests are outside this SQLite
+transaction. No marker, verifier, replay or recovery UI is implemented here;
+this sketch is not a guarantee that replaying any current operation is safe.
+
+`experiments/sqlite-journal/sigkill_probe.py` exercises a toy counter with Python
+SQLite, WAL and `synchronous=FULL`: kill before/after intent and mutation commit,
+simulated loss of intent acknowledgement, read-only open of a missing file, and
+sequential/concurrent replay with an operation fingerprint. It uses its own
+temporary databases and a child process. It does not exercise Expo, account
+switches, corrupted storage, disk-full paths, OS crashes or power loss.
