@@ -1,3 +1,6 @@
+import { mkdtemp, open, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { IncrementalWavWriter, type ReservedWavFile } from '../incremental-wav';
 
@@ -24,6 +27,38 @@ class MemoryFile implements ReservedWavFile {
 }
 
 describe('incremental WAV prototype', () => {
+  it('writes a valid WAV through a real exclusively created file descriptor', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'noted-wav-test-'));
+    const path = join(directory, 'audio.wav');
+    try {
+      const handle = await open(path, 'wx');
+      await expect(open(path, 'wx')).rejects.toMatchObject({ code: 'EEXIST' });
+      const writer = await IncrementalWavWriter.create(
+        {
+          async writeAt(offset, data) {
+            return (await handle.write(data, 0, data.length, offset)).bytesWritten;
+          },
+          async size() {
+            return (await handle.stat()).size;
+          },
+          async close() {
+            await handle.close();
+          },
+        },
+        1024,
+      );
+      writer.append(Uint8Array.of(1, 2, 3, 4));
+      await writer.finish(() => {});
+      const file = await readFile(path);
+      expect(file.subarray(0, 4).toString()).toBe('RIFF');
+      expect(file.subarray(8, 12).toString()).toBe('WAVE');
+      expect(file.readUInt32LE(40)).toBe(4);
+      expect([...file.subarray(44)]).toEqual([1, 2, 3, 4]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('writes ordered PCM and patches the header without reading the file', async () => {
     const file = new MemoryFile();
     const writer = await IncrementalWavWriter.create(file, 1024);
