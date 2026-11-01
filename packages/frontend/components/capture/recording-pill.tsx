@@ -36,7 +36,8 @@ function formatDuration(ms: number): string {
  */
 export function RecordingPill() {
   const captureId = useCaptureStore((s) => s.captureId);
-  const clearCapture = useCaptureStore((s) => s.clearCapture);
+  const generation = useCaptureStore((s) => s.generation);
+  const clearCaptureIfCurrent = useCaptureStore((s) => s.clearCaptureIfCurrent);
   const phase = useCaptureStore((s) => s.phase);
   const levels = useCaptureStore((s) => s.levels);
   const durationMs = useCaptureStore((s) => s.durationMs);
@@ -105,7 +106,7 @@ export function RecordingPill() {
                 // Cleared whatever the outcome: a recorder that failed to save is
                 // still not recording, and leaving the pill up would say otherwise.
                 // The capture row already carries what went wrong.
-                void stop?.().finally(() => clearCapture());
+                void stop?.().finally(() => clearCaptureIfCurrent(generation));
               }}
               accessibilityLabel={t('capture.stop')}
             />
