@@ -20,6 +20,9 @@ const fixture = vi.hoisted(() => ({
   saveBinary: vi.fn(),
   archive: vi.fn(),
   toast: vi.fn(),
+  available: vi.fn(),
+  write: vi.fn(),
+  share: vi.fn(),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => fixture.auth }));
 vi.mock('@/lib/oxy', () => ({
@@ -49,6 +52,24 @@ vi.mock('@oxy.so/bloom/toast', () => ({
   toast: { error: (...args: unknown[]) => fixture.toast(...args) },
 }));
 vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('expo-file-system', () => ({
+  Paths: { cache: 'cache' },
+  Directory: class {
+    create() {}
+  },
+  File: class {
+    uri = 'file:///synthetic-export';
+    exists = false;
+    create() {}
+    write(value: unknown) {
+      return fixture.write(value);
+    }
+  },
+}));
+vi.mock('expo-sharing', () => ({
+  isAvailableAsync: () => fixture.available(),
+  shareAsync: (...args: unknown[]) => fixture.share(...args),
+}));
 import { useExportAll } from '@/lib/hooks/use-export-all';
 import { useExportMarkdownZip } from '@/lib/hooks/use-export-markdown-zip';
 
@@ -100,6 +121,9 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation((notes: unknown) => new TextEncoder().encode(JSON.stringify(notes)));
   fixture.toast.mockReset();
+  fixture.available.mockReset().mockResolvedValue(true);
+  fixture.write.mockReset();
+  fixture.share.mockReset().mockResolvedValue(undefined);
 });
 afterEach(async () => {
   if (root) await act(async () => root?.unmount());
@@ -110,6 +134,43 @@ afterEach(async () => {
 });
 
 describe('export ownership', () => {
+  it.each(['json', 'zip'] as const)(
+    'does not write or share a %s export if the owner changes during native availability',
+    async (kind) => {
+      const native = await import('@/lib/export/save.native');
+      fixture.saveText.mockImplementation(native.saveTextFile);
+      fixture.saveBinary.mockImplementation(native.saveBinaryFile);
+      globalThis.fetch = vi.fn(
+        async () => new Response(JSON.stringify({ owner: 'A' }), { status: 200 }),
+      ) as typeof fetch;
+      let release!: (value: boolean) => void;
+      let started!: () => void;
+      const waiting = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      fixture.available.mockImplementation(() => {
+        started();
+        return new Promise<boolean>((resolve) => {
+          release = resolve;
+        });
+      });
+      await act(async () => {
+        root = create(React.createElement(Harness));
+      });
+      let pending!: Promise<void>;
+      await act(async () => {
+        pending = kind === 'json' ? jsonExport() : zipExport();
+        await waiting;
+      });
+      await act(async () => switchAccount('B'));
+      await act(async () => {
+        release(true);
+        await pending;
+      });
+      expect(fixture.write).not.toHaveBeenCalled();
+      expect(fixture.share).not.toHaveBeenCalled();
+    },
+  );
   it('does not let a retained A JSON export callback issue a request as B', async () => {
     const fetchSpy = vi.fn(
       async () =>
