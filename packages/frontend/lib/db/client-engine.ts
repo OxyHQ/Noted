@@ -86,6 +86,19 @@ export interface Statement {
   expectedRowsAffected?: number;
 }
 
+/** The database did not confirm whether the experimental transaction committed. */
+export class TransactionOutcomeUncertainError extends Error {
+  readonly originalError: unknown;
+  readonly rollbackError: unknown;
+
+  constructor(originalError: unknown, rollbackError: unknown) {
+    super('The transaction outcome is uncertain; recover and reconcile before retrying');
+    this.name = 'TransactionOutcomeUncertainError';
+    this.originalError = originalError;
+    this.rollbackError = rollbackError;
+  }
+}
+
 export type Unsubscribe = () => void;
 
 /* ── SQL table extraction ──────────────────────────────────────────
@@ -550,7 +563,10 @@ async function runTransactionOnDb(
       await db.execAsync('ROLLBACK');
     } catch (rollbackError) {
       logger.warn('Transaction rollback failed', { error: errorMessage(rollbackError) });
-      onRollbackFailure?.();
+      if (onRollbackFailure) {
+        onRollbackFailure();
+        throw new TransactionOutcomeUncertainError(error, rollbackError);
+      }
     }
     throw error;
   } finally {

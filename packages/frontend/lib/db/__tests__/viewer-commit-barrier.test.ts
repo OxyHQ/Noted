@@ -20,6 +20,7 @@ async function fixture(
   failBegin = false,
   failRollback = false,
   failClose = false,
+  ambiguousCommit = false,
 ) {
   vi.resetModules();
   const client = await import('@/lib/db/client-engine');
@@ -51,6 +52,7 @@ async function fixture(
       if (sql === 'BEGIN IMMEDIATE' && failBegin) throw new Error('begin failed');
       if (sql === 'ROLLBACK' && failRollback) throw new Error('rollback failed');
       db.exec(sql);
+      if (sql === 'COMMIT' && ambiguousCommit) throw new Error('commit acknowledgement lost');
       if (sql === block) events.push(`${sql}-done`);
     },
     async runAsync(sql: string, params: readonly (string | number | null)[] = []) {
@@ -187,7 +189,7 @@ it('quarantines rollback failure until the uncertain connection closes', async (
   try {
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('duplicate'), insert('duplicate')], 'A'),
-    ).rejects.toThrow();
+    ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
     expect(test.client.isDbAvailable()).toBe(false);
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('needs recovery');
     await expect(test.client.clearActiveViewer()).rejects.toThrow('needs recovery');
@@ -201,6 +203,24 @@ it('quarantines rollback failure until the uncertain connection closes', async (
     await test.client.setActiveViewer('B');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
+    check.close();
+  } finally {
+    await test.dispose();
+  }
+});
+
+it('reports an uncertain outcome when a real SQLite commit succeeds but its acknowledgement fails', async () => {
+  const test = await fixture(null, false, false, false, false, true);
+  try {
+    const write = test.client.executeTransactionPinnedToViewer([insert('maybe-committed')], 'A');
+    await expect(write).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
+    expect(test.client.isDbAvailable()).toBe(false);
+    await test.client.recoverQuarantinedConnection();
+    await test.client.setActiveViewer('B');
+    const check = new DatabaseSync(test.path);
+    expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([
+      { id: 'maybe-committed' },
+    ]);
     check.close();
   } finally {
     await test.dispose();

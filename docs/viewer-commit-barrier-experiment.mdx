@@ -20,6 +20,11 @@ retries rollback and attempts to close that connection. It clears the quarantine
 only when the driver reports a successful close; a failed close retains the
 viewer and quarantine. A failed close may have partially completed, and there is
 currently no supported user-facing recovery if retry continues to fail.
+The operation returns `TransactionOutcomeUncertainError` when rollback fails:
+the original COMMIT might have succeeded even though its acknowledgement failed.
+Closing and recovering the connection does not reveal whether the prior write
+committed. Callers must reconcile the affected data before retrying; blindly
+repeating a non-idempotent transaction can apply it twice.
 Recovery itself holds both queues: a driver operation that never settles also
 prevents local viewer changes indefinitely. It deliberately does not time out
 and release the viewer while the driver may still own the handle.
