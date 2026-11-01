@@ -32,6 +32,7 @@ export function ReminderPickerDialog({
   const { t } = useTranslation();
   const [day, setDay] = React.useState<Date | null>(null);
   const [time, setTime] = React.useState<string | null>(DEFAULT_TIME);
+  const [, refreshClock] = React.useReducer((value: number) => value + 1, 0);
 
   // Every opening starts from the reminder the note has, or from nothing.
   React.useEffect(() => {
@@ -88,10 +89,13 @@ export function ReminderPickerDialog({
           <Button
             disabled={!upcoming}
             onPress={() => {
-              if (when && upcoming) {
-                if (!unchanged) onPick(when);
-                onOpenChange(false);
+              if (!when) return;
+              if (!isUpcoming(when)) {
+                refreshClock();
+                return;
               }
+              if (!unchanged) onPick(when);
+              onOpenChange(false);
             }}
           >
             {t('notes.setReminder')}
