@@ -56,6 +56,7 @@ vi.mock('@/lib/stt/models', () => ({
   deleteModel: vi.fn(),
 }));
 import { TranscriptionSection } from '@/components/settings/transcription-section';
+import { useSttModels } from '@/lib/stt/use-models';
 
 let root: ReturnType<typeof create> | undefined;
 beforeEach(() => {
@@ -323,7 +324,10 @@ it('shows the failed action even if the file is already ready and clears it on r
 it('does not clear a newer failure when an older retained action succeeds late', async () => {
   let finishFirst!: () => void;
   const absent = { tiny: 'absent', base: 'absent', small: 'absent' };
-  state.states.mockResolvedValue(absent);
+  state.states
+    .mockResolvedValueOnce(absent)
+    .mockResolvedValueOnce(absent)
+    .mockResolvedValue({ ...absent, tiny: 'ready' });
   state.download
     .mockImplementationOnce(
       () =>
@@ -348,7 +352,8 @@ it('does not clear a newer failure when an older retained action succeeds late',
   await act(async () => {
     finishFirst();
   });
-  await vi.waitFor(() => expect(state.writeSetting).toHaveBeenCalled());
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(3));
+  expect(state.writeSetting).not.toHaveBeenCalled();
   expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
 });
 
@@ -395,4 +400,140 @@ it('keeps a newer failure when an older ready-file selection finishes late', asy
     finishSelection();
   });
   expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
+});
+
+it('offers retry when the download succeeds but its status cannot be confirmed', async () => {
+  const absent = { tiny: 'absent', base: 'absent', small: 'absent' };
+  state.states
+    .mockResolvedValueOnce(absent)
+    .mockRejectedValueOnce(new Error('status unavailable'))
+    .mockResolvedValue({ ...absent, tiny: 'ready' });
+  state.download.mockResolvedValue(undefined);
+  await act(async () => {
+    root = create(React.createElement(TranscriptionSection));
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledOnce());
+  await act(async () => {
+    modelButton().props.onPress();
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(2));
+  expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
+  expect(state.writeSetting).not.toHaveBeenCalled();
+  expect(modelButton().props.disabled).toBe(false);
+  await act(async () => {
+    modelButton().props.onPress();
+  });
+  await vi.waitFor(() =>
+    expect(state.writeSetting).toHaveBeenCalledWith('stt.model', 'tiny', 'alice'),
+  );
+});
+
+it('requires ready status after a successful download before selecting', async () => {
+  const absent = { tiny: 'absent', base: 'absent', small: 'absent' };
+  state.states
+    .mockResolvedValueOnce(absent)
+    .mockResolvedValueOnce(absent)
+    .mockResolvedValue({ ...absent, tiny: 'ready' });
+  state.download.mockResolvedValue(undefined);
+  await act(async () => {
+    root = create(React.createElement(TranscriptionSection));
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledOnce());
+  await act(async () => {
+    modelButton().props.onPress();
+  });
+  await vi.waitFor(() =>
+    expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish'),
+  );
+  expect(state.writeSetting).not.toHaveBeenCalled();
+  expect(modelButton().props.disabled).toBe(false);
+  await act(async () => {
+    modelButton().props.onPress();
+  });
+  await vi.waitFor(() =>
+    expect(state.writeSetting).toHaveBeenCalledWith('stt.model', 'tiny', 'alice'),
+  );
+});
+
+it('preserves the original download error if the subsequent refresh also fails', async () => {
+  const original = new Error('download failed');
+  const absent = { tiny: 'absent', base: 'absent', small: 'absent' };
+  state.states.mockResolvedValueOnce(absent).mockRejectedValueOnce(new Error('status unavailable'));
+  state.download.mockRejectedValueOnce(original);
+  let hook: ReturnType<typeof useSttModels> | undefined;
+  function HookHarness() {
+    hook = useSttModels();
+    return null;
+  }
+  await act(async () => {
+    root = create(React.createElement(HookHarness));
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledOnce());
+  let result: unknown;
+  await act(async () => {
+    result = await hook?.download('tiny').catch((error: unknown) => error);
+  });
+  expect(result).toBe(original);
+});
+
+it('does not select using a successful refresh superseded by a newer refresh', async () => {
+  let releaseOlder!: (value: Record<string, string>) => void;
+  const absent = { tiny: 'absent', base: 'absent', small: 'absent' };
+  const ready = { ...absent, tiny: 'ready' };
+  state.states
+    .mockResolvedValueOnce(absent)
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseOlder = resolve;
+        }),
+    )
+    .mockResolvedValue(ready);
+  state.download.mockResolvedValue(undefined);
+  await act(async () => {
+    root = create(React.createElement(TranscriptionSection));
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledOnce());
+  const retained = modelButton().props.onPress;
+  await act(async () => {
+    retained();
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(2));
+  await act(async () => {
+    retained();
+  });
+  await vi.waitFor(() => expect(state.writeSetting).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    releaseOlder(ready);
+  });
+  expect(state.writeSetting).toHaveBeenCalledTimes(1);
+});
+
+it('does not select using an older download after a newer attempt completes', async () => {
+  let finishOlder!: () => void;
+  const absent = { tiny: 'absent', base: 'absent', small: 'absent' };
+  state.states.mockResolvedValueOnce(absent).mockResolvedValue({ ...absent, tiny: 'ready' });
+  state.download
+    .mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishOlder = resolve;
+        }),
+    )
+    .mockResolvedValueOnce(undefined);
+  await act(async () => {
+    root = create(React.createElement(TranscriptionSection));
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledOnce());
+  const retained = modelButton().props.onPress;
+  await act(async () => {
+    retained();
+    retained();
+  });
+  await vi.waitFor(() => expect(state.writeSetting).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    finishOlder();
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(3));
+  expect(state.writeSetting).toHaveBeenCalledTimes(1);
 });

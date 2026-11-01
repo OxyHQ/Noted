@@ -65,13 +65,15 @@ export function useSttModels(): SttModelsResult {
   const refresh = useCallback(async () => {
     const version = ++refreshVersionRef.current;
     const next = await getModelStates();
-    if (mountedRef.current && refreshVersionRef.current === version) {
+    const current = refreshVersionRef.current === version;
+    if (mountedRef.current && current) {
       const visible = { ...next };
       for (const id of ORDER) {
         if (runningRef.current[id] !== undefined) visible[id] = 'downloading';
       }
       setStates(visible);
     }
+    return { states: next, version };
   }, []);
 
   useEffect(() => {
@@ -91,6 +93,8 @@ export function useSttModels(): SttModelsResult {
       // after the first chunk lands — on a slow connection that is seconds of a
       // button that looks like it did nothing.
       setStates((current) => (current ? { ...current, [id]: 'downloading' } : current));
+      let failed = false;
+      let failure: unknown;
       try {
         await downloadModel(STT_MODELS[id], (fraction) => {
           if (mountedRef.current && attemptsRef.current[id] === attempt) {
@@ -98,10 +102,11 @@ export function useSttModels(): SttModelsResult {
           }
         });
       } catch (error) {
+        failed = true;
+        failure = error;
         if (mountedRef.current && attemptsRef.current[id] === attempt) {
           setFailures((current) => ({ ...current, [id]: attempt }));
         }
-        throw error;
       } finally {
         if (runningRef.current[id] === attempt) delete runningRef.current[id];
         if (mountedRef.current && attemptsRef.current[id] === attempt) {
@@ -111,8 +116,29 @@ export function useSttModels(): SttModelsResult {
             return next;
           });
         }
-        await refresh().catch(() => undefined);
       }
+      try {
+        const observed = await refresh();
+        if (
+          !failed &&
+          (refreshVersionRef.current !== observed.version || observed.states[id] !== 'ready')
+        ) {
+          throw new Error('Downloaded model could not be confirmed');
+        }
+      } catch (error) {
+        if (!failed) {
+          failed = true;
+          failure = error;
+          if (mountedRef.current && attemptsRef.current[id] === attempt) {
+            setFailures((current) => ({ ...current, [id]: attempt }));
+          }
+        }
+      }
+      if (!failed && attemptsRef.current[id] !== attempt) {
+        failed = true;
+        failure = new Error('A newer model download superseded this attempt');
+      }
+      if (failed) throw failure;
     },
     [refresh],
   );
