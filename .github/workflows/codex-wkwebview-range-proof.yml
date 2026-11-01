@@ -6,6 +6,7 @@ permissions:
   contents: read
 jobs:
   probe:
+    if: ${{ !contains(github.event.head_commit.message, '[windows-only]') }}
     runs-on: macos-latest
     timeout-minutes: 5
     steps:
@@ -16,3 +17,20 @@ jobs:
           sw_vers
           swiftc desktop/e2e/wkwebview-range-probe.swift -framework AppKit -framework WebKit -o "$RUNNER_TEMP/wkwebview-range-probe"
           "$RUNNER_TEMP/wkwebview-range-probe"
+  windows-inventory:
+    if: ${{ contains(github.event.head_commit.message, '[windows-only]') }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect preinstalled WebView2 runtime and managed SDK
+        shell: pwsh
+        run: |
+          $runtime = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
+          if ($runtime) { Write-Output "WebView2 runtime version: $($runtime.pv)" } else { Write-Output 'WebView2 runtime registry entry: absent' }
+          $roots = @("${env:ProgramFiles}\Microsoft Visual Studio", "${env:ProgramFiles(x86)}\Microsoft Visual Studio", "$env:USERPROFILE\.nuget\packages\microsoft.web.webview2") | Where-Object { Test-Path $_ }
+          $assemblies = @($roots | ForEach-Object { Get-ChildItem -Path $_ -Filter Microsoft.Web.WebView2.WinForms.dll -File -Recurse -ErrorAction SilentlyContinue })
+          $loaders = @($roots | ForEach-Object { Get-ChildItem -Path $_ -Filter WebView2Loader.dll -File -Recurse -ErrorAction SilentlyContinue })
+          Write-Output "Preinstalled WinForms assemblies: $($assemblies.Count)"
+          Write-Output "Preinstalled loader DLLs: $($loaders.Count)"
+          $assemblies | Select-Object -First 3 | ForEach-Object { Write-Output "Assembly version: $($_.VersionInfo.FileVersion)" }
+          $loaders | Select-Object -First 3 | ForEach-Object { Write-Output "Loader version: $($_.VersionInfo.FileVersion)" }
