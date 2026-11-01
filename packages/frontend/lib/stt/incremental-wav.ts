@@ -98,6 +98,8 @@ export class IncrementalWavWriter {
     await this.queue;
     try {
       await this.file.close();
+    } catch (error) {
+      this.failure ??= asError(error);
     } finally {
       this.state = 'closed';
     }
