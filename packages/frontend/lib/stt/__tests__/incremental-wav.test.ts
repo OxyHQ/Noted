@@ -143,6 +143,17 @@ describe('incremental WAV prototype', () => {
     await expect(writer.finish(() => {})).rejects.toThrow('capacity');
   });
 
+  it('reports rejected input through the callback gate', async () => {
+    const file = new MemoryFile();
+    const writer = await IncrementalWavWriter.create(file, 2);
+    const gate = new PcmInputGate((bytes) => writer.append(bytes));
+    expect(gate.accept(Uint8Array.of(1, 2))).toBe(true);
+    expect(gate.accept(Uint8Array.of(3, 4))).toBe(false);
+    expect(gate.accept(Uint8Array.of(5, 6))).toBe(false);
+    expect(() => gate.assertNoInputFailure()).toThrow('writer rejected');
+    await expect(writer.finish(() => {})).rejects.toThrow('capacity');
+  });
+
   it('fails finalization if acknowledged audio later fails to write', async () => {
     const file = new MemoryFile();
     const originalWrite = file.writeAt.bind(file);
@@ -252,7 +263,7 @@ describe('incremental WAV prototype', () => {
       gate.seal();
       const stopped = operation === 'finish' ? writer.finish(() => {}) : writer.cancel();
       expect(() => gate.accept(Uint8Array.of(3, 4))).not.toThrow();
-      expect(() => gate.assertNoLateData()).toThrow('after the input was sealed');
+      expect(() => gate.assertNoInputFailure()).toThrow('after the input was sealed');
       release?.();
       await stopped;
       expect(() => gate.accept(Uint8Array.of(5, 6))).not.toThrow();

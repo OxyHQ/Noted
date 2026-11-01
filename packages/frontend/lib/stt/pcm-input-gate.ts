@@ -5,23 +5,31 @@
  */
 export class PcmInputGate {
   private sealed = false;
-  private late = false;
+  private failure: Error | undefined;
 
-  constructor(private readonly append: (bytes: Uint8Array) => void) {}
+  constructor(private readonly append: (bytes: Uint8Array) => boolean) {}
 
-  accept(bytes: Uint8Array): void {
+  accept(bytes: Uint8Array): boolean {
+    if (this.failure) return false;
     if (this.sealed) {
-      this.late = true;
-      return;
+      this.failure ??= new Error('Audio arrived after the input was sealed');
+      return false;
     }
-    this.append(bytes);
+    try {
+      if (this.append(bytes)) return true;
+      this.failure ??= new Error('Audio writer rejected the input');
+    } catch (error) {
+      this.failure ??=
+        error instanceof Error ? error : new Error('Audio input failed', { cause: error });
+    }
+    return false;
   }
 
   seal(): void {
     this.sealed = true;
   }
 
-  assertNoLateData(): void {
-    if (this.late) throw new Error('Audio arrived after the input was sealed');
+  assertNoInputFailure(): void {
+    if (this.failure) throw this.failure;
   }
 }
