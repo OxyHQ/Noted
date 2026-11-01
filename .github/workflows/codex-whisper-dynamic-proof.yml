@@ -1,0 +1,73 @@
+name: Whisper dynamic-backend diagnostic
+on:
+  pull_request:
+    paths: ['.github/workflows/codex-whisper-dynamic-proof.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Restore existing source/build cache without saving
+        uses: actions/cache/restore@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-v1.9.5-linux
+          fail-on-cache-miss: true
+      - name: Restore synthetic-test model without saving
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.local/share/so.oxy.noted.desktop/models
+          key: desktop-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+          fail-on-cache-miss: true
+      - name: Build shared backends with CPU dispatch
+        run: |
+          set -euo pipefail
+          cmake -S whisper.cpp -B "$RUNNER_TEMP/dynamic-build" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON
+          cmake --build "$RUNNER_TEMP/dynamic-build" -j 2 --target whisper-cli
+          find "$RUNNER_TEMP/dynamic-build/bin" -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          readelf -d "$RUNNER_TEMP/dynamic-build/bin/whisper-cli" | grep -E 'NEEDED|RPATH|RUNPATH' || true
+      - name: Test current-directory backend discovery with a benign marker
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/probe-cwd"
+          cat > "$RUNNER_TEMP/probe.c" <<'C'
+          #include <stdio.h>
+          #include <stdlib.h>
+          __attribute__((constructor)) static void mark(void) {
+            const char *path = getenv("NOTED_TEST_MARKER");
+            if (path) { FILE *file = fopen(path, "w"); if (file) { fputs("loaded", file); fclose(file); } }
+          }
+          int ggml_backend_score(void) { return 0; }
+          C
+          cc -shared -fPIC "$RUNNER_TEMP/probe.c" -o "$RUNNER_TEMP/probe-cwd/libggml-cpu-notedprobe.so"
+          cd "$RUNNER_TEMP/probe-cwd"
+          export NOTED_TEST_MARKER="$RUNNER_TEMP/marker"
+          "$RUNNER_TEMP/dynamic-build/bin/whisper-cli" -m "$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin" -f "$GITHUB_WORKSPACE/whisper.cpp/samples/jfk.wav" -l en -oj -of "$RUNNER_TEMP/dynamic-result"
+          test "$(cat "$NOTED_TEST_MARKER")" = loaded
+          echo 'A matching backend in the working directory was loaded during discovery.'
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          data=json.loads((Path(os.environ['RUNNER_TEMP'])/'dynamic-result.json').read_text())
+          text=' '.join(item['text'] for item in data.get('transcription', [])).lower()
+          print('dynamic_transcript:',text)
+          assert 'ask not what your country can do for you' in text
+          PY
+      - name: Inspect a relocated executable-only stage
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/executable-only"
+          cp "$RUNNER_TEMP/dynamic-build/bin/whisper-cli" "$RUNNER_TEMP/executable-only/whisper-cli"
+          mv "$RUNNER_TEMP/dynamic-build" "$RUNNER_TEMP/dynamic-build-moved"
+          ldd "$RUNNER_TEMP/executable-only/whisper-cli" || true
+          set +e
+          env -u LD_LIBRARY_PATH "$RUNNER_TEMP/executable-only/whisper-cli" --help >"$RUNNER_TEMP/staged.out" 2>"$RUNNER_TEMP/staged.err"
+          code=$?
+          set -e
+          echo "executable_only_exit=$code"
+          head -10 "$RUNNER_TEMP/staged.err"
