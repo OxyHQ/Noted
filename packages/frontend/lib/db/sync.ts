@@ -421,6 +421,7 @@ interface OutboxRow extends Row {
   entity_id: string;
   op: string;
   attempts: number;
+  revision: number;
 }
 
 interface PushableNoteRow extends Row {
@@ -511,11 +512,12 @@ function refusal(error: unknown): { status?: number; code?: string; note?: Serve
 async function pushNote(
   entityId: string,
   viewerId: string,
+  entry: Pick<OutboxRow, 'id' | 'revision'>,
   makeConflictId?: () => string,
   retries = 1,
-): Promise<void> {
+): Promise<boolean> {
   const row = (await execute<PushableNoteRow>(PUSHABLE_NOTE_SQL, [entityId], viewerId))[0];
-  if (!row) return;
+  if (!row) return false;
 
   const payload = await notePayload(row, viewerId);
   assertCurrentViewer(viewerId);
@@ -585,7 +587,7 @@ async function pushNote(
         ],
         viewerId,
       );
-      return;
+      return false;
     }
     if (status !== 409 || !current || retries <= 0) throw error;
     assertCurrentViewer(viewerId);
@@ -602,35 +604,52 @@ async function pushNote(
         ],
         viewerId,
       );
-      return pushNote(entityId, viewerId, makeConflictId, retries - 1);
+      return pushNote(entityId, viewerId, entry, makeConflictId, retries - 1);
     }
     if (!makeConflictId) throw error;
     // Same resolution as a conflicting pull: the user's unsent edit stays on
     // the note, the other device's version survives as its own note, and the
     // local note adopts the server version so the retry has a valid base.
     await executeTransaction(conflictCopyStatements(current, makeConflictId(), nowIso()), viewerId);
-    return pushNote(entityId, viewerId, makeConflictId, retries - 1);
+    return pushNote(entityId, viewerId, entry, makeConflictId, retries - 1);
+  }
+
+  // The next write uses this as its concurrency baseline. A successful HTTP
+  // status without a usable note version cannot safely acknowledge the edit.
+  if (!note || typeof note.updatedAt !== 'string' || !Number.isFinite(Date.parse(note.updatedAt))) {
+    throw new Error('The server did not return a usable note version');
   }
 
   await executeTransaction(
     [
-      // We now know which server version this note agrees with, whatever else has
-      // happened locally in the meantime.
+      // Keep the server baseline for later edits of this intent, but do not
+      // attach it to a replacement outbox row that happens to reuse the ID.
       {
-        sql: 'UPDATE notes SET server_updated_at = ?, app_data_revision = ? WHERE id = ?',
-        params: [note.updatedAt, note.appData?.revision ?? 0, row.id],
+        sql: `UPDATE notes SET server_updated_at = ?, app_data_revision = ? WHERE id = ? AND EXISTS (
+                SELECT 1 FROM outbox WHERE id = ? AND entity_id = notes.id
+              )`,
+        params: [note.updatedAt, note.appData?.revision ?? 0, row.id, entry.id],
       },
-      // Clear `dirty` only if nothing was typed while the request was in flight.
-      // The guard compares the local timestamp against the local timestamp read
-      // before sending — never against the server's, which is a different
-      // machine's clock and cannot order local edits.
+      // A local timestamp can repeat within one millisecond. The outbox row's
+      // revision also has to match what was observed before the request.
       {
-        sql: 'UPDATE notes SET dirty = 0 WHERE id = ? AND updated_at = ?',
-        params: [row.id, row.updated_at],
+        sql: `UPDATE notes SET dirty = 0 WHERE id = ? AND updated_at = ? AND EXISTS (
+                SELECT 1 FROM outbox WHERE id = ? AND revision = ?
+              )`,
+        params: [row.id, row.updated_at, entry.id, entry.revision],
+      },
+      // Keep acknowledgement and retirement atomic: a newer intent must remain
+      // queued, including one created after the request started.
+      {
+        sql: `DELETE FROM outbox WHERE id = ? AND revision = ? AND NOT EXISTS (
+                SELECT 1 FROM notes WHERE notes.id = outbox.entity_id AND notes.dirty = 1
+              )`,
+        params: [entry.id, entry.revision],
       },
     ],
     viewerId,
   );
+  return true;
 }
 
 async function pushDeletion(entityId: string, viewerId: string): Promise<void> {
@@ -666,7 +685,7 @@ export async function flushOutbox(
   assertCurrentViewer(viewerId);
 
   const ready = await execute<OutboxRow>(
-    `SELECT id, entity, entity_id, op, attempts FROM outbox
+    `SELECT id, entity, entity_id, op, attempts, revision FROM outbox
      WHERE next_attempt_at <= ? AND attempts < ?
      ORDER BY id ASC LIMIT 200`,
     [nowIso(), OUTBOX_MAX_ATTEMPTS],
@@ -678,6 +697,7 @@ export async function flushOutbox(
   for (const entry of ready) {
     assertCurrentViewer(viewerId);
     try {
+      let acknowledgedOnSuccess = false;
       if (entry.op === 'delete') {
         await pushDeletion(entry.entity_id, viewerId);
       } else {
@@ -686,33 +706,34 @@ export async function flushOutbox(
         // reference a public one with its own token first, and Oxy then never
         // records the owner's grant (`lib/files/attachment-links.ts`).
         await linkNoteAttachments(viewerId, entry.entity_id, attachmentLinks);
-        await pushNote(entry.entity_id, viewerId, makeConflictId);
+        acknowledgedOnSuccess = await pushNote(entry.entity_id, viewerId, entry, makeConflictId);
       }
       // Retire the entry only if the note is settled. An edit that landed while
       // the request was in flight left this same row in place (there is one row
       // per entity), so deleting unconditionally would throw that edit's only
       // record away and it would never be sent.
-      await executeTransaction(
-        [
-          {
-            sql: `DELETE FROM outbox WHERE id = ? AND NOT EXISTS (
+      if (!acknowledgedOnSuccess)
+        await executeTransaction(
+          [
+            {
+              sql: `DELETE FROM outbox WHERE id = ? AND NOT EXISTS (
                   SELECT 1 FROM notes WHERE notes.id = outbox.entity_id AND notes.dirty = 1
                 )`,
-            params: [entry.id],
-          },
-        ],
-        viewerId,
-      );
+              params: [entry.id],
+            },
+          ],
+          viewerId,
+        );
       sent += 1;
     } catch (error) {
       assertCurrentViewer(viewerId);
       const attempts = entry.attempts + 1;
       const nextAttemptAt = new Date(Date.now() + outboxRetryDelayMs(attempts)).toISOString();
-      await executeTransaction(
+      const [recorded] = await executeTransaction(
         [
           {
-            sql: 'UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?',
-            params: [attempts, errorMessage(error), nextAttemptAt, entry.id],
+            sql: 'UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ? AND revision = ?',
+            params: [attempts, errorMessage(error), nextAttemptAt, entry.id, entry.revision],
           },
         ],
         viewerId,
@@ -722,6 +743,7 @@ export async function flushOutbox(
         stage: 'push' satisfies SyncStage,
         entityId: entry.entity_id,
         attempts,
+        recorded: recorded === 1,
         error: errorMessage(error),
       });
     }

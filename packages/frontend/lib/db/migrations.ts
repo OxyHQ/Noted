@@ -355,6 +355,17 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
     `CREATE INDEX IF NOT EXISTS attachment_links_due ON attachment_links (next_attempt_at)`,
     `ALTER TABLE notes ADD COLUMN removed_attachments_json TEXT NOT NULL DEFAULT '[]'`,
   ],
+  // Existing binaries do not know this column. Increment it inside SQLite so
+  // their outbox updates still invalidate an acknowledgement by a newer one.
+  [
+    `ALTER TABLE outbox ADD COLUMN revision INTEGER NOT NULL DEFAULT 0`,
+    `CREATE TRIGGER outbox_update_revision AFTER UPDATE ON outbox
+     WHEN NEW.revision = OLD.revision
+     BEGIN
+       SELECT CASE WHEN OLD.revision >= 9007199254740991 THEN RAISE(ABORT, 'Outbox revision exhausted') END;
+       UPDATE outbox SET revision = OLD.revision + 1 WHERE id = NEW.id;
+     END`,
+  ],
 ];
 
 /** Every table this schema owns, newest first for dependency-free deletion. */
