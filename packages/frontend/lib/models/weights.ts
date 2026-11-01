@@ -159,17 +159,17 @@ export async function download(
   // `DownloadTask` rather than `File.downloadFileAsync`: only the task reports
   // progress, and hundreds of megabytes over a phone connection with no
   // feedback reads as a frozen screen.
-  const task = new DownloadTask(weights.url, destination);
-  const subscription = onProgress
-    ? task.addListener('progress', ({ bytesWritten, totalBytes }) => {
-        // The server may omit Content-Length, in which case `totalBytes` is -1;
-        // the size is known here anyway, so the bar never stalls at zero.
-        const total = totalBytes > 0 ? totalBytes : weights.bytes;
-        onProgress(Math.min(1, bytesWritten / total));
-      })
-    : null;
-
+  let subscription: ReturnType<DownloadTask['addListener']> | undefined;
   try {
+    const task = new DownloadTask(weights.url, destination);
+    subscription = onProgress
+      ? task.addListener('progress', ({ bytesWritten, totalBytes }) => {
+          // The server may omit Content-Length, in which case `totalBytes` is -1;
+          // the size is known here anyway, so the bar never stalls at zero.
+          const total = totalBytes > 0 ? totalBytes : weights.bytes;
+          onProgress(Math.min(1, bytesWritten / total));
+        })
+      : undefined;
     const downloaded = await task.downloadAsync();
     if (!downloaded) throw new Error(`${weights.id} download produced no file`);
 

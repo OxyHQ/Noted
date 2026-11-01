@@ -4,6 +4,9 @@ const state = vi.hoisted(() => ({
   viewer: 'account-a' as string | null,
   fileExists: false,
   fileBytes: 32,
+  constructionError: null as Error | null,
+  listenerError: null as Error | null,
+  onConstruction: undefined as (() => void) | undefined,
   download: vi.fn(),
   unsubscribe: vi.fn(),
   transactionGate: undefined as Promise<void> | undefined,
@@ -12,7 +15,11 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@/lib/db/client', () => ({
   getActiveViewerId: () => state.viewer,
-  execute: vi.fn(async () => []),
+  execute: vi.fn(async () =>
+    state.writes
+      .filter((write) => write.viewer === state.viewer && write.params.length === 7)
+      .map((write) => ({ id: write.params[0], state: write.params[5] })),
+  ),
   executeTransaction: async (
     statements: { sql: string; params: unknown[] }[],
     expected?: string | null,
@@ -44,7 +51,12 @@ vi.mock('expo-file-system', () => ({
     }
   },
   DownloadTask: class {
+    constructor() {
+      state.onConstruction?.();
+      if (state.constructionError) throw state.constructionError;
+    }
     addListener() {
+      if (state.listenerError) throw state.listenerError;
       return { remove: state.unsubscribe };
     }
     downloadAsync() {
@@ -53,7 +65,7 @@ vi.mock('expo-file-system', () => ({
   },
 }));
 
-import { download, isPresent, type Weights } from '@/lib/models/weights';
+import { download, isPresent, statesOf, type Weights } from '@/lib/models/weights';
 import { selectSttModel } from '@/lib/stt/select-model';
 import { SETTING_KEYS, writeSetting } from '@/lib/db/settings-repo';
 
@@ -80,6 +92,9 @@ beforeEach(() => {
   state.viewer = 'account-a';
   state.fileExists = false;
   state.fileBytes = weights.bytes;
+  state.constructionError = null;
+  state.listenerError = null;
+  state.onConstruction = undefined;
   state.writes = [];
   state.transactionGate = undefined;
   state.download.mockReset();
@@ -87,6 +102,31 @@ beforeEach(() => {
 });
 
 describe('model settings account ownership', () => {
+  it.each(['construction', 'listener'] as const)(
+    'marks a %s setup failure as failed after recording downloading',
+    async (where) => {
+      const error = new Error(`${where} unavailable`);
+      if (where === 'construction') state.constructionError = error;
+      else state.listenerError = error;
+      await expect(download(weights, () => undefined)).rejects.toBe(error);
+      expect(state.writes.map(({ params }) => params[5])).toEqual(['downloading', 'failed']);
+      expect(await statesOf([weights])).toEqual({ base: 'failed' });
+      expect(state.download).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not record a setup failure in a different account', async () => {
+    const error = new Error('native setup failed');
+    state.constructionError = error;
+    state.onConstruction = () => {
+      state.viewer = 'account-b';
+    };
+    await expect(download(weights)).rejects.toBe(error);
+    expect(state.writes.map(({ viewer, params }) => [viewer, params[5]])).toEqual([
+      ['account-a', 'downloading'],
+    ]);
+  });
+
   it('downloads and selects the model for the requesting account', async () => {
     state.download.mockImplementation(async () => {
       state.fileExists = true;
