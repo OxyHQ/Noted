@@ -158,7 +158,8 @@ export function createDesktopModels(
         if (first) await invoke('model_write', { name, chunk: '', reset: true });
         await invoke('model_commit', { name, bytes: model.bytes, sha256: model.sha256 });
       } catch (error) {
-        await reader.cancel().catch(() => undefined);
+        // Cancellation can stall in the stream producer; don't hide the download error.
+        void reader.cancel().catch(() => undefined);
         // The partial file stays: a dropped connection resumes from it. A bad file
         // never survives, because Rust deletes it when verification fails.
         throw error;
