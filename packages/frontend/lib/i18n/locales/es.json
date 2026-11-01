@@ -1253,7 +1253,8 @@
       "audioCost": "Deja de poder reproducirse.",
       "audioKeeps": "La transcripción y la nota se quedan.",
       "transcriptCost": "Las líneas generadas dejan de poder comprobarse.",
-      "transcriptKeeps": "La nota se queda, palabra por palabra."
+      "transcriptKeeps": "La nota se queda, palabra por palabra.",
+      "removeFailed": "No se pudo eliminar. Inténtalo de nuevo."
     },
     "retryEnhancement": "Reintentar la mejora"
   },
