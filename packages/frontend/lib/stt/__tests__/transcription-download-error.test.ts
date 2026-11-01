@@ -90,6 +90,39 @@ function modelButton(): TestButton {
 }
 
 describe('model download failure UI', () => {
+  it('offers retry when desktop model status cannot be read', async () => {
+    let unavailable = true;
+    const invoke: Invoke = async <T>(command: string) => {
+      if (command !== 'model_status') throw new Error(`unexpected command: ${command}`);
+      if (unavailable) throw new Error('model metadata unavailable');
+      return null as T;
+    };
+    const fetchModel = vi.fn(async () => new Response());
+    const desktop = createDesktopModels(async () => invoke, fetchModel);
+    state.states.mockImplementation(() =>
+      desktop.states(Object.values(state.models) as DesktopModelInfo[]),
+    );
+    await act(async () => {
+      root = create(React.createElement(TranscriptionSection));
+    });
+    expect(JSON.stringify(root?.toJSON())).toContain('transcription.loadModelsFailed');
+    const retry = root?.root
+      .findAllByType('Button')
+      .find(
+        (button: { props: { children?: unknown } }) => button.props.children === 'common.retry',
+      );
+    expect(retry).toBeDefined();
+    unavailable = false;
+    await act(async () => {
+      retry?.props.onPress();
+      await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(2));
+    });
+    expect(JSON.stringify(root?.toJSON())).not.toContain('transcription.loadModelsFailed');
+    expect(modelButton().props.disabled).toBe(false);
+    expect(fetchModel).not.toHaveBeenCalled();
+    expect(state.writeSetting).not.toHaveBeenCalled();
+  });
+
   it('shows a retry when the initial model state cannot be loaded', async () => {
     state.states
       .mockRejectedValueOnce(new Error('storage unavailable'))

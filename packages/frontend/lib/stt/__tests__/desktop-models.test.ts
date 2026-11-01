@@ -76,6 +76,20 @@ function streamOf(...parts: Uint8Array[]): Response {
 const decodeLen = (b64: unknown) => Buffer.from(String(b64), 'base64').length;
 
 describe('desktop model downloads', () => {
+  it('does not fetch or inspect the partial when model status is unavailable', async () => {
+    const failure = new Error('model metadata unavailable');
+    const commands: string[] = [];
+    const invoke: Invoke = async (command: string) => {
+      commands.push(command);
+      throw failure;
+    };
+    const fetchModel = vi.fn(async () => streamOf(new Uint8Array(MODEL.bytes)));
+    const models = createDesktopModels(async () => invoke, fetchModel);
+    await expect(models.download(MODEL)).rejects.toBe(failure);
+    expect(fetchModel).not.toHaveBeenCalled();
+    expect(commands).toEqual(['model_status']);
+  });
+
   it('does not fetch or write when the partial size cannot be read', async () => {
     const rust = fakeRust();
     const failure = new Error('partial metadata unavailable');
