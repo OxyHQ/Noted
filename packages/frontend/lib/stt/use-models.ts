@@ -38,6 +38,8 @@ const ORDER: SttModelId[] = ['tiny', 'base', 'small'];
 export interface SttModelsResult {
   entries: ModelEntry[];
   isLoading: boolean;
+  loadFailed: boolean;
+  retryLoad: () => void;
   download: (id: SttModelId) => Promise<void>;
   clearDownloadFailure: (id: SttModelId, version: number) => void;
   remove: (id: SttModelId) => Promise<void>;
@@ -45,6 +47,7 @@ export interface SttModelsResult {
 
 export function useSttModels(): SttModelsResult {
   const [states, setStates] = useState<Record<SttModelId, ModelState> | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [progress, setProgress] = useState<Partial<Record<SttModelId, number>>>({});
   const [failures, setFailures] = useState<Partial<Record<SttModelId, number>>>({});
   const attemptsRef = useRef<Partial<Record<SttModelId, number>>>({});
@@ -64,7 +67,13 @@ export function useSttModels(): SttModelsResult {
 
   const refresh = useCallback(async () => {
     const version = ++refreshVersionRef.current;
-    const next = await getModelStates();
+    let next: Record<SttModelId, ModelState>;
+    try {
+      next = await getModelStates();
+    } catch (error) {
+      if (mountedRef.current && refreshVersionRef.current === version) setLoadFailed(true);
+      throw error;
+    }
     const current = refreshVersionRef.current === version;
     if (mountedRef.current && current) {
       const visible = { ...next };
@@ -72,15 +81,22 @@ export function useSttModels(): SttModelsResult {
         if (runningRef.current[id] !== undefined) visible[id] = 'downloading';
       }
       setStates(visible);
+      setLoadFailed(false);
     }
     return { states: next, version };
   }, []);
 
-  useEffect(() => {
+  const retryLoad = useCallback(() => {
+    if (!mountedRef.current) return;
+    setLoadFailed(false);
     void refresh().catch((error: unknown) => {
       logger.error('Could not read speech model state', { error: String(error) });
     });
   }, [refresh]);
+
+  useEffect(() => {
+    retryLoad();
+  }, [retryLoad]);
 
   const download = useCallback(
     async (id: SttModelId) => {
@@ -164,5 +180,13 @@ export function useSttModels(): SttModelsResult {
     failureVersion: failures[id] ?? null,
   }));
 
-  return { entries, isLoading: states === null, download, clearDownloadFailure, remove };
+  return {
+    entries,
+    isLoading: states === null && !loadFailed,
+    loadFailed: states === null && loadFailed,
+    retryLoad,
+    download,
+    clearDownloadFailure,
+    remove,
+  };
 }

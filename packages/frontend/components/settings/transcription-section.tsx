@@ -214,7 +214,8 @@ function UnderstandingRow() {
 
 export function TranscriptionSection() {
   const { t } = useTranslation();
-  const { entries, isLoading, download, clearDownloadFailure, remove } = useSttModels();
+  const { entries, isLoading, loadFailed, retryLoad, download, clearDownloadFailure, remove } =
+    useSttModels();
   const { settings } = useSettings();
 
   const selected = readSetting(settings, SETTING_KEYS.sttModel, isModelId, DEFAULT_STT_MODEL);
@@ -267,6 +268,13 @@ export function TranscriptionSection() {
         </Text>
         {isLoading ? (
           <ActivityIndicator size="small" />
+        ) : loadFailed ? (
+          <View className="items-start gap-2">
+            <Text accessibilityRole="alert">{t('transcription.loadModelsFailed')}</Text>
+            <Button appearance="outline" size="sm" onPress={retryLoad}>
+              {t('common.retry')}
+            </Button>
+          </View>
         ) : (
           entries.map((entry) => (
             <ModelRow
