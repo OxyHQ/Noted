@@ -84,6 +84,9 @@ this sketch is not a guarantee that replaying any current operation is safe.
 `experiments/sqlite-journal/sigkill_probe.py` exercises a toy counter with Python
 SQLite, WAL and `synchronous=FULL`: kill before/after intent and mutation commit,
 simulated loss of intent acknowledgement, read-only open of a missing file, and
-sequential/concurrent replay with an operation fingerprint. It uses its own
+sequential/concurrent replay with an operation fingerprint. It also rejects an
+empty replacement database and a different viewer in a toy identity table; that
+table is not authenticated and does not prove ownership of a copied database.
+It uses its own
 temporary databases and a child process. It does not exercise Expo, account
 switches, corrupted storage, disk-full paths, OS crashes or power loss.

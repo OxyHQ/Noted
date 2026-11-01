@@ -97,6 +97,16 @@ def replay(db: sqlite3.Connection, operation: str, fingerprint: str) -> str:
         raise
 
 
+def inspect_identity(path: str, viewer: str, database_id: str) -> None:
+    db = sqlite3.connect(Path(path).as_uri() + "?mode=ro", uri=True)
+    try:
+        rows = db.execute("SELECT viewer_id, database_id FROM identity").fetchall()
+        if rows != [(viewer, database_id)]:
+            raise ValueError("database identity is absent or different")
+    finally:
+        db.close()
+
+
 def main() -> None:
     expected = {
         "before_begin": (1, 0, 0),
@@ -151,6 +161,27 @@ def main() -> None:
             if os.path.exists(missing):
                 raise AssertionError("read-only inspection created a database")
             print("missing database: rejected without creating a replacement")
+
+        replacement = os.path.join(directory, "replacement.db")
+        with open(replacement, "wb"):
+            pass
+        try:
+            inspect_identity(replacement, "viewer-A", "database-A")
+            raise AssertionError("empty replacement accepted")
+        except sqlite3.DatabaseError:
+            print("empty replacement: rejected without creating a schema")
+
+        identity_path = os.path.join(directory, "identified.db")
+        identity = sqlite3.connect(identity_path, isolation_level=None)
+        identity.execute("CREATE TABLE identity (viewer_id TEXT, database_id TEXT)")
+        identity.execute("INSERT INTO identity VALUES ('viewer-A', 'database-A')")
+        identity.close()
+        inspect_identity(identity_path, "viewer-A", "database-A")
+        try:
+            inspect_identity(identity_path, "viewer-B", "database-A")
+            raise AssertionError("wrong viewer accepted")
+        except ValueError:
+            print("different viewer: rejected")
 
         path = os.path.join(directory, "replay.db")
         db = sqlite3.connect(path, isolation_level=None)
