@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
 import select
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -182,6 +183,10 @@ def main() -> None:
             raise AssertionError("wrong viewer accepted")
         except ValueError:
             print("different viewer: rejected")
+        copied_identity = os.path.join(directory, "copied-identity.db")
+        shutil.copyfile(identity_path, copied_identity)
+        inspect_identity(copied_identity, "viewer-A", "database-A")
+        print("copied database: toy identity cannot distinguish it from the original")
 
         path = os.path.join(directory, "replay.db")
         db = sqlite3.connect(path, isolation_level=None)
