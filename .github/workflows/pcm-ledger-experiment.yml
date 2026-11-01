@@ -4,14 +4,9 @@ on:
   pull_request:
     paths:
       - 'experiments/native-pcm-drain/**'
+      - 'packages/frontend/lib/stt/pcm-sequence-drain.ts'
+      - 'packages/frontend/lib/stt/__tests__/pcm-sequence-drain.test.ts'
       - '.github/workflows/pcm-ledger-experiment.yml'
-  push:
-    branches:
-      - 'codex/noted-whisper-writer'
-    paths:
-      - 'experiments/native-pcm-drain/**'
-      - '.github/workflows/pcm-ledger-experiment.yml'
-
 permissions:
   contents: read
 
