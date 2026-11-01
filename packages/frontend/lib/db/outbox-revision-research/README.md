@@ -12,9 +12,11 @@ newer edit. The tests reproduce both using the real note repository, syncer,
 SQLite migrations and SQLite, with a controlled API transport and database
 adapter. No Nilo server, native/web SQLite driver or physical audio is involved.
 
-The experimental statements use an outbox row ID and a monotonically incremented
-revision. The SQLite trigger also detects a legacy producer updating an existing
-row after migration. A different row receives a different AUTOINCREMENT ID under
+The experimental statements use an outbox row ID and a revision. For updates
+that do not explicitly change that column, the SQLite trigger increments it and
+also detects a legacy producer updating an existing row after migration. Writers
+that set the revision themselves require separate validation. A different row
+receives a different AUTOINCREMENT ID under
 the ordinary SQLite schema even when the revision starts again at zero. Tests
 exercise rollback and a controlled reinsert. This assumes the same database and
 unmodified SQLite sequence: it does not establish cross-process/session identity,
