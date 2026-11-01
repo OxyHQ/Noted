@@ -1,0 +1,18 @@
+name: Diagnostic WKWebView Range
+on:
+  push:
+    branches: [codex/noted-wkwebview-range-proof]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compile and run isolated WKWebView probe
+        shell: bash
+        run: |
+          sw_vers
+          swiftc desktop/e2e/wkwebview-range-probe.swift -framework AppKit -framework WebKit -o "$RUNNER_TEMP/wkwebview-range-probe"
+          "$RUNNER_TEMP/wkwebview-range-probe"
