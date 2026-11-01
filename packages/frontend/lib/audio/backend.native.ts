@@ -7,8 +7,8 @@
  * recordings exist, how to list a half-finished one, and how to delete every
  * trace of one. That is what routing native audio through the same store buys.
  *
- * Chunks are separate files under the capture's own directory, so deleting a
- * recording remains one recursive remove.
+ * Legacy chunks are stored by capture id without an account owner. Removal
+ * fails closed until a migration can establish who owns those files.
  */
 
 import { Directory, File, Paths } from 'expo-file-system';
@@ -82,11 +82,8 @@ export class FileSystemChunkBackend implements ChunkBackend {
     await file.write(json);
   }
 
-  remove(captureId: string): Promise<void> {
-    const directory = captureDirectory(captureId);
-    // Deleting a recording twice is not an error.
-    if (directory.exists) directory.delete();
-    return Promise.resolve();
+  remove(_captureId: string): Promise<void> {
+    return Promise.reject(new Error('Native chunk ownership is unverified'));
   }
 }
 

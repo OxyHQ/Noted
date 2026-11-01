@@ -1,0 +1,67 @@
+name: Native audio erasure prototype
+
+on:
+  pull_request:
+    paths:
+      - 'packages/frontend/modules/noted-audio-erasure/**'
+      - 'packages/frontend/lib/audio/**'
+      - 'packages/frontend/lib/capture/**'
+      - 'packages/frontend/app.json'
+      - 'bun.lock'
+      - '.github/workflows/native-audio-erasure.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android native module compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: bun install --frozen-lockfile
+      - run: bun run build:types
+      - name: Generate Android project
+        working-directory: packages/frontend
+        env:
+          CI: '1'
+        run: bun x expo prebuild --platform android --no-install
+      - name: Compile the module
+        working-directory: packages/frontend/android
+        run: ./gradlew :noted-audio-erasure:compileDebugKotlin
+
+  ios:
+    name: iOS native module compile
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build:types
+      - name: Generate iOS project
+        working-directory: packages/frontend
+        env:
+          CI: '1'
+        run: bun x expo prebuild --platform ios --no-install
+      - name: Install pods and compile the module
+        working-directory: packages/frontend
+        run: |
+          pod install --project-directory=ios
+          xcodebuild -project ios/Pods/Pods.xcodeproj -target NotedAudioErasure -configuration Debug -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO build

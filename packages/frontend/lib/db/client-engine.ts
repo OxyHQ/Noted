@@ -209,6 +209,19 @@ export function getActiveViewerId(): string | null {
   return activeViewerId;
 }
 
+/** Hold the database account lifecycle while an account-bound native operation runs. */
+export function withActiveViewerLease<T>(
+  viewerId: string | null,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return serializeLifecycle(async () => {
+    if (!viewerId || activeViewerId !== viewerId) {
+      throw new Error('The active account changed before this operation');
+    }
+    return operation();
+  });
+}
+
 function databaseName(viewerId: string): string {
   // The id comes from the verified Oxy session, but it lands in a filename, so
   // anything outside the safe set is escaped rather than trusted.

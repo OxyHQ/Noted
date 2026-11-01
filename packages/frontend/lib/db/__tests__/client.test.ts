@@ -120,6 +120,32 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('local store connection lifecycle', () => {
+  it('holds an account-bound operation before switching to another viewer', async () => {
+    const client = await loadClient();
+    await client.setActiveViewer('user-1');
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const pending = client.withActiveViewerLease('user-1', async () => {
+      entered();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    await started;
+    const switching = client.setActiveViewer('user-2');
+    expect(client.getActiveViewerId()).toBe('user-1');
+    release();
+    await pending;
+    await switching;
+    expect(client.getActiveViewerId()).toBe('user-2');
+    const stale = vi.fn(async () => undefined);
+    await expect(client.withActiveViewerLease('user-1', stale)).rejects.toThrow('account changed');
+    expect(stale).not.toHaveBeenCalled();
+  });
+
   it('preserves every account file when an old rebuild marker survives a reload', async () => {
     const local = new Map([['noted.local-store.rebuild', '1']]);
     const removeEntry = vi.fn(async () => state.files.clear());

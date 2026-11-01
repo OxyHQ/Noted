@@ -23,6 +23,7 @@ import {
 import { createLogger } from '@oxy.so/core/logger';
 
 import { beginCapture } from '@/lib/capture/captures-repo';
+import { captureOwnerKey, nativeCaptureReference } from '@/lib/audio/capture-owner';
 import { captureDirectory } from '@/lib/capture/use-recorder';
 import type { CaptureCoordinator } from '@/lib/capture/coordinator';
 import { createLiveCoordinator } from '@/lib/capture/live-coordinator';
@@ -87,9 +88,6 @@ export function useRealtimeRecorder(
     setPhase('starting');
     const startedAt = new Date();
     startedAtRef.current = startedAt;
-    const audioPath = `captures/${captureId}/audio.wav`;
-    audioPathRef.current = audioPath;
-
     startRef.current = (async () => {
       try {
         let permission = await getRecordingPermissionsAsync();
@@ -110,7 +108,11 @@ export function useRealtimeRecorder(
           allowsBackgroundRecording: true,
         });
 
-        captureDirectory(captureId).create({ intermediates: true, idempotent: true });
+        const ownerKey = await captureOwnerKey(expectedViewerId);
+        if (getActiveViewerId() !== expectedViewerId) throw new Error('Recording account changed');
+        const audioPath = nativeCaptureReference(ownerKey, captureId, 'wav');
+        audioPathRef.current = audioPath;
+        captureDirectory(ownerKey, captureId).create({ intermediates: true, idempotent: true });
 
         // Written BEFORE the microphone opens: if the process dies a moment
         // later this row is the only record that the recording existed. The path

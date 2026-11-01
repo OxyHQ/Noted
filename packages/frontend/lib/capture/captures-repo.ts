@@ -442,7 +442,7 @@ export async function deleteNoteRecordings(
   let failed = false;
   for (const capture of captures) {
     try {
-      await deleteCaptureAudio(capture.audioPath, capture.id);
+      await deleteCaptureAudio(capture.audioPath, capture.id, expectedViewerId);
     } catch {
       failed = true;
     }
@@ -477,7 +477,7 @@ export async function deleteRecordingAudio(
   capture: Capture,
   expectedViewerId = getActiveViewerId(),
 ): Promise<void> {
-  await deleteCaptureAudio(capture.audioPath, capture.id);
+  await deleteCaptureAudio(capture.audioPath, capture.id, expectedViewerId);
   await executeTransaction(
     [
       {

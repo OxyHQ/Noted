@@ -1,0 +1,49 @@
+# Native audio erasure: prototype and blockers
+
+This is a draft, not a rollout plan. The existing native recorder stores files
+under `captures/<captureId>/`; native chunks use `audio/<captureId>/`. Neither
+path records which account owns it. A capture row is held in an account-scoped
+database, but an equal capture ID or row reference does not prove that a file in
+the shared directory belongs to that account. Do not erase or migrate a legacy
+file based on that equality.
+
+The prototype places new native WAV and M4A files under
+`captures-v2/<sha256(viewerId)>/<captureId>/`. The viewer is captured at
+recording start. Deletion accepts only the exact v2 reference, recomputes the
+namespace from the expected active viewer and holds the local account lifecycle
+until the native call finishes. This lease serializes the local database viewer
+lifecycle, not an independent Oxy session transition; the relationship between
+those transitions still needs an integration test and review. The native bridge accepts fixed components,
+opens each directory without following a final symlink and removes only the
+named regular file. Only `ENOENT` is treated as already absent; other OS errors
+propagate. Empty directories remain. This uses the app's in-process identity
+and assumes its code is trusted; it is not a capability against arbitrary code
+already executing inside the app.
+
+Legacy native file references and unowned native chunk directories fail closed
+and retain their rows. A binary without the bridge fails closed too. This means
+users with existing native recordings cannot yet delete those recordings or
+notes that depend on them through this prototype. Do not enable it globally or
+ship it until a recoverable user path exists.
+
+## Recovery design still needed
+
+A possible recovery tool must first establish a complete, trustworthy local
+inventory of every account and database that can own a legacy capture,
+including signed-out accounts, interrupted recordings and missing databases.
+It must compare all references, preserve ambiguous or unreadable cases and
+never interpret an incomplete scan or absent account as proof of ownership.
+There is currently no such complete inventory or owner marker. A migration must
+record and test its evidence before copying or deleting anything, be resumable
+after interruption, and offer the user a clear recovery/export path. Asking
+the currently signed-in user alone is not proof that a shared file is theirs.
+
+Before integration, separately validate both recorder adapters and their
+recovery after interruption, account switches during an operation, active
+recorders, file creation/move paths and races, and unexpected or symbolic-link
+entries. The prototype's deletion bridge does not prove that recording writes
+never follow a link, that an active native recorder cannot recreate a file, or
+that unowned chunks are gone. Its controlled-adapter tests do not exercise the
+real filesystem. Android and iOS native builds and device tests are still
+required. A new native binary is needed; an over-the-air update alone does not
+add the bridge.

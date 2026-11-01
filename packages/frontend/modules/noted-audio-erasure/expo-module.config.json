@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["NotedAudioErasureModule"] },
+  "android": { "modules": ["so.oxy.noted.audio.NotedAudioErasureModule"] }
+}
