@@ -19,6 +19,25 @@ describe('combineDateAndTime', () => {
     expect(combineDateAndTime(new Date(), '00:00')).not.toBeNull();
     expect(combineDateAndTime(new Date(), '23:59')).not.toBeNull();
   });
+
+  it('rejects local times skipped by daylight saving, including half-hour transitions', () => {
+    const previous = process.env.TZ;
+    try {
+      process.env.TZ = 'America/New_York';
+      const newYorkDay = new Date(2027, 2, 14);
+      expect(combineDateAndTime(newYorkDay, '01:30')?.getHours()).toBe(1);
+      expect(combineDateAndTime(newYorkDay, '02:30')).toBeNull();
+      expect(combineDateAndTime(newYorkDay, '03:30')?.getHours()).toBe(3);
+
+      process.env.TZ = 'Australia/Lord_Howe';
+      const lordHoweDay = new Date(2027, 9, 3);
+      expect(combineDateAndTime(lordHoweDay, '02:15')).toBeNull();
+      expect(combineDateAndTime(lordHoweDay, '02:30')?.getMinutes()).toBe(30);
+    } finally {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    }
+  });
 });
 
 describe('splitReminder', () => {

@@ -8,20 +8,25 @@
 
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-/** A local `Date` at `time` ("HH:mm", 24h) on the calendar day of `day`; null if `time` is malformed. */
+/** A local `Date` at `time`, or null if the date or time cannot exist locally. */
 export function combineDateAndTime(day: Date, time: string): Date | null {
   const match = TIME.exec(time);
   if (!match) return null;
-  const combined = new Date(
-    day.getFullYear(),
-    day.getMonth(),
-    day.getDate(),
-    Number(match[1]),
-    Number(match[2]),
-    0,
-    0,
-  );
-  return Number.isNaN(combined.getTime()) ? null : combined;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const combined = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hours, minutes, 0, 0);
+  // Date silently shifts nonexistent local times across clock changes.
+  if (
+    Number.isNaN(combined.getTime()) ||
+    combined.getFullYear() !== day.getFullYear() ||
+    combined.getMonth() !== day.getMonth() ||
+    combined.getDate() !== day.getDate() ||
+    combined.getHours() !== hours ||
+    combined.getMinutes() !== minutes
+  ) {
+    return null;
+  }
+  return combined;
 }
 
 /** The day and "HH:mm" of a stored reminder, in local time. */

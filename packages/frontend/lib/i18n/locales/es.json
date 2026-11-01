@@ -1195,6 +1195,7 @@
     "pickDateTime": "Elige fecha y hora",
     "reminderTime": "Hora del recordatorio",
     "reminderInPast": "Elige una hora en el futuro",
+    "reminderInvalidTime": "Esta hora no existe en tu zona horaria. Elige otra hora.",
     "setReminder": "Poner recordatorio",
     "customReminder": "Elegir hora…",
     "historyBlocks": "{{count}} bloques"

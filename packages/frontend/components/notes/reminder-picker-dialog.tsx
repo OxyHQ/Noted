@@ -63,6 +63,11 @@ export function ReminderPickerDialog({
               {t('notes.reminderInPast')}
             </Text>
           ) : null}
+          {day && time && !when ? (
+            <Text accessibilityRole="alert" className="text-sm text-destructive">
+              {t('notes.reminderInvalidTime')}
+            </Text>
+          ) : null}
         </View>
         <View className="flex-row justify-end gap-4">
           <Button appearance="plain" tone="neutral" onPress={() => onOpenChange(false)}>
