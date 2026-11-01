@@ -304,15 +304,71 @@ describe('export ownership', () => {
     expect(fixture.toast).toHaveBeenCalledWith('settings.export.failed');
   });
 
+  it('can retry JSON after an independent session restore supplies the same owner', async () => {
+    fixture.api.dispose();
+    oxy.dispose();
+    oxy = new OxyServices({ baseURL: 'https://noted.example' });
+    fixture.oxy = oxy;
+    fixture.auth.oxyServices = oxy;
+    fixture.api = createNotedClient(oxy, 'https://noted.example');
+    const refresh = vi.fn(async () => jwt('A', 'restored'));
+    oxy.http.setAuthRefreshHandler(refresh);
+    const fetchSpy = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('authorization')).toBe(
+        `Bearer ${jwt('A', 'restored')}`,
+      );
+      return new Response(JSON.stringify({ owner: 'A' }), { status: 200 });
+    });
+    globalThis.fetch = fetchSpy as typeof fetch;
+
+    // Main's account-bound client checks the bearer before calling linked.fetch.
+    await expect(fixture.api.get('/account/export', { expectedViewerId: 'A' })).rejects.toThrow(
+      'The active account changed before this request completed',
+    );
+    const linked = oxy.createLinkedClient({ baseURL: 'https://noted.example' });
+    try {
+      await expect(linked.fetch('/account/export')).rejects.toMatchObject({
+        code: 'AUTH_REQUIRED',
+      });
+    } finally {
+      linked.dispose();
+    }
+    expect(refresh).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    await act(async () => {
+      await jsonExport();
+    });
+    expect(fixture.toast).toHaveBeenCalledWith('settings.export.failed');
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => {
+      await oxy.http.refreshAccessToken('preflight');
+    });
+    expect(refresh).toHaveBeenCalledWith('preflight');
+    await act(async () => {
+      await jsonExport();
+    });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fixture.saveText).toHaveBeenCalledOnce();
+  });
+
   it('rejects a different or opaque bearer even when the local projection says A', async () => {
+    const fetchSpy = vi.fn() as typeof fetch;
+    globalThis.fetch = fetchSpy;
     for (const token of [jwt('B'), 'opaque-token']) {
       oxy.session.setAccessToken(token);
       await act(async () => {
         root = create(React.createElement(Harness));
       });
       await act(async () => {
+        await jsonExport();
         await zipExport();
       });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(fixture.saveText).not.toHaveBeenCalled();
       expect(fixture.execute).not.toHaveBeenCalled();
       expect(fixture.saveBinary).not.toHaveBeenCalled();
       await act(async () => {
