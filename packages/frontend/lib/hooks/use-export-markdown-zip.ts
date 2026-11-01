@@ -13,7 +13,7 @@ import { useOwnedExport } from '@/lib/hooks/use-owned-export';
  * offline. Trashed notes are left out; archived ones are kept.
  */
 export function useExportMarkdownZip() {
-  const { run, pending: exportingZip } = useOwnedExport();
+  const { run, pending: exportingZip } = useOwnedExport('local');
 
   const exportZip = useCallback(
     () =>

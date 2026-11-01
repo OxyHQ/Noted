@@ -22,7 +22,7 @@ type Pending = { owner: Owner; count: number };
 type ExportAction = (viewerId: string, isCurrent: () => boolean) => Promise<void>;
 
 /** Bind exports to the session that committed their callback. */
-export function useOwnedExport() {
+export function useOwnedExport(mode: 'local' | 'network') {
   const { t } = useTranslation();
   const { oxyServices, isAuthenticated, user, activeSessionId } = useOxy();
   const subscribe = useCallback(
@@ -47,14 +47,33 @@ export function useOwnedExport() {
 
   const run = useCallback(
     async (action: ExportAction) => {
-      const sameSession = () =>
+      const coherentProjection = () =>
         owner.services === apiOwner &&
         !!owner.viewerId &&
         owner.viewerId === getActiveViewerId() &&
-        owner.services.session.userId === owner.viewerId &&
         owner.services.http.getSessionEpoch() === owner.epoch;
+      const sameSession = () => {
+        if (!coherentProjection()) return false;
+        const token = owner.services.session.accessToken;
+        const subject = owner.services.session.userId;
+        if (token !== null) return subject === owner.viewerId;
+        // Services can restore its cached device session while offline without
+        // a warm bearer. This exception is only for local exports.
+        return mode === 'local' && !!owner.sessionId && subject === null;
+      };
       const owns = () => committed.current === owner && sameSession();
-      if (!owns() || !owner.viewerId) return;
+      if (!owns() || !owner.viewerId) {
+        if (
+          mode === 'network' &&
+          committed.current === owner &&
+          coherentProjection() &&
+          owner.services.session.accessToken === null &&
+          owner.services.session.userId === null
+        ) {
+          toast.error(t('settings.export.failed'));
+        }
+        return;
+      }
       setPending((previous) =>
         previous?.owner === owner ? { owner, count: previous.count + 1 } : { owner, count: 1 },
       );
@@ -69,7 +88,7 @@ export function useOwnedExport() {
         });
       }
     },
-    [owner, t],
+    [mode, owner, t],
   );
   return { run, pending: pending?.owner === owner };
 }

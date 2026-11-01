@@ -290,6 +290,99 @@ describe('export ownership', () => {
     expect(fixture.saveBinary).not.toHaveBeenCalled();
   });
 
+  it('reports a network export unavailable when a cached session has no bearer', async () => {
+    oxy.session.clear();
+    const fetchSpy = vi.fn() as typeof fetch;
+    globalThis.fetch = fetchSpy;
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    await act(async () => {
+      await jsonExport();
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(fixture.toast).toHaveBeenCalledWith('settings.export.failed');
+  });
+
+  it('rejects a different or opaque bearer even when the local projection says A', async () => {
+    for (const token of [jwt('B'), 'opaque-token']) {
+      oxy.session.setAccessToken(token);
+      await act(async () => {
+        root = create(React.createElement(Harness));
+      });
+      await act(async () => {
+        await zipExport();
+      });
+      expect(fixture.execute).not.toHaveBeenCalled();
+      expect(fixture.saveBinary).not.toHaveBeenCalled();
+      await act(async () => {
+        root?.unmount();
+        root = undefined;
+      });
+    }
+  });
+
+  it('does not use tokenless local fallback without a projected session id', async () => {
+    oxy.session.clear();
+    fixture.auth.activeSessionId = '';
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    await act(async () => {
+      await zipExport();
+    });
+    expect(fixture.execute).not.toHaveBeenCalled();
+    expect(fixture.saveBinary).not.toHaveBeenCalled();
+  });
+
+  it('drops a tokenless local export after committed A to B to A projections', async () => {
+    oxy.session.clear();
+    let finish!: (rows: unknown[]) => void;
+    fixture.execute.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => {
+      root = create(React.createElement(Harness));
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = zipExport();
+      await Promise.resolve();
+    });
+    expect(fixture.execute).toHaveBeenCalledOnce();
+    const epoch = oxy.http.getSessionEpoch();
+    await act(async () => {
+      fixture.viewer = 'B';
+      fixture.auth = {
+        isAuthenticated: true,
+        user: { id: 'B' },
+        activeSessionId: 'session-B',
+        oxyServices: oxy,
+      };
+      root?.update(React.createElement(Harness));
+    });
+    expect(zipBusy).toBe(false);
+    await act(async () => {
+      fixture.viewer = 'A';
+      fixture.auth = {
+        isAuthenticated: true,
+        user: { id: 'A' },
+        activeSessionId: 'session-A',
+        oxyServices: oxy,
+      };
+      root?.update(React.createElement(Harness));
+    });
+    expect(oxy.http.getSessionEpoch()).toBe(epoch);
+    await act(async () => {
+      finish([{ viewer: 'A' }]);
+      await pending;
+    });
+    expect(fixture.saveBinary).not.toHaveBeenCalled();
+  });
+
   it('does not start native writing after A to B to A during availability', async () => {
     const native = await import('@/lib/export/save.native');
     fixture.saveBinary.mockImplementation(native.saveBinaryFile);

@@ -133,6 +133,18 @@ describe('offline restored session export', () => {
       expect(fixture.save).toHaveBeenCalledOnce();
       const bytes = fixture.save.mock.calls[0][1] as Uint8Array;
       expect(new TextDecoder().decode(bytes)).toContain('# Offline note');
+      const payload = Buffer.from(
+        JSON.stringify({ userId: 'A', sessionId: 'session-A', exp: 4102444800 }),
+      ).toString('base64url');
+      await act(async () => {
+        oxy?.session.setAccessToken(`h.${payload}.s`);
+      });
+      fixture.save.mockClear();
+      await act(async () => {
+        await exportZip();
+      });
+      expect(fixture.save).toHaveBeenCalledOnce();
+      expect(fetchSpy).not.toHaveBeenCalled();
     } finally {
       db.close();
     }

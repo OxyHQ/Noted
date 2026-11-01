@@ -12,7 +12,7 @@ import { useOwnedExport } from '@/lib/hooks/use-owned-export';
  * means the account, not this phone. It therefore needs a connection.
  */
 export function useExportAll() {
-  const { run, pending: exporting } = useOwnedExport();
+  const { run, pending: exporting } = useOwnedExport('network');
 
   const exportAll = useCallback(
     () =>
