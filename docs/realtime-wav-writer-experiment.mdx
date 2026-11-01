@@ -15,6 +15,9 @@ file, remembers errors and rejects a queue overflow or short write. The long
 test simulates three hours through an in-memory *counter*, not a native file or
 real-time device. Its storage keeps up by construction; it does not measure
 throughput, power, memory use on a phone, or actual session behavior.
+Another test uses an actual Linux file descriptor created with exclusive
+creation, checks the output header and PCM, and confirms a second exclusive
+creation fails. It does not exercise the Android or iOS filesystem adapters.
 
 Before adoption, the caller must provide a native no-symlink exclusive
 reservation, keep its descriptor across writes, bind it to an authenticated

@@ -102,6 +102,20 @@ describe('incremental WAV prototype', () => {
     expect(file.closed).toBe(true);
   });
 
+  it('preserves the first append failure even if close also fails', async () => {
+    const file = new MemoryFile();
+    const originalWrite = file.writeAt.bind(file);
+    file.writeAt = async (offset, data) => {
+      if (offset === 44) throw new Error('disk full');
+      return originalWrite(offset, data);
+    };
+    const writer = await IncrementalWavWriter.create(file, 1024);
+    file.closeError = true;
+    writer.append(Uint8Array.of(1, 2));
+    await expect(writer.finish(() => {})).rejects.toThrow('disk full');
+    expect(file.closed).toBe(true);
+  });
+
   it('fails closed if the queue cannot keep up', async () => {
     const file = new MemoryFile();
     const writer = await IncrementalWavWriter.create(file, 2);
