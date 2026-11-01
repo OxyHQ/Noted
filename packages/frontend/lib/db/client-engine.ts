@@ -71,6 +71,7 @@ let driver: DatabaseDriver = expoSqliteDriver;
 
 /** Swap the database driver. Must happen before the first account is activated. */
 export function setDatabaseDriver(next: DatabaseDriver): void {
+  assertConnectionHealthy();
   driver = next;
 }
 
@@ -126,6 +127,13 @@ let connection: Promise<EngineDatabase> | null = null;
 let available = true;
 let activeViewerId: string | null = null;
 let changeListenerAttached = false;
+let quarantinedConnection: EngineDatabase | null = null;
+
+function assertConnectionHealthy(): void {
+  if (quarantinedConnection) {
+    throw new Error('The local database needs recovery after an uncertain rollback');
+  }
+}
 
 const VIEWER_OWNER_KEY = 'viewer_id';
 
@@ -201,7 +209,7 @@ function rearmViewerGate(): void {
  * storage error; they must not replace local reads with network requests.
  */
 export function isDbAvailable(): boolean {
-  return available;
+  return available && quarantinedConnection === null;
 }
 
 /** The account whose database is currently open, if any. */
@@ -223,6 +231,7 @@ function databaseName(viewerId: string): string {
  */
 export function setActiveViewer(viewerId: string): Promise<void> {
   return serializeLifecycle(async () => {
+    assertConnectionHealthy();
     if (activeViewerId !== viewerId) {
       await closeConnection();
       activeViewerId = viewerId;
@@ -238,6 +247,7 @@ export function setActiveViewer(viewerId: string): Promise<void> {
 /** Close the database and forget the account (sign-out). */
 export function clearActiveViewer(): Promise<void> {
   return serializeLifecycle(async () => {
+    assertConnectionHealthy();
     await closeConnection();
     activeViewerId = null;
     // Queries issued after a sign-out must wait for the next account rather than
@@ -345,6 +355,7 @@ async function assertOwnership(db: EngineDatabase, viewerId: string): Promise<vo
 
 /** The connection for the active account, or null if the account went away. */
 async function connectIfActive(): Promise<EngineDatabase | null> {
+  assertConnectionHealthy();
   if (!activeViewerId) return null;
   if (!available) {
     // Opening already failed for this account. Retrying it per query would turn
@@ -392,7 +403,10 @@ async function getDbForViewer(expectedViewerId?: string | null): Promise<EngineD
 
 /** Close the handle and drop the cached connection (account switch, tests). */
 export function closeDb(): Promise<void> {
-  return serializeLifecycle(closeConnection);
+  return serializeLifecycle(async () => {
+    assertConnectionHealthy();
+    await closeConnection();
+  });
 }
 
 /** Caller must hold the lifecycle queue. */
@@ -415,8 +429,12 @@ async function closeConnection(): Promise<void> {
 
 let tail: Promise<unknown> = Promise.resolve();
 
-function enqueue<T>(work: () => Promise<T>): Promise<T> {
-  const result = tail.then(work, work);
+function enqueue<T>(work: () => Promise<T>, allowQuarantined = false): Promise<T> {
+  const guarded = () => {
+    if (!allowQuarantined) assertConnectionHealthy();
+    return work();
+  };
+  const result = tail.then(guarded, guarded);
   tail = result.catch(() => undefined);
   return result;
 }
@@ -500,6 +518,15 @@ async function runTransaction(
   expectedViewerId?: string | null,
 ): Promise<number[]> {
   const db = await getDbForViewer(expectedViewerId);
+  return runTransactionOnDb(db, statements);
+}
+
+/** The caller owns the connection and the transaction queue for this operation. */
+async function runTransactionOnDb(
+  db: EngineDatabase,
+  statements: readonly Statement[],
+  onRollbackFailure?: () => void,
+): Promise<number[]> {
   // IMMEDIATE takes the write lock up front, so a busy database fails here
   // rather than half-way through the statements.
   await db.execAsync('BEGIN IMMEDIATE');
@@ -523,6 +550,7 @@ async function runTransaction(
       await db.execAsync('ROLLBACK');
     } catch (rollbackError) {
       logger.warn('Transaction rollback failed', { error: errorMessage(rollbackError) });
+      onRollbackFailure?.();
     }
     throw error;
   } finally {
@@ -539,6 +567,53 @@ export function executeTransaction(
   expectedViewerId?: string | null,
 ): Promise<number[]> {
   return enqueue(() => runTransaction(statements, expectedViewerId));
+}
+
+/**
+ * Experiment: keep the local viewer lifecycle stable through commit or rollback.
+ * This does not bind an independent Oxy session and is not yet exposed on web.
+ * Statements are data only: callers must not re-enter the transaction queue.
+ */
+export function executeTransactionPinnedToViewer(
+  statements: readonly Statement[],
+  expectedViewerId: string,
+): Promise<number[]> {
+  return enqueue(() =>
+    serializeLifecycle(async () => {
+      if (!expectedViewerId || activeViewerId !== expectedViewerId) {
+        throw new Error('The active account changed before this write could be saved');
+      }
+      const db = await connectIfActive();
+      if (!db) throw new Error('The local account is no longer available');
+      return runTransactionOnDb(db, statements, () => {
+        quarantinedConnection = db;
+      });
+    }),
+  );
+}
+
+/**
+ * Experiment: retry closing an uncertain connection without changing viewer.
+ * The driver must only resolve close after its transaction and handle are gone.
+ */
+export function recoverQuarantinedConnection(): Promise<void> {
+  return enqueue(
+    () =>
+      serializeLifecycle(async () => {
+        const db = quarantinedConnection;
+        if (!db) return;
+        try {
+          await db.execAsync('ROLLBACK');
+        } catch {
+          // Close must still be attempted; a previous rollback may have succeeded.
+        }
+        await db.closeAsync();
+        connection = null;
+        quarantinedConnection = null;
+        available = true;
+      }),
+    true,
+  );
 }
 
 /**

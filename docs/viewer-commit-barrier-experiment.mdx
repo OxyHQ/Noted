@@ -1,0 +1,41 @@
+# Local viewer transaction experiment
+
+This isolated prototype is not connected to application callers and must not be
+merged as a general session or durability guarantee. It explores one native
+client-engine operation that acquires the SQL queue and then the local viewer
+lifecycle queue, checks the viewer, and keeps that lifecycle queue through
+COMMIT or ROLLBACK. Existing transaction callers do not opt into this operation.
+
+The operation accepts SQL statements as data; it does not invoke caller-provided
+callbacks inside either queue. The database driver and its hooks must not call
+and await another queued database operation while an operation is running. A
+controlled test demonstrates the resulting deadlock with a bounded timeout and
+then releases it. Ordinary separately queued transactions are tested for order
+and do not require re-entering the lifecycle queue.
+
+When rollback of this experimental operation fails, the connection is marked
+uncertain. The prototype refuses further queued reads/writes and local viewer
+switches, clear, normal close or driver replacement. An explicit recovery call
+retries rollback and attempts to close that connection. It clears the quarantine
+only when the driver reports a successful close; a failed close retains the
+viewer and quarantine. A failed close may have partially completed, and there is
+currently no supported user-facing recovery if retry continues to fail.
+Recovery itself holds both queues: a driver operation that never settles also
+prevents local viewer changes indefinitely. It deliberately does not time out
+and release the viewer while the driver may still own the handle.
+
+This depends on a driver contract: a successful close must mean the uncertain
+transaction and connection are no longer usable. That contract has only been
+exercised here with a controlled Node SQLite driver, not Expo SQLite, the web
+OPFS broker or the desktop driver. Closing a Node SQLite connection with a live
+transaction rolled it back in the temporary-database test. It must not be
+generalized to other drivers without validation. Rollback failures in the
+existing non-opt-in transaction path are unchanged.
+
+The protection covers the *local* viewer lifecycle only. Oxy's session or epoch
+can change independently and before the React effect updates this viewer. It
+does not make filesystem writes atomic with SQLite, does not cover reads or
+existing transaction call sites, and does not prove power-loss durability. The
+web/desktop client uses a separate broker and does not expose this experimental
+API. Mobile devices, process termination, rollback/close combinations and the
+user experience after quarantine require further testing and design.
