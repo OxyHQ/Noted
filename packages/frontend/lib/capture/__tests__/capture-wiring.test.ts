@@ -35,7 +35,7 @@ it('routes both native recorder paths through the account namespace', () => {
   for (const source of [NATIVE, COMPRESSED]) {
     expect(source).toContain('captureOwnerKey(expectedViewerId)');
     expect(source).toContain('nativeCaptureReference(ownerKey, captureId,');
-    expect(source).not.toMatch(/`captures\/\$\{captureId\}\/audio\./);
+    expect(source).not.toContain(`captures/\${captureId}/audio.`);
   }
 });
 

@@ -21,8 +21,11 @@ and assumes its code is trusted; it is not a capability against arbitrary code
 already executing inside the app.
 
 The write side is not safe yet: the compressed recorder currently deletes an
-existing destination before moving its temporary file, and the realtime writer
-opens a path supplied to Whisper. Neither operation reserves the destination
+existing destination before moving its temporary file. The realtime recorder
+passes an output path to Whisper, but supplies no filesystem adapter. With the
+locked `whisper.rn` 0.7.2, that means the WAV writer is not initialized and the
+path alone does not create a recording. If an adapter is added, it must not
+reopen an untrusted pathname. Neither recorder currently reserves a destination
 exclusively or proves that the directory chain still names the original
 directories. This draft must not be used for recording or deletion in production.
 
@@ -51,8 +54,10 @@ An implementation for new recordings also needs a recoverable write protocol:
    An existing destination is a conflict, never a reason to delete it.
 2. Ensure the actual audio writer uses that reservation, not a pathname it can
    reopen through a changed directory. Whisper currently accepts an output path;
-   whether its filesystem adapter can write to a retained native handle needs
-   verification and may require a native adapter or upstream change.
+   its filesystem adapter would need to write to a retained native handle. The
+   locked writer catches append and finalization errors, so those failures must
+   also be reported and file integrity checked before declaring success. This
+   may require a native adapter or an upstream change.
 3. Journal the intended owner and file state before publishing the reference;
    reconcile interruptions and account changes without discarding either a
    recorded file or an existing file. A filesystem move and SQLite commit are
