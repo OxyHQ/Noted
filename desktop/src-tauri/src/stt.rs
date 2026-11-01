@@ -189,11 +189,21 @@ fn sidecar_path() -> Result<PathBuf, String> {
         } else {
             "whisper-avx2"
         });
-        if supports_optimized_sidecar() && optimized.is_file() {
+        if supports_optimized_sidecar() && optional_regular_file(&optimized)? {
             return Ok(optimized);
         }
     }
     Ok(directory.join(name))
+}
+
+#[cfg(all(feature = "whisper-cpu-dispatch", target_arch = "x86_64"))]
+fn optional_regular_file(path: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_file() => Ok(true),
+        Ok(_) => Err("the optimized transcriber is not a regular file".to_string()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("could not inspect the optimized transcriber: {error}")),
+    }
 }
 
 #[cfg(all(feature = "whisper-cpu-dispatch", target_arch = "x86_64"))]
@@ -272,6 +282,32 @@ mod tests {
             features[missing] = false;
             assert!(!super::supports_optimized_features(features));
         }
+    }
+
+    #[cfg(all(feature = "whisper-cpu-dispatch", target_arch = "x86_64"))]
+    #[test]
+    fn optimized_sidecar_missing_and_non_file_are_distinct() {
+        let directory = std::env::temp_dir().join(format!(
+            "noted-sidecar-selection-{}-{}",
+            std::process::id(),
+            RUNS.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&directory).unwrap();
+        let candidate = directory.join("sidecar");
+        assert_eq!(optional_regular_file(&candidate), Ok(false));
+        fs::write(&candidate, b"test").unwrap();
+        assert_eq!(optional_regular_file(&candidate), Ok(true));
+        fs::remove_file(&candidate).unwrap();
+        fs::create_dir(&candidate).unwrap();
+        assert!(optional_regular_file(&candidate).is_err());
+        fs::remove_dir(&candidate).unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("missing", &candidate).unwrap();
+            assert!(optional_regular_file(&candidate).is_err());
+            fs::remove_file(&candidate).unwrap();
+        }
+        fs::remove_dir(&directory).unwrap();
     }
     const SAMPLE_OUTPUT: &str = r#"{
       "systeminfo": "ignored",

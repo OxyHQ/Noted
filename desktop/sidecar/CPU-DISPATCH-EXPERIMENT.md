@@ -16,8 +16,9 @@ sync with the feature checks, including compiler defaults and all transitive
 instructions. A feature check alone does not establish binary compatibility.
 
 This is not a release recipe: the normal build, staging and package config are
-unchanged. The experimental path follows filesystem links and does not verify
-the binary or its parent directory. It has not established protected package
+unchanged. The experimental path rejects a sidecar symlink at inspection time,
+but the check and execution are separate and it does not verify the binary or
+its parent directory. It has not established protected package
 paths, signatures/notarization, old glibc or OS compatibility, macOS Intel,
 native CPU fallback, or performance on user hardware. Missing-file fallback
 does not prove a damaged optimized binary is safe to retry. The separate macOS

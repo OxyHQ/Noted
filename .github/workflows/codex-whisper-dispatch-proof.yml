@@ -78,7 +78,7 @@ jobs:
           fs.writeFileSync(path,JSON.stringify(config,null,2)+'\n');
           NODE
       - name: Test dispatch selection
-        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --features whisper-cpu-dispatch optimized_sidecar_requires_every_build_feature
+        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --features whisper-cpu-dispatch optimized_sidecar_
       - name: Build and inspect a diagnostic deb
         working-directory: desktop/src-tauri
         run: |
