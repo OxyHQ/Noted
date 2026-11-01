@@ -140,7 +140,7 @@ let connection: Promise<EngineDatabase> | null = null;
 let available = true;
 let activeViewerId: string | null = null;
 let changeListenerAttached = false;
-let quarantinedConnection: EngineDatabase | null = null;
+let quarantinedConnection: { db: EngineDatabase; ownedTransaction: boolean } | null = null;
 let reconciliationRequired = false;
 let quarantineGeneration = 0;
 
@@ -573,7 +573,7 @@ async function runTransaction(
 async function runTransactionOnDb(
   db: EngineDatabase,
   statements: readonly Statement[],
-  onRollbackFailure?: () => void,
+  onRollbackFailure?: (ownedTransaction: boolean) => void,
 ): Promise<number[]> {
   // IMMEDIATE takes the write lock up front, so a busy database fails here
   // rather than half-way through the statements.
@@ -581,13 +581,8 @@ async function runTransactionOnDb(
     await db.execAsync('BEGIN IMMEDIATE');
   } catch (beginError) {
     if (!onRollbackFailure) throw beginError;
-    try {
-      await db.execAsync('ROLLBACK');
-    } catch (rollbackError) {
-      onRollbackFailure();
-      throw new TransactionOutcomeUncertainError(beginError, rollbackError);
-    }
-    throw beginError;
+    onRollbackFailure(false);
+    throw new TransactionOutcomeUncertainError(beginError, undefined);
   }
   const affected: number[] = [];
   try {
@@ -610,7 +605,7 @@ async function runTransactionOnDb(
     } catch (rollbackError) {
       logger.warn('Transaction rollback failed', { error: errorMessage(rollbackError) });
       if (onRollbackFailure) {
-        onRollbackFailure();
+        onRollbackFailure(true);
         throw new TransactionOutcomeUncertainError(error, rollbackError);
       }
     }
@@ -647,8 +642,8 @@ export function executeTransactionPinnedToViewer(
       }
       const db = await connectIfActive();
       if (!db) throw new Error('The local account is no longer available');
-      return runTransactionOnDb(db, statements, () => {
-        quarantinedConnection = db;
+      return runTransactionOnDb(db, statements, (ownedTransaction) => {
+        quarantinedConnection = { db, ownedTransaction };
         reconciliationRequired = true;
         quarantineGeneration++;
       });
@@ -664,8 +659,12 @@ export function recoverQuarantinedConnection(): Promise<void> {
   return enqueue(
     () =>
       serializeLifecycle(async () => {
-        const db = quarantinedConnection;
-        if (!db) return;
+        const quarantine = quarantinedConnection;
+        if (!quarantine) return;
+        if (!quarantine.ownedTransaction) {
+          throw new Error('Transaction ownership is unknown; automatic recovery is disabled');
+        }
+        const { db } = quarantine;
         try {
           await db.execAsync('ROLLBACK');
         } catch {

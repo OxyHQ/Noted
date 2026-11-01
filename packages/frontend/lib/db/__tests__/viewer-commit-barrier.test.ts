@@ -172,52 +172,56 @@ it('releases both queues after a commit error and rolls back', async () => {
   }
 });
 
-it('quarantines an unconfirmed BEGIN when rollback also fails', async () => {
+it('quarantines a failed BEGIN without trying to roll back or close', async () => {
   const test = await fixture(null, false, true);
   try {
+    const exec = vi.spyOn(test.driverDb, 'execAsync');
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('segment-A')], 'A'),
     ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
     expect(test.client.isDbAvailable()).toBe(false);
-    await test.client.recoverQuarantinedConnection();
-    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
-    const check = new DatabaseSync(test.path);
-    expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
-    check.close();
+    expect(exec.mock.calls.some(([sql]) => sql === 'ROLLBACK')).toBe(false);
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'ownership is unknown',
+    );
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('needs recovery');
   } finally {
     await test.dispose();
   }
 });
 
-it('rolls back a real SQLite BEGIN whose acknowledgement failed before releasing the viewer', async () => {
+it('preserves an actual BEGIN whose acknowledgement failed for manual recovery', async () => {
   const test = await fixture(null, false, false, false, false, false, true);
   try {
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('segment-A')], 'A'),
-    ).rejects.toThrow('begin acknowledgement lost');
-    expect(test.client.isDbAvailable()).toBe(true);
-    await test.client.setActiveViewer('B');
-    const check = new DatabaseSync(test.path);
-    expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
-    check.close();
+    ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
+    expect(test.db.isTransaction).toBe(true);
+    expect(test.client.isDbAvailable()).toBe(false);
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'ownership is unknown',
+    );
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('needs recovery');
   } finally {
     await test.dispose();
   }
 });
 
-it('keeps the viewer quarantined when an unconfirmed BEGIN and rollback both fail', async () => {
-  const test = await fixture(null, false, false, true, false, false, true);
+it('does not roll back a transaction that existed before BEGIN was attempted', async () => {
+  const test = await fixture(null);
   try {
+    test.db.exec('BEGIN IMMEDIATE');
+    test.db.prepare('INSERT INTO transcript_segments (id) VALUES (?)').run('prior');
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('segment-A')], 'A'),
     ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
+    expect(test.db.isTransaction).toBe(true);
+    expect(test.db.prepare('SELECT id FROM transcript_segments').all()).toEqual([{ id: 'prior' }]);
     expect(test.client.getActiveViewerId()).toBe('A');
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('needs recovery');
-    await test.client.recoverQuarantinedConnection();
-    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
-    const check = new DatabaseSync(test.path);
-    expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
-    check.close();
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'ownership is unknown',
+    );
   } finally {
     await test.dispose();
   }

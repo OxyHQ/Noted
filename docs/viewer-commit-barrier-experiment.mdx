@@ -7,11 +7,12 @@ lifecycle queue, checks the viewer, and keeps that lifecycle queue through
 COMMIT or ROLLBACK. Existing transaction callers do not opt into this operation.
 
 For the experimental operation, a failed `BEGIN` is treated as potentially
-having opened a transaction. The code attempts rollback before releasing the
-lifecycle; if rollback also fails, it enters the same uncertain state. This is
-deliberately conservative: a BEGIN that failed before starting any transaction
-can also be quarantined when the driver's rollback reports no active transaction.
-The existing non-opt-in BEGIN behavior is unchanged.
+having opened a transaction *or* having encountered an earlier transaction. It
+enters quarantine without attempting rollback or automatic close, because those
+actions could destroy a prior operation's uncommitted work. Even a BEGIN that
+failed before starting a transaction is quarantined. Proving ownership and
+recovering that connection remain unsolved. The existing non-opt-in BEGIN
+behavior is unchanged.
 
 The operation accepts SQL statements as data; it does not invoke caller-provided
 callbacks inside either queue. The database driver and its hooks must not call
@@ -22,8 +23,10 @@ and do not require re-entering the lifecycle queue.
 
 When rollback of this experimental operation fails, the connection is marked
 uncertain. The prototype refuses further queued reads/writes and local viewer
-switches, clear, normal close or driver replacement. An explicit recovery call
-retries rollback and attempts to close that connection. A failed close retains
+switches, clear, normal close or driver replacement. For an acknowledged BEGIN,
+an explicit recovery call retries rollback and attempts to close that connection.
+For an unconfirmed BEGIN, automatic recovery is disabled because ownership of
+the transaction is unknown. A failed close retains
 the viewer and quarantine. A successful close moves the state to *awaiting
 reconciliation*, where operations and viewer changes remain blocked. A generation
 also rejects operations submitted before or during the uncertain state. A failed close may have partially
