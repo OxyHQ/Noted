@@ -1195,6 +1195,7 @@
     "pickDateTime": "Pick date and time",
     "reminderTime": "Reminder time",
     "reminderInPast": "Choose a time in the future",
+    "reminderInvalidTime": "此时间在您的时区中不存在。请选择其他时间。",
     "setReminder": "Set reminder",
     "customReminder": "Pick a time…",
     "historyBlocks": "{{count}} blocks"

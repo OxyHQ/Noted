@@ -1195,6 +1195,7 @@
     "pickDateTime": "Pick date and time",
     "reminderTime": "Reminder time",
     "reminderInPast": "Choose a time in the future",
+    "reminderInvalidTime": "Aquesta hora no existeix a la teva zona horària. Tria una altra hora.",
     "setReminder": "Set reminder",
     "customReminder": "Pick a time…",
     "historyBlocks": "{{count}} blocs"

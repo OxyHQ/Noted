@@ -1195,6 +1195,7 @@
     "pickDateTime": "Pick date and time",
     "reminderTime": "Reminder time",
     "reminderInPast": "Choose a time in the future",
+    "reminderInvalidTime": "Muda huu haupo katika eneo lako la saa. Chagua muda mwingine.",
     "setReminder": "Set reminder",
     "customReminder": "Pick a time…",
     "historyBlocks": "{{count}} blocks"

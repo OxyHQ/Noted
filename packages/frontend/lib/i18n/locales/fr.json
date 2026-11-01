@@ -1195,6 +1195,7 @@
     "pickDateTime": "Pick date and time",
     "reminderTime": "Reminder time",
     "reminderInPast": "Choose a time in the future",
+    "reminderInvalidTime": "Cette heure n’existe pas dans votre fuseau horaire. Choisissez une autre heure.",
     "setReminder": "Set reminder",
     "customReminder": "Pick a time…",
     "historyBlocks": "{{count}} blocks"

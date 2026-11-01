@@ -1195,6 +1195,7 @@
     "pickDateTime": "Pick date and time",
     "reminderTime": "Reminder time",
     "reminderInPast": "Choose a time in the future",
+    "reminderInvalidTime": "Такого времени в вашем часовом поясе не существует. Выберите другое время.",
     "setReminder": "Set reminder",
     "customReminder": "Pick a time…",
     "historyBlocks": "{{count}} blocks"
