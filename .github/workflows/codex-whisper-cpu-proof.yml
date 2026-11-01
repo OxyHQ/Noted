@@ -1,0 +1,77 @@
+name: Whisper CPU compatibility diagnostic
+on:
+  pull_request:
+    paths: ['.github/workflows/codex-whisper-cpu-proof.yml']
+permissions:
+  contents: read
+jobs:
+  compare:
+    name: Cached vs baseline CPU (${{ matrix.attempt }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        attempt: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Restore existing whisper build without changing it
+        id: whisper
+        uses: actions/cache/restore@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-v1.9.5-linux
+          fail-on-cache-miss: true
+      - name: Restore existing model without changing it
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.local/share/so.oxy.noted.desktop/models
+          key: desktop-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+          fail-on-cache-miss: true
+      - name: Inspect runner and cached compilation
+        run: |
+          set -euo pipefail
+          lscpu
+          rg='^(GGML_NATIVE|GGML_SSE42|GGML_AVX|GGML_AVX2|GGML_BMI2|GGML_FMA|GGML_F16C):'
+          grep -E "$rg" whisper.cpp/build/CMakeCache.txt || true
+          sha256sum whisper.cpp/build/bin/whisper-cli "$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin" whisper.cpp/samples/jfk.wav
+          command -v gdb || true
+      - name: Run cached sidecar using shell arguments
+        id: cached
+        run: |
+          set -uo pipefail
+          ulimit -c 0
+          model="$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin"
+          sample="$PWD/whisper.cpp/samples/jfk.wav"
+          set +e
+          timeout 120s whisper.cpp/build/bin/whisper-cli -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/cached" >"$RUNNER_TEMP/cached.stdout" 2>"$RUNNER_TEMP/cached.stderr"
+          code=$?
+          set -e
+          echo "cached_exit=$code" | tee -a "$GITHUB_STEP_SUMMARY"
+          tail -n 20 "$RUNNER_TEMP/cached.stderr"
+          if [ "$code" -eq 132 ] && command -v gdb >/dev/null; then
+            timeout 120s gdb -q -batch -ex 'set pagination off' -ex run -ex 'x/4i $pc' -ex 'bt 8' --args whisper.cpp/build/bin/whisper-cli -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/debug" 2>&1 | tail -50 || true
+          fi
+      - name: Build baseline x86-64 sidecar independently
+        run: |
+          set -euo pipefail
+          cmake -S whisper.cpp -B "$RUNNER_TEMP/baseline" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_BMI2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF
+          cmake --build "$RUNNER_TEMP/baseline" -j 2 --target whisper-cli
+          sha256sum "$RUNNER_TEMP/baseline/bin/whisper-cli"
+      - name: Transcribe the same sample with baseline build
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          model="$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin"
+          timeout 180s "$RUNNER_TEMP/baseline/bin/whisper-cli" -m "$model" -f "$PWD/whisper.cpp/samples/jfk.wav" -l en -oj -of "$RUNNER_TEMP/baseline-result"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'baseline-result.json'
+          data = json.loads(path.read_text())
+          text = ' '.join(item['text'] for item in data.get('transcription', [])).lower()
+          print('baseline_transcript:', text)
+          assert 'ask not what your country can do for you' in text
+          PY
