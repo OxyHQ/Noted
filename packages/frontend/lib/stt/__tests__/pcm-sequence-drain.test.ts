@@ -87,4 +87,14 @@ describe('experimental PCM sequence drain', () => {
     await expect(finished).rejects.toThrow('sink failed');
     await expect(drain.waitForStop(0, 1000)).rejects.toThrow('Invalid PCM stop marker');
   });
+
+  it('rejects a duplicate event re-entering from the delivery callback', async () => {
+    let drain: PcmSequenceDrain;
+    drain = new PcmSequenceDrain('A', 16, () => {
+      expect(drain.receive('A', 0, Uint8Array.of(1))).toBe(false);
+    });
+    const finished = drain.waitForStop(0, 1000);
+    expect(drain.receive('A', 0, Uint8Array.of(1))).toBe(false);
+    await expect(finished).rejects.toThrow('PCM event');
+  });
 });

@@ -45,8 +45,9 @@ export class PcmSequenceDrain {
         const current = this.pending.get(this.next) as Uint8Array;
         this.pending.delete(this.next);
         this.bufferedBytes -= current.length;
-        this.deliver(current);
         this.next++;
+        this.deliver(current);
+        if (this.failure) return false;
       }
       this.maybeResolve();
       return true;
