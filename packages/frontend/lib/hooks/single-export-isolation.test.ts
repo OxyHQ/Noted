@@ -212,6 +212,31 @@ describe('single-note export', () => {
     });
     expect(fixture.write).not.toHaveBeenCalled();
     expect(fixture.share).not.toHaveBeenCalled();
+    await act(async () => {
+      pressExport()();
+      await Promise.resolve();
+    });
+    expect(fixture.write).toHaveBeenCalledWith('# B original');
+    expect(fixture.share).toHaveBeenCalledOnce();
+  });
+  it('does not revive a retained A callback after A to B to A', async () => {
+    const retained = pressExport();
+    await switchAccount('B');
+    await switchAccount('A');
+    await act(async () => {
+      retained();
+      await Promise.resolve();
+    });
+    expect(fixture.write).not.toHaveBeenCalled();
+    expect(fixture.share).not.toHaveBeenCalled();
+  });
+  it('keeps a real share failure visible while the same editor remains open', async () => {
+    fixture.available.mockRejectedValueOnce(new Error('synthetic sharing failure'));
+    await act(async () => {
+      pressExport()();
+      await Promise.resolve();
+    });
+    expect(fixture.toast).toHaveBeenCalledWith('notes.exportFailed');
   });
   it('does not write the old note when the account changes during share availability', async () => {
     let release!: (result: boolean) => void;
