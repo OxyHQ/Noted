@@ -24,13 +24,15 @@ jobs:
         working-directory: packages/frontend
         run: |
           bun - <<'TS'
-          import {mkdtempSync, openSync, closeSync, fstatSync, rmSync} from 'node:fs';
+          import {mkdtempSync, openSync, closeSync, fstatSync, rmSync, writeFileSync} from 'node:fs';
           import {tmpdir} from 'node:os';
           import {join} from 'node:path';
           import {noteFilename} from './lib/export/markdown';
+          import {createZip} from './lib/export/zip';
           const directory = mkdtempSync(join(tmpdir(), 'noted-export-probe-'));
+          const titles = ['Agenda', 'CON', 'nul.txt', 'COM1', 'COM¹', 'PRN'];
           try {
-            for (const title of ['Agenda', 'CON', 'nul.txt', 'COM1', 'COM¹', 'PRN']) {
+            for (const title of titles) {
               const name = noteFilename({id:'diagnostic-id', title} as never);
               try {
                 const fd = openSync(join(directory, name), 'wx');
@@ -40,7 +42,37 @@ jobs:
                 console.log(JSON.stringify({title, name, error:(error as NodeJS.ErrnoException).code}));
               }
             }
+            writeFileSync(join(process.env.RUNNER_TEMP!, 'noted-export-probe.zip'), createZip(titles.map(title => ({
+              name: noteFilename({id:'diagnostic-id', title} as never), contents: `probe ${title}`,
+            }))));
           } finally {
             rmSync(directory, {recursive:true, force:true});
           }
           TS
+      - name: Probe Node and PowerShell extraction
+        shell: pwsh
+        run: |
+          $probe = Join-Path $env:RUNNER_TEMP 'noted-node-probe'
+          New-Item -ItemType Directory -Path $probe | Out-Null
+          $env:NOTED_NODE_PROBE = $probe
+          $script = @'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          for (const name of ['Agenda.md', 'CON.md', 'nul.txt.md', 'COM1.md', 'COM¹.md', 'PRN.md']) {
+            try {
+              const fd = fs.openSync(path.join(process.env.NOTED_NODE_PROBE, name), 'wx');
+              try { console.log(JSON.stringify({name, regularFile:fs.fstatSync(fd).isFile()})); }
+              finally { fs.closeSync(fd); }
+            } catch (error) { console.log(JSON.stringify({name, error:error.code})); }
+          }
+          '@
+          $script | node
+          if ($LASTEXITCODE -ne 0) { throw 'Node filename probe failed' }
+          $destination = Join-Path $env:RUNNER_TEMP 'noted-extracted-probe'
+          try {
+            Expand-Archive -Path (Join-Path $env:RUNNER_TEMP 'noted-export-probe.zip') -DestinationPath $destination -ErrorAction Stop
+            Write-Output 'Expand-Archive reported success'
+            Get-ChildItem -LiteralPath $destination | Select-Object Name, Length | Format-Table
+          } catch {
+            Write-Output "Expand-Archive error: $($_.Exception.Message)"
+          }
