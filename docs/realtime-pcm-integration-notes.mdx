@@ -1,0 +1,99 @@
+# Realtime PCM integration notes
+
+This is a design and audit, not an enabled implementation. The versions audited
+are the lockfile's `whisper.rn` 0.7.2 and `@fugood/react-native-audio-pcm-stream`
+1.1.4. The experiments in #251 do not exercise a real microphone or bridge.
+
+## Current path
+
+`use-realtime-recorder.native.ts` starts `startRealtimeTranscription`, whose
+`RealtimeTranscriber` receives `AudioPcmStreamAdapter`. The app passes an output
+path but no `fs` dependency; Whisper consequently does not initialize its WAV
+writer. The app's stop path awaits the session and then records the path in
+SQLite. The controller's error callback currently logs transcription errors.
+
+Whisper's `stop()` sets its active flag false *before* awaiting the stream's
+stop. Its data handler discards PCM after that flag changes. A controlled test
+with the published transcriber reproduces a dropped final block while source
+stop is pending. A separate test demonstrates that an idempotent source drain
+performed before `transcriber.stop()` delivers the simulated final block while
+Whisper is still active. That test does not prove a real native drain.
+
+Whisper also clears its active flag before waiting for in-flight transcription;
+controlled tests show that an already-running result is discarded. `nextSlice()`
+queues a final slice but resolves before transcription completes, so awaiting it
+and then stopping can lose the result too. An empty forced slice and a failed
+model call produce no stabilization callback, and two simultaneous calls can
+produce only one final callback. The callback carries text, not a slice ID; two
+different slices can produce indistinguishable callbacks. Correlating it with a
+preceding `onTranscribe` event relies on internal callback ordering rather than a
+public, request-correlated completion contract.
+
+The current `onTranscribe` starts `upsertSegments` without awaiting it. That
+repository operation does wait for `executeTransaction`, including `COMMIT`,
+but the session stop does not wait for that promise. In a controlled test of
+the real client engine backed by an isolated Node SQLite database, a viewer
+switch closed the connection while an artificially delayed COMMIT was pending;
+the transaction rejected and reopening the file showed the inserted row absent.
+This is not a test of Expo SQLite or mobile devices. COMMIT completion alone also
+does not establish power-loss durability under every filesystem and sync mode.
+
+Whisper catches a rejected stream stop, emits `onError` and resolves its own
+stop. A controller must retain and check the source's own stop result; relying
+on the transcriber's resolved promise is insufficient. Built-in WAV writer
+errors and concurrent appends have independent failures documented in the tests.
+
+## Existing native implementation
+
+- `AudioPcmStreamAdapter.initialize` calls native `init` without awaiting its
+  returned promise. A test with the published adapter demonstrates that its
+  `start` can be called while a simulated init promise remains unsettled. This
+  does not establish how native call scheduling behaves on either platform.
+- The installed JS event wrapper replaces all listeners for the shared `data`
+  event. The adapter does not remove the subscription object on release. Events
+  have neither a capture operation ID nor a sequence.
+- Android's void stop changes a non-volatile flag, without joining its reading
+  thread. The reader may be in a blocking `AudioRecord.read` and emits the entire
+  reused buffer rather than limiting the encoding to `bytesRead`. There is no
+  native completion marker or surfaced read/close error.
+- iOS exposes void init/start/stop methods. It calls synchronous
+  `AudioQueueStop(..., true)` internally, but the JS bridge does not await a
+  completion and that call alone does not establish that JS has consumed every
+  previously emitted event. The callback and stop code also share a running flag
+  without an explicit synchronization protocol.
+
+## Candidate integration boundary
+
+Use a separately versioned native module or a reviewed upstream change rather
+than silently relying on the old void methods. Initialization, start and stop
+must report native failures and identify the recording operation. Native events
+need copied data with the actual byte count and a per-operation sequence. A
+bounded acknowledgement protocol must account for JS backpressure; rejected or
+lost data must make the operation fail, not produce a successful marker.
+
+Stopping needs to stop and join or otherwise prove quiescence of the actual
+producer, then report the final sequence. JS must accept and order every event
+through that sequence before sealing the input. The stop response and events
+must not be assumed to arrive in the same order. A timeout or uncertain native
+close yields no successful marker and retains the resource authority until
+cleanup has genuinely completed. The source must define what happens to audio
+still held in a hardware buffer at stop, interruptions and process death.
+
+While the drain is in progress, forward accepted PCM to both the bounded writer
+and the active transcriber. After drain, a request-correlated final-transcription
+and persistence barrier must complete while Whisper remains active; only then
+stop it with an idempotent adapter. The public `nextSlice()` result and the
+unlabelled stabilization callback do not independently provide that contract.
+A reviewed Whisper adaptation or upstream API change is needed rather than
+relying on undocumented callback ordering. Independently check the producer,
+writer and input-gate failures. A successful
+drain does not prove a file is safe to publish: an exclusive owner-bound file,
+account/session epoch, SQLite coordination, recovery journal and durability
+remain required. A callback emitted after an already accepted final marker
+cannot retroactively invalidate a committed row, which makes the producer's real
+stop and event semantics essential.
+
+The new native binary, Android/iOS platform builds, device tests including
+permissions, interruptions and account switches, and long-duration resource
+measurements are prerequisites. Older binaries must not silently fall back to
+an unsafe recording path. No production code is switched to this design here.

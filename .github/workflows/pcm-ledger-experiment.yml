@@ -1,0 +1,41 @@
+name: Experimental native PCM ledger
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/native-pcm-drain/**'
+      - 'packages/frontend/lib/stt/pcm-sequence-drain.ts'
+      - 'packages/frontend/lib/stt/__tests__/pcm-sequence-drain.test.ts'
+      - '.github/workflows/pcm-ledger-experiment.yml'
+permissions:
+  contents: read
+
+jobs:
+  android-ledger:
+    name: JVM producer ledger
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: |
+          mkdir "$RUNNER_TEMP/pcm-ledger"
+          javac -d "$RUNNER_TEMP/pcm-ledger" experiments/native-pcm-drain/android/PcmSequenceLedger.java experiments/native-pcm-drain/android/PcmSequenceLedgerTest.java experiments/native-pcm-drain/android/PcmProducer.java experiments/native-pcm-drain/android/PcmProducerTest.java
+          java -cp "$RUNNER_TEMP/pcm-ledger" PcmSequenceLedgerTest
+          java -cp "$RUNNER_TEMP/pcm-ledger" PcmProducerTest
+
+  ios-ledger:
+    name: Swift producer ledger
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          swiftc experiments/native-pcm-drain/ios/PcmSequenceLedger.swift experiments/native-pcm-drain/ios/PcmSequenceLedgerTest.swift -o "$RUNNER_TEMP/pcm-ledger-test"
+          "$RUNNER_TEMP/pcm-ledger-test"
+          clang -c experiments/native-pcm-drain/ios/PcmThreadBridge.c -o "$RUNNER_TEMP/pcm-thread.o"
+          clang -pthread experiments/native-pcm-drain/ios/PcmThreadBridgeTest.c "$RUNNER_TEMP/pcm-thread.o" -o "$RUNNER_TEMP/pcm-thread-test"
+          "$RUNNER_TEMP/pcm-thread-test"
+          swiftc -import-objc-header experiments/native-pcm-drain/ios/PcmThreadBridge.h experiments/native-pcm-drain/ios/PcmSequenceLedger.swift experiments/native-pcm-drain/ios/PcmProducer.swift experiments/native-pcm-drain/ios/PcmProducerTest.swift "$RUNNER_TEMP/pcm-thread.o" -o "$RUNNER_TEMP/pcm-producer-test"
+          "$RUNNER_TEMP/pcm-producer-test"
