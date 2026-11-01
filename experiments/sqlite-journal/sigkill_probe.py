@@ -15,6 +15,8 @@ import sqlite3, sys, time
 path, stage = sys.argv[1:]
 db = sqlite3.connect(path, isolation_level=None)
 db.execute('PRAGMA synchronous=FULL')
+if db.execute('PRAGMA synchronous').fetchone()[0] != 2:
+    raise RuntimeError('FULL synchronous mode unavailable')
 if stage != 'before_begin':
     db.execute('BEGIN IMMEDIATE')
     db.execute("INSERT INTO effects VALUES ('op-1')")
@@ -30,6 +32,8 @@ import sqlite3, sys, time
 path, stage = sys.argv[1:]
 db = sqlite3.connect(path, isolation_level=None)
 db.execute('PRAGMA synchronous=FULL')
+if db.execute('PRAGMA synchronous').fetchone()[0] != 2:
+    raise RuntimeError('FULL synchronous mode unavailable')
 db.execute('BEGIN IMMEDIATE')
 db.execute("INSERT INTO intents VALUES ('op-1', 'fingerprint-A')")
 if stage == 'after_intent_commit':
@@ -37,6 +41,15 @@ if stage == 'after_intent_commit':
 print('ready', flush=True)
 time.sleep(30)
 """
+
+
+def configure(db: sqlite3.Connection) -> None:
+    mode = db.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+    if mode.lower() != "wal":
+        raise RuntimeError(f"WAL unavailable: {mode}")
+    db.execute("PRAGMA synchronous=FULL")
+    if db.execute("PRAGMA synchronous").fetchone()[0] != 2:
+        raise RuntimeError("FULL synchronous mode unavailable")
 
 
 def kill_at_boundary(program: str, path: str, stage: str) -> None:
@@ -92,8 +105,7 @@ def main() -> None:
         for stage, wanted in expected.items():
             path = os.path.join(directory, stage + ".db")
             db = sqlite3.connect(path, isolation_level=None)
-            db.execute("PRAGMA journal_mode=WAL")
-            db.execute("PRAGMA synchronous=FULL")
+            configure(db)
             for table in ("intents", "applied", "effects"):
                 db.execute(f"CREATE TABLE {table} (id TEXT PRIMARY KEY)")
             db.execute("INSERT INTO intents VALUES ('op-1')")
@@ -116,8 +128,7 @@ def main() -> None:
         for stage, expected_intent in (("before_intent_commit", 0), ("after_intent_commit", 1)):
             path = os.path.join(directory, stage + ".db")
             db = sqlite3.connect(path, isolation_level=None)
-            db.execute("PRAGMA journal_mode=WAL")
-            db.execute("PRAGMA synchronous=FULL")
+            configure(db)
             db.execute("CREATE TABLE intents (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)")
             db.close()
             kill_at_boundary(INTENT_CHILD, path, stage)
@@ -142,8 +153,7 @@ def main() -> None:
         path = os.path.join(directory, "replay.db")
         db = sqlite3.connect(path, isolation_level=None)
         try:
-            db.execute("PRAGMA journal_mode=WAL")
-            db.execute("PRAGMA synchronous=FULL")
+            configure(db)
             db.execute("CREATE TABLE counter (value INTEGER NOT NULL)")
             db.execute("INSERT INTO counter VALUES (0)")
             db.execute("CREATE TABLE intents (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)")
