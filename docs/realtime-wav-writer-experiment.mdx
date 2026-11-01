@@ -33,3 +33,13 @@ make the subsequent SQLite commit atomic with the identity lifecycle. Cancellati
 must preserve recoverable audio or safely remove only a file whose ownership is
 proven. Real Android and iOS builds, device tests and long-duration measurements
 remain necessary. Nothing here resolves legacy shared-file ownership or #248.
+
+The callback gate experiment drops and records callbacks after sealing so they do
+not invoke a closed writer. That is not a native drain guarantee: a callback may
+arrive after a final check or after a row is committed. The actual PCM dependency
+exposes Android `stop` as a void method that only clears a flag while its read
+thread may still emit; iOS also exposes a void bridge method. A promise and a
+cross-bridge event ordering guarantee must be demonstrated on both platforms
+before the final file can be considered complete. Checking just the viewer ID
+also misses A-to-B-to-A switches; the integration needs a captured session epoch
+and a commit coordinated with that lifecycle.

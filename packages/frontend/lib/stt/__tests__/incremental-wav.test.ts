@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { IncrementalWavWriter, type ReservedWavFile } from '../incremental-wav';
+import { PcmInputGate } from '../pcm-input-gate';
 
 class MemoryFile implements ReservedWavFile {
   bytes = new Uint8Array();
@@ -175,6 +176,52 @@ describe('incremental WAV prototype', () => {
     ).rejects.toThrow('account changed during close');
     expect(file.closed).toBe(true);
   });
+
+  it('rejects A to B to A when the captured identity epoch changed', async () => {
+    const file = new MemoryFile();
+    const writer = await IncrementalWavWriter.create(file, 1024);
+    writer.append(Uint8Array.of(1, 2));
+    let viewer = 'A';
+    let epoch = 1;
+    const capturedEpoch = epoch;
+    viewer = 'B';
+    epoch++;
+    viewer = 'A';
+    epoch++;
+    await expect(
+      writer.finish(() => {
+        if (viewer !== 'A' || epoch !== capturedEpoch) throw new Error('session changed');
+      }),
+    ).rejects.toThrow('session changed');
+    expect(file.closed).toBe(true);
+  });
+
+  it.each(['finish', 'cancel'] as const)(
+    'guards a callback arriving while %s waits for a write',
+    async (operation) => {
+      const file = new MemoryFile();
+      const originalWrite = file.writeAt.bind(file);
+      let release: (() => void) | undefined;
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      file.writeAt = async (offset, bytes) => {
+        if (offset === 44) await blocked;
+        return originalWrite(offset, bytes);
+      };
+      const writer = await IncrementalWavWriter.create(file, 1024);
+      const gate = new PcmInputGate((bytes) => writer.append(bytes));
+      gate.accept(Uint8Array.of(1, 2));
+      gate.seal();
+      const stopped = operation === 'finish' ? writer.finish(() => {}) : writer.cancel();
+      expect(() => gate.accept(Uint8Array.of(3, 4))).not.toThrow();
+      expect(() => gate.assertNoLateData()).toThrow('after the input was sealed');
+      release?.();
+      await stopped;
+      expect(() => gate.accept(Uint8Array.of(5, 6))).not.toThrow();
+      expect(file.closed).toBe(true);
+    },
+  );
 
   it('processes three simulated hours in bounded chunks', async () => {
     let size = 0;
