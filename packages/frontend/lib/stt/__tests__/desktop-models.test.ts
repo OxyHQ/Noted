@@ -76,6 +76,40 @@ function streamOf(...parts: Uint8Array[]): Response {
 const decodeLen = (b64: unknown) => Buffer.from(String(b64), 'base64').length;
 
 describe('desktop model downloads', () => {
+  it.each([0, 4])(
+    'rejects an oversized HTTP 200 before writing beyond the model size (partial=%i)',
+    async (partial) => {
+      const rust = fakeRust(null, undefined, partial);
+      let cancelled = false;
+      let part = 0;
+      const body = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            if (part++ === 0) controller.enqueue(new Uint8Array(CHUNK_BYTES));
+            else if (part === 2) controller.enqueue(new Uint8Array(4));
+            else controller.close();
+          },
+          cancel() {
+            cancelled = true;
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      const models = createDesktopModels(
+        async () => rust.invoke,
+        async () => new Response(body),
+      );
+      await expect(models.download({ ...MODEL, bytes: CHUNK_BYTES + 3 })).rejects.toThrow(
+        'model download exceeds its expected size',
+      );
+      expect(cancelled).toBe(true);
+      const writes = rust.calls.filter((call) => call.command === 'model_write');
+      expect(writes.map((write) => decodeLen(write.args.chunk))).toEqual([CHUNK_BYTES]);
+      expect(writes[0].args.reset).toBe(true);
+      expect(rust.calls.some((call) => call.command === 'model_commit')).toBe(false);
+    },
+  );
+
   it('reports a write failure even when stream cancellation does not settle', async () => {
     const failure = new Error('disk write failed');
     let releaseCancel!: () => void;
