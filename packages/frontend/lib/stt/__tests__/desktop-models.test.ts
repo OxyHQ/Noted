@@ -76,6 +76,20 @@ function streamOf(...parts: Uint8Array[]): Response {
 const decodeLen = (b64: unknown) => Buffer.from(String(b64), 'base64').length;
 
 describe('desktop model downloads', () => {
+  it('does not fetch or write when the partial size cannot be read', async () => {
+    const rust = fakeRust();
+    const failure = new Error('partial metadata unavailable');
+    const invoke: Invoke = async <T>(command: string, args?: Record<string, unknown>) => {
+      if (command === 'model_partial') throw failure;
+      return rust.invoke<T>(command, args);
+    };
+    const fetchModel = vi.fn(async () => streamOf(new Uint8Array(MODEL.bytes)));
+    const models = createDesktopModels(async () => invoke, fetchModel);
+    await expect(models.download(MODEL)).rejects.toBe(failure);
+    expect(fetchModel).not.toHaveBeenCalled();
+    expect(rust.calls.map((call) => call.command)).toEqual(['model_status']);
+  });
+
   it('retries publishing a complete partial before fetching again', async () => {
     const rust = fakeRust(null, undefined, MODEL.bytes);
     const fetchModel = vi.fn(async () => streamOf(new Uint8Array(MODEL.bytes)));

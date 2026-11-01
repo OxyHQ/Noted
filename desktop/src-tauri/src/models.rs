@@ -82,7 +82,11 @@ pub fn commit(dir: &Path, name: &str, bytes: u64, sha256: &str) -> Result<(), St
 /// How much of a download is already on disk, so it can resume instead of restarting.
 pub fn partial_size(dir: &Path, name: &str) -> Result<u64, String> {
     checked(name)?;
-    Ok(fs::metadata(part_path(dir, name)).map(|m| m.len()).unwrap_or(0))
+    match fs::metadata(part_path(dir, name)) {
+        Ok(metadata) => Ok(metadata.len()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(0),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 /// Size of a finished model, if there is one.
@@ -240,6 +244,28 @@ mod tests {
         commit(&dir, "m.bin", 11, HELLO).unwrap();
         assert_eq!(partial_size(&dir, "m.bin").unwrap(), 0);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn inaccessible_partial_is_not_reported_as_missing() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = scratch("partial-metadata-failure");
+        write_part(&dir, "m.bin", b"hello", true).unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::metadata(part_path(&dir, "m.bin")).is_ok() {
+            // A root-run environment can bypass directory permission bits.
+            fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+            fs::remove_dir_all(&dir).unwrap();
+            return;
+        }
+        let result = partial_size(&dir, "m.bin");
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).unwrap();
+        let retained = fs::read(part_path(&dir, "m.bin")).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+        assert!(result.is_err(), "metadata failure must not look like a missing file");
+        assert_eq!(retained, b"hello");
     }
 
     #[test]

@@ -90,6 +90,33 @@ function modelButton(): TestButton {
 }
 
 describe('model download failure UI', () => {
+  it('offers retry when the partial size lookup fails before any fetch', async () => {
+    const invoke: Invoke = async <T>(command: string) => {
+      if (command === 'model_status') return null as T;
+      if (command === 'model_partial') throw new Error('partial metadata unavailable');
+      throw new Error(`unexpected command: ${command}`);
+    };
+    const fetchModel = vi.fn(async () => new Response());
+    const desktop = createDesktopModels(async () => invoke, fetchModel);
+    state.download.mockImplementation(
+      (model: DesktopModelInfo, onProgress?: (fraction: number) => void) =>
+        desktop.download(model, onProgress),
+    );
+    state.states.mockResolvedValue({ tiny: 'absent', base: 'absent', small: 'absent' });
+    await act(async () => {
+      root = create(React.createElement(TranscriptionSection));
+    });
+    await vi.waitFor(() => expect(state.states).toHaveBeenCalled());
+    await act(async () => {
+      modelButton().props.onPress();
+      await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(2));
+    });
+    expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
+    expect(modelButton().props.disabled).toBe(false);
+    expect(fetchModel).not.toHaveBeenCalled();
+    expect(state.writeSetting).not.toHaveBeenCalled();
+  });
+
   it.each(['partial', 'invalid'] as const)(
     'offers retry after %s range and preserves the partial',
     async (kind) => {
