@@ -95,6 +95,7 @@ export function createDesktopModels(
         resume ? { headers: { Range: `bytes=${have}-` } } : undefined,
       );
       if (!response.ok || !response.body) {
+        void response.body?.cancel().catch(() => undefined);
         throw new Error(`model download failed: HTTP ${response.status}`);
       }
       // 206 continues where we stopped; a server that ignores Range sends the whole
