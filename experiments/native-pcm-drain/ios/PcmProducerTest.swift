@@ -39,6 +39,26 @@ private final class StuckSource: PcmExperimentalSource, @unchecked Sendable {
   func close() throws { closed.signal() }
 }
 
+private final class SlowStopSource: PcmExperimentalSource, @unchecked Sendable {
+  let readEntered = DispatchSemaphore(value: 0)
+  let stopEntered = DispatchSemaphore(value: 0)
+  let allowStop = DispatchSemaphore(value: 0)
+  let finishRead = DispatchSemaphore(value: 0)
+  func read() throws -> Data? { readEntered.signal(); finishRead.wait(); return nil }
+  func requestStop() throws { stopEntered.signal(); allowStop.wait(); finishRead.signal() }
+  func close() throws {}
+}
+
+private final class SlowCloseSource: PcmExperimentalSource, @unchecked Sendable {
+  let readEntered = DispatchSemaphore(value: 0)
+  let stopRequested = DispatchSemaphore(value: 0)
+  let closeEntered = DispatchSemaphore(value: 0)
+  let allowClose = DispatchSemaphore(value: 0)
+  func read() throws -> Data? { readEntered.signal(); stopRequested.wait(); return nil }
+  func requestStop() throws { stopRequested.signal() }
+  func close() throws { closeEntered.signal(); allowClose.wait() }
+}
+
 @main
 struct PcmProducerTest {
   static func main() throws {
@@ -80,15 +100,45 @@ struct PcmProducerTest {
     precondition(failedSource.closed.wait(timeout: .now() + 2) == .success)
 
     let stuckSource = StuckSource()
-    let stuck = try PcmProducer(operationId: "C", maxOutstandingBytes: 16, source: stuckSource) {
+    let authorityReleased = DispatchSemaphore(value: 0)
+    let stuck = try PcmProducer(operationId: "C", maxOutstandingBytes: 16, source: stuckSource,
+                                releaseAuthority: { authorityReleased.signal() }) {
       _, _, _ in fatalError("Unexpected event")
     }
     try stuck.start()
     precondition(stuckSource.entered.wait(timeout: .now() + 2) == .success)
     do { _ = try stuck.stopAndJoin(timeout: 0.05); fatalError("Unjoined producer returned a marker") }
     catch PcmProducerError.timeout {}
+    precondition(authorityReleased.wait(timeout: .now()) == .timedOut)
     stuckSource.release.signal()
     precondition(stuckSource.closed.wait(timeout: .now() + 2) == .success)
+    precondition(authorityReleased.wait(timeout: .now() + 2) == .success)
+
+    let slowSource = SlowStopSource()
+    let slowAuthority = DispatchSemaphore(value: 0)
+    let slow = try PcmProducer(operationId: "D", maxOutstandingBytes: 16, source: slowSource,
+                               releaseAuthority: { slowAuthority.signal() }) { _, _, _ in }
+    try slow.start()
+    precondition(slowSource.readEntered.wait(timeout: .now() + 2) == .success)
+    do { _ = try slow.stopAndJoin(timeout: 0.05); fatalError("Blocked stop returned a marker") }
+    catch PcmProducerError.timeout {}
+    precondition(slowSource.stopEntered.wait(timeout: .now()) == .success)
+    precondition(slowAuthority.wait(timeout: .now()) == .timedOut)
+    slowSource.allowStop.signal()
+    precondition(slowAuthority.wait(timeout: .now() + 2) == .success)
+
+    let closeSource = SlowCloseSource()
+    let closeAuthority = DispatchSemaphore(value: 0)
+    let closing = try PcmProducer(operationId: "E", maxOutstandingBytes: 16, source: closeSource,
+                                  releaseAuthority: { closeAuthority.signal() }) { _, _, _ in }
+    try closing.start()
+    precondition(closeSource.readEntered.wait(timeout: .now() + 2) == .success)
+    do { _ = try closing.stopAndJoin(timeout: 0.05); fatalError("Blocked cleanup returned a marker") }
+    catch PcmProducerError.timeout {}
+    precondition(closeSource.closeEntered.wait(timeout: .now()) == .success)
+    precondition(closeAuthority.wait(timeout: .now()) == .timedOut)
+    closeSource.allowClose.signal()
+    precondition(closeAuthority.wait(timeout: .now() + 2) == .success)
     print("PCM producer Swift tests passed")
   }
 }

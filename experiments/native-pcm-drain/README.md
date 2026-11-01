@@ -24,10 +24,13 @@ Experimental controllers run an injected source on a worker thread. They
 request stop, wait for the worker and its cleanup, and only then return the
 ledger marker. Their test sources hold a read and an emission open, inject an
 emission failure and simulate a worker that will not stop. The contract assumes
-`requestStop()` itself returns promptly; otherwise the timeout is not a bound on
-the entire call. After a timeout no marker is issued and cleanup may still be in
-progress. The iOS prototype uses a wall-clock deadline. These controllers are
-not connected to AudioRecord or AudioQueue and do not prove their behavior.
+an injected authority-release callback; it is called only after the stop request
+and producer thread have both terminated. The timeout also covers a blocked stop
+request. After a timeout no marker is issued and authority remains held until
+cleanup actually completes. Android uses a timed latch and iOS a monotonic
+`DispatchTime` deadline plus `pthread_join`. This mock callback is not an actual
+microphone or account lease. These controllers are not connected to AudioRecord
+or AudioQueue and do not prove their behavior.
 
 After the marker is returned the ledger cannot revoke it if the native producer
 incorrectly emits or fails later. A real producer must prevent that condition

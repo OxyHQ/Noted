@@ -39,5 +39,8 @@ jobs:
       - run: |
           swiftc experiments/native-pcm-drain/ios/PcmSequenceLedger.swift experiments/native-pcm-drain/ios/PcmSequenceLedgerTest.swift -o "$RUNNER_TEMP/pcm-ledger-test"
           "$RUNNER_TEMP/pcm-ledger-test"
-          swiftc experiments/native-pcm-drain/ios/PcmSequenceLedger.swift experiments/native-pcm-drain/ios/PcmProducer.swift experiments/native-pcm-drain/ios/PcmProducerTest.swift -o "$RUNNER_TEMP/pcm-producer-test"
+          clang -c experiments/native-pcm-drain/ios/PcmThreadBridge.c -o "$RUNNER_TEMP/pcm-thread.o"
+          clang -pthread experiments/native-pcm-drain/ios/PcmThreadBridgeTest.c "$RUNNER_TEMP/pcm-thread.o" -o "$RUNNER_TEMP/pcm-thread-test"
+          "$RUNNER_TEMP/pcm-thread-test"
+          swiftc -import-objc-header experiments/native-pcm-drain/ios/PcmThreadBridge.h experiments/native-pcm-drain/ios/PcmSequenceLedger.swift experiments/native-pcm-drain/ios/PcmProducer.swift experiments/native-pcm-drain/ios/PcmProducerTest.swift "$RUNNER_TEMP/pcm-thread.o" -o "$RUNNER_TEMP/pcm-producer-test"
           "$RUNNER_TEMP/pcm-producer-test"

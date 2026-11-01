@@ -5,12 +5,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class PcmProducerTest {
   private static void check(boolean value, String message) {
     if (!value) throw new AssertionError(message);
   }
-  private static final class Source implements PcmProducer.Source {
+  private static class Source implements PcmProducer.Source {
     final CountDownLatch entered = new CountDownLatch(1);
     final CountDownLatch stop = new CountDownLatch(1);
     final AtomicBoolean closed = new AtomicBoolean();
@@ -64,21 +65,49 @@ public final class PcmProducerTest {
     CountDownLatch blockedRead = new CountDownLatch(1);
     CountDownLatch releaseRead = new CountDownLatch(1);
     CountDownLatch cleanup = new CountDownLatch(1);
+    CountDownLatch authorityReleased = new CountDownLatch(1);
+    AtomicReference<Thread> actualProducerThread = new AtomicReference<>();
     PcmProducer stuck = new PcmProducer("C", 16, new PcmProducer.Source() {
       public byte[] read() throws InterruptedException {
+        actualProducerThread.set(Thread.currentThread());
         blockedRead.countDown();
         releaseRead.await();
         return null;
       }
       public void requestStop() {}
       public void close() { cleanup.countDown(); }
-    }, (operation, sequence, bytes) -> {});
+    }, (operation, sequence, bytes) -> {}, () -> {
+      check(!actualProducerThread.get().isAlive(), "authority released while producer thread alive");
+      authorityReleased.countDown();
+    });
     stuck.start();
     check(blockedRead.await(2, TimeUnit.SECONDS), "stuck reader started");
     try { stuck.stopAndJoin(10); throw new AssertionError("unjoined producer returned a marker"); }
     catch (IllegalStateException expected) { check(expected.getMessage().contains("did not stop"), "timeout"); }
+    check(authorityReleased.getCount() == 1, "authority retained while worker lives");
     releaseRead.countDown();
     check(cleanup.await(2, TimeUnit.SECONDS), "timed-out producer eventually closed");
+    check(authorityReleased.await(2, TimeUnit.SECONDS), "authority released after worker exit");
+
+    CountDownLatch stopEntered = new CountDownLatch(1);
+    CountDownLatch allowStop = new CountDownLatch(1);
+    CountDownLatch stopAuthority = new CountDownLatch(1);
+    Source stoppedSlowly = new Source() {
+      public void requestStop() {
+        stopEntered.countDown();
+        try { allowStop.await(); } catch (InterruptedException error) { throw new RuntimeException(error); }
+        stop.countDown();
+      }
+    };
+    PcmProducer slowStop = new PcmProducer("D", 16, stoppedSlowly,
+        (operation, sequence, bytes) -> {}, stopAuthority::countDown);
+    slowStop.start();
+    check(stoppedSlowly.entered.await(2, TimeUnit.SECONDS), "slow stop reader started");
+    try { slowStop.stopAndJoin(10); throw new AssertionError("blocked stop returned a marker"); }
+    catch (IllegalStateException expected) { check(expected.getMessage().contains("did not stop"), "stop timeout"); }
+    check(stopEntered.getCount() == 0 && stopAuthority.getCount() == 1, "authority retained during requestStop");
+    allowStop.countDown();
+    check(stopAuthority.await(2, TimeUnit.SECONDS), "authority released after requestStop and worker finish");
     System.out.println("PCM producer JVM tests passed");
   }
 }
