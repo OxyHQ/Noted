@@ -193,19 +193,30 @@ export async function startRealtimeTranscription(
   }
   /** Serialises the writes, so chunks are stored in the order they arrived. */
   let writes: Promise<void> = Promise.resolve();
+  let writeFailed = false;
+  let firstWriteError: unknown;
 
   recorder.ondataavailable = (event) => {
     if (event.data.size === 0) return;
     const chunk = event.data;
     writes = writes
       .then(async () => {
+        // A rejected write may have committed before the acknowledgement failed.
+        // Reusing its index can overwrite those bytes.
+        if (writeFailed) return;
         await writer.write(new Uint8Array(await chunk.arrayBuffer()));
       })
       .catch((error: unknown) => {
-        // The transcript is unaffected and the meeting is still being recorded
-        // into whatever did land. Reported, not thrown: there is nobody above
-        // this to handle it and stopping the recorder would lose more.
+        writeFailed = true;
+        firstWriteError = error;
         logger.error('Could not store an audio chunk', { error: String(error) });
+        try {
+          options.onAudioStorageFailure?.();
+        } catch (notificationError) {
+          logger.error('Could not notify of the audio storage failure', {
+            error: String(notificationError),
+          });
+        }
       });
   };
 
@@ -370,11 +381,18 @@ export async function startRealtimeTranscription(
         });
         recorder.stop();
         await recorded;
-        // The last chunk is emitted before onstop, and must be drained first.
-        await writes;
-        await writer.close();
       } catch (error) {
         failures.push(error);
+      }
+      // An earlier write can still be in flight even if recorder.stop threw.
+      await writes;
+      if (writeFailed) failures.push(firstWriteError);
+      if (failures.length === 0) {
+        try {
+          await writer.close();
+        } catch (error) {
+          failures.push(error);
+        }
       }
       try {
         await releaseAudioResources();
