@@ -108,6 +108,18 @@ public final class PcmProducerTest {
     check(stopEntered.getCount() == 0 && stopAuthority.getCount() == 1, "authority retained during requestStop");
     allowStop.countDown();
     check(stopAuthority.await(2, TimeUnit.SECONDS), "authority released after requestStop and worker finish");
+
+    CountDownLatch failedCloseAuthority = new CountDownLatch(1);
+    Source failedCloseSource = new Source() {
+      public void close() { throw new IllegalStateException("close failed"); }
+    };
+    PcmProducer failedClose = new PcmProducer("E", 16, failedCloseSource,
+        (operation, sequence, bytes) -> {}, failedCloseAuthority::countDown);
+    failedClose.start();
+    check(failedCloseSource.entered.await(2, TimeUnit.SECONDS), "failed-close reader started");
+    try { failedClose.stopAndJoin(2000); throw new AssertionError("failed close returned a marker"); }
+    catch (IllegalStateException expected) { check(expected.getCause() != null, "close error preserved"); }
+    check(failedCloseAuthority.getCount() == 1, "authority retained after failed close");
     System.out.println("PCM producer JVM tests passed");
   }
 }

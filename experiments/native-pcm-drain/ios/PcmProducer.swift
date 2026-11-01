@@ -30,6 +30,7 @@ final class PcmProducer: @unchecked Sendable {
   private var started = false
   private var stopCalled = false
   private var stopping = false
+  private var sourceClosed = false
   private var failure: Error?
 
   init(operationId: String, maxOutstandingBytes: Int, source: PcmExperimentalSource,
@@ -91,7 +92,12 @@ final class PcmProducer: @unchecked Sendable {
         cleanupDone.signal()
         return
       }
-      do { try releaseAuthority() } catch { record(error) }
+      condition.lock()
+      let didClose = sourceClosed
+      condition.unlock()
+      if didClose {
+        do { try releaseAuthority() } catch { record(error) }
+      }
       condition.lock()
       thread = nil
       condition.unlock()
@@ -122,7 +128,12 @@ final class PcmProducer: @unchecked Sendable {
         try emit(operationId, sequence, bytes)
       }
     } catch { record(error) }
-    do { try source.close() } catch { record(error) }
+    do {
+      try source.close()
+      condition.lock()
+      sourceClosed = true
+      condition.unlock()
+    } catch { record(error) }
   }
 
   private func record(_ error: Error) {

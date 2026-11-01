@@ -27,7 +27,8 @@ emission failure and simulate a worker that will not stop. The contract assumes
 an injected authority-release callback; it is called only after the stop request
 and producer thread have both terminated. The timeout also covers a blocked stop
 request. After a timeout no marker is issued and authority remains held until
-cleanup actually completes. Android uses a timed latch and iOS a monotonic
+cleanup actually completes. If source close fails, the authority remains held;
+this prototype has no recovery mechanism for that case. Android uses a timed latch and iOS a monotonic
 `DispatchTime` deadline plus `pthread_join`. This mock callback is not an actual
 microphone or account lease. These controllers are not connected to AudioRecord
 or AudioQueue and do not prove their behavior.

@@ -59,6 +59,14 @@ private final class SlowCloseSource: PcmExperimentalSource, @unchecked Sendable 
   func close() throws { closeEntered.signal(); allowClose.wait() }
 }
 
+private final class FailCloseSource: PcmExperimentalSource, @unchecked Sendable {
+  let readEntered = DispatchSemaphore(value: 0)
+  let stopRequested = DispatchSemaphore(value: 0)
+  func read() throws -> Data? { readEntered.signal(); stopRequested.wait(); return nil }
+  func requestStop() throws { stopRequested.signal() }
+  func close() throws { throw TestFailure.emission }
+}
+
 @main
 struct PcmProducerTest {
   static func main() throws {
@@ -139,6 +147,17 @@ struct PcmProducerTest {
     precondition(closeAuthority.wait(timeout: .now()) == .timedOut)
     closeSource.allowClose.signal()
     precondition(closeAuthority.wait(timeout: .now() + 2) == .success)
+
+    let failedCloseSource = FailCloseSource()
+    let failedCloseAuthority = DispatchSemaphore(value: 0)
+    let failedClose = try PcmProducer(operationId: "F", maxOutstandingBytes: 16,
+                                      source: failedCloseSource,
+                                      releaseAuthority: { failedCloseAuthority.signal() }) { _, _, _ in }
+    try failedClose.start()
+    precondition(failedCloseSource.readEntered.wait(timeout: .now() + 2) == .success)
+    do { _ = try failedClose.stopAndJoin(timeout: 2); fatalError("Failed close returned a marker") }
+    catch PcmProducerError.failed(_) {}
+    precondition(failedCloseAuthority.wait(timeout: .now()) == .timedOut)
     print("PCM producer Swift tests passed")
   }
 }

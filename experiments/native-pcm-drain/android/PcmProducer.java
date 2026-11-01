@@ -26,6 +26,7 @@ public final class PcmProducer {
   private final Thread thread;
   private boolean started;
   private boolean stopCalled;
+  private volatile boolean sourceClosed;
 
   public PcmProducer(String operationId, long maxOutstandingBytes, Source source, Emitter emitter) {
     this(operationId, maxOutstandingBytes, source, emitter, () -> {});
@@ -44,8 +45,8 @@ public final class PcmProducer {
 
   public synchronized void start() {
     if (started || stopCalled) throw new IllegalStateException("PCM producer already started or stopped");
-    started = true;
     thread.start();
+    started = true;
   }
 
   public void acknowledge(long sequence) { ledger.acknowledge(operationId, sequence); }
@@ -69,7 +70,7 @@ public final class PcmProducer {
       try {
         requester.join();
         thread.join();
-        releaseAuthority.run();
+        if (sourceClosed) releaseAuthority.run();
       } catch (Throwable error) { failure.compareAndSet(null, error); }
       finally { cleanupDone.countDown(); }
     }, "pcm-cleanup-experiment");
@@ -97,7 +98,8 @@ public final class PcmProducer {
     } catch (Throwable error) {
       failure.compareAndSet(null, error);
     } finally {
-      try { source.close(); } catch (Throwable error) { failure.compareAndSet(null, error); }
+      try { source.close(); sourceClosed = true; }
+      catch (Throwable error) { failure.compareAndSet(null, error); }
     }
   }
 }
