@@ -27,6 +27,10 @@ export interface ModelEntry {
   state: ModelState;
   /** 0–1 while downloading, null otherwise. */
   progress: number | null;
+  /** The most recent attempt failed while this screen remained mounted. */
+  downloadFailed: boolean;
+  /** Local attempt that produced the current failure, if any. */
+  failureVersion: number | null;
 }
 
 const ORDER: SttModelId[] = ['tiny', 'base', 'small'];
@@ -35,12 +39,17 @@ export interface SttModelsResult {
   entries: ModelEntry[];
   isLoading: boolean;
   download: (id: SttModelId) => Promise<void>;
+  clearDownloadFailure: (id: SttModelId, version: number) => void;
   remove: (id: SttModelId) => Promise<void>;
 }
 
 export function useSttModels(): SttModelsResult {
   const [states, setStates] = useState<Record<SttModelId, ModelState> | null>(null);
   const [progress, setProgress] = useState<Partial<Record<SttModelId, number>>>({});
+  const [failures, setFailures] = useState<Partial<Record<SttModelId, number>>>({});
+  const attemptsRef = useRef<Partial<Record<SttModelId, number>>>({});
+  const runningRef = useRef<Partial<Record<SttModelId, number>>>({});
+  const refreshVersionRef = useRef(0);
 
   // Guards every state write after an unmount: a download outlives the screen
   // that started it, and finishing after the user has navigated away is normal
@@ -54,8 +63,15 @@ export function useSttModels(): SttModelsResult {
   }, []);
 
   const refresh = useCallback(async () => {
+    const version = ++refreshVersionRef.current;
     const next = await getModelStates();
-    if (mountedRef.current) setStates(next);
+    if (mountedRef.current && refreshVersionRef.current === version) {
+      const visible = { ...next };
+      for (const id of ORDER) {
+        if (runningRef.current[id] !== undefined) visible[id] = 'downloading';
+      }
+      setStates(visible);
+    }
   }, []);
 
   useEffect(() => {
@@ -66,6 +82,10 @@ export function useSttModels(): SttModelsResult {
 
   const download = useCallback(
     async (id: SttModelId) => {
+      const attempt = (attemptsRef.current[id] ?? 0) + 1;
+      attemptsRef.current[id] = attempt;
+      runningRef.current[id] = attempt;
+      setFailures((current) => ({ ...current, [id]: undefined }));
       setProgress((current) => ({ ...current, [id]: 0 }));
       // Optimistic, so the row shows progress from the first frame rather than
       // after the first chunk lands — on a slow connection that is seconds of a
@@ -73,10 +93,18 @@ export function useSttModels(): SttModelsResult {
       setStates((current) => (current ? { ...current, [id]: 'downloading' } : current));
       try {
         await downloadModel(STT_MODELS[id], (fraction) => {
-          if (mountedRef.current) setProgress((current) => ({ ...current, [id]: fraction }));
+          if (mountedRef.current && attemptsRef.current[id] === attempt) {
+            setProgress((current) => ({ ...current, [id]: fraction }));
+          }
         });
+      } catch (error) {
+        if (mountedRef.current && attemptsRef.current[id] === attempt) {
+          setFailures((current) => ({ ...current, [id]: attempt }));
+        }
+        throw error;
       } finally {
-        if (mountedRef.current) {
+        if (runningRef.current[id] === attempt) delete runningRef.current[id];
+        if (mountedRef.current && attemptsRef.current[id] === attempt) {
           setProgress((current) => {
             const next = { ...current };
             delete next[id];
@@ -88,6 +116,11 @@ export function useSttModels(): SttModelsResult {
     },
     [refresh],
   );
+
+  const clearDownloadFailure = useCallback((id: SttModelId, version: number) => {
+    if (!mountedRef.current) return;
+    setFailures((current) => (current[id] === version ? { ...current, [id]: undefined } : current));
+  }, []);
 
   const remove = useCallback(
     async (id: SttModelId) => {
@@ -101,7 +134,9 @@ export function useSttModels(): SttModelsResult {
     model: STT_MODELS[id],
     state: states?.[id] ?? 'absent',
     progress: progress[id] ?? null,
+    downloadFailed: failures[id] !== undefined,
+    failureVersion: failures[id] ?? null,
   }));
 
-  return { entries, isLoading: states === null, download, remove };
+  return { entries, isLoading: states === null, download, clearDownloadFailure, remove };
 }

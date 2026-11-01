@@ -1263,6 +1263,7 @@
     "explainer": "Recordings are transcribed on this device. Nothing is uploaded, and it works with no connection.",
     "unsupported": "Transcription runs in the Noted mobile app. Recordings made here are kept as audio.",
     "modelsTitle": "Model",
+    "downloadCouldNotFinish": "Konnte nicht abgeschlossen werden. Versuche es erneut.",
     "remove": "Remove this model",
     "live": {
       "label": "Take notes while recording",

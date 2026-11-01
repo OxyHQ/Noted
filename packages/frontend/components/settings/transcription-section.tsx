@@ -49,7 +49,7 @@ function ModelRow({
 }) {
   const { colors } = useColorScheme();
   const { t } = useTranslation();
-  const isDownloading = entry.state === 'downloading';
+  const isDownloading = entry.state === 'downloading' && !entry.downloadFailed;
 
   return (
     <View className="flex-row items-center gap-3 rounded-2xl border border-border px-4 py-3">
@@ -58,6 +58,7 @@ function ModelRow({
         disabled={isDownloading}
         className="flex-1 flex-row items-center gap-3"
         accessibilityRole="button"
+        accessibilityHint={entry.downloadFailed ? t('common.retry') : undefined}
         accessibilityState={{ selected: isSelected, disabled: isDownloading }}
       >
         <View className="flex-1">
@@ -67,6 +68,11 @@ function ModelRow({
           <Text className="text-sm text-muted-foreground">
             {formatSize(entry.model.bytes)} · {t(`transcription.models.${entry.model.id}.note`)}
           </Text>
+          {entry.downloadFailed && !isDownloading && (
+            <Text accessibilityRole="alert" className="text-sm text-muted-foreground">
+              {t('transcription.downloadCouldNotFinish')}
+            </Text>
+          )}
         </View>
 
         {isDownloading ? (
@@ -79,7 +85,7 @@ function ModelRow({
               {String(Math.round((entry.progress ?? 0) * 100))}%
             </Text>
           </View>
-        ) : entry.state === 'ready' ? (
+        ) : entry.downloadFailed ? null : entry.state === 'ready' ? (
           isSelected ? (
             <Check size={18} color={colors.primary} />
           ) : null
@@ -208,7 +214,7 @@ function UnderstandingRow() {
 
 export function TranscriptionSection() {
   const { t } = useTranslation();
-  const { entries, isLoading, download, remove } = useSttModels();
+  const { entries, isLoading, download, clearDownloadFailure, remove } = useSttModels();
   const { settings } = useSettings();
 
   const selected = readSetting(settings, SETTING_KEYS.sttModel, isModelId, DEFAULT_STT_MODEL);
@@ -271,7 +277,13 @@ export function TranscriptionSection() {
                 // Both the download and selection belong to the initiating account.
                 void selectSttModel(entry.model.id, () =>
                   entry.state === 'ready' ? Promise.resolve() : download(entry.model.id),
-                ).catch(() => undefined);
+                )
+                  .then(() => {
+                    if (entry.failureVersion !== null) {
+                      clearDownloadFailure(entry.model.id, entry.failureVersion);
+                    }
+                  })
+                  .catch(() => undefined);
               }}
               onRemove={() => void remove(entry.model.id)}
             />
