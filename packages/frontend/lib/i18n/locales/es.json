@@ -1263,6 +1263,7 @@
     "explainer": "Las grabaciones se transcriben en este dispositivo. No se sube nada y funciona sin conexión.",
     "unsupported": "La transcripción funciona en la app móvil de Noted. Lo que grabes aquí se guarda como audio.",
     "modelsTitle": "Modelo",
+    "downloadCouldNotFinish": "No se pudo completar. Inténtalo de nuevo.",
     "remove": "Eliminar este modelo",
     "live": {
       "label": "Tomar notas mientras grabas",
