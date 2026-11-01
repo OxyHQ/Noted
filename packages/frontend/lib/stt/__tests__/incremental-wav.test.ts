@@ -45,6 +45,20 @@ describe('incremental WAV prototype', () => {
     expect(file.closed).toBe(true);
   });
 
+  it('rejects a failed final header update and still closes', async () => {
+    const file = new MemoryFile();
+    const originalWrite = file.writeAt.bind(file);
+    let headerWrites = 0;
+    file.writeAt = async (offset, data) => {
+      if (offset === 0 && ++headerWrites === 2) throw new Error('header failed');
+      return originalWrite(offset, data);
+    };
+    const writer = await IncrementalWavWriter.create(file, 1024);
+    writer.append(Uint8Array.of(1, 2));
+    await expect(writer.finish(() => {})).rejects.toThrow('header failed');
+    expect(file.closed).toBe(true);
+  });
+
   it('fails closed if the queue cannot keep up', async () => {
     const file = new MemoryFile();
     const writer = await IncrementalWavWriter.create(file, 2);
