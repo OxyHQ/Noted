@@ -1,0 +1,54 @@
+name: iOS dependency integration
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'bun.lock'
+      - 'packages/**/package.json'
+      - 'packages/frontend/app.json'
+      - 'packages/frontend/app.config.js'
+      - 'packages/frontend/modules/**'
+      - '.github/workflows/ios-pods.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'bun.lock'
+      - 'packages/**/package.json'
+      - 'packages/frontend/app.json'
+      - 'packages/frontend/app.config.js'
+      - 'packages/frontend/modules/**'
+      - '.github/workflows/ios-pods.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ios-pods:
+    name: Install iOS pods and export JavaScript
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build:types
+      - name: Generate iOS project
+        working-directory: packages/frontend
+        env:
+          CI: '1'
+        run: bun x expo prebuild --platform ios --no-install
+      - name: Install CocoaPods dependencies
+        working-directory: packages/frontend
+        run: pod install --project-directory=ios
+      - name: Export iOS JavaScript
+        working-directory: packages/frontend
+        env:
+          CI: '1'
+        run: bun x expo export --platform ios
