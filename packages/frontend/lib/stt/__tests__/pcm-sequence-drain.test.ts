@@ -48,6 +48,21 @@ describe('experimental PCM sequence drain', () => {
     }
   });
 
+  it('stops waiting on cancellation and refuses further events', async () => {
+    const drain = new PcmSequenceDrain('A', 16, () => {});
+    drain.receive('A', 1, Uint8Array.of(2));
+    const stopped = drain.waitForStop(1, 1000);
+    drain.cancel();
+    await expect(stopped).rejects.toThrow('cancelled');
+    expect(drain.receive('A', 0, Uint8Array.of(1))).toBe(false);
+  });
+
+  it('remembers cancellation even before the stop marker', async () => {
+    const drain = new PcmSequenceDrain('A', 16, () => {});
+    drain.cancel();
+    await expect(drain.waitForStop(0, 1000)).rejects.toThrow('cancelled');
+  });
+
   it.each(['duplicate', 'wrong operation', 'overflow'] as const)(
     'rejects %s while a stop waits for data',
     async (kind) => {

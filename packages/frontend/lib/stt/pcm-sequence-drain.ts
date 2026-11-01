@@ -82,6 +82,10 @@ export class PcmSequenceDrain {
     return result;
   }
 
+  cancel(): void {
+    this.fail(new Error('PCM drain cancelled'));
+  }
+
   private maybeResolve(): void {
     if (this.last === undefined || this.next !== this.last + 1 || this.failure) return;
     this.settled = true;
@@ -91,6 +95,8 @@ export class PcmSequenceDrain {
 
   private fail(error: Error): Error {
     this.failure ??= error;
+    this.pending.clear();
+    this.bufferedBytes = 0;
     if (this.timer) clearTimeout(this.timer);
     this.reject?.(this.failure);
     return this.failure;
