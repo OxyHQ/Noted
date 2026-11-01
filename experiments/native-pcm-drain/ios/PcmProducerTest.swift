@@ -67,6 +67,34 @@ private final class FailCloseSource: PcmExperimentalSource, @unchecked Sendable 
   func close() throws { throw TestFailure.emission }
 }
 
+private final class ReusedSource: PcmExperimentalSource, @unchecked Sendable {
+  let stopped = DispatchSemaphore(value: 0)
+  let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 2)
+  private var reads = 0
+  init() { buffer.initialize(repeating: 0, count: 2) }
+  deinit { buffer.deinitialize(count: 2); buffer.deallocate() }
+  func read() throws -> Data? {
+    reads += 1
+    if reads <= 2 {
+      buffer[0] = reads == 1 ? 1 : 3
+      buffer[1] = 2
+      return Data(bytesNoCopy: UnsafeMutableRawPointer(buffer), count: 2, deallocator: .none)
+    }
+    stopped.wait()
+    return nil
+  }
+  func requestStop() throws { stopped.signal() }
+  func close() throws {}
+}
+
+private final class CapturedEvents: @unchecked Sendable {
+  private let lock = NSLock()
+  private var events: [Data] = []
+  let received = DispatchSemaphore(value: 0)
+  func add(_ data: Data) { lock.lock(); events.append(data); lock.unlock(); received.signal() }
+  func firstBytes() -> [UInt8] { lock.lock(); defer { lock.unlock() }; return events.map { $0[0] } }
+}
+
 @main
 struct PcmProducerTest {
   static func main() throws {
@@ -158,6 +186,17 @@ struct PcmProducerTest {
     do { _ = try failedClose.stopAndJoin(timeout: 2); fatalError("Failed close returned a marker") }
     catch PcmProducerError.failed(_) {}
     precondition(failedCloseAuthority.wait(timeout: .now()) == .timedOut)
+
+    let reusedSource = ReusedSource()
+    let events = CapturedEvents()
+    let reused = try PcmProducer(operationId: "G", maxOutstandingBytes: 16, source: reusedSource) {
+      _, _, bytes in events.add(bytes)
+    }
+    try reused.start()
+    precondition(events.received.wait(timeout: .now() + 2) == .success)
+    precondition(events.received.wait(timeout: .now() + 2) == .success)
+    let reusedMarker = try reused.stopAndJoin(timeout: 2)
+    precondition(reusedMarker == 1 && events.firstBytes() == [1, 3])
     print("PCM producer Swift tests passed")
   }
 }

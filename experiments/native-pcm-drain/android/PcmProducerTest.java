@@ -6,6 +6,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class PcmProducerTest {
   private static void check(boolean value, String message) {
@@ -120,6 +122,26 @@ public final class PcmProducerTest {
     try { failedClose.stopAndJoin(2000); throw new AssertionError("failed close returned a marker"); }
     catch (IllegalStateException expected) { check(expected.getCause() != null, "close error preserved"); }
     check(failedCloseAuthority.getCount() == 1, "authority retained after failed close");
+
+    CountDownLatch twoEvents = new CountDownLatch(2);
+    CountDownLatch finishReused = new CountDownLatch(1);
+    List<byte[]> emitted = new ArrayList<>();
+    PcmProducer reused = new PcmProducer("F", 16, new PcmProducer.Source() {
+      private final byte[] buffer = new byte[] {1, 2};
+      private int reads;
+      public byte[] read() throws InterruptedException {
+        if (reads++ == 0) return buffer;
+        if (reads == 2) { buffer[0] = 3; return buffer; }
+        finishReused.await();
+        return null;
+      }
+      public void requestStop() { finishReused.countDown(); }
+      public void close() {}
+    }, (operation, sequence, bytes) -> { emitted.add(bytes); twoEvents.countDown(); });
+    reused.start();
+    check(twoEvents.await(2, TimeUnit.SECONDS), "reused buffer events");
+    check(reused.stopAndJoin(2000) == 1, "reused buffer marker");
+    check(emitted.get(0)[0] == 1 && emitted.get(1)[0] == 3, "each event owns a stable snapshot");
     System.out.println("PCM producer JVM tests passed");
   }
 }

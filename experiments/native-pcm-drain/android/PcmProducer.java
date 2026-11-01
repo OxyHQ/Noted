@@ -93,7 +93,7 @@ public final class PcmProducer {
           break;
         }
         long sequence = ledger.reserve(operationId, bytes.length);
-        emitter.emit(operationId, sequence, bytes);
+        emitter.emit(operationId, sequence, bytes.clone());
       }
     } catch (Throwable error) {
       failure.compareAndSet(null, error);

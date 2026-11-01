@@ -23,7 +23,9 @@ the lifecycle and behavior on actual devices still need measurement.
 Experimental controllers run an injected source on a worker thread. They
 request stop, wait for the worker and its cleanup, and only then return the
 ledger marker. Their test sources hold a read and an emission open, inject an
-emission failure and simulate a worker that will not stop. The contract assumes
+emission failure, reuse a mutable audio buffer and simulate a worker that will not
+stop. Each emitted chunk gets its own snapshot; the injected source must keep its
+buffer stable until that snapshot is taken. The contract assumes
 an injected authority-release callback; it is called only after the stop request
 and producer thread have both terminated. The timeout also covers a blocked stop
 request. After a timeout no marker is issued and authority remains held until

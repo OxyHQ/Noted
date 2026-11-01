@@ -125,7 +125,10 @@ final class PcmProducer: @unchecked Sendable {
           break
         }
         let sequence = try ledger.reserve(operation: operationId, bytes: bytes.count)
-        try emit(operationId, sequence, bytes)
+        let snapshot = bytes.withUnsafeBytes { raw in
+          Data(bytes: raw.baseAddress!, count: raw.count)
+        }
+        try emit(operationId, sequence, snapshot)
       }
     } catch { record(error) }
     do {
