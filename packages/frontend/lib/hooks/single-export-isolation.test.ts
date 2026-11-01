@@ -148,7 +148,7 @@ vi.mock('expo-sharing', () => ({
   shareAsync: (...args: unknown[]) => fixture.share(...args),
 }));
 vi.mock('@/lib/export/save', async () => await import('@/lib/export/save.native'));
-import NoteEditorScreen from './[id]';
+import NoteEditorScreen from '@/app/n/[id]';
 
 let root: ReturnType<typeof create>;
 let oxy: OxyServices;
