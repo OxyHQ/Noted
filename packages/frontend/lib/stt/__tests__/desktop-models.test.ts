@@ -76,6 +76,37 @@ function streamOf(...parts: Uint8Array[]): Response {
 const decodeLen = (b64: unknown) => Buffer.from(String(b64), 'base64').length;
 
 describe('desktop model downloads', () => {
+  it.each(['pending', 'rejected'] as const)(
+    'requests cancellation of an HTTP error body without waiting when cancellation is %s',
+    async (cancelOutcome) => {
+      const rust = fakeRust();
+      let cancelled = false;
+      let release!: () => void;
+      const cancellation = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const body = new ReadableStream<Uint8Array>({
+        cancel() {
+          cancelled = true;
+          return cancelOutcome === 'pending'
+            ? cancellation
+            : Promise.reject(new Error('cancel failed'));
+        },
+      });
+      const models = createDesktopModels(
+        async () => rust.invoke,
+        async () => new Response(body, { status: 503 }),
+      );
+      try {
+        await expect(models.download(MODEL)).rejects.toThrow('HTTP 503');
+        expect(cancelled).toBe(true);
+        expect(rust.calls.map((call) => call.command)).toEqual(['model_status', 'model_partial']);
+      } finally {
+        release();
+      }
+    },
+  );
+
   it.each([0, 4])(
     'rejects an oversized HTTP 200 before writing beyond the model size (partial=%i)',
     async (partial) => {
