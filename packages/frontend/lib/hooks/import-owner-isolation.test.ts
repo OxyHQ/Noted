@@ -119,6 +119,19 @@ describe('import ownership', () => {
     expect(fixture.picker).not.toHaveBeenCalled();
     expect(fixture.create).not.toHaveBeenCalled();
   });
+  it('diagnoses the destination selected by a retained A callback', async () => {
+    const retained = pickAndImport;
+    await switchAccount('B');
+    await act(async () => {
+      await retained();
+    });
+    expect(fixture.create).toHaveBeenCalledWith(
+      'synthetic-id',
+      expect.objectContaining({ title: 'Imported note' }),
+      'B',
+    );
+    expect(fixture.success).toHaveBeenCalledOnce();
+  });
   it('does not resume A import after the picker spans A to B to A', async () => {
     let release!: (value: unknown) => void;
     fixture.picker.mockReturnValueOnce(
@@ -139,5 +152,37 @@ describe('import ownership', () => {
     });
     expect(fixture.create).not.toHaveBeenCalled();
     expect(fixture.success).not.toHaveBeenCalled();
+  });
+  it('diagnoses a partial import when a write finishes after switching accounts', async () => {
+    fixture.picker.mockResolvedValueOnce({
+      canceled: false,
+      assets: [
+        { name: 'first.md', uri: 'mock://first' },
+        { name: 'second.md', uri: 'mock://second' },
+      ],
+    });
+    let finishFirst!: () => void;
+    let beganFirst!: () => void;
+    const started = new Promise<void>((resolve) => {
+      beganFirst = resolve;
+    });
+    fixture.create.mockImplementationOnce(async () => {
+      beganFirst();
+      await new Promise<void>((resolve) => {
+        finishFirst = resolve;
+      });
+    });
+    let pending!: ReturnType<typeof pickAndImport>;
+    await act(async () => {
+      pending = pickAndImport();
+      await started;
+    });
+    await switchAccount('B');
+    await act(async () => {
+      finishFirst();
+      await pending;
+    });
+    expect(fixture.create).toHaveBeenCalledTimes(2);
+    expect(fixture.error).toHaveBeenCalledOnce();
   });
 });
