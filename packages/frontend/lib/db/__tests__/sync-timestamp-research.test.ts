@@ -68,7 +68,7 @@ import {
   BACKOFF_RESEARCH_SQL,
   RETIRE_RESEARCH_SQL,
   REVISION_RESEARCH_MIGRATION,
-} from '@/lib/db/outbox-revision-research';
+} from '@/docs/research/outbox-revision';
 
 beforeEach(() => {
   state.patch.mockReset();
