@@ -1,0 +1,46 @@
+name: Windows export filename diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-export-windows-proof.yml'
+      - 'packages/frontend/lib/export/**'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - name: Install frozen dependencies
+        run: bun install --frozen-lockfile
+      - name: Probe actual Windows file creation
+        shell: bash
+        working-directory: packages/frontend
+        run: |
+          bun - <<'TS'
+          import {mkdtempSync, openSync, closeSync, fstatSync, rmSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {noteFilename} from './lib/export/markdown';
+          const directory = mkdtempSync(join(tmpdir(), 'noted-export-probe-'));
+          try {
+            for (const title of ['Agenda', 'CON', 'nul.txt', 'COM1', 'COM¹', 'PRN']) {
+              const name = noteFilename({id:'diagnostic-id', title} as never);
+              try {
+                const fd = openSync(join(directory, name), 'wx');
+                try { console.log(JSON.stringify({title, name, regularFile:fstatSync(fd).isFile()})); }
+                finally { closeSync(fd); }
+              } catch (error) {
+                console.log(JSON.stringify({title, name, error:(error as NodeJS.ErrnoException).code}));
+              }
+            }
+          } finally {
+            rmSync(directory, {recursive:true, force:true});
+          }
+          TS
