@@ -42,10 +42,16 @@ export async function eraseLocalAccountData(viewerId: string): Promise<void> {
     [],
     viewerId,
   );
+  let failed = false;
   for (const { note_id } of recorded) {
     // Removes the audio, then the note's capture rows; a failure on one note
     // must not leave the others' audio behind.
-    await deleteNoteRecordings(note_id, viewerId).catch(() => undefined);
+    try {
+      await deleteNoteRecordings(note_id, viewerId);
+    } catch {
+      failed = true;
+    }
   }
+  if (failed) throw new Error('Could not remove all recordings');
   await executeTransaction(eraseStatements(), viewerId);
 }

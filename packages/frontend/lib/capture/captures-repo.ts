@@ -439,9 +439,15 @@ export async function deleteNoteRecordings(
     await execute<CaptureRow>(CAPTURE_BY_NOTE_SQL, [noteId], expectedViewerId),
   );
 
+  let failed = false;
   for (const capture of captures) {
-    await deleteCaptureAudio(capture.audioPath, capture.id).catch(() => undefined);
+    try {
+      await deleteCaptureAudio(capture.audioPath, capture.id);
+    } catch {
+      failed = true;
+    }
   }
+  if (failed) throw new Error('Could not remove all recordings');
 
   const affected = await executeTransaction(
     [
