@@ -1,6 +1,14 @@
-import { useCallback, useState } from 'react';
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { toast } from '@oxy.so/bloom/toast';
+import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
 import { getActiveViewerId } from '@/lib/db/client';
@@ -13,16 +21,46 @@ import { runImport, type ImportSummary } from '@/lib/import/run';
 import { useLabels } from '@/lib/hooks/use-labels';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Label } from '@noted/shared-types';
+import { oxyServices as apiOwner } from '@/lib/oxy';
 
 /** Pick Markdown / Obsidian / Google Keep files and bring them in as notes. */
 export function useImportNotes() {
   const { t } = useTranslation();
+  const { oxyServices, isAuthenticated, user, activeSessionId } = useOxy();
+  const subscribe = useCallback(
+    (listener: () => void) => oxyServices.http.addTokenChangeListener(listener),
+    [oxyServices],
+  );
+  const getEpoch = useCallback(() => oxyServices.http.getSessionEpoch(), [oxyServices]);
+  const epoch = useSyncExternalStore(subscribe, getEpoch, getEpoch);
+  const viewerId = isAuthenticated ? user?.id : undefined;
+  const owner = useMemo(
+    () => ({ viewerId, sessionId: activeSessionId ?? null, epoch, services: oxyServices }),
+    [viewerId, activeSessionId, epoch, oxyServices],
+  );
+  const committed = useRef<typeof owner | null>(null);
+  useLayoutEffect(() => {
+    committed.current = owner;
+    return () => {
+      if (committed.current === owner) committed.current = null;
+    };
+  }, [owner]);
   const { data: labels } = useLabels();
   const [importing, setImporting] = useState(false);
 
   const pickAndImport = useCallback(async (): Promise<ImportSummary | null> => {
-    const viewerId = getActiveViewerId();
-    if (!viewerId) return null;
+    const viewerId = owner.viewerId;
+    if (
+      committed.current !== owner ||
+      owner.services !== apiOwner ||
+      !viewerId ||
+      viewerId !== getActiveViewerId() ||
+      owner.services.http.getSessionEpoch() !== owner.epoch
+    )
+      return null;
+    const token = owner.services.session.accessToken;
+    const subject = owner.services.session.userId;
+    if (token !== null ? subject !== viewerId : !owner.sessionId || subject !== null) return null;
 
     const picked = await DocumentPicker.getDocumentAsync({
       multiple: true,
@@ -78,7 +116,7 @@ export function useImportNotes() {
     } finally {
       setImporting(false);
     }
-  }, [labels, t]);
+  }, [labels, owner, t]);
 
   return { pickAndImport, importing };
 }
