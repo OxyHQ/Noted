@@ -1,7 +1,9 @@
 name: Whisper CPU compatibility diagnostic
 on:
   pull_request:
-    paths: ['.github/workflows/codex-whisper-cpu-proof.yml']
+    paths:
+      - '.github/workflows/codex-whisper-cpu-proof.yml'
+      - 'experiments/whisper-dispatch/**'
 permissions:
   contents: read
 jobs:
@@ -41,7 +43,7 @@ jobs:
       - name: Install debugger for a faulting instruction
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends gdb
+          sudo apt-get install -y --no-install-recommends gdb qemu-user
       - name: Run cached sidecar using shell arguments
         id: cached
         run: |
@@ -99,3 +101,47 @@ jobs:
           print('avx2_transcript:', text)
           assert 'ask not what your country can do for you' in text
           PY
+      - name: Exercise the isolated two-sidecar selector
+        if: matrix.attempt == 1
+        run: |
+          set -euo pipefail
+          rustc --edition 2021 --test experiments/whisper-dispatch/prototype.rs -o "$RUNNER_TEMP/dispatch-tests"
+          "$RUNNER_TEMP/dispatch-tests"
+          mkdir -p "$RUNNER_TEMP/two-sidecars"
+          rustc --edition 2021 -O experiments/whisper-dispatch/prototype.rs -o "$RUNNER_TEMP/two-sidecars/selector"
+          cp "$RUNNER_TEMP/baseline/bin/whisper-cli" "$RUNNER_TEMP/two-sidecars/whisper-baseline"
+          cp "$RUNNER_TEMP/avx2/bin/whisper-cli" "$RUNNER_TEMP/two-sidecars/whisper-avx2"
+          stat -c '%n %s bytes' "$RUNNER_TEMP/two-sidecars/"*
+          ldd "$RUNNER_TEMP/two-sidecars/whisper-baseline"
+          echo 'Native selection:'
+          "$RUNNER_TEMP/two-sidecars/selector" --probe-select
+          echo 'Emulated no-AVX selection:'
+          qemu-x86_64 -cpu Nehalem "$RUNNER_TEMP/two-sidecars/selector" --probe-select | tee "$RUNNER_TEMP/qemu-selection"
+          grep -Fx 'selected=whisper-baseline' "$RUNNER_TEMP/qemu-selection"
+          mv "$RUNNER_TEMP/two-sidecars/whisper-avx2" "$RUNNER_TEMP/avx2-away"
+          "$RUNNER_TEMP/two-sidecars/selector" --probe-select | grep -Fx 'selected=whisper-baseline'
+          mv "$RUNNER_TEMP/avx2-away" "$RUNNER_TEMP/two-sidecars/whisper-avx2"
+          model="$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin"
+          sample="$PWD/whisper.cpp/samples/jfk.wav"
+          timeout 180s "$RUNNER_TEMP/two-sidecars/selector" -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/dispatched"
+          timeout 180s "$RUNNER_TEMP/two-sidecars/selector" --probe-force-baseline -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/fallback"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          for name in ['dispatched','fallback']:
+              data=json.loads((Path(os.environ['RUNNER_TEMP'])/(name+'.json')).read_text())
+              text=' '.join(item['text'] for item in data.get('transcription', [])).lower()
+              print(name+'_transcript:',text)
+              assert 'ask not what your country can do for you' in text
+          PY
+          mkdir -p "$RUNNER_TEMP/failure-probe"
+          cp "$RUNNER_TEMP/two-sidecars/selector" "$RUNNER_TEMP/failure-probe/selector"
+          printf '#!/bin/sh\nexit 17\n' > "$RUNNER_TEMP/failure-probe/whisper-avx2"
+          printf '#!/bin/sh\ntouch "%s"\n' "$RUNNER_TEMP/should-not-retry" > "$RUNNER_TEMP/failure-probe/whisper-baseline"
+          chmod +x "$RUNNER_TEMP/failure-probe/whisper-"*
+          set +e
+          "$RUNNER_TEMP/failure-probe/selector"
+          code=$?
+          set -e
+          test "$code" -eq 17
+          test ! -e "$RUNNER_TEMP/should-not-retry"
