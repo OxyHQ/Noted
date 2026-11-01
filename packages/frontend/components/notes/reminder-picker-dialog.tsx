@@ -41,7 +41,19 @@ export function ReminderPickerDialog({
     setTime(existing?.time ?? DEFAULT_TIME);
   }, [open, current]);
 
-  const when = day && time ? combineDateAndTime(day, time) : null;
+  const existing = current ? splitReminder(current) : null;
+  const unchanged =
+    day !== null &&
+    time !== null &&
+    existing !== null &&
+    day.getFullYear() === existing.day.getFullYear() &&
+    day.getMonth() === existing.day.getMonth() &&
+    day.getDate() === existing.day.getDate() &&
+    time === existing.time;
+  // A repeated local hour can refer to two instants. Retain the stored one
+  // when the visible selection has not changed.
+  const when =
+    unchanged && current ? new Date(current) : day && time ? combineDateAndTime(day, time) : null;
   const upcoming = when !== null && isUpcoming(when);
 
   return (
@@ -77,7 +89,7 @@ export function ReminderPickerDialog({
             disabled={!upcoming}
             onPress={() => {
               if (when && upcoming) {
-                onPick(when);
+                if (!unchanged) onPick(when);
                 onOpenChange(false);
               }
             }}
