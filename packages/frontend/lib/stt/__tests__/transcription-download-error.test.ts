@@ -351,3 +351,48 @@ it('does not clear a newer failure when an older retained action succeeds late',
   await vi.waitFor(() => expect(state.writeSetting).toHaveBeenCalled());
   expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
 });
+
+it('keeps a newer failure when an older ready-file selection finishes late', async () => {
+  let finishSelection!: () => void;
+  const absent = { tiny: 'absent', base: 'absent', small: 'absent' };
+  state.states
+    .mockResolvedValueOnce(absent)
+    .mockResolvedValueOnce({ ...absent, tiny: 'ready' })
+    .mockResolvedValue(absent);
+  state.download
+    .mockRejectedValueOnce(new Error('bookkeeping failed after file became ready'))
+    .mockRejectedValueOnce(new Error('new download failed'));
+  state.writeSetting.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finishSelection = resolve;
+      }),
+  );
+  await act(async () => {
+    root = create(React.createElement(TranscriptionSection));
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledOnce());
+  await act(async () => {
+    modelButton().props.onPress();
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(2));
+  expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
+  await act(async () => {
+    modelButton().props.onPress();
+  });
+  await vi.waitFor(() => expect(state.writeSetting).toHaveBeenCalledOnce());
+  await act(async () => {
+    root?.root.findByProps({ accessibilityLabel: 'transcription.remove' }).props.onPress();
+  });
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(3));
+  await act(async () => {
+    modelButton().props.onPress();
+  });
+  await vi.waitFor(() => expect(state.download).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(4));
+  expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
+  await act(async () => {
+    finishSelection();
+  });
+  expect(JSON.stringify(root?.toJSON())).toContain('transcription.downloadCouldNotFinish');
+});
