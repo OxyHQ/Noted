@@ -109,6 +109,7 @@ export function useRealtimeRecorder(
         });
 
         const ownerKey = await captureOwnerKey(expectedViewerId);
+        if (!active) return;
         if (getActiveViewerId() !== expectedViewerId) throw new Error('Recording account changed');
         const audioPath = nativeCaptureReference(ownerKey, captureId, 'wav');
         audioPathRef.current = audioPath;

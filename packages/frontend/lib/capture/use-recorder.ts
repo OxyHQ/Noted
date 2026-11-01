@@ -147,6 +147,7 @@ export function useRecorder(
         // a stub, and the recorder hands back a blob URL that needs no home.
         if (isCaptureDurable()) {
           const ownerKey = await captureOwnerKey(expectedViewerId);
+          if (!active) return;
           if (getActiveViewerId() !== expectedViewerId)
             throw new Error('Recording account changed');
           ownerKeyRef.current = ownerKey;

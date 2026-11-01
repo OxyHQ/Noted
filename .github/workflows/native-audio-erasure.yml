@@ -14,6 +14,31 @@ permissions:
   contents: read
 
 jobs:
+  ios-main-baseline:
+    name: iOS pods on main baseline
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: f00086f73628b47ff6f617d10793cfe324a4011e
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build:types
+      - name: Generate iOS project
+        working-directory: packages/frontend
+        env:
+          CI: '1'
+        run: bun x expo prebuild --platform ios --no-install
+      - name: Install pods
+        working-directory: packages/frontend
+        run: pod install --project-directory=ios
+
   android:
     name: Android native module compile
     runs-on: ubuntu-latest

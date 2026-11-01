@@ -20,6 +20,12 @@ propagate. Empty directories remain. This uses the app's in-process identity
 and assumes its code is trusted; it is not a capability against arbitrary code
 already executing inside the app.
 
+The write side is not safe yet: the compressed recorder currently deletes an
+existing destination before moving its temporary file, and the realtime writer
+opens a path supplied to Whisper. Neither operation reserves the destination
+exclusively or proves that the directory chain still names the original
+directories. This draft must not be used for recording or deletion in production.
+
 Legacy native file references and unowned native chunk directories fail closed
 and retain their rows. A binary without the bridge fails closed too. This means
 users with existing native recordings cannot yet delete those recordings or
@@ -37,6 +43,26 @@ There is currently no such complete inventory or owner marker. A migration must
 record and test its evidence before copying or deleting anything, be resumable
 after interruption, and offer the user a clear recovery/export path. Asking
 the currently signed-in user alone is not proof that a shared file is theirs.
+
+An implementation for new recordings also needs a recoverable write protocol:
+
+1. Bind an operation to the authenticated account and capture row, and reserve
+   its destination exclusively through an anchored, no-symlink native operation.
+   An existing destination is a conflict, never a reason to delete it.
+2. Ensure the actual audio writer uses that reservation, not a pathname it can
+   reopen through a changed directory. Whisper currently accepts an output path;
+   whether its filesystem adapter can write to a retained native handle needs
+   verification and may require a native adapter or upstream change.
+3. Journal the intended owner and file state before publishing the reference;
+   reconcile interruptions and account changes without discarding either a
+   recorded file or an existing file. A filesystem move and SQLite commit are
+   not one atomic transaction, so test crashes between every transition.
+4. Serialize deletion with active writers and account transitions, including
+   the actual Oxy session lifecycle. Exercise ID reuse, symlink replacement,
+   simultaneous stop/delete, failed database commits and permission errors on
+   both supported native platforms.
+
+These are requirements for a future design, not guarantees of this prototype.
 
 Before integration, separately validate both recorder adapters and their
 recovery after interruption, account switches during an operation, active
