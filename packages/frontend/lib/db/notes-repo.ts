@@ -614,7 +614,7 @@ export async function deleteNote(id: string): Promise<number[]> {
   // The recordings go first. A note is the only thing that points at them, so
   // tombstoning the note without this leaves a device holding the audio and the
   // transcript of a meeting its owner deleted, with nothing left to find them by.
-  await deleteNoteRecordings(id).catch(() => undefined);
+  await deleteNoteRecordings(id);
   return executeTransaction([
     {
       sql: 'UPDATE notes SET deleted_at = ?, dirty = ?, updated_at = ? WHERE id = ?',

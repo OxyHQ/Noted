@@ -7,7 +7,9 @@ vi.mock('@/lib/db/client', () => ({
 }));
 vi.mock('@/lib/capture/captures-repo', () => ({ deleteNoteRecordings: vi.fn() }));
 
-import { ACCOUNT_DATA_TABLES, eraseStatements } from '@/lib/db/erase-local';
+import { ACCOUNT_DATA_TABLES, eraseLocalAccountData, eraseStatements } from '@/lib/db/erase-local';
+import { execute, executeTransaction } from '@/lib/db/client';
+import { deleteNoteRecordings } from '@/lib/capture/captures-repo';
 import { LOCAL_TABLES, MIGRATIONS } from '@/lib/db/migrations';
 
 const sqlite = await import('node:sqlite').catch(() => null);
@@ -16,6 +18,15 @@ const sqlite = await import('node:sqlite').catch(() => null);
 const DEVICE_TABLES = ['app_settings', 'model_files', 'cache_metadata'];
 
 describe('erasing an account from the device', () => {
+  it('attempts all recordings but retains account rows if one cleanup fails', async () => {
+    vi.mocked(execute).mockResolvedValueOnce([{ note_id: 'a' }, { note_id: 'b' }]);
+    vi.mocked(deleteNoteRecordings)
+      .mockRejectedValueOnce(new Error('storage unavailable'))
+      .mockResolvedValueOnce(1);
+    await expect(eraseLocalAccountData('alice')).rejects.toThrow();
+    expect(deleteNoteRecordings).toHaveBeenCalledTimes(2);
+    expect(executeTransaction).not.toHaveBeenCalled();
+  });
   it('covers every table the schema owns except device preferences', () => {
     // A table added later and forgotten here would survive an account erase, so
     // this fails the moment the two lists drift apart.

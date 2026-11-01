@@ -131,8 +131,16 @@ class OpfsChunkBackend implements ChunkBackend {
   async remove(captureId: string): Promise<void> {
     try {
       await (await this.root(false)).removeEntry(captureId, { recursive: true });
-    } catch {
-      // Already gone. Deleting a recording twice is not an error.
+    } catch (error) {
+      // A missing directory is already deleted; access and I/O failures are not.
+      if (
+        typeof error !== 'object' ||
+        error === null ||
+        !('name' in error) ||
+        error.name !== 'NotFoundError'
+      ) {
+        throw error;
+      }
     }
   }
 }
@@ -163,13 +171,6 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-function promisify<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('audio storage request failed'));
-  });
-}
-
 /** Everything for one capture: `['id', 0]` up to `['id', ∞)`. */
 function captureRange(captureId: string): IDBKeyRange {
   return IDBKeyRange.bound([captureId, -Infinity], [captureId, Infinity]);
@@ -189,7 +190,20 @@ class IndexedDbChunkBackend implements ChunkBackend {
     work: (store: IDBObjectStore) => IDBRequest<T>,
   ): Promise<T> {
     const db = await this.open();
-    return promisify(work(db.transaction(store, mode).objectStore(store)));
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(store, mode);
+      const request = work(transaction.objectStore(store));
+      let result: T;
+      request.onsuccess = () => {
+        result = request.result;
+      };
+      request.onerror = () => reject(request.error ?? new Error('audio storage request failed'));
+      transaction.oncomplete = () => resolve(result);
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error('audio storage transaction aborted'));
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error('audio storage transaction failed'));
+    });
   }
 
   async put(captureId: string, index: number, chunk: Uint8Array): Promise<void> {

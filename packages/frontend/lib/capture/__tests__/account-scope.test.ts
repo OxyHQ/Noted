@@ -57,7 +57,12 @@ vi.mock('@/lib/capture/restructure', () => ({
 }));
 
 import { createLiveCoordinator } from '@/lib/capture/live-coordinator';
-import { deleteRecordingAudio, getCapture, makeSegment } from '@/lib/capture/captures-repo';
+import {
+  deleteNoteRecordings,
+  deleteRecordingAudio,
+  getCapture,
+  makeSegment,
+} from '@/lib/capture/captures-repo';
 import { transcribeAfterStop } from '@/lib/capture/transcribe-after';
 
 beforeEach(() => {
@@ -68,6 +73,11 @@ beforeEach(() => {
 });
 
 describe('capture account ownership', () => {
+  it('keeps recording rows when removing audio fails', async () => {
+    state.deleteAudio.mockRejectedValue(new Error('storage unavailable'));
+    await expect(deleteNoteRecordings('note-a', 'account-a')).rejects.toThrow();
+    expect(state.writes).toEqual([]);
+  });
   it('does not save recorder cleanup into the account that replaced its owner', async () => {
     const coordinator = createLiveCoordinator({
       captureId: 'capture-a',
