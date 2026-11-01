@@ -25,6 +25,26 @@ export type DesktopModelState = 'absent' | 'ready';
 /** How much is handed to Rust per call: big enough to be cheap, small enough to stay responsive. */
 export const CHUNK_BYTES = 4 * 1024 * 1024;
 
+/** Return the inclusive end of a valid resumed range. */
+function resumedRangeEnd(header: string | null, offset: number, size: number): number | null {
+  if (header === null) return null;
+  const match = /^bytes\s+(\d+)-(\d+)\/(\d+|\*)$/i.exec(header.trim());
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const total = match[3] === '*' ? null : Number(match[3]);
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    start !== offset ||
+    end < start ||
+    end >= size ||
+    (total !== null && (!Number.isSafeInteger(total) || total !== size))
+  )
+    return null;
+  return end;
+}
+
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let at = 0; at < bytes.length; at += 0x8000) {
@@ -80,6 +100,14 @@ export function createDesktopModels(
       // 206 continues where we stopped; a server that ignores Range sends the whole
       // file with 200, and then the partial must be overwritten, not appended to.
       const continuing = resume && response.status === 206;
+      const rangeEnd = continuing
+        ? resumedRangeEnd(response.headers.get('Content-Range'), have, model.bytes)
+        : null;
+      if (continuing && rangeEnd === null) {
+        // A mismatched response must not be appended to the existing partial.
+        void response.body.cancel().catch(() => undefined);
+        throw new Error('model resume response has an invalid Content-Range');
+      }
       const reader = response.body.getReader();
 
       let received = continuing ? have : 0;
@@ -105,6 +133,9 @@ export function createDesktopModels(
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (rangeEnd !== null && value.length > rangeEnd + 1 - received) {
+            throw new Error('model resume response exceeds its Content-Range');
+          }
           let offset = 0;
           while (offset < value.length) {
             const count = Math.min(CHUNK_BYTES - pendingBytes, value.length - offset);
@@ -118,6 +149,12 @@ export function createDesktopModels(
           }
         }
         await flush();
+        if (rangeEnd !== null && received !== rangeEnd + 1) {
+          throw new Error('model resume response ended before its Content-Range');
+        }
+        if (rangeEnd !== null && received !== model.bytes) {
+          throw new Error('model download is incomplete; retry to continue');
+        }
         if (first) await invoke('model_write', { name, chunk: '', reset: true });
         await invoke('model_commit', { name, bytes: model.bytes, sha256: model.sha256 });
       } catch (error) {

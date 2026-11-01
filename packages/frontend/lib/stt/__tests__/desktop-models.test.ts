@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
 
 import type { Invoke } from '@/lib/db/desktop-driver';
@@ -29,6 +31,34 @@ function fakeRust(initial: number | null = null, onCommit?: () => Error | undefi
     return undefined as T;
   };
   return { invoke, calls };
+}
+
+function verifyingRust(prefix: Uint8Array, expected: Uint8Array) {
+  let partial = Buffer.from(prefix);
+  let committed = false;
+  const calls: string[] = [];
+  const hash = createHash('sha256').update(expected).digest('hex');
+  const invoke: Invoke = async <T>(command: string, args: Record<string, unknown> = {}) => {
+    calls.push(command);
+    if (command === 'model_status') return (committed ? expected.length : null) as T;
+    if (command === 'model_partial') return partial.length as T;
+    if (command === 'model_write') {
+      const bytes = Buffer.from(String(args.chunk), 'base64');
+      partial = args.reset ? bytes : Buffer.concat([partial, bytes]);
+    }
+    if (command === 'model_commit') {
+      if (
+        partial.length !== expected.length ||
+        createHash('sha256').update(partial).digest('hex') !== args.sha256
+      ) {
+        partial = Buffer.alloc(0);
+        throw new Error('sha256 mismatch');
+      }
+      committed = true;
+    }
+    return undefined as T;
+  };
+  return { invoke, calls, hash, partial: () => Buffer.from(partial), committed: () => committed };
 }
 
 function streamOf(...parts: Uint8Array[]): Response {
@@ -113,7 +143,12 @@ describe('desktop model downloads', () => {
         async () => rust.invoke,
         async (_url, init) => {
           requests.push(init);
-          return new Response(streamOf(body).body, { status });
+          return new Response(streamOf(body).body, {
+            status,
+            headers: partial
+              ? { 'Content-Range': `bytes ${partial}-${size + partial - 1}/${size + partial}` }
+              : {},
+          });
         },
       );
       await models.download({ ...MODEL, bytes: size + partial });
@@ -255,7 +290,10 @@ describe('desktop model downloads', () => {
       async () => rust.invoke,
       async (_url, init) => {
         seen.push(init);
-        return new Response(streamOf(new Uint8Array(6)).body, { status: 206 });
+        return new Response(streamOf(new Uint8Array(6)).body, {
+          status: 206,
+          headers: { 'Content-Range': 'bytes 4-9/10' },
+        });
       },
     );
     await models.download(MODEL);
@@ -263,6 +301,193 @@ describe('desktop model downloads', () => {
     const write = rust.calls.find((c) => c.command === 'model_write');
     expect(write?.args.reset).toBe(false);
     expect(decodeLen(write?.args.chunk)).toBe(6);
+  });
+
+  it('preserves the existing partial if a 206 starts at the wrong byte', async () => {
+    const original = Buffer.from([1, 2, 3, 4]);
+    let partial = Buffer.from(original);
+    const whole = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const calls: string[] = [];
+    const invoke: Invoke = async <T>(command: string, args: Record<string, unknown> = {}) => {
+      calls.push(command);
+      if (command === 'model_status') return null as T;
+      if (command === 'model_partial') return partial.length as T;
+      if (command === 'model_write') {
+        const bytes = Buffer.from(String(args.chunk), 'base64');
+        partial = args.reset ? bytes : Buffer.concat([partial, bytes]);
+      }
+      if (command === 'model_commit') {
+        const actual = createHash('sha256').update(partial).digest('hex');
+        if (partial.length !== whole.length || actual !== args.sha256) {
+          partial = Buffer.alloc(0); // Rust commit removes a failed partial.
+          throw new Error('sha256 mismatch');
+        }
+      }
+      return undefined as T;
+    };
+    const models = createDesktopModels(
+      async () => invoke,
+      async () =>
+        new Response(new Uint8Array([1, 2, 3, 4, 5, 6]), {
+          status: 206,
+          headers: { 'Content-Range': 'bytes 0-5/10' },
+        }),
+    );
+    await expect(
+      models.download({ ...MODEL, sha256: createHash('sha256').update(whole).digest('hex') }),
+    ).rejects.toThrow();
+    expect(partial.equals(original)).toBe(true);
+    expect(calls).not.toContain('model_write');
+    expect(calls).not.toContain('model_commit');
+  });
+
+  it.each([
+    null,
+    '',
+    'bytes */10',
+    'bytes 3-9/10',
+    'bytes 5-9/10',
+    'bytes 4-10/11',
+    'bytes 4-9/11',
+    'bytes 999999999999999999999-999999999999999999999/*',
+  ])('rejects inconsistent or unavailable Content-Range %s before writing', async (range) => {
+    const rust = fakeRust(null, undefined, 4);
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () =>
+        new Response(body, {
+          status: 206,
+          headers: range === null ? {} : { 'Content-Range': range },
+        }),
+    );
+    await expect(models.download(MODEL)).rejects.toThrow('invalid Content-Range');
+    expect(cancelled).toBe(true);
+    expect(rust.calls.some((call) => call.command === 'model_write')).toBe(false);
+    expect(rust.calls.some((call) => call.command === 'model_commit')).toBe(false);
+  });
+
+  it('accepts a valid full remainder when the total is unspecified', async () => {
+    const rust = fakeRust(null, undefined, 4);
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () =>
+        new Response(streamOf(new Uint8Array(6)).body, {
+          status: 206,
+          headers: { 'Content-Range': 'bytes 4-9/*' },
+        }),
+    );
+    await models.download(MODEL);
+    const write = rust.calls.find((call) => call.command === 'model_write');
+    expect(write?.args.reset).toBe(false);
+    expect(decodeLen(write?.args.chunk)).toBe(6);
+    expect(rust.calls.at(-1)?.command).toBe('model_commit');
+  });
+
+  it('retains a short body without committing and resumes it on a later attempt', async () => {
+    const expected = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const rust = verifyingRust(expected.subarray(0, 4), expected);
+    const requests: Array<RequestInit | undefined> = [];
+    let response = 0;
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async (_url, init) => {
+        requests.push(init);
+        return response++ === 0
+          ? new Response(new Uint8Array([5, 6]), {
+              status: 206,
+              headers: { 'Content-Range': 'bytes 4-9/10' },
+            })
+          : new Response(new Uint8Array([7, 8, 9, 10]), {
+              status: 206,
+              headers: { 'Content-Range': 'bytes 6-9/10' },
+            });
+      },
+    );
+    const model = { ...MODEL, sha256: rust.hash };
+    await expect(models.download(model)).rejects.toThrow('ended before its Content-Range');
+    expect([...rust.partial()]).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(rust.calls).not.toContain('model_commit');
+    await models.download(model);
+    expect(requests.map((r) => r?.headers)).toEqual([{ Range: 'bytes=4-' }, { Range: 'bytes=6-' }]);
+    expect([...rust.partial()]).toEqual([...expected]);
+    expect(rust.committed()).toBe(true);
+  });
+
+  it('retains an HTTP-valid partial segment and completes after a later retry', async () => {
+    const expected = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const rust = verifyingRust(expected.subarray(0, 4), expected);
+    let response = 0;
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () =>
+        response++ === 0
+          ? new Response(new Uint8Array([5, 6, 7]), {
+              status: 206,
+              headers: { 'Content-Range': 'bytes 4-6/10' },
+            })
+          : new Response(new Uint8Array([8, 9, 10]), {
+              status: 206,
+              headers: { 'Content-Range': 'bytes 7-9/10' },
+            }),
+    );
+    const model = { ...MODEL, sha256: rust.hash };
+    await expect(models.download(model)).rejects.toThrow('incomplete');
+    expect([...rust.partial()]).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(rust.calls).not.toContain('model_commit');
+    await models.download(model);
+    expect([...rust.partial()]).toEqual([...expected]);
+    expect(rust.committed()).toBe(true);
+  });
+
+  it('resumes an HTTP partial segment from a real loopback server', async () => {
+    const expected = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const rust = verifyingRust(expected.subarray(0, 4), expected);
+    const ranges: Array<string | undefined> = [];
+    const server = createServer((request, response) => {
+      ranges.push(request.headers.range);
+      const first = request.headers.range === 'bytes=4-';
+      response.writeHead(206, { 'Content-Range': first ? 'bytes 4-6/10' : 'bytes 7-9/10' });
+      response.end(Buffer.from(first ? [5, 6, 7] : [8, 9, 10]));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('missing test server address');
+      const models = createDesktopModels(async () => rust.invoke);
+      const model = { ...MODEL, url: `http://127.0.0.1:${address.port}/model`, sha256: rust.hash };
+      await expect(models.download(model)).rejects.toThrow('incomplete');
+      expect([...rust.partial()]).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      await models.download(model);
+      expect(ranges).toEqual(['bytes=4-', 'bytes=7-']);
+      expect(rust.committed()).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it('rejects a body exceeding its declared range before writing it', async () => {
+    const expected = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const rust = verifyingRust(expected.subarray(0, 4), expected);
+    const models = createDesktopModels(
+      async () => rust.invoke,
+      async () =>
+        new Response(new Uint8Array([5, 6, 7, 8]), {
+          status: 206,
+          headers: { 'Content-Range': 'bytes 4-6/10' },
+        }),
+    );
+    await expect(models.download({ ...MODEL, sha256: rust.hash })).rejects.toThrow('exceeds');
+    expect([...rust.partial()]).toEqual([1, 2, 3, 4]);
+    expect(rust.calls).not.toContain('model_write');
+    expect(rust.calls).not.toContain('model_commit');
   });
 
   it('starts over when the server ignores Range and sends the whole file', async () => {
