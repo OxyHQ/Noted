@@ -1,0 +1,75 @@
+name: Whisper static selector platform diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-whisper-platform-proof.yml'
+      - 'experiments/whisper-dispatch/**'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    name: Static selector (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos, os: macos-latest }
+          - { name: windows, os: windows-latest }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Restore source without saving a cache
+        uses: actions/cache/restore@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-v1.9.5-${{ matrix.name }}
+          fail-on-cache-miss: true
+      - name: Fetch and verify the app's tiny model
+        run: node desktop/sidecar/fetch-model.mjs tiny "$RUNNER_TEMP/model"
+      - name: Build baseline and, on x86, AVX2 variants
+        run: |
+          set -euo pipefail
+          echo "runner_arch=$(uname -m)"
+          rustc -vV
+          rustc --edition 2021 --test experiments/whisper-dispatch/prototype.rs -o "$RUNNER_TEMP/selector-tests"
+          "$RUNNER_TEMP/selector-tests"
+          cmake -S whisper.cpp -B "$RUNNER_TEMP/baseline" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_METAL=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_BMI2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF
+          cmake --build "$RUNNER_TEMP/baseline" --config Release -j 2 --target whisper-cli
+          mkdir -p "$RUNNER_TEMP/bundle"
+          base=$(find "$RUNNER_TEMP/baseline" -type f \( -name whisper-cli -o -name whisper-cli.exe \) | head -1)
+          test -n "$base"
+          case "${{ matrix.name }}" in windows) suffix=.exe;; *) suffix=;; esac
+          cp "$base" "$RUNNER_TEMP/bundle/whisper-baseline$suffix"
+          rustc --edition 2021 -O experiments/whisper-dispatch/prototype.rs -o "$RUNNER_TEMP/bundle/selector$suffix"
+          case "$(uname -m)" in
+            x86_64|AMD64|amd64)
+              cmake -S whisper.cpp -B "$RUNNER_TEMP/avx2" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_METAL=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_BMI2=ON -DGGML_FMA=ON -DGGML_F16C=ON
+              cmake --build "$RUNNER_TEMP/avx2" --config Release -j 2 --target whisper-cli
+              fast=$(find "$RUNNER_TEMP/avx2" -type f \( -name whisper-cli -o -name whisper-cli.exe \) | head -1)
+              test -n "$fast"
+              cp "$fast" "$RUNNER_TEMP/bundle/whisper-avx2$suffix"
+              ;;
+            *) echo 'No x86 AVX2 sidecar built for this architecture.' ;;
+          esac
+          for file in "$RUNNER_TEMP/bundle/"*; do printf '%s: ' "$file"; wc -c < "$file"; done
+          if [ "${{ matrix.name }}" = macos ]; then otool -L "$RUNNER_TEMP/bundle/whisper-baseline"; fi
+      - name: Run selected and baseline sidecars
+        run: |
+          set -euo pipefail
+          case "${{ matrix.name }}" in windows) suffix=.exe;; *) suffix=;; esac
+          selector="$RUNNER_TEMP/bundle/selector$suffix"
+          "$selector" --probe-select
+          node desktop/sidecar/verify.mjs "$selector" whisper.cpp/samples/jfk.wav "$RUNNER_TEMP/model"
+          model="$RUNNER_TEMP/model/ggml-tiny-q5_1.bin"
+          "$selector" --probe-force-baseline -m "$model" -f "$PWD/whisper.cpp/samples/jfk.wav" -l en -oj -of "$RUNNER_TEMP/fallback"
+          node -e 'const fs=require("fs"),path=require("path"); const d=JSON.parse(fs.readFileSync(path.join(process.env.RUNNER_TEMP,"fallback.json"))); const t=d.transcription.map(x=>x.text).join(" ").toLowerCase(); console.log("fallback_transcript:",t); if(!t.includes("ask not what your country can do for you")) process.exit(1)'

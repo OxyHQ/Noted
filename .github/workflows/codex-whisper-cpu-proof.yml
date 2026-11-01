@@ -1,0 +1,147 @@
+name: Whisper CPU compatibility diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-whisper-cpu-proof.yml'
+      - 'experiments/whisper-dispatch/**'
+permissions:
+  contents: read
+jobs:
+  compare:
+    name: Cached vs baseline CPU (${{ matrix.attempt }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        attempt: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Restore existing whisper build without changing it
+        id: whisper
+        uses: actions/cache/restore@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-v1.9.5-linux
+          fail-on-cache-miss: true
+      - name: Restore existing model without changing it
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.local/share/so.oxy.noted.desktop/models
+          key: desktop-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+          fail-on-cache-miss: true
+      - name: Inspect runner and cached compilation
+        run: |
+          set -euo pipefail
+          lscpu
+          rg='^(GGML_NATIVE|GGML_SSE42|GGML_AVX|GGML_AVX2|GGML_BMI2|GGML_FMA|GGML_F16C):'
+          grep -E "$rg" whisper.cpp/build/CMakeCache.txt || true
+          sha256sum whisper.cpp/build/bin/whisper-cli "$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin" whisper.cpp/samples/jfk.wav
+          command -v gdb || true
+      - name: Install debugger for a faulting instruction
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gdb qemu-user
+      - name: Run cached sidecar using shell arguments
+        id: cached
+        run: |
+          set -uo pipefail
+          ulimit -c 0
+          model="$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin"
+          sample="$PWD/whisper.cpp/samples/jfk.wav"
+          set +e
+          timeout 120s whisper.cpp/build/bin/whisper-cli -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/cached" >"$RUNNER_TEMP/cached.stdout" 2>"$RUNNER_TEMP/cached.stderr"
+          code=$?
+          set -e
+          echo "cached_exit=$code" | tee -a "$GITHUB_STEP_SUMMARY"
+          tail -n 20 "$RUNNER_TEMP/cached.stderr"
+          if [ "$code" -eq 132 ] && command -v gdb >/dev/null; then
+            timeout 120s gdb -q -batch -ex 'set pagination off' -ex run -ex 'x/4i $pc' -ex 'bt 8' --args whisper.cpp/build/bin/whisper-cli -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/debug" 2>&1 | tail -50 || true
+          fi
+      - name: Build baseline x86-64 sidecar independently
+        run: |
+          set -euo pipefail
+          cmake -S whisper.cpp -B "$RUNNER_TEMP/baseline" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_BMI2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF
+          cmake --build "$RUNNER_TEMP/baseline" -j 2 --target whisper-cli
+          sha256sum "$RUNNER_TEMP/baseline/bin/whisper-cli"
+      - name: Transcribe the same sample with baseline build
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          model="$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin"
+          timeout 180s "$RUNNER_TEMP/baseline/bin/whisper-cli" -m "$model" -f "$PWD/whisper.cpp/samples/jfk.wav" -l en -oj -of "$RUNNER_TEMP/baseline-result"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'baseline-result.json'
+          data = json.loads(path.read_text())
+          text = ' '.join(item['text'] for item in data.get('transcription', [])).lower()
+          print('baseline_transcript:', text)
+          assert 'ask not what your country can do for you' in text
+          PY
+      - name: Build and measure AVX2 diagnostic variant
+        run: |
+          set -euo pipefail
+          for flag in sse4_2 avx avx2 bmi2 fma f16c; do
+            grep -qw "$flag" /proc/cpuinfo || { echo "missing CPU feature: $flag"; exit 1; }
+          done
+          cmake -S whisper.cpp -B "$RUNNER_TEMP/avx2" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_BMI2=ON -DGGML_FMA=ON -DGGML_F16C=ON
+          cmake --build "$RUNNER_TEMP/avx2" -j 2 --target whisper-cli
+          sha256sum "$RUNNER_TEMP/avx2/bin/whisper-cli"
+          model="$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin"
+          timeout 180s "$RUNNER_TEMP/avx2/bin/whisper-cli" -m "$model" -f "$PWD/whisper.cpp/samples/jfk.wav" -l en -oj -of "$RUNNER_TEMP/avx2-result"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'avx2-result.json'
+          data = json.loads(path.read_text())
+          text = ' '.join(item['text'] for item in data.get('transcription', [])).lower()
+          print('avx2_transcript:', text)
+          assert 'ask not what your country can do for you' in text
+          PY
+      - name: Exercise the isolated two-sidecar selector
+        if: matrix.attempt == 1
+        run: |
+          set -euo pipefail
+          rustc --edition 2021 --test experiments/whisper-dispatch/prototype.rs -o "$RUNNER_TEMP/dispatch-tests"
+          "$RUNNER_TEMP/dispatch-tests"
+          mkdir -p "$RUNNER_TEMP/two-sidecars"
+          rustc --edition 2021 -O experiments/whisper-dispatch/prototype.rs -o "$RUNNER_TEMP/two-sidecars/selector"
+          cp "$RUNNER_TEMP/baseline/bin/whisper-cli" "$RUNNER_TEMP/two-sidecars/whisper-baseline"
+          cp "$RUNNER_TEMP/avx2/bin/whisper-cli" "$RUNNER_TEMP/two-sidecars/whisper-avx2"
+          stat -c '%n %s bytes' "$RUNNER_TEMP/two-sidecars/"*
+          ldd "$RUNNER_TEMP/two-sidecars/whisper-baseline"
+          echo 'Native selection:'
+          "$RUNNER_TEMP/two-sidecars/selector" --probe-select
+          echo 'Emulated no-AVX selection:'
+          qemu-x86_64 -cpu Nehalem "$RUNNER_TEMP/two-sidecars/selector" --probe-select | tee "$RUNNER_TEMP/qemu-selection"
+          grep -Fx 'selected=whisper-baseline' "$RUNNER_TEMP/qemu-selection"
+          mv "$RUNNER_TEMP/two-sidecars/whisper-avx2" "$RUNNER_TEMP/avx2-away"
+          "$RUNNER_TEMP/two-sidecars/selector" --probe-select | grep -Fx 'selected=whisper-baseline'
+          mv "$RUNNER_TEMP/avx2-away" "$RUNNER_TEMP/two-sidecars/whisper-avx2"
+          model="$HOME/.local/share/so.oxy.noted.desktop/models/ggml-base-q5_1.bin"
+          sample="$PWD/whisper.cpp/samples/jfk.wav"
+          timeout 180s "$RUNNER_TEMP/two-sidecars/selector" -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/dispatched"
+          timeout 180s "$RUNNER_TEMP/two-sidecars/selector" --probe-force-baseline -m "$model" -f "$sample" -l en -oj -of "$RUNNER_TEMP/fallback"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          for name in ['dispatched','fallback']:
+              data=json.loads((Path(os.environ['RUNNER_TEMP'])/(name+'.json')).read_text())
+              text=' '.join(item['text'] for item in data.get('transcription', [])).lower()
+              print(name+'_transcript:',text)
+              assert 'ask not what your country can do for you' in text
+          PY
+          mkdir -p "$RUNNER_TEMP/failure-probe"
+          cp "$RUNNER_TEMP/two-sidecars/selector" "$RUNNER_TEMP/failure-probe/selector"
+          printf '#!/bin/sh\nexit 17\n' > "$RUNNER_TEMP/failure-probe/whisper-avx2"
+          printf '#!/bin/sh\ntouch "%s"\n' "$RUNNER_TEMP/should-not-retry" > "$RUNNER_TEMP/failure-probe/whisper-baseline"
+          chmod +x "$RUNNER_TEMP/failure-probe/whisper-"*
+          set +e
+          "$RUNNER_TEMP/failure-probe/selector"
+          code=$?
+          set -e
+          test "$code" -eq 17
+          test ! -e "$RUNNER_TEMP/should-not-retry"
