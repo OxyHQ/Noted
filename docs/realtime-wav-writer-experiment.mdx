@@ -43,3 +43,10 @@ cross-bridge event ordering guarantee must be demonstrated on both platforms
 before the final file can be considered complete. Checking just the viewer ID
 also misses A-to-B-to-A switches; the integration needs a captured session epoch
 and a commit coordinated with that lifecycle.
+
+The isolated session test uses an OxyServices 7.10.5 instance and synthetic
+tokens to exercise observed A-to-B-to-A transitions and same-session token
+rotation. Viewer and session projections in that test are controlled values,
+not the running React provider, and no live device or SQLite commit is involved.
+The identity guard therefore remains an experiment rather than a complete
+session or database barrier.
