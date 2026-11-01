@@ -27,8 +27,9 @@ jobs:
           java-version: '17'
       - run: |
           mkdir "$RUNNER_TEMP/pcm-ledger"
-          javac -d "$RUNNER_TEMP/pcm-ledger" experiments/native-pcm-drain/android/PcmSequenceLedger.java experiments/native-pcm-drain/android/PcmSequenceLedgerTest.java
+          javac -d "$RUNNER_TEMP/pcm-ledger" experiments/native-pcm-drain/android/PcmSequenceLedger.java experiments/native-pcm-drain/android/PcmSequenceLedgerTest.java experiments/native-pcm-drain/android/PcmProducer.java experiments/native-pcm-drain/android/PcmProducerTest.java
           java -cp "$RUNNER_TEMP/pcm-ledger" PcmSequenceLedgerTest
+          java -cp "$RUNNER_TEMP/pcm-ledger" PcmProducerTest
 
   ios-ledger:
     name: Swift producer ledger
@@ -38,3 +39,5 @@ jobs:
       - run: |
           swiftc experiments/native-pcm-drain/ios/PcmSequenceLedger.swift experiments/native-pcm-drain/ios/PcmSequenceLedgerTest.swift -o "$RUNNER_TEMP/pcm-ledger-test"
           "$RUNNER_TEMP/pcm-ledger-test"
+          swiftc experiments/native-pcm-drain/ios/PcmSequenceLedger.swift experiments/native-pcm-drain/ios/PcmProducer.swift experiments/native-pcm-drain/ios/PcmProducerTest.swift -o "$RUNNER_TEMP/pcm-producer-test"
+          "$RUNNER_TEMP/pcm-producer-test"

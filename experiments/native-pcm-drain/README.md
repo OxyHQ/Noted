@@ -20,6 +20,15 @@ but that does not establish React Native event delivery. Android documents the
 blocking and nonblocking read modes in [`AudioRecord`](https://developer.android.com/reference/android/media/AudioRecord);
 the lifecycle and behavior on actual devices still need measurement.
 
+Experimental controllers run an injected source on a worker thread. They
+request stop, wait for the worker and its cleanup, and only then return the
+ledger marker. Their test sources hold a read and an emission open, inject an
+emission failure and simulate a worker that will not stop. The contract assumes
+`requestStop()` itself returns promptly; otherwise the timeout is not a bound on
+the entire call. After a timeout no marker is issued and cleanup may still be in
+progress. The iOS prototype uses a wall-clock deadline. These controllers are
+not connected to AudioRecord or AudioQueue and do not prove their behavior.
+
 After the marker is returned the ledger cannot revoke it if the native producer
 incorrectly emits or fails later. A real producer must prevent that condition
 before returning it, while the receiver detects gaps, duplicates and timeouts.
