@@ -69,6 +69,14 @@ describe('uniqueFilenames', () => {
     const names = uniqueFilenames([note('a', 'Ideas'), note('b', 'Ideas'), note('c', 'ideas')]);
     expect(names).toEqual(['Ideas.md', 'Ideas (2).md', 'ideas (3).md']);
   });
+
+  it('keeps names distinct when an emoji is cut at the length limit', () => {
+    const stem = 'x'.repeat(59);
+    expect(uniqueFilenames([note('a', `${stem}📝`), note('b', stem)])).toEqual([
+      `${stem}.md`,
+      `${stem} (2).md`,
+    ]);
+  });
 });
 
 describe('notesToArchive', () => {
@@ -76,5 +84,17 @@ describe('notesToArchive', () => {
     const text = new TextDecoder().decode(notesToArchive([note('a', 'Plan', 'cuerpo')]));
     expect(text).toContain('Plan.md');
     expect(text).toContain('# Plan\n\ncuerpo');
+  });
+
+  it('does not write a replacement character when a filename limit splits an emoji', () => {
+    const title = `${'x'.repeat(59)}📝`;
+    const zip = notesToArchive([note('a', title)]);
+    const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+    const nameLength = view.getUint16(26, true);
+    const filename = new TextDecoder('utf-8', { fatal: true }).decode(
+      zip.subarray(30, 30 + nameLength),
+    );
+    expect(filename).toBe(`${'x'.repeat(59)}.md`);
+    expect(new TextDecoder().decode(zip)).toContain(`# ${title}`);
   });
 });
