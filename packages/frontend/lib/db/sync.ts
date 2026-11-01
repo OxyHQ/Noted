@@ -729,11 +729,11 @@ export async function flushOutbox(
       assertCurrentViewer(viewerId);
       const attempts = entry.attempts + 1;
       const nextAttemptAt = new Date(Date.now() + outboxRetryDelayMs(attempts)).toISOString();
-      await executeTransaction(
+      const [recorded] = await executeTransaction(
         [
           {
-            sql: 'UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?',
-            params: [attempts, errorMessage(error), nextAttemptAt, entry.id],
+            sql: 'UPDATE outbox SET attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ? AND revision = ?',
+            params: [attempts, errorMessage(error), nextAttemptAt, entry.id, entry.revision],
           },
         ],
         viewerId,
@@ -743,6 +743,7 @@ export async function flushOutbox(
         stage: 'push' satisfies SyncStage,
         entityId: entry.entity_id,
         attempts,
+        recorded: recorded === 1,
         error: errorMessage(error),
       });
     }

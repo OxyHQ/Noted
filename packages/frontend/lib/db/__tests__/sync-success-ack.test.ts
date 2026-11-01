@@ -82,8 +82,10 @@ afterEach(() => {
   state.db?.close();
 });
 
-async function heldPush() {
+async function heldPush(attempts = 0) {
   await createNote('n', { title: 'First' });
+  if (attempts > 0)
+    db().prepare('UPDATE outbox SET attempts = ? WHERE entity_id = ?').run(attempts, 'n');
   db()
     .prepare("UPDATE notes SET server_updated_at = ? WHERE id = 'n'")
     .run('2026-10-13T09:00:00.000Z');
@@ -105,6 +107,35 @@ async function heldPush() {
   expect(state.patch.mock.calls[0]?.[1]).toMatchObject({ title: 'First' });
   return { flush, resolve, reject };
 }
+
+it('does not exhaust a new edit when an older final retry fails', async () => {
+  const { flush, reject } = await heldPush(7);
+  await updateNote('n', { title: 'Second' });
+  reject(new Error('Older retry failed'));
+  expect(await flush).toEqual({ sent: 0, failed: 1 });
+  expect(db().prepare('SELECT attempts FROM outbox').get()).toMatchObject({ attempts: 0 });
+  state.patch.mockResolvedValueOnce({ data: { note: { updatedAt: '2026-10-13T10:00:01Z' } } });
+  await flushOutbox('alice');
+  expect(state.patch.mock.calls[1]?.[1]).toMatchObject({ title: 'Second' });
+  expect(db().prepare('SELECT COUNT(*) AS n FROM outbox').get()).toMatchObject({ n: 0 });
+});
+
+it('backs off and retries the same intent after a network error', async () => {
+  const { flush, reject } = await heldPush();
+  reject(new Error('Network unavailable'));
+  expect(await flush).toEqual({ sent: 0, failed: 1 });
+  expect(db().prepare('SELECT attempts, last_error FROM outbox').get()).toMatchObject({
+    attempts: 1,
+    last_error: 'Network unavailable',
+  });
+  state.patch.mockResolvedValueOnce({ data: { note: { updatedAt: '2026-10-13T11:00:01Z' } } });
+  expect(await flushOutbox('alice')).toEqual({ sent: 0, failed: 0 });
+  expect(state.patch).toHaveBeenCalledTimes(1);
+  vi.setSystemTime(new Date('2026-10-13T11:00:00.000Z'));
+  expect(await flushOutbox('alice')).toEqual({ sent: 1, failed: 0 });
+  expect(state.patch).toHaveBeenCalledTimes(2);
+  expect(db().prepare('SELECT COUNT(*) AS n FROM outbox').get()).toMatchObject({ n: 0 });
+});
 
 it('keeps an edit queued when a successful PATCH has the same millisecond', async () => {
   const { flush, resolve } = await heldPush();
@@ -202,11 +233,13 @@ it('keeps a later deletion when the earlier request fails', async () => {
   await deleteNote('n');
   reject(new Error('Network unavailable'));
   expect(await flush).toEqual({ sent: 0, failed: 1 });
-  expect(db().prepare('SELECT op FROM outbox').get()).toMatchObject({ op: 'delete' });
+  expect(db().prepare('SELECT op, attempts FROM outbox').get()).toMatchObject({
+    op: 'delete',
+    attempts: 0,
+  });
   expect(db().prepare('SELECT deleted_at FROM notes').get()).toMatchObject({
     deleted_at: '2026-10-13T10:00:00.000Z',
   });
-  vi.setSystemTime(new Date('2026-10-13T11:00:00.000Z'));
   state.delete.mockResolvedValue({});
   await flushOutbox('alice');
   expect(db().prepare('SELECT COUNT(*) AS n FROM notes').get()).toMatchObject({ n: 0 });
