@@ -76,6 +76,52 @@ function streamOf(...parts: Uint8Array[]): Response {
 const decodeLen = (b64: unknown) => Buffer.from(String(b64), 'base64').length;
 
 describe('desktop model downloads', () => {
+  it('reports a write failure even when stream cancellation does not settle', async () => {
+    const failure = new Error('disk write failed');
+    let releaseCancel!: () => void;
+    let signalCancel!: () => void;
+    const cancelCalled = new Promise<void>((resolve) => {
+      signalCancel = resolve;
+    });
+    const cancellation = new Promise<void>((resolve) => {
+      releaseCancel = resolve;
+    });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(CHUNK_BYTES));
+      },
+      cancel() {
+        signalCancel();
+        return cancellation;
+      },
+    });
+    const rust = fakeRust();
+    const invoke: Invoke = async <T>(command: string, args?: Record<string, unknown>) => {
+      if (command === 'model_write') throw failure;
+      return rust.invoke<T>(command, args);
+    };
+    const models = createDesktopModels(
+      async () => invoke,
+      async () => new Response(body),
+    );
+    const result = models.download({ ...MODEL, bytes: CHUNK_BYTES + 1 }).then(
+      () => 'resolved',
+      (error: unknown) => error,
+    );
+    try {
+      await cancelCalled;
+      const outcome = await Promise.race([
+        result,
+        new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 1000)),
+      ]);
+      expect(outcome).toBe(failure);
+      expect(rust.calls.map((call) => call.command)).not.toContain('model_commit');
+    } finally {
+      releaseCancel();
+      await result;
+    }
+  });
+
   it('reads state from the file size Rust reports, not from a flag', async () => {
     const rust = fakeRust(10);
     const models = createDesktopModels(async () => rust.invoke);
