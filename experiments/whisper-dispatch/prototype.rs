@@ -39,8 +39,9 @@ fn features() -> Features { Features::default() }
 fn run(args: Vec<std::ffi::OsString>, directory: &Path) -> Result<i32, String> {
     let force_baseline = args.first().is_some_and(|arg| arg == "--probe-force-baseline");
     let report_only = args.first().is_some_and(|arg| arg == "--probe-select");
-    let variant = if force_baseline { Variant::Baseline } else { choose(features(), directory.join("whisper-avx2").is_file()) };
-    let name = match variant { Variant::Baseline => "whisper-baseline", Variant::Avx2 => "whisper-avx2" };
+    let avx2 = format!("whisper-avx2{}", env::consts::EXE_SUFFIX);
+    let variant = if force_baseline { Variant::Baseline } else { choose(features(), directory.join(&avx2).is_file()) };
+    let name = match variant { Variant::Baseline => format!("whisper-baseline{}", env::consts::EXE_SUFFIX), Variant::Avx2 => avx2 };
     if report_only { println!("selected={name}"); return Ok(0); }
     eprintln!("diagnostic selected={name}");
     let skip = if force_baseline { 1 } else { 0 };
