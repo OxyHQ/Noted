@@ -1,10 +1,8 @@
-import { useCallback, useState } from 'react';
-import { toast } from '@oxy.so/bloom/toast';
+import { useCallback } from 'react';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
-import { getActiveViewerId } from '@/lib/db/client';
 import { saveTextFile } from '@/lib/export/save';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useOwnedExport } from '@/lib/hooks/use-owned-export';
 
 /**
  * Download everything the server holds for the account (`GET /account/export`).
@@ -14,29 +12,25 @@ import { useTranslation } from '@/hooks/useTranslation';
  * means the account, not this phone. It therefore needs a connection.
  */
 export function useExportAll() {
-  const { t } = useTranslation();
-  const [exporting, setExporting] = useState(false);
+  const { run, pending: exporting } = useOwnedExport('network');
 
-  const exportAll = useCallback(async () => {
-    const viewerId = getActiveViewerId();
-    if (!viewerId) return;
-    setExporting(true);
-    try {
-      const response = await apiClient.get<unknown>(API_ROUTES.account.export, {
-        expectedViewerId: viewerId,
-      });
-      const day = new Date().toISOString().slice(0, 10);
-      await saveTextFile(
-        `noted-export-${day}.json`,
-        JSON.stringify(response.data, null, 2),
-        'json',
-      );
-    } catch (error) {
-      toast.error((error as Error).message || t('settings.export.failed'));
-    } finally {
-      setExporting(false);
-    }
-  }, [t]);
+  const exportAll = useCallback(
+    () =>
+      run(async (viewerId, isCurrent) => {
+        const response = await apiClient.get<unknown>(API_ROUTES.account.export, {
+          expectedViewerId: viewerId,
+        });
+        if (!isCurrent()) return;
+        const day = new Date().toISOString().slice(0, 10);
+        await saveTextFile(
+          `noted-export-${day}.json`,
+          JSON.stringify(response.data, null, 2),
+          'json',
+          isCurrent,
+        );
+      }),
+    [run],
+  );
 
   return { exportAll, exporting };
 }

@@ -15,6 +15,7 @@ export function saveTextFile(
   _filename: string,
   _contents: string,
   _kind: SavedFileKind = 'markdown',
+  _isCurrent?: () => boolean,
 ): Promise<void> {
   return Promise.reject(new Error('saving a file is not supported on this platform'));
 }
@@ -24,6 +25,7 @@ export function saveBinaryFile(
   _filename: string,
   _bytes: Uint8Array,
   _mimeType: string,
+  _isCurrent?: () => boolean,
 ): Promise<void> {
   return Promise.reject(new Error('saving a file is not supported on this platform'));
 }

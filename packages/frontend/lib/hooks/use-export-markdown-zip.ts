@@ -1,10 +1,9 @@
-import { useCallback, useState } from 'react';
-import { toast } from '@oxy.so/bloom/toast';
-import { execute, getActiveViewerId } from '@/lib/db/client';
+import { useCallback } from 'react';
+import { execute } from '@/lib/db/client';
 import { noteListQuery, rowsToNotes, type NoteRow } from '@/lib/db/notes-repo';
 import { notesToArchive } from '@/lib/export/archive';
 import { saveBinaryFile } from '@/lib/export/save';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useOwnedExport } from '@/lib/hooks/use-owned-export';
 
 /**
  * Every live note as a zip of Markdown files.
@@ -14,27 +13,25 @@ import { useTranslation } from '@/hooks/useTranslation';
  * offline. Trashed notes are left out; archived ones are kept.
  */
 export function useExportMarkdownZip() {
-  const { t } = useTranslation();
-  const [exportingZip, setExporting] = useState(false);
+  const { run, pending: exportingZip } = useOwnedExport('local');
 
-  const exportZip = useCallback(async () => {
-    const viewerId = getActiveViewerId();
-    if (!viewerId) return;
-    setExporting(true);
-    try {
-      const notes = [];
-      for (const view of ['active', 'archived'] as const) {
-        const { sql, params } = noteListQuery({ view });
-        notes.push(...rowsToNotes(await execute<NoteRow>(sql, params, viewerId)));
-      }
-      const day = new Date().toISOString().slice(0, 10);
-      await saveBinaryFile(`noted-markdown-${day}.zip`, notesToArchive(notes), 'application/zip');
-    } catch (error) {
-      toast.error((error as Error).message || t('settings.export.failed'));
-    } finally {
-      setExporting(false);
-    }
-  }, [t]);
+  const exportZip = useCallback(
+    () =>
+      run(async (viewerId, isCurrent) => {
+        const notes = [];
+        for (const view of ['active', 'archived'] as const) {
+          const { sql, params } = noteListQuery({ view });
+          const rows = await execute<NoteRow>(sql, params, viewerId);
+          if (!isCurrent()) return;
+          notes.push(...rowsToNotes(rows));
+        }
+        const day = new Date().toISOString().slice(0, 10);
+        const bytes = notesToArchive(notes);
+        if (!isCurrent()) return;
+        await saveBinaryFile(`noted-markdown-${day}.zip`, bytes, 'application/zip', isCurrent);
+      }),
+    [run],
+  );
 
   return { exportZip, exportingZip };
 }

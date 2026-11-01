@@ -9,6 +9,7 @@
 
 import { Directory, File, Paths } from 'expo-file-system';
 import { isAvailableAsync, shareAsync } from 'expo-sharing';
+import { assertExportCurrent } from './save-guard';
 
 const FILE_TYPES = {
   markdown: { mimeType: 'text/markdown', UTI: 'net.daringfireball.markdown' },
@@ -19,8 +20,12 @@ export async function saveTextFile(
   filename: string,
   contents: string,
   kind: 'markdown' | 'json' = 'markdown',
+  isCurrent?: () => boolean,
 ): Promise<void> {
-  if (!(await isAvailableAsync())) {
+  assertExportCurrent(isCurrent);
+  const available = await isAvailableAsync();
+  assertExportCurrent(isCurrent);
+  if (!available) {
     throw new Error('this device has no way to share a file');
   }
 
@@ -34,17 +39,23 @@ export async function saveTextFile(
   // user would share a file containing their note twice.
   if (file.exists) file.delete();
   file.create();
+  assertExportCurrent(isCurrent);
   await file.write(contents);
-
+  assertExportCurrent(isCurrent);
   await shareAsync(file.uri, FILE_TYPES[kind]);
+  assertExportCurrent(isCurrent);
 }
 
 export async function saveBinaryFile(
   filename: string,
   bytes: Uint8Array,
   mimeType: string,
+  isCurrent?: () => boolean,
 ): Promise<void> {
-  if (!(await isAvailableAsync())) {
+  assertExportCurrent(isCurrent);
+  const available = await isAvailableAsync();
+  assertExportCurrent(isCurrent);
+  if (!available) {
     throw new Error('this device has no way to share a file');
   }
 
@@ -54,7 +65,9 @@ export async function saveBinaryFile(
   const file = new File(directory, filename);
   if (file.exists) file.delete();
   file.create();
+  assertExportCurrent(isCurrent);
   await file.write(bytes);
-
+  assertExportCurrent(isCurrent);
   await shareAsync(file.uri, { mimeType });
+  assertExportCurrent(isCurrent);
 }
