@@ -191,6 +191,18 @@ describe('erase account ownership', () => {
     });
     expect(fixture.post).not.toHaveBeenCalled();
   });
+  it('rejects an old confirmation when the observed session changes for the same user', async () => {
+    await mount();
+    const confirm = invoke;
+    await act(async () => {
+      fixture.auth.activeSessionId = 'session-A-new';
+      root?.update(React.createElement(App));
+    });
+    await act(async () => {
+      await expect(confirm()).rejects.toThrow();
+    });
+    expect(fixture.post).not.toHaveBeenCalled();
+  });
   it('erases the current viewer and clears the current UI on success', async () => {
     await mount();
     await act(async () => {
