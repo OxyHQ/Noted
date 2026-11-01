@@ -1,0 +1,103 @@
+name: Whisper selector Linux package diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-whisper-package-proof.yml'
+      - 'experiments/whisper-dispatch/**'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - name: Install frozen app dependencies
+        run: bun install --frozen-lockfile
+      - name: Build app with isolated test hook
+        run: bun run build:frontend
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          NODE_ENV: production
+          EXPO_PUBLIC_E2E: '1'
+      - name: Install shell test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential curl wget file xvfb dbus-x11 webkit2gtk-driver
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: static-package-diagnostic
+      - name: Install tauri-driver
+        run: cargo install tauri-driver --locked
+      - name: Restore whisper source without saving
+        uses: actions/cache/restore@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-v1.9.5-linux
+          fail-on-cache-miss: true
+      - name: Restore model without saving
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.local/share/so.oxy.noted.desktop/models
+          key: desktop-model-${{ hashFiles('packages/frontend/lib/stt/models.ts') }}
+          fail-on-cache-miss: true
+      - name: Verify app's base model
+        run: node desktop/sidecar/fetch-model.mjs base "$HOME/.local/share/so.oxy.noted.desktop/models"
+      - name: Build isolated sidecars
+        run: |
+          set -euo pipefail
+          for flag in sse4_2 avx avx2 bmi2 fma f16c; do grep -qw "$flag" /proc/cpuinfo || { echo "runner lacks $flag"; exit 1; }; done
+          cmake -S whisper.cpp -B "$RUNNER_TEMP/baseline" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_BMI2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF
+          cmake --build "$RUNNER_TEMP/baseline" -j 2 --target whisper-cli
+          cmake -S whisper.cpp -B "$RUNNER_TEMP/avx2" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_BMI2=ON -DGGML_FMA=ON -DGGML_F16C=ON
+          cmake --build "$RUNNER_TEMP/avx2" -j 2 --target whisper-cli
+          rustc --edition 2021 -O experiments/whisper-dispatch/prototype.rs -o "$RUNNER_TEMP/selector"
+          node desktop/sidecar/stage.mjs "$RUNNER_TEMP/selector"
+          triple=$(rustc -vV | sed -n 's/^host: //p')
+          test -n "$triple"
+          cp "$RUNNER_TEMP/baseline/bin/whisper-cli" "desktop/src-tauri/binaries/whisper-baseline-$triple"
+          cp "$RUNNER_TEMP/avx2/bin/whisper-cli" "desktop/src-tauri/binaries/whisper-avx2-$triple"
+          chmod +x "desktop/src-tauri/binaries/whisper-baseline-$triple" "desktop/src-tauri/binaries/whisper-avx2-$triple"
+          sha256sum "desktop/src-tauri/binaries/whisper-"*
+      - name: Generate temporary diagnostic bundle configuration
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const path='desktop/src-tauri/tauri.conf.json';
+          const config=JSON.parse(fs.readFileSync(path,'utf8'));
+          config.bundle.externalBin=['binaries/whisper-cli','binaries/whisper-baseline','binaries/whisper-avx2'];
+          fs.writeFileSync(path,JSON.stringify(config,null,2)+'\n');
+          NODE
+      - name: Build and inspect a diagnostic deb
+        working-directory: desktop/src-tauri
+        run: |
+          set -euo pipefail
+          npx --yes @tauri-apps/cli@2.12.2 build --bundles deb --ci -- --locked
+          deb=$(find target/release/bundle/deb -name '*.deb' | head -1)
+          test -n "$deb"
+          dpkg-deb -c "$deb" | tee "$RUNNER_TEMP/package-contents"
+          for name in noted-desktop whisper-cli whisper-baseline whisper-avx2; do grep -E " (\\./)?usr/bin/$name$" "$RUNNER_TEMP/package-contents"; done
+          dpkg-deb -x "$deb" "$RUNNER_TEMP/unpacked"
+          du -b "$deb" "$RUNNER_TEMP/unpacked/usr/bin/"*
+      - name: Run packaged shell with selected and missing-optimized sidecar
+        env:
+          E2E_STT: '1'
+          E2E_SAMPLE: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
+        run: |
+          set -euo pipefail
+          bindir="$RUNNER_TEMP/unpacked/usr/bin"
+          "$bindir/whisper-cli" --probe-select | grep -Fx 'selected=whisper-avx2'
+          env -u NOTED_WHISPER_CLI dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" node desktop/e2e/app.mjs "$bindir/noted-desktop" "$RUNNER_TEMP/selected.png"
+          mv "$bindir/whisper-avx2" "$RUNNER_TEMP/avx2-removed"
+          "$bindir/whisper-cli" --probe-select | grep -Fx 'selected=whisper-baseline'
+          env -u NOTED_WHISPER_CLI dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" node desktop/e2e/app.mjs "$bindir/noted-desktop" "$RUNNER_TEMP/fallback.png"
