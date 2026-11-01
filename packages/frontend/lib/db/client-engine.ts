@@ -681,33 +681,6 @@ export function recoverQuarantinedConnection(): Promise<void> {
 }
 
 /**
- * Experiment only: acknowledge external reconciliation for the same viewer.
- * This function does not itself inspect the database or verify the evidence.
- */
-export function acknowledgeTransactionReconciled(expectedViewerId: string): Promise<void> {
-  const generation = quarantineGeneration;
-  const blockedAtStart = Boolean(quarantinedConnection) || !reconciliationRequired;
-  return enqueue(
-    () =>
-      serializeLifecycle(async () => {
-        if (
-          blockedAtStart ||
-          generation !== quarantineGeneration ||
-          quarantinedConnection ||
-          !reconciliationRequired
-        ) {
-          throw new Error('The uncertain connection is not ready for reconciliation');
-        }
-        if (!expectedViewerId || activeViewerId !== expectedViewerId) {
-          throw new Error('The account changed before reconciliation');
-        }
-        reconciliationRequired = false;
-      }),
-    true,
-  );
-}
-
-/**
  * Run `sql` now and again whenever a table it reads is written.
  *
  * A query with no readable table (`SELECT 1`) never re-runs; that is a caller

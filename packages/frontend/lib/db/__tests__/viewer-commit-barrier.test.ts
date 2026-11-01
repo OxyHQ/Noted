@@ -180,8 +180,7 @@ it('quarantines an unconfirmed BEGIN when rollback also fails', async () => {
     ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
     expect(test.client.isDbAvailable()).toBe(false);
     await test.client.recoverQuarantinedConnection();
-    await test.client.acknowledgeTransactionReconciled('A');
-    await test.client.setActiveViewer('B');
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
     check.close();
@@ -215,8 +214,7 @@ it('keeps the viewer quarantined when an unconfirmed BEGIN and rollback both fai
     expect(test.client.getActiveViewerId()).toBe('A');
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('needs recovery');
     await test.client.recoverQuarantinedConnection();
-    await test.client.acknowledgeTransactionReconciled('A');
-    await test.client.setActiveViewer('B');
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
     check.close();
@@ -242,9 +240,6 @@ it('quarantines rollback failure until the uncertain connection closes', async (
     await test.client.recoverQuarantinedConnection();
     expect(test.client.isDbAvailable()).toBe(false);
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
-    await test.client.acknowledgeTransactionReconciled('A');
-    expect(test.client.isDbAvailable()).toBe(true);
-    await test.client.setActiveViewer('B');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
     check.close();
@@ -260,8 +255,7 @@ it('reports an uncertain outcome when a real SQLite commit succeeds but its ackn
     await expect(write).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
     expect(test.client.isDbAvailable()).toBe(false);
     await test.client.recoverQuarantinedConnection();
-    await test.client.acknowledgeTransactionReconciled('A');
-    await test.client.setActiveViewer('B');
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([
       { id: 'maybe-committed' },
@@ -284,8 +278,7 @@ it('retains viewer and quarantine if recovery close fails, then permits a retry'
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('needs recovery');
     test.allowClose();
     await test.client.recoverQuarantinedConnection();
-    await test.client.acknowledgeTransactionReconciled('A');
-    await test.client.setActiveViewer('B');
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
     check.close();
@@ -294,24 +287,13 @@ it('retains viewer and quarantine if recovery close fails, then permits a retry'
   }
 });
 
-it('rejects work submitted before explicit reconciliation even if acknowledgement runs first', async () => {
+it('rejects work submitted during and after recovery until reconciliation exists', async () => {
   const test = await fixture(null, false, false, true);
   try {
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('duplicate'), insert('duplicate')], 'A'),
     ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
     const recovery = test.client.recoverQuarantinedConnection();
-    const premature = test.client.acknowledgeTransactionReconciled('A');
-    const prematureOutcome = premature.then(
-      () => 'unexpected',
-      () => 'blocked',
-    );
-    await recovery;
-    expect(await prematureOutcome).toBe('blocked');
-    await expect(test.client.acknowledgeTransactionReconciled('B')).rejects.toThrow(
-      'account changed',
-    );
-    const acknowledgement = test.client.acknowledgeTransactionReconciled('A');
     const staleWrite = test.client.executeTransactionPinnedToViewer([insert('must-not-run')], 'A');
     const staleSwitch = test.client.setActiveViewer('B');
     const writeOutcome = staleWrite.then(
@@ -322,11 +304,14 @@ it('rejects work submitted before explicit reconciliation even if acknowledgemen
       () => 'unexpected',
       () => 'blocked',
     );
-    await acknowledgement;
+    await recovery;
     expect(await writeOutcome).toBe('blocked');
     expect(await switchOutcome).toBe('blocked');
     expect(test.client.getActiveViewerId()).toBe('A');
-    await test.client.setActiveViewer('B');
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
+    await expect(
+      test.client.executeTransactionPinnedToViewer([insert('still-blocked')], 'A'),
+    ).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
     check.close();
@@ -357,8 +342,7 @@ it('rejects a viewer change already queued when rollback becomes uncertain', asy
     expect(test.client.getActiveViewerId()).toBe('A');
     expect(test.client.isDbAvailable()).toBe(false);
     await test.client.recoverQuarantinedConnection();
-    await test.client.acknowledgeTransactionReconciled('A');
-    await test.client.setActiveViewer('B');
+    await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
   } finally {
     await test.dispose();
   }
@@ -402,9 +386,7 @@ it('keeps the viewer locked while a recovery rollback is pending', async () => {
     releaseRecovery?.();
     await recover;
     expect(await switching).toBe('blocked');
-    await test.client.acknowledgeTransactionReconciled('A');
-    await test.client.setActiveViewer('B');
-    expect(test.client.getActiveViewerId()).toBe('B');
+    expect(test.client.getActiveViewerId()).toBe('A');
   } finally {
     releaseRecovery?.();
     await test.dispose();

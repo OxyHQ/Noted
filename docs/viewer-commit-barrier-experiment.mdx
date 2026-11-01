@@ -26,8 +26,7 @@ switches, clear, normal close or driver replacement. An explicit recovery call
 retries rollback and attempts to close that connection. A failed close retains
 the viewer and quarantine. A successful close moves the state to *awaiting
 reconciliation*, where operations and viewer changes remain blocked. A generation
-also rejects operations submitted before or during the uncertain state even if
-they run after an acknowledgement clears it. A failed close may have partially
+also rejects operations submitted before or during the uncertain state. A failed close may have partially
 completed, and there is no supported user-facing recovery if retry continues to
 fail.
 The operation returns `TransactionOutcomeUncertainError` when rollback fails:
@@ -35,10 +34,11 @@ the original COMMIT might have succeeded even though its acknowledgement failed.
 Closing and recovering the connection does not reveal whether the prior write
 committed. Callers must reconcile the affected data before retrying; blindly
 repeating a non-idempotent transaction can apply it twice.
-The experimental `acknowledgeTransactionReconciled` method only models an
-explicit, same-viewer acknowledgement; it **does not verify evidence** and the
-prototype does not yet provide a safe read path for reconciliation while the
-gate is closed. It must not be called by production code as proof of recovery.
+The prototype deliberately provides no method to clear reconciliation: it has
+no safe read path or verifier for the affected operation. The gate is in memory
+only and is lost when the process restarts, so this experiment does not yet fail
+closed across restarts. A durable journal and a reviewed, account-bound way to
+verify or recover each operation are required before integration.
 Recovery itself holds both queues: a driver operation that never settles also
 prevents local viewer changes indefinitely. It deliberately does not time out
 and release the viewer while the driver may still own the handle.
