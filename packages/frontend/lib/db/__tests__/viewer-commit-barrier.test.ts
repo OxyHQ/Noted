@@ -227,7 +227,7 @@ it('does not roll back a transaction that existed before BEGIN was attempted', a
   }
 });
 
-it('quarantines rollback failure until the uncertain connection closes', async () => {
+it('quarantines rollback failure without closing an uncertain connection', async () => {
   const test = await fixture(null, false, false, true);
   try {
     await expect(
@@ -241,7 +241,9 @@ it('quarantines rollback failure until the uncertain connection closes', async (
       test.client.execute('SELECT id FROM transcript_segments', [], 'A'),
     ).rejects.toThrow('needs recovery');
     expect(test.client.getActiveViewerId()).toBe('A');
-    await test.client.recoverQuarantinedConnection();
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'Automatic recovery is disabled',
+    );
     expect(test.client.isDbAvailable()).toBe(false);
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
@@ -258,7 +260,9 @@ it('reports an uncertain outcome when a real SQLite commit succeeds but its ackn
     const write = test.client.executeTransactionPinnedToViewer([insert('maybe-committed')], 'A');
     await expect(write).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
     expect(test.client.isDbAvailable()).toBe(false);
-    await test.client.recoverQuarantinedConnection();
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'Automatic recovery is disabled',
+    );
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([
@@ -276,8 +280,13 @@ it('documents that a fresh engine does not retain the in-memory reconciliation g
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('maybe-committed')], 'A'),
     ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
-    await test.client.recoverQuarantinedConnection();
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'Automatic recovery is disabled',
+    );
     expect(test.client.isDbAvailable()).toBe(false);
+
+    // This explicit close only models process termination for the temporary database.
+    await test.driverDb.closeAsync();
 
     vi.resetModules();
     const freshClient = await import('@/lib/db/client-engine');
@@ -310,18 +319,25 @@ it('documents that a fresh engine does not retain the in-memory reconciliation g
   }
 });
 
-it('retains viewer and quarantine if recovery close fails, then permits a retry', async () => {
+it('never attempts close when uncertain connection ownership is unverified', async () => {
   const test = await fixture(null, false, false, true, true);
   try {
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('duplicate'), insert('duplicate')], 'A'),
     ).rejects.toThrow();
-    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow('close failed');
+    const close = vi.spyOn(test.driverDb, 'closeAsync');
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'Automatic recovery is disabled',
+    );
+    expect(close).not.toHaveBeenCalled();
     expect(test.client.isDbAvailable()).toBe(false);
     expect(test.client.getActiveViewerId()).toBe('A');
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('needs recovery');
     test.allowClose();
-    await test.client.recoverQuarantinedConnection();
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'Automatic recovery is disabled',
+    );
+    expect(close).not.toHaveBeenCalled();
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
     const check = new DatabaseSync(test.path);
     expect(check.prepare('SELECT id FROM transcript_segments').all()).toEqual([]);
@@ -337,7 +353,10 @@ it('rejects work submitted during and after recovery until reconciliation exists
     await expect(
       test.client.executeTransactionPinnedToViewer([insert('duplicate'), insert('duplicate')], 'A'),
     ).rejects.toBeInstanceOf(test.client.TransactionOutcomeUncertainError);
-    const recovery = test.client.recoverQuarantinedConnection();
+    const recovery = test.client.recoverQuarantinedConnection().then(
+      () => 'unexpected',
+      () => 'blocked',
+    );
     const staleWrite = test.client.executeTransactionPinnedToViewer([insert('must-not-run')], 'A');
     const staleSwitch = test.client.setActiveViewer('B');
     const writeOutcome = staleWrite.then(
@@ -348,7 +367,7 @@ it('rejects work submitted during and after recovery until reconciliation exists
       () => 'unexpected',
       () => 'blocked',
     );
-    await recovery;
+    expect(await recovery).toBe('blocked');
     expect(await writeOutcome).toBe('blocked');
     expect(await switchOutcome).toBe('blocked');
     expect(test.client.getActiveViewerId()).toBe('A');
@@ -385,54 +404,34 @@ it('rejects a viewer change already queued when rollback becomes uncertain', asy
     expect(await switchOutcome).toBe('blocked');
     expect(test.client.getActiveViewerId()).toBe('A');
     expect(test.client.isDbAvailable()).toBe(false);
-    await test.client.recoverQuarantinedConnection();
+    await expect(test.client.recoverQuarantinedConnection()).rejects.toThrow(
+      'Automatic recovery is disabled',
+    );
     await expect(test.client.setActiveViewer('B')).rejects.toThrow('reconciliation');
   } finally {
     await test.dispose();
   }
 });
 
-it('keeps the viewer locked while a recovery rollback is pending', async () => {
-  const test = await fixture(null, false, false, true);
-  let releaseRecovery: (() => void) | undefined;
+it('models a shared wrapper close that leaves the native SQLite transaction open', async () => {
+  const test = await fixture(null);
   try {
-    await expect(
-      test.client.executeTransactionPinnedToViewer([insert('duplicate'), insert('duplicate')], 'A'),
-    ).rejects.toThrow();
-    let recoveryEntered: (() => void) | undefined;
-    const entered = new Promise<void>((resolve) => {
-      recoveryEntered = resolve;
-    });
-    const blocked = new Promise<void>((resolve) => {
-      releaseRecovery = resolve;
-    });
-    const originalExec = test.driverDb.execAsync.bind(test.driverDb);
-    test.driverDb.execAsync = async (sql) => {
-      if (sql === 'ROLLBACK') {
-        recoveryEntered?.();
-        await blocked;
-      }
-      return originalExec(sql);
-    };
-    const recover = test.client.recoverQuarantinedConnection();
-    await entered;
-    let changed = false;
-    const switching = test.client.setActiveViewer('B').then(
-      () => {
-        changed = true;
-        return 'unexpected';
+    test.db.exec('BEGIN IMMEDIATE');
+    test.db.prepare('INSERT INTO transcript_segments (id) VALUES (?)').run('uncommitted');
+    let references = 2;
+    const wrapper = {
+      async closeAsync() {
+        references--;
+        if (references === 0) test.db.close();
       },
-      () => 'blocked',
-    );
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(changed).toBe(false);
-    expect(test.client.getActiveViewerId()).toBe('A');
-    releaseRecovery?.();
-    await recover;
-    expect(await switching).toBe('blocked');
-    expect(test.client.getActiveViewerId()).toBe('A');
+    };
+    await wrapper.closeAsync();
+    expect(references).toBe(1);
+    expect(test.db.isTransaction).toBe(true);
+    expect(test.db.prepare('SELECT id FROM transcript_segments').all()).toEqual([
+      { id: 'uncommitted' },
+    ]);
   } finally {
-    releaseRecovery?.();
     await test.dispose();
   }
 });

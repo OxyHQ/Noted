@@ -23,36 +23,27 @@ and do not require re-entering the lifecycle queue.
 
 When rollback of this experimental operation fails, the connection is marked
 uncertain. The prototype refuses further queued reads/writes and local viewer
-switches, clear, normal close or driver replacement. For an acknowledged BEGIN,
-an explicit recovery call retries rollback and attempts to close that connection.
-For an unconfirmed BEGIN, automatic recovery is disabled because ownership of
-the transaction is unknown. A failed close retains
-the viewer and quarantine. A successful close moves the state to *awaiting
-reconciliation*, where operations and viewer changes remain blocked. A generation
-also rejects operations submitted before or during the uncertain state. A failed close may have partially
-completed, and there is no supported user-facing recovery if retry continues to
-fail.
+switches, clear, normal close or driver replacement. Automatic recovery is
+disabled for both acknowledged and unconfirmed BEGIN: a successful wrapper
+close does not necessarily close the shared native connection. A generation also
+rejects operations submitted before or during the uncertain state. There is no
+supported user-facing recovery.
 The operation returns `TransactionOutcomeUncertainError` when rollback fails:
 the original COMMIT might have succeeded even though its acknowledgement failed.
-Closing and recovering the connection does not reveal whether the prior write
-committed. Callers must reconcile the affected data before retrying; blindly
+Even a verified future close would not reveal whether the prior write committed.
+Callers must reconcile the affected data before retrying; blindly
 repeating a non-idempotent transaction can apply it twice.
 The prototype deliberately provides no method to clear reconciliation: it has
 no safe read path or verifier for the affected operation. The gate is in memory
 only and is lost when the process restarts, so this experiment does not yet fail
 closed across restarts. A durable journal and a reviewed, account-bound way to
 verify or recover each operation are required before integration.
-Recovery itself holds both queues: a driver operation that never settles also
-prevents local viewer changes indefinitely. It deliberately does not time out
-and release the viewer while the driver may still own the handle.
-
-This depends on a driver contract: a successful close must mean the uncertain
-transaction and connection are no longer usable. That contract has only been
-exercised here with a controlled Node SQLite driver, not Expo SQLite, the web
-OPFS broker or the desktop driver. Closing a Node SQLite connection with a live
-transaction rolled it back in the temporary-database test. It must not be
-generalized to other drivers without validation. Rollback failures in the
-existing non-opt-in transaction path are unchanged.
+Expo SQLite's installed Android and iOS modules cache matching connections by
+path/options and reference count them. A close can resolve after decrementing a
+reference while another wrapper keeps the native connection alive. A test models
+this behavior with real SQLite; it is not an Expo runtime or device test. A safe
+recovery requires verified exclusive ownership or a different reviewed protocol.
+Rollback failures in the existing non-opt-in transaction path are unchanged.
 
 The protection covers the *local* viewer lifecycle only. Oxy's session or epoch
 can change independently and before the React effect updates this viewer. It

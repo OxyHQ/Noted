@@ -652,8 +652,8 @@ export function executeTransactionPinnedToViewer(
 }
 
 /**
- * Experiment: retry closing an uncertain connection without changing viewer.
- * The driver must only resolve close after its transaction and handle are gone.
+ * Experiment: no automatic recovery exists until exclusive connection closure
+ * and operation reconciliation can be verified for the actual driver.
  */
 export function recoverQuarantinedConnection(): Promise<void> {
   return enqueue(
@@ -664,16 +664,7 @@ export function recoverQuarantinedConnection(): Promise<void> {
         if (!quarantine.ownedTransaction) {
           throw new Error('Transaction ownership is unknown; automatic recovery is disabled');
         }
-        const { db } = quarantine;
-        try {
-          await db.execAsync('ROLLBACK');
-        } catch {
-          // Close must still be attempted; a previous rollback may have succeeded.
-        }
-        await db.closeAsync();
-        connection = null;
-        quarantinedConnection = null;
-        available = true;
+        throw new Error('Automatic recovery is disabled until connection closure is verified');
       }),
     true,
   );
