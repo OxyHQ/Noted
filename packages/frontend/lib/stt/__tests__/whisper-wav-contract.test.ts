@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { RealtimeTranscriber } from 'whisper.rn/realtime-transcription/RealtimeTranscriber';
+import { WavFileWriter } from 'whisper.rn/utils/WavFileWriter';
 
 it('documents that an output path without fs does not create a writer', async () => {
   const audioStream = {
@@ -68,4 +69,40 @@ it('documents that append failure is swallowed during stop', async () => {
   } finally {
     warnings.mockRestore();
   }
+});
+
+it('documents that concurrent built-in appends can duplicate a queued chunk', async () => {
+  let release: (() => void) | undefined;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const appends: number[][] = [];
+  const fs = {
+    async writeFile() {},
+    async appendFile(_path: string, data: string) {
+      appends.push([...Buffer.from(data, 'base64')]);
+      await blocked;
+    },
+    async readFile() {
+      return '';
+    },
+    async exists() {
+      return false;
+    },
+    async unlink() {},
+  };
+  const writer = new WavFileWriter(fs, '/capture.wav', {
+    sampleRate: 16_000,
+    channels: 1,
+    bitsPerSample: 16,
+  });
+  await writer.initialize();
+  const first = writer.appendAudioData(Uint8Array.of(1, 2));
+  const second = writer.appendAudioData(Uint8Array.of(3, 4));
+  expect(appends).toEqual([
+    [1, 2],
+    [1, 2, 3, 4],
+  ]);
+  release?.();
+  await Promise.all([first, second]);
 });

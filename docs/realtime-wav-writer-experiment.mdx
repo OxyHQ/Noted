@@ -8,6 +8,9 @@ dependency. In the locked whisper.rn 0.7.2 the writer is initialized only when
 both are present. The contract test runs the actual class and reproduces the
 missing writer. It also demonstrates that an injected adapter's append error is
 swallowed: stopping resolves with a 44-byte header and no error callback.
+Another controlled test against its actual WAV writer holds an append in flight
+and shows that a second append includes the first chunk again. Simply wiring an
+adapter into that writer would therefore risk duplicated audio.
 
 The experimental incremental writer writes one PCM chunk at a time into a
 caller-provided reserved handle, patches the header without reading the entire
