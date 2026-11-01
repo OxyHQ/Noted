@@ -1,0 +1,83 @@
+# Local viewer transaction experiment
+
+This isolated prototype is not connected to application callers and must not be
+merged as a general session or durability guarantee. It explores one native
+client-engine operation that acquires the SQL queue and then the local viewer
+lifecycle queue, checks the viewer, and keeps that lifecycle queue through
+COMMIT or ROLLBACK. Existing transaction callers do not opt into this operation.
+
+For the experimental operation, a failed `BEGIN` is treated as potentially
+having opened a transaction *or* having encountered an earlier transaction. It
+enters quarantine without attempting rollback or automatic close, because those
+actions could destroy a prior operation's uncommitted work. Even a BEGIN that
+failed before starting a transaction is quarantined. Proving ownership and
+recovering that connection remain unsolved. The existing non-opt-in BEGIN
+behavior is unchanged.
+
+The operation accepts SQL statements as data; it does not invoke caller-provided
+callbacks inside either queue. The database driver and its hooks must not call
+and await another queued database operation while an operation is running. A
+controlled test demonstrates the resulting deadlock with a bounded timeout and
+then releases it. Ordinary separately queued transactions are tested for order
+and do not require re-entering the lifecycle queue.
+
+When rollback of this experimental operation fails, the connection is marked
+uncertain. The prototype refuses further queued reads/writes and local viewer
+switches, clear, normal close or driver replacement. Automatic recovery is
+disabled for both acknowledged and unconfirmed BEGIN: a successful wrapper
+close does not necessarily close the shared native connection. A generation also
+rejects operations submitted before or during the uncertain state. There is no
+supported user-facing recovery.
+The operation returns `TransactionOutcomeUncertainError` when rollback fails:
+the original COMMIT might have succeeded even though its acknowledgement failed.
+Even a verified future close would not reveal whether the prior write committed.
+Callers must reconcile the affected data before retrying; blindly
+repeating a non-idempotent transaction can apply it twice.
+The prototype deliberately provides no method to clear reconciliation: it has
+no safe read path or verifier for the affected operation. The gate is in memory
+only and is lost when the process restarts, so this experiment does not yet fail
+closed across restarts. A durable journal and a reviewed, account-bound way to
+verify or recover each operation are required before integration.
+Expo SQLite's installed Android and iOS modules cache matching connections by
+path/options and reference count them. A close can resolve after decrementing a
+reference while another wrapper keeps the native connection alive. A test models
+this behavior with real SQLite; it is not an Expo runtime or device test. A safe
+recovery requires verified exclusive ownership or a different reviewed protocol.
+Rollback failures in the existing non-opt-in transaction path are unchanged.
+
+The protection covers the *local* viewer lifecycle only. Oxy's session or epoch
+can change independently and before the React effect updates this viewer. It
+does not make filesystem writes atomic with SQLite, does not cover reads or
+existing transaction call sites, and does not prove power-loss durability. The
+web/desktop client uses a separate broker and does not expose this experimental
+API. Mobile devices, process termination, rollback/close combinations and the
+user experience after quarantine require further testing and design.
+
+## Possible durable reconciliation direction
+
+One candidate for a narrowly defined database-only mutation is an operation ID
+and an intent recorded before attempting the mutation. The mutation and an
+`applied` record bearing that ID would commit in the same SQLite transaction.
+After reopening the original account's verified database, an applied record
+could distinguish that transaction from one that did not commit. A missing or
+unreadable database, failed inspection, incomplete intent, or changed account
+must stay unresolved; opening a newly created empty database is not proof that
+an old operation did not commit.
+
+The intent's own commit may be ambiguous and must be checked before proceeding.
+This design also needs explicit sync/durability guarantees, an owner binding,
+unique IDs, deterministic operation semantics and tests across crashes at every
+boundary. Generic SQL can include operations or effects for which a database
+marker is insufficient. Audio files and remote requests are outside this SQLite
+transaction. No marker, verifier, replay or recovery UI is implemented here;
+this sketch is not a guarantee that replaying any current operation is safe.
+
+`experiments/sqlite-journal/sigkill_probe.py` exercises a toy counter with Python
+SQLite, WAL and `synchronous=FULL`: kill before/after intent and mutation commit,
+simulated loss of intent acknowledgement, read-only open of a missing file, and
+sequential/concurrent replay with an operation fingerprint. It also rejects an
+empty replacement database and a different viewer in a toy identity table; that
+table is not authenticated and does not prove ownership of a copied database.
+It uses its own
+temporary databases and a child process. It does not exercise Expo, account
+switches, corrupted storage, disk-full paths, OS crashes or power loss.

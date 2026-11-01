@@ -71,6 +71,7 @@ let driver: DatabaseDriver = expoSqliteDriver;
 
 /** Swap the database driver. Must happen before the first account is activated. */
 export function setDatabaseDriver(next: DatabaseDriver): void {
+  assertConnectionHealthy();
   driver = next;
 }
 
@@ -83,6 +84,19 @@ export interface Statement {
    * (a stale-read write racing a concurrent edit) into a rollback.
    */
   expectedRowsAffected?: number;
+}
+
+/** The database did not confirm whether the experimental transaction committed. */
+export class TransactionOutcomeUncertainError extends Error {
+  readonly originalError: unknown;
+  readonly rollbackError: unknown;
+
+  constructor(originalError: unknown, rollbackError: unknown) {
+    super('The transaction outcome is uncertain; recover and reconcile before retrying');
+    this.name = 'TransactionOutcomeUncertainError';
+    this.originalError = originalError;
+    this.rollbackError = rollbackError;
+  }
 }
 
 export type Unsubscribe = () => void;
@@ -126,6 +140,29 @@ let connection: Promise<EngineDatabase> | null = null;
 let available = true;
 let activeViewerId: string | null = null;
 let changeListenerAttached = false;
+let quarantinedConnection: { db: EngineDatabase; ownedTransaction: boolean } | null = null;
+let reconciliationRequired = false;
+let quarantineGeneration = 0;
+
+function assertConnectionHealthy(): void {
+  if (quarantinedConnection || reconciliationRequired) {
+    throw new Error(
+      'The local database needs recovery or reconciliation after an uncertain rollback',
+    );
+  }
+}
+
+function assertQuarantineGeneration(expected: number, blockedAtStart = false): void {
+  if (blockedAtStart) {
+    throw new Error(
+      'The local database needs recovery or reconciliation after an uncertain rollback',
+    );
+  }
+  if (expected !== quarantineGeneration) {
+    throw new Error('The local database context changed after an uncertain rollback');
+  }
+  assertConnectionHealthy();
+}
 
 const VIEWER_OWNER_KEY = 'viewer_id';
 
@@ -201,7 +238,7 @@ function rearmViewerGate(): void {
  * storage error; they must not replace local reads with network requests.
  */
 export function isDbAvailable(): boolean {
-  return available;
+  return available && quarantinedConnection === null && !reconciliationRequired;
 }
 
 /** The account whose database is currently open, if any. */
@@ -222,7 +259,10 @@ function databaseName(viewerId: string): string {
  * file to open and throws rather than guessing.
  */
 export function setActiveViewer(viewerId: string): Promise<void> {
+  const generation = quarantineGeneration;
+  const blockedAtStart = Boolean(quarantinedConnection || reconciliationRequired);
   return serializeLifecycle(async () => {
+    assertQuarantineGeneration(generation, blockedAtStart);
     if (activeViewerId !== viewerId) {
       await closeConnection();
       activeViewerId = viewerId;
@@ -237,7 +277,10 @@ export function setActiveViewer(viewerId: string): Promise<void> {
 
 /** Close the database and forget the account (sign-out). */
 export function clearActiveViewer(): Promise<void> {
+  const generation = quarantineGeneration;
+  const blockedAtStart = Boolean(quarantinedConnection || reconciliationRequired);
   return serializeLifecycle(async () => {
+    assertQuarantineGeneration(generation, blockedAtStart);
     await closeConnection();
     activeViewerId = null;
     // Queries issued after a sign-out must wait for the next account rather than
@@ -345,6 +388,7 @@ async function assertOwnership(db: EngineDatabase, viewerId: string): Promise<vo
 
 /** The connection for the active account, or null if the account went away. */
 async function connectIfActive(): Promise<EngineDatabase | null> {
+  assertConnectionHealthy();
   if (!activeViewerId) return null;
   if (!available) {
     // Opening already failed for this account. Retrying it per query would turn
@@ -392,7 +436,12 @@ async function getDbForViewer(expectedViewerId?: string | null): Promise<EngineD
 
 /** Close the handle and drop the cached connection (account switch, tests). */
 export function closeDb(): Promise<void> {
-  return serializeLifecycle(closeConnection);
+  const generation = quarantineGeneration;
+  const blockedAtStart = Boolean(quarantinedConnection || reconciliationRequired);
+  return serializeLifecycle(async () => {
+    assertQuarantineGeneration(generation, blockedAtStart);
+    await closeConnection();
+  });
 }
 
 /** Caller must hold the lifecycle queue. */
@@ -415,8 +464,17 @@ async function closeConnection(): Promise<void> {
 
 let tail: Promise<unknown> = Promise.resolve();
 
-function enqueue<T>(work: () => Promise<T>): Promise<T> {
-  const result = tail.then(work, work);
+function enqueue<T>(
+  work: () => Promise<T>,
+  allowQuarantined = false,
+  generation = quarantineGeneration,
+): Promise<T> {
+  const blockedAtStart = Boolean(quarantinedConnection || reconciliationRequired);
+  const guarded = () => {
+    if (!allowQuarantined) assertQuarantineGeneration(generation, blockedAtStart);
+    return work();
+  };
+  const result = tail.then(guarded, guarded);
   tail = result.catch(() => undefined);
   return result;
 }
@@ -463,9 +521,15 @@ function flushTableChanges(): void {
 }
 
 async function refresh(subscription: Subscription): Promise<void> {
+  const generation = quarantineGeneration;
   try {
+    assertConnectionHealthy();
     const db = await getDb();
-    const rows = await enqueue(() => db.getAllAsync<Row>(subscription.sql, subscription.params));
+    const rows = await enqueue(
+      () => db.getAllAsync<Row>(subscription.sql, subscription.params),
+      false,
+      generation,
+    );
     if (!subscription.active) return;
     subscription.reportedError = null;
     subscription.onData(rows);
@@ -489,8 +553,10 @@ export async function execute<T extends Row = Row>(
   params?: readonly unknown[],
   expectedViewerId?: string | null,
 ): Promise<T[]> {
+  const generation = quarantineGeneration;
+  assertConnectionHealthy();
   const db = await getDbForViewer(expectedViewerId);
-  const rows = await enqueue(() => db.getAllAsync<T>(sql, mapParams(params)));
+  const rows = await enqueue(() => db.getAllAsync<T>(sql, mapParams(params)), false, generation);
   markWrittenTables(sql);
   return rows;
 }
@@ -500,9 +566,24 @@ async function runTransaction(
   expectedViewerId?: string | null,
 ): Promise<number[]> {
   const db = await getDbForViewer(expectedViewerId);
+  return runTransactionOnDb(db, statements);
+}
+
+/** The caller owns the connection and the transaction queue for this operation. */
+async function runTransactionOnDb(
+  db: EngineDatabase,
+  statements: readonly Statement[],
+  onRollbackFailure?: (ownedTransaction: boolean) => void,
+): Promise<number[]> {
   // IMMEDIATE takes the write lock up front, so a busy database fails here
   // rather than half-way through the statements.
-  await db.execAsync('BEGIN IMMEDIATE');
+  try {
+    await db.execAsync('BEGIN IMMEDIATE');
+  } catch (beginError) {
+    if (!onRollbackFailure) throw beginError;
+    onRollbackFailure(false);
+    throw new TransactionOutcomeUncertainError(beginError, undefined);
+  }
   const affected: number[] = [];
   try {
     for (const [index, statement] of statements.entries()) {
@@ -523,6 +604,10 @@ async function runTransaction(
       await db.execAsync('ROLLBACK');
     } catch (rollbackError) {
       logger.warn('Transaction rollback failed', { error: errorMessage(rollbackError) });
+      if (onRollbackFailure) {
+        onRollbackFailure(true);
+        throw new TransactionOutcomeUncertainError(error, rollbackError);
+      }
     }
     throw error;
   } finally {
@@ -542,6 +627,50 @@ export function executeTransaction(
 }
 
 /**
+ * Experiment: keep the local viewer lifecycle stable through commit or rollback.
+ * This does not bind an independent Oxy session and is not yet exposed on web.
+ * Statements are data only: callers must not re-enter the transaction queue.
+ */
+export function executeTransactionPinnedToViewer(
+  statements: readonly Statement[],
+  expectedViewerId: string,
+): Promise<number[]> {
+  return enqueue(() =>
+    serializeLifecycle(async () => {
+      if (!expectedViewerId || activeViewerId !== expectedViewerId) {
+        throw new Error('The active account changed before this write could be saved');
+      }
+      const db = await connectIfActive();
+      if (!db) throw new Error('The local account is no longer available');
+      return runTransactionOnDb(db, statements, (ownedTransaction) => {
+        quarantinedConnection = { db, ownedTransaction };
+        reconciliationRequired = true;
+        quarantineGeneration++;
+      });
+    }),
+  );
+}
+
+/**
+ * Experiment: no automatic recovery exists until exclusive connection closure
+ * and operation reconciliation can be verified for the actual driver.
+ */
+export function recoverQuarantinedConnection(): Promise<void> {
+  return enqueue(
+    () =>
+      serializeLifecycle(async () => {
+        const quarantine = quarantinedConnection;
+        if (!quarantine) return;
+        if (!quarantine.ownedTransaction) {
+          throw new Error('Transaction ownership is unknown; automatic recovery is disabled');
+        }
+        throw new Error('Automatic recovery is disabled until connection closure is verified');
+      }),
+    true,
+  );
+}
+
+/**
  * Run `sql` now and again whenever a table it reads is written.
  *
  * A query with no readable table (`SELECT 1`) never re-runs; that is a caller
@@ -552,6 +681,7 @@ export async function subscribe<T extends Row = Row>(
   params: readonly unknown[],
   handlers: { onData: (rows: T[]) => void; onError?: (message: string) => void },
 ): Promise<Unsubscribe> {
+  const generation = quarantineGeneration;
   const boundParams = mapParams(params);
   const tables = readTables(sql);
   if (tables.size === 0) {
@@ -570,8 +700,9 @@ export async function subscribe<T extends Row = Row>(
   if (tables.size > 0) subscriptions.add(subscription);
 
   try {
+    assertConnectionHealthy();
     const db = await getDb();
-    const rows = await enqueue(() => db.getAllAsync<T>(sql, boundParams));
+    const rows = await enqueue(() => db.getAllAsync<T>(sql, boundParams), false, generation);
     if (subscription.active) handlers.onData(rows);
   } catch (error) {
     const message = errorMessage(error);
