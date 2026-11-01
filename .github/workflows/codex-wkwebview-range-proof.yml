@@ -57,5 +57,10 @@ jobs:
       - name: Run preinstalled WebView2 probe without package installs
         shell: pwsh
         run: |
-          pwsh -NoProfile -STA -File desktop/e2e/webview2-range-probe.ps1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $output = & pwsh -NoProfile -STA -File desktop/e2e/webview2-range-probe.ps1 2>&1
+          $probeExit = $LASTEXITCODE
+          $output | ForEach-Object { Write-Output $_ }
+          if ($probeExit -ne 0 -or -not ($output | Select-String '^RESULT: ')) {
+            Write-Error "WebView2 probe did not complete with a result (exit $probeExit)"
+            exit 1
+          }

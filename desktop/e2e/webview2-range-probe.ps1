@@ -28,7 +28,7 @@ $env:PATH = "$($loader.DirectoryName);$env:PATH"
 Add-Type -AssemblyName System.Windows.Forms
 [void][Reflection.Assembly]::LoadFrom($corePath)
 [void][Reflection.Assembly]::LoadFrom($assembly.FullName)
-Write-Output "Managed SDK version: $($assembly.VersionInfo.FileVersion)"
+[Console]::WriteLine("Managed SDK version: $($assembly.VersionInfo.FileVersion)")
 
 $html = @'
 <!doctype html><meta charset="utf-8"><script>
@@ -51,15 +51,19 @@ $script:streams = @()
 $script:resultCode = 1
 $script:phase = 0
 $script:startTime = [DateTime]::UtcNow
+[Console]::WriteLine('STAGE: creating form')
 $script:form = [System.Windows.Forms.Form]::new()
 $script:form.Width = 640
 $script:form.Height = 480
+[Console]::WriteLine('STAGE: creating control')
 $script:view = [Microsoft.Web.WebView2.WinForms.WebView2]::new()
+[Console]::WriteLine('STAGE: control created')
 $script:view.Dock = [System.Windows.Forms.DockStyle]::Fill
 $script:form.Controls.Add($script:view)
 $script:timer = [System.Windows.Forms.Timer]::new()
 $script:timer.Interval = 100
 $script:form.Add_Shown({
+  [Console]::WriteLine('STAGE: form shown')
   $profile = Join-Path $env:RUNNER_TEMP 'noted-webview2-probe-profile'
   $script:environmentTask = [Microsoft.Web.WebView2.Core.CoreWebView2Environment]::CreateAsync($null, $profile, $null)
   $script:timer.Start()
@@ -69,13 +73,14 @@ $script:timer.Add_Tick({
     if (([DateTime]::UtcNow - $script:startTime).TotalSeconds -gt 60) { throw 'WebView2 probe timed out' }
     if ($script:phase -eq 0 -and $script:environmentTask -and $script:environmentTask.IsCompleted) {
       if ($script:environmentTask.IsFaulted) { throw 'WebView2 environment creation failed' }
+      [Console]::WriteLine('STAGE: environment ready')
       $script:initTask = $script:view.EnsureCoreWebView2Async($script:environmentTask.Result)
       $script:phase = 1
     }
     if ($script:phase -eq 1 -and $script:initTask.IsCompleted) {
       if ($script:initTask.IsFaulted) { throw 'WebView2 control initialization failed' }
       $core = $script:view.CoreWebView2
-      Write-Output "WebView2 runtime: $($core.Environment.BrowserVersionString)"
+      [Console]::WriteLine("WebView2 runtime: $($core.Environment.BrowserVersionString)")
       $core.AddWebResourceRequestedFilter('http://tauri.localhost/*', [Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext]::All)
       $core.add_WebResourceRequested({
         param($sender, $eventArgs)
@@ -87,9 +92,9 @@ $script:timer.Add_Tick({
         param($sender, $eventArgs)
         try {
           $result = $eventArgs.WebMessageAsJson | ConvertFrom-Json
-          Write-Output ("RESULT: " + ($result | ConvertTo-Json -Compress))
+          [Console]::WriteLine("RESULT: " + ($result | ConvertTo-Json -Compress))
           if ($result.origin -eq 'http://tauri.localhost' -and $result.status -eq 206 -and $result.range -eq 'bytes 4-5/32152673' -and $result.bytes -eq 2) { $script:resultCode = 0 }
-        } catch { Write-Output 'Invalid WebView2 result' }
+        } catch { [Console]::WriteLine('Invalid WebView2 result') }
         $script:timer.Stop()
         $script:form.Close()
       })
@@ -97,10 +102,12 @@ $script:timer.Add_Tick({
       $core.Navigate('http://tauri.localhost/index.html')
     }
   } catch {
-    Write-Output ("PROBE FAILURE: " + $_.Exception.Message)
+    [Console]::WriteLine("PROBE FAILURE: " + $_.Exception.Message)
     $script:timer.Stop()
     $script:form.Close()
   }
 })
+[Console]::WriteLine('STAGE: starting message loop')
 [System.Windows.Forms.Application]::Run($script:form)
+[Console]::WriteLine("STAGE: message loop ended, code $script:resultCode")
 exit $script:resultCode
