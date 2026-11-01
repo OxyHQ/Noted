@@ -1263,6 +1263,7 @@
     "explainer": "Recordings are transcribed on this device. Nothing is uploaded, and it works with no connection.",
     "unsupported": "Transcription runs in the Noted mobile app. Recordings made here are kept as audio.",
     "modelsTitle": "Model",
+    "loadModelsFailed": "मॉडल की स्थिति लोड नहीं हो सकी।",
     "downloadCouldNotFinish": "पूरा नहीं हो सका। फिर से प्रयास करें।",
     "remove": "Remove this model",
     "live": {

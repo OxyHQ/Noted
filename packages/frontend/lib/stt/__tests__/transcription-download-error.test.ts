@@ -90,6 +90,94 @@ function modelButton(): TestButton {
 }
 
 describe('model download failure UI', () => {
+  it('shows a retry when the initial model state cannot be loaded', async () => {
+    state.states
+      .mockRejectedValueOnce(new Error('storage unavailable'))
+      .mockResolvedValue({ tiny: 'absent', base: 'absent', small: 'absent' });
+    await act(async () => {
+      root = create(React.createElement(TranscriptionSection));
+    });
+    expect(JSON.stringify(root?.toJSON())).toContain('transcription.loadModelsFailed');
+    const retry = root?.root
+      .findAllByType('Button')
+      .find(
+        (button: { props: { children?: unknown } }) => button.props.children === 'common.retry',
+      );
+    expect(retry).toBeDefined();
+    await act(async () => {
+      retry?.props.onPress();
+      await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(2));
+    });
+    expect(JSON.stringify(root?.toJSON())).not.toContain('transcription.loadModelsFailed');
+    expect(modelButton().props.disabled).toBe(false);
+  });
+
+  it('keeps the latest retry failure when an older retry succeeds late', async () => {
+    let finishOld!: (value: Record<string, string>) => void;
+    let failNew!: (error: Error) => void;
+    state.states
+      .mockReset()
+      .mockRejectedValueOnce(new Error('initial failure'))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            failNew = reject;
+          }),
+      )
+      .mockResolvedValue({ tiny: 'absent', base: 'absent', small: 'absent' });
+    await act(async () => {
+      root = create(React.createElement(TranscriptionSection));
+    });
+    const retry = root?.root
+      .findAllByType('Button')
+      .find(
+        (button: { props: { children?: unknown } }) => button.props.children === 'common.retry',
+      );
+    expect(retry).toBeDefined();
+    const retryAction = retry?.props.onPress;
+    await act(async () => {
+      retryAction?.();
+      retryAction?.();
+      failNew(new Error('newer failure'));
+      await Promise.resolve();
+    });
+    expect(JSON.stringify(root?.toJSON())).toContain('transcription.loadModelsFailed');
+    await act(async () => {
+      finishOld({ tiny: 'ready', base: 'absent', small: 'absent' });
+      await Promise.resolve();
+    });
+    expect(JSON.stringify(root?.toJSON())).toContain('transcription.loadModelsFailed');
+    await act(async () => {
+      retryAction?.();
+      await vi.waitFor(() => expect(state.states).toHaveBeenCalledTimes(4));
+    });
+    expect(modelButton().props.disabled).toBe(false);
+  });
+
+  it('does not retry from a callback retained after unmount', async () => {
+    state.states.mockReset().mockRejectedValueOnce(new Error('initial failure'));
+    await act(async () => {
+      root = create(React.createElement(TranscriptionSection));
+    });
+    const retry = root?.root
+      .findAllByType('Button')
+      .find(
+        (button: { props: { children?: unknown } }) => button.props.children === 'common.retry',
+      );
+    const retryAction = retry?.props.onPress;
+    expect(retryAction).toBeTypeOf('function');
+    await act(async () => root?.unmount());
+    root = undefined;
+    retryAction?.();
+    expect(state.states).toHaveBeenCalledTimes(1);
+  });
+
   it('offers retry when the partial size lookup fails before any fetch', async () => {
     const invoke: Invoke = async <T>(command: string) => {
       if (command === 'model_status') return null as T;
