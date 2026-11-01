@@ -37,6 +37,83 @@ afterEach(async () => {
 });
 
 describe('reminder picker', () => {
+  it('rechecks time when saving after the selected instant has passed', async () => {
+    const onPick = vi.fn();
+    const onOpenChange = vi.fn();
+    await act(async () => {
+      root = create(
+        React.createElement(ReminderPickerDialog, {
+          open: true,
+          current: null,
+          onPick,
+          onOpenChange,
+        }),
+      );
+    });
+    await act(async () => {
+      defined(root, 'rendered picker')
+        .root.findByType('Calendar')
+        .props.onChange(new Date(2027, 2, 1));
+      defined(root, 'rendered picker').root.findByType('TimeField').props.onChange('07:01');
+    });
+    const save = () =>
+      defined(root, 'rendered picker')
+        .root.findAllByType('Button')
+        .find(
+          (button: { props: { children: unknown } }) =>
+            button.props.children === 'notes.setReminder',
+        );
+    expect(save()?.props.disabled).toBe(false);
+    vi.setSystemTime(new Date('2027-03-01T12:02:00.000Z'));
+    await act(async () => save()?.props.onPress());
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(save()?.props.disabled).toBe(true);
+    expect(
+      defined(root, 'rendered picker').root.findByProps({ accessibilityRole: 'alert' }).props
+        .children,
+    ).toBe('notes.reminderInPast');
+    await act(async () =>
+      defined(root, 'rendered picker').root.findByType('TimeField').props.onChange('07:05'),
+    );
+    expect(save()?.props.disabled).toBe(false);
+    await act(async () => save()?.props.onPress());
+    expect(onPick).toHaveBeenCalledOnce();
+    expect(onPick.mock.calls[0]?.[0].toISOString()).toBe('2027-03-01T12:05:00.000Z');
+  });
+
+  it('does not close unchanged when the stored reminder expires while the dialog is open', async () => {
+    const onPick = vi.fn();
+    const onOpenChange = vi.fn();
+    await act(async () => {
+      root = create(
+        React.createElement(ReminderPickerDialog, {
+          open: true,
+          current: '2027-03-01T12:01:00.000Z',
+          onPick,
+          onOpenChange,
+        }),
+      );
+    });
+    const save = () =>
+      defined(root, 'rendered picker')
+        .root.findAllByType('Button')
+        .find(
+          (button: { props: { children: unknown } }) =>
+            button.props.children === 'notes.setReminder',
+        );
+    expect(save()?.props.disabled).toBe(false);
+    vi.setSystemTime(new Date('2027-03-01T12:02:00.000Z'));
+    await act(async () => save()?.props.onPress());
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(save()?.props.disabled).toBe(true);
+    expect(
+      defined(root, 'rendered picker').root.findByProps({ accessibilityRole: 'alert' }).props
+        .children,
+    ).toBe('notes.reminderInPast');
+  });
+
   it('does not rewrite the later occurrence when an existing repeated time is unchanged', async () => {
     vi.setSystemTime(new Date('2027-11-01T12:00:00.000Z'));
     const onPick = vi.fn();
