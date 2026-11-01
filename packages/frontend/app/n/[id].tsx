@@ -58,6 +58,7 @@ import type { FileMetadata } from '@oxy.so/core';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useDebouncedCallback } from '@/lib/hooks/use-debounced-callback';
+import { useOwnedExport } from '@/lib/hooks/use-owned-export';
 import {
   useNote,
   useCreateNote,
@@ -138,6 +139,7 @@ function NoteEditor() {
   const haptic = useHaptics();
   const { width } = useWindowDimensions();
   const { isAuthenticated, showBottomSheet, user, activeSessionId } = useOxy();
+  const { run: runExport } = useOwnedExport('local');
   const editorOwner = React.useRef(user?.id);
   const attachmentIdentity = React.useRef({
     accountId: user?.id ?? null,
@@ -383,14 +385,20 @@ function NoteEditor() {
   );
 
   const handleExport = React.useCallback(() => {
-    const note = draftRef.current;
-    // Read from the ref rather than from `draft`, so what is exported is what is
-    // on screen right now and not the render this handler was created in.
-    void saveTextFile(noteFilename(note), noteToMarkdown(note)).catch((error: unknown) => {
-      logger.error('Could not export the note', { error: String(error) });
-      toast.error(t('notes.exportFailed'));
+    void runExport(async (viewerId, isCurrent) => {
+      if (viewerId !== editorOwner.current) return;
+      const note = draftRef.current;
+      // Preserve the visible draft, including edits not yet written to SQLite.
+      try {
+        await saveTextFile(noteFilename(note), noteToMarkdown(note), 'markdown', isCurrent);
+      } catch (error) {
+        if (isCurrent()) {
+          logger.error('Could not export the note', { error: String(error) });
+          toast.error(t('notes.exportFailed'));
+        }
+      }
     });
-  }, [t]);
+  }, [runExport, t]);
 
   const handleToggleLabel = React.useCallback(
     (labelId: string) => {
