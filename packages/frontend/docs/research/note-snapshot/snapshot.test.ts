@@ -182,6 +182,19 @@ describe('disconnected 410 snapshot model', () => {
     ).toMatchObject({ count: 0 });
   });
 
+  it('refuses to snapshot an upsert that became an explicit delete', async () => {
+    const source = await seed();
+    db().prepare('UPDATE outbox SET op = ? WHERE id = ?').run('delete', source);
+    await expect(
+      executeTransaction(snapshotRefusedNote('snapshot', 'n', source, now), 'alice'),
+    ).rejects.toThrow('Expected one source row');
+    expect(
+      db().prepare('SELECT COUNT(*) AS count FROM research_note_snapshots').get(),
+    ).toMatchObject({ count: 0 });
+    expect(db().prepare('SELECT op FROM outbox').get()).toMatchObject({ op: 'delete' });
+    expect(existsSync(join(dir, 'capture'))).toBe(true);
+  });
+
   it('rejects a duplicate snapshot ID without deleting either copy or source', async () => {
     const source = await seed();
     await executeTransaction(snapshotRefusedNote('snapshot', 'n', source, now), 'alice');
