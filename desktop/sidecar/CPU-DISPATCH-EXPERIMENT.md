@@ -14,6 +14,9 @@ a temporary Tauri `.deb`, then exercises both routes through the real shell.
 System libraries remain dynamic. The build flags and source pin must remain in
 sync with the feature checks, including compiler defaults and all transitive
 instructions. A feature check alone does not establish binary compatibility.
+Another isolated workflow builds the opt-in shell and temporary packages for
+macOS ARM and Windows. It preserves the current ARM CMake defaults and executes
+the packaged sidecars directly, but does not exercise the GUI or an installer.
 
 This is not a release recipe: the normal build, staging and package config are
 unchanged. The experimental path rejects a sidecar symlink at inspection time,
