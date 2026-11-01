@@ -31,6 +31,16 @@ reference, then removed the audio through the store: the copied reference still
 existed while the OPFS audio did not. Expo module registration and logging were
 stubbed; this was not the complete app or its UI. A separate Node/SQLite test
 uses the actual `deleteNoteRecordings` path with a controlled filesystem backend.
+With the repository dependencies installed, reproduce the isolated browser test
+from the repository root with:
+
+```sh
+CHROME_PATH=/path/to/chromium bun packages/frontend/docs/research/note-snapshot/run-browser-proof.cjs
+```
+
+The script creates a fresh temporary HTTP server, browser profile and synthetic
+database/audio. It never opens a user's storage; its temporary directory is left
+for inspection.
 
 `CREATE TABLE AS SELECT` copies columns and values but no constraints. The
 snapshot schema is tied to the current source schema and does not provide a safe
