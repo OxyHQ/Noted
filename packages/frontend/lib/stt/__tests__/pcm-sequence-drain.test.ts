@@ -14,6 +14,27 @@ describe('experimental PCM sequence drain', () => {
     expect(output).toEqual([1, 2, 3]);
   });
 
+  it('preserves ordering for repeated permutations and stop positions', async () => {
+    let seed = 42;
+    for (let run = 0; run < 100; run++) {
+      const order = Array.from({ length: 32 }, (_, index) => index);
+      for (let i = order.length - 1; i > 0; i--) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        const j = seed % (i + 1);
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      const output: number[] = [];
+      const drain = new PcmSequenceDrain('A', 32, (bytes) => output.push(...bytes));
+      let stopped: Promise<void> | undefined;
+      for (let i = 0; i < order.length; i++) {
+        if (i === run % 32) stopped = drain.waitForStop(31, 1000);
+        expect(drain.receive('A', order[i], Uint8Array.of(order[i]))).toBe(true);
+      }
+      await expect(stopped).resolves.toBeUndefined();
+      expect(output).toEqual(Array.from({ length: 32 }, (_, index) => index));
+    }
+  });
+
   it('rejects missing events after the bounded deadline', async () => {
     vi.useFakeTimers();
     try {
