@@ -85,7 +85,9 @@ def replay(db: sqlite3.Connection, operation: str, fingerprint: str) -> str:
                 raise ValueError("operation id reused with different fingerprint")
             outcome = "already-applied"
         else:
-            db.execute("UPDATE counter SET value = value + 1")
+            changed = db.execute("UPDATE counter SET value = value + 1").rowcount
+            if changed != 1:
+                raise ValueError("counter precondition failed")
             db.execute("INSERT INTO applied_ops VALUES (?, ?)", (operation, fingerprint))
             outcome = "applied"
         db.execute("COMMIT")
@@ -210,6 +212,28 @@ def main() -> None:
             if db.execute("SELECT value FROM counter").fetchone()[0] != 2:
                 raise AssertionError("concurrent replay applied more than once")
             print("concurrent replay: one apply and one already-applied result")
+
+            db.execute("INSERT INTO intents VALUES ('op-conflict', 'fingerprint-E')")
+            db.execute("INSERT INTO applied_ops VALUES ('op-conflict', 'fingerprint-F')")
+            try:
+                replay(db, "op-conflict", "fingerprint-E")
+                raise AssertionError("conflicting applied marker accepted")
+            except ValueError:
+                pass
+            if db.execute("SELECT value FROM counter").fetchone()[0] != 2:
+                raise AssertionError("conflicting marker changed the counter")
+            print("conflicting applied marker: rejected without mutation")
+
+            db.execute("INSERT INTO intents VALUES ('op-3', 'fingerprint-D')")
+            db.execute("DELETE FROM counter")
+            try:
+                replay(db, "op-3", "fingerprint-D")
+                raise AssertionError("missing counter precondition accepted")
+            except ValueError:
+                pass
+            if db.execute("SELECT COUNT(*) FROM applied_ops WHERE id = 'op-3'").fetchone()[0] != 0:
+                raise AssertionError("failed operation retained an applied marker")
+            print("missing mutation precondition: no applied marker")
         finally:
             db.close()
 
