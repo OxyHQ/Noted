@@ -96,6 +96,17 @@ jobs:
           E2E_SAMPLE: ${{ github.workspace }}/whisper.cpp/samples/jfk.wav
         run: |
           set -euo pipefail
+          # The deliberately scalar baseline can exceed WebDriver's default
+          # 30-second script timeout. Change only this runner's test harness;
+          # the transcription still has to complete and pass the same checks.
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'desktop/e2e/driver.mjs';
+          const source = fs.readFileSync(path, 'utf8');
+          const anchor = '    sessionId = session.sessionId;';
+          if (!source.includes(anchor)) throw new Error('driver timeout anchor missing');
+          fs.writeFileSync(path, source.replace(anchor, `${anchor}\n    await request('POST', \`/session/\${sessionId}/timeouts\`, { script: 180000 });`));
+          NODE
           bindir="$RUNNER_TEMP/unpacked/usr/bin"
           export DIAG_MARKER="$RUNNER_TEMP/selected-sidecar"
           for name in whisper-cli whisper-avx2; do
