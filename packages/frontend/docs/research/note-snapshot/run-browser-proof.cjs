@@ -47,6 +47,7 @@ build([
   `--alias:expo-sqlite-web=${sqlite}/web/SQLiteModule.ts`,
   `--alias:expo=${expoStub}`,
   `--alias:@oxy.so/core/logger=${loggerStub}`,
+  `--alias:@/lib/audio/backend=${frontend}/lib/audio/backend.web.ts`,
   `--alias:@=${frontend}`,
   '--define:__DEV__=false',
   `--outfile=${scratch}/bundle.js`,

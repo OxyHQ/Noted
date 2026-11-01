@@ -3,6 +3,7 @@ import { MIGRATIONS } from '../../../lib/db/migrations';
 import { SNAPSHOT_SCHEMA, snapshotRefusedNote } from './index';
 import { AudioArtifactStore } from '../../../lib/audio/artifact-store';
 import { createChunkBackend, hasOpfs } from '../../../lib/audio/backend.web';
+import { deleteCaptureAudio } from '../../../lib/audio/store';
 const output = document.getElementById('result');
 function check(condition, message) {
   if (!condition) throw new Error(message);
@@ -43,7 +44,7 @@ async function main() {
       'audio:capture',
     'missing captured ref',
   );
-  await store.remove('capture');
+  await deleteCaptureAudio('audio:capture', 'capture');
   check((await store.describe('capture')) === null, 'OPFS audio still exists');
   check(
     (await stmt(db, 'SELECT audio_path FROM research_snapshot_captures')).firstRowValues[0] ===

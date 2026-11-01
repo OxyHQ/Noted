@@ -25,7 +25,7 @@ The model cannot protect against a recorder or remover that does not participate
 in an independently verified physical-object protocol.
 
 An additional isolated Chromium experiment used Noted's real web OPFS backend
-and `AudioArtifactStore`, the experimental snapshot statements, and Expo SQLite
+and `deleteCaptureAudio`/`AudioArtifactStore`, the experimental snapshot statements, and Expo SQLite
 58.0.14's web classes, worker and WASM. It wrote synthetic audio, snapshotted its
 reference, then removed the audio through the store: the copied reference still
 existed while the OPFS audio did not. Expo module registration and logging were
