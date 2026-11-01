@@ -257,8 +257,54 @@ class IndexedDbChunkBackend implements ChunkBackend {
   }
 
   async remove(captureId: string): Promise<void> {
-    await this.run(CHUNKS, 'readwrite', (store) => store.delete(captureRange(captureId)));
-    await this.run(MANIFESTS, 'readwrite', (store) => store.delete(captureId));
+    const db = await this.open();
+    const range = captureRange(captureId);
+    await new Promise<void>((resolve, reject) => {
+      // Both stores belong to this database, so a failed delete must roll back
+      // the chunks and the manifest together.
+      const transaction = db.transaction([CHUNKS, MANIFESTS], 'readwrite');
+      let setupError: unknown;
+      let setupFailed = false;
+      let requestError: Error | null = null;
+      transaction.oncomplete = () => {
+        if (setupFailed) reject(setupError);
+        else if (requestError) reject(requestError);
+        else resolve();
+      };
+      transaction.onabort = () =>
+        reject(
+          setupFailed
+            ? setupError
+            : (requestError ?? transaction.error ?? new Error('audio deletion aborted')),
+        );
+      transaction.onerror = () => {
+        requestError ??= transaction.error ?? new Error('audio deletion failed');
+      };
+      try {
+        const chunks = transaction.objectStore(CHUNKS).delete(range);
+        const manifest = transaction.objectStore(MANIFESTS).delete(captureId);
+        chunks.onerror = () => {
+          requestError ??= chunks.error ?? new Error('audio chunk deletion failed');
+        };
+        manifest.onerror = () => {
+          requestError ??= manifest.error ?? new Error('audio manifest deletion failed');
+        };
+      } catch (error) {
+        // A synchronous failure after enqueuing the first request does not abort
+        // an IndexedDB transaction automatically.
+        setupFailed = true;
+        setupError = error;
+        try {
+          transaction.abort();
+        } catch (abortError) {
+          reject(
+            Object.assign(new Error('Could not abort audio deletion'), {
+              errors: [error, abortError],
+            }),
+          );
+        }
+      }
+    });
   }
 }
 
