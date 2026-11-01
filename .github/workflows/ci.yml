@@ -66,6 +66,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Check Android device-session autolinking
+        run: bun run check:android-autolinking
+
       # `@noted/shared-types` resolves through `main: ./dist/index.js`, and
       # `dist/` is gitignored — so on a clean checkout the package cannot be
       # resolved at all and any test file that reaches it fails to LOAD. A

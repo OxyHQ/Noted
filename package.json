@@ -24,6 +24,7 @@
     "android": "bun run --filter @noted/frontend android",
     "ios": "bun run --filter @noted/frontend ios",
     "web": "bun run --filter @noted/frontend web",
+    "check:android-autolinking": "oxy-doctor-expo-android --project-root=packages/frontend --require-source=SharedDeviceSessionPublish.kt --require-source=SharedDeviceSessionSweep.kt --require-source=OxyDeviceSessionStore.kt",
     "test:worker": "bun test scripts/frontend-worker.test.ts"
   },
   "keywords": [
@@ -36,6 +37,7 @@
   "license": "ISC",
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@oxy.so/doctor": "1.5.0",
     "typescript": "^5.9.3"
   },
   "overrides": {
