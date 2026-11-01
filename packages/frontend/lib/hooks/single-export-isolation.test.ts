@@ -96,6 +96,7 @@ vi.mock('@/hooks/useTranslation', () => ({ useTranslation: () => ({ t: (key: str
 vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { background: 'white' }, colorScheme: 'light' }),
 }));
+vi.mock('@/lib/note-colors', () => ({ getNoteColorTint: () => null }));
 vi.mock('@/lib/hooks/use-labels', () => ({ useLabels: () => ({ data: [] }) }));
 vi.mock('@/lib/hooks/use-notes', () => ({
   useNote: () => ({ data: fixture.note, isLoading: false, error: null }),
