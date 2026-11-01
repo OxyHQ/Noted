@@ -46,15 +46,9 @@ jobs:
         with:
           node-version: 24.20.0
 
-      - name: Cache the whisper.cpp build
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: whisper.cpp
-          key: whisper-cpp-${{ env.WHISPER_CPP_TAG }}-linux
-
+      # The default native build targets the current runner's CPU. Reusing the
+      # compiled binary on a different runner can cause an illegal instruction.
       - name: Build whisper-cli
-        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch "$WHISPER_CPP_TAG" https://github.com/ggml-org/whisper.cpp
           cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF
