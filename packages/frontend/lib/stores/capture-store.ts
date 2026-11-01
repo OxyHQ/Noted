@@ -27,6 +27,8 @@ interface CaptureState {
   captureId: string | null;
   /** The note that recording belongs to. */
   noteId: string | null;
+  /** Distinguishes separate activations even when an ID is reused. */
+  generation: number;
 
   /** What the engine is doing. `idle` whenever nothing is recording. */
   phase: RecorderPhase;
@@ -47,6 +49,7 @@ interface CaptureState {
 
   startCapture: (captureId: string, noteId: string) => void;
   clearCapture: () => void;
+  clearCaptureIfCurrent: (generation: number) => void;
   /** Called by `CaptureEngineHost` as the recording progresses. */
   publishLive: (live: {
     phase: RecorderPhase;
@@ -68,10 +71,16 @@ const IDLE = {
 export const useCaptureStore = create<CaptureState>()((set) => ({
   captureId: null,
   noteId: null,
+  generation: 0,
   ...IDLE,
 
-  startCapture: (captureId, noteId) => set({ captureId, noteId }),
+  startCapture: (captureId, noteId) =>
+    set((state) => ({ captureId, noteId, generation: state.generation + 1 })),
   clearCapture: () => set({ captureId: null, noteId: null, ...IDLE }),
+  clearCaptureIfCurrent: (generation) =>
+    set((state) =>
+      state.generation === generation ? { captureId: null, noteId: null, ...IDLE } : state,
+    ),
   publishLive: (live) => set(live),
 }));
 
