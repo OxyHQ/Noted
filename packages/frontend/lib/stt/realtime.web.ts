@@ -47,7 +47,7 @@ import { getActiveViewerId } from '@/lib/db/client';
 
 import { createLogger } from '@oxy.so/core/logger';
 
-import { audioRef } from '@/lib/audio/artifact-store';
+import { audioRef, type AudioWriter } from '@/lib/audio/artifact-store';
 import { getAudioStore } from '@/lib/audio/store';
 import { microphoneSource } from '@/lib/capture/audio-source';
 import { upsertSegments } from '@/lib/capture/captures-repo';
@@ -142,11 +142,55 @@ export async function startRealtimeTranscription(
   // microphone and the recording matches the transcript exactly.
   const recorder = new MediaRecorder(stream);
 
+  async function releaseAudioResources(): Promise<void> {
+    const errors: unknown[] = [];
+    capture.port.onmessage = null;
+    for (const disconnect of [
+      () => source.disconnect(),
+      () => capture.disconnect(),
+      () => silence.disconnect(),
+    ]) {
+      try {
+        disconnect();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    try {
+      opened.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await context.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length > 0) {
+      throw Object.assign(new Error('Could not release audio resources'), { errors });
+    }
+  }
+
   // Written to durable storage as it arrives, rather than accumulated. The old
   // code held the whole recording in memory until stop and then handed back a
   // `blob:` URL — an hour of audio in a backgrounded tab, and a capture row that
   // resolved to nothing after a reload.
-  const writer = getAudioStore().open(options.captureId, recorder.mimeType || DEFAULT_MIME_TYPE);
+  let writer: AudioWriter;
+  try {
+    writer = await getAudioStore().open(options.captureId, recorder.mimeType || DEFAULT_MIME_TYPE);
+  } catch (error) {
+    let cleanupError: unknown;
+    try {
+      await releaseAudioResources();
+    } catch (failure) {
+      cleanupError = failure;
+    }
+    // A storage permission failure is not a microphone permission denial.
+    throw Object.assign(new Error('Could not prepare audio storage'), {
+      cause: error,
+      cleanupError,
+    });
+  }
   /** Serialises the writes, so chunks are stored in the order they arrived. */
   let writes: Promise<void> = Promise.resolve();
 
@@ -155,8 +199,7 @@ export async function startRealtimeTranscription(
     const chunk = event.data;
     writes = writes
       .then(async () => {
-        const audio = await writer;
-        await audio.write(new Uint8Array(await chunk.arrayBuffer()));
+        await writer.write(new Uint8Array(await chunk.arrayBuffer()));
       })
       .catch((error: unknown) => {
         // The transcript is unaffected and the meeting is still being recorded
@@ -169,7 +212,19 @@ export async function startRealtimeTranscription(
   // A timeslice is what makes the recorder hand over audio DURING the recording.
   // Without one `ondataavailable` fires once, at stop, with everything — which is
   // the in-memory accumulation this replaces, wearing a different hat.
-  recorder.start(CHUNK_MS);
+  try {
+    recorder.start(CHUNK_MS);
+  } catch (error) {
+    try {
+      await releaseAudioResources();
+    } catch (cleanupError) {
+      throw Object.assign(new Error('Could not start the audio recorder'), {
+        cause: error,
+        cleanupError,
+      });
+    }
+    throw error;
+  }
 
   let pending: Float32Array[] = [];
   let pendingLength = 0;
@@ -308,26 +363,30 @@ export async function startRealtimeTranscription(
         sliceIndex += 1;
       }
 
-      const recorded = new Promise<void>((resolve) => {
-        recorder.onstop = () => resolve();
-      });
-      recorder.stop();
-      await recorded;
-      // `stop` emits one last chunk, so the writes are drained AFTER it rather
-      // than beside it — the tail of a meeting is where the decisions are.
-      await writes;
-      await (await writer).close();
-
-      capture.port.onmessage = null;
-      source.disconnect();
-      capture.disconnect();
-      silence.disconnect();
-      await context.close();
-      // Released explicitly, or the browser keeps showing a recording indicator
-      // for a meeting that ended.
-      opened.close();
+      const failures: unknown[] = [];
+      try {
+        const recorded = new Promise<void>((resolve) => {
+          recorder.onstop = () => resolve();
+        });
+        recorder.stop();
+        await recorded;
+        // The last chunk is emitted before onstop, and must be drained first.
+        await writes;
+        await writer.close();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await releaseAudioResources();
+      } catch (error) {
+        failures.push(error);
+      }
 
       await inFlight;
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1) {
+        throw Object.assign(new Error('Could not stop and persist audio'), { errors: failures });
+      }
       logger.info('Live browser transcription stopped');
 
       const stored = await getAudioStore().describe(options.captureId);
