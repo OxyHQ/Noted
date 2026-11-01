@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Invoke } from '@/lib/db/desktop-driver';
 import { CHUNK_BYTES, type DesktopModelInfo, createDesktopModels } from '@/lib/stt/desktop-models';
@@ -76,6 +76,36 @@ function streamOf(...parts: Uint8Array[]): Response {
 const decodeLen = (b64: unknown) => Buffer.from(String(b64), 'base64').length;
 
 describe('desktop model downloads', () => {
+  it('retries publishing a complete partial before fetching again', async () => {
+    const rust = fakeRust(null, undefined, MODEL.bytes);
+    const fetchModel = vi.fn(async () => streamOf(new Uint8Array(MODEL.bytes)));
+    const progress: number[] = [];
+    const models = createDesktopModels(async () => rust.invoke, fetchModel);
+    await models.download(MODEL, (value) => progress.push(value));
+    expect(fetchModel).not.toHaveBeenCalled();
+    expect(rust.calls.map((call) => call.command)).toEqual([
+      'model_status',
+      'model_partial',
+      'model_commit',
+    ]);
+    expect(progress).toEqual([1]);
+  });
+
+  it('refuses a corrupt complete partial and fetches afresh on a later retry', async () => {
+    const correct = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const corrupt = new Uint8Array(10);
+    const rust = verifyingRust(corrupt, correct);
+    const fetchModel = vi.fn(async () => streamOf(correct));
+    const models = createDesktopModels(async () => rust.invoke, fetchModel);
+    const model = { ...MODEL, sha256: rust.hash };
+    await expect(models.download(model)).rejects.toThrow('sha256 mismatch');
+    expect(fetchModel).not.toHaveBeenCalled();
+    expect(rust.partial()).toHaveLength(0);
+    await models.download(model);
+    expect(fetchModel).toHaveBeenCalledOnce();
+    expect(rust.committed()).toBe(true);
+  });
+
   it.each(['pending', 'rejected'] as const)(
     'requests cancellation of an HTTP error body without waiting when cancellation is %s',
     async (cancelOutcome) => {
