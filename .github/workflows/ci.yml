@@ -98,6 +98,13 @@ jobs:
       - name: Run app tests
         run: bun run --filter @noted/frontend test
 
+      - name: Verify Android prebuild and shared signing
+        run: |
+          cd packages/frontend
+          CI=1 bun x expo prebuild --platform android --no-install
+          cd ../..
+          node scripts/verify-android-prebuild.mjs
+
   build-app:
     name: Build App
     runs-on: ubuntu-latest
