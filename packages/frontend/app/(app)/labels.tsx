@@ -79,7 +79,7 @@ export default function LabelsScreen() {
   const allLabels = labels ?? [];
 
   return (
-    <Screen documentScroll header={<NotesHeader title={t('notes.labelsTitle')} />}>
+    <Screen scroll="content" documentScroll header={<NotesHeader title={t('notes.labelsTitle')} />}>
       <NotesContent ready={!isLoading}>
         <View className="gap-3">
           <View className="flex-row items-center gap-2">

@@ -31,7 +31,11 @@ export default function RemindersScreen() {
   const noop = React.useCallback(() => {}, []);
 
   return (
-    <Screen documentScroll header={<NotesHeader title={t('notes.remindersTitle')} />}>
+    <Screen
+      scroll="content"
+      documentScroll
+      header={<NotesHeader title={t('notes.remindersTitle')} />}
+    >
       <NotesContent ready={!isLoading}>
         {error ? (
           <LocalStoreError />

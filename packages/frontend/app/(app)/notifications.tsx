@@ -127,6 +127,7 @@ export default function NotificationsScreen() {
 
   return (
     <Screen
+      scroll="content"
       documentScroll
       header={
         <PageHeader

@@ -57,7 +57,7 @@ export function LocalStoreBoundary({
       </View>
     );
   return (
-    <Screen documentScroll={documentScroll} header={fallbackHeader}>
+    <Screen scroll="content" documentScroll={documentScroll} header={fallbackHeader}>
       <View className="flex-1 justify-center">
         {!isAuthenticated ? (
           <EmptyState
