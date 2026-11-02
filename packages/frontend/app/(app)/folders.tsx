@@ -79,7 +79,7 @@ export default function FoldersScreen() {
   );
 
   return (
-    <Screen documentScroll header={<NotesHeader title={t('folders.title')} />}>
+    <Screen scroll="content" documentScroll header={<NotesHeader title={t('folders.title')} />}>
       <NotesContent ready={!isLoading}>
         <View className="flex-row items-center gap-2">
           <TextField style={{ flex: 1 }} disabled={createFolder.isPending}>

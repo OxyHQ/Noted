@@ -27,7 +27,11 @@ export default function ArchiveScreen() {
   const allNotes = notes ?? [];
 
   return (
-    <Screen documentScroll header={<NotesHeader title={t('notes.archiveTitle')} />}>
+    <Screen
+      scroll="content"
+      documentScroll
+      header={<NotesHeader title={t('notes.archiveTitle')} />}
+    >
       <NotesContent ready={!isLoading}>
         {error ? (
           <LocalStoreError />

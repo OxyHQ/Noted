@@ -64,7 +64,7 @@ export default function TrashScreen() {
   );
 
   return (
-    <Screen documentScroll header={<NotesHeader title={t('notes.trashTitle')} />}>
+    <Screen scroll="content" documentScroll header={<NotesHeader title={t('notes.trashTitle')} />}>
       <NotesContent ready={!isLoading}>
         {error ? (
           <LocalStoreError />

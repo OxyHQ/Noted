@@ -252,6 +252,7 @@ export default function HomeScreen() {
 
   return (
     <Screen
+      scroll="content"
       documentScroll
       header={
         selectionMode ? (
