@@ -63,10 +63,10 @@
     "@react-native/babel-preset": "0.88.0",
     "@react-native/metro-babel-transformer": "0.88.0",
     "@react-native/metro-config": "0.88.0",
-    "@oxy.so/bloom": "17.5.0",
-    "@oxy.so/contracts": "6.5.0",
-    "@oxy.so/core": "7.17.0",
-    "@oxy.so/services": "14.3.4",
+    "@oxy.so/bloom": "17.8.2",
+    "@oxy.so/contracts": "6.8.0",
+    "@oxy.so/core": "7.21.1",
+    "@oxy.so/services": "14.3.7",
     "lightningcss": "1.30.1",
     "lightningcss-linux-x64-gnu": "1.30.1",
     "lightningcss-linux-x64-musl": "1.30.1",
@@ -74,10 +74,10 @@
     "react-native-css": "3.1.0-rc.0"
   },
   "dependencies": {
-    "@oxy.so/bloom": "17.5.0",
-    "@oxy.so/contracts": "6.5.0",
-    "@oxy.so/core": "7.17.0",
-    "@oxy.so/services": "14.3.4"
+    "@oxy.so/bloom": "17.8.2",
+    "@oxy.so/contracts": "6.8.0",
+    "@oxy.so/core": "7.21.1",
+    "@oxy.so/services": "14.3.7"
   },
   "trustedDependencies": [
     "llama.rn"
