@@ -7,7 +7,7 @@ import type { LocalNote as Note } from '@/lib/db/notes-repo';
 import { plainText, todos } from '@/lib/notes/blocks';
 import type { ViewMode } from '@/lib/stores/notes-ui-store';
 import { useNotesUIStore } from '@/lib/stores/notes-ui-store';
-import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
+import { usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
 
 interface NoteGridProps {
   notes: Note[];
@@ -103,7 +103,7 @@ export function NoteGrid({
   const [width, setWidth] = useState(0);
   const selectedIds = useNotesUIStore((s) => s.selectedIds);
   const selectionMode = useNotesUIStore((s) => s.selectionMode);
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
 
   const columnCount = columnsForWidth(width, viewMode);
 

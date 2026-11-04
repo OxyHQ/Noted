@@ -5,7 +5,7 @@ import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { Text } from '@/components/ui/text';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
+import { usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
 import { useUndoStore } from '@/lib/stores/undo-store';
 
 /**
@@ -22,7 +22,7 @@ export function UndoSnackbar() {
   const onUndo = useUndoStore((s) => s.onUndo);
   const { colors } = useColorScheme();
   const { t } = useTranslation();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
 
   if (message === null || onUndo === null) return null;
 
