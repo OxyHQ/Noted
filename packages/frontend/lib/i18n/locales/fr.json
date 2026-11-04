@@ -1301,10 +1301,6 @@
       "note": "On the phone the model detects the language. In a browser it cannot, so Automatic uses the browser's language."
     }
   },
-  "meta": {
-    "code": "fr",
-    "name": "Français"
-  },
   "sharedStorage": {
     "title": "Shared Oxy storage",
     "description": "Attachments use the same account storage as your other Oxy apps. Attaching an existing file does not create another storage allowance. Local notes and export remain available.",

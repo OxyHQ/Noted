@@ -12,7 +12,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.15",
-        "@oxy.so/doctor": "1.5.0",
+        "@oxy.so/doctor": "1.6.0",
         "typescript": "^5.9.3",
       },
     },
@@ -664,7 +664,7 @@
 
     "@oxy.so/core": ["@oxy.so/core@7.17.0", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "6.5.0", "@oxy.so/protocol": "^1.6.1", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0 || ^5.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-J++fb7de/eIlyX8+DNA302nNg80SaX38GwhitbuweygnSL8npHelIpS3i632IkXXQ3PV2N2m+XBVv+rqZmmBJQ=="],
 
-    "@oxy.so/doctor": ["@oxy.so/doctor@1.5.0", "", { "bin": { "oxy-doctor": "src/cli.mjs", "oxy-emulator-preflight": "src/emulator-preflight.mjs", "oxy-doctor-expo-android": "src/expo-android.mjs" } }, "sha512-Bg7K+OElxi6rJd9ZRAABNaUuDGBjvgfOOEI12yQfDqorC1I/fxvU837qAZyTzZ6le4bQf/MXZXhNS/W3NCib+g=="],
+    "@oxy.so/doctor": ["@oxy.so/doctor@1.6.0", "", { "bin": { "oxy-doctor": "src/cli.mjs", "oxy-doctor-i18n": "src/i18n-cli.mjs", "oxy-emulator-preflight": "src/emulator-preflight.mjs", "oxy-doctor-expo-android": "src/expo-android.mjs" } }, "sha512-Cgp+s7y3v9JlHAm25lsu1QJ4A12wGJu2ZpamcQZ6uMW8lS+9kweYhVUEa9ENDJV82ZgWm92v6SY20MDpt0BEFQ=="],
 
     "@oxy.so/nilo-contracts": ["@oxy.so/nilo-contracts@0.3.0", "", { "dependencies": { "zod": "^3.24.1" }, "peerDependencies": { "@oxy.so/bloom-editor": ">=0.6.0 <0.7.0", "@oxy.so/bloom-text": ">=0.1.1 <0.2.0" }, "optionalPeers": ["@oxy.so/bloom-editor", "@oxy.so/bloom-text"] }, "sha512-OqSHYmj9ZMqg3shaWMMEQQjNqWLASXoDeZIKE8bwhw/um9smQH71j0vDpwXp1+sr268SsC5i8D9KAKU3MdWcAw=="],
 

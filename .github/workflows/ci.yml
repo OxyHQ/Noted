@@ -84,6 +84,11 @@ jobs:
       - name: Lint & format check (Biome)
         run: bunx biome ci --error-on-warnings .
 
+      # Translation keys follow ADR 0055: nested identifier segments under a
+      # namespace, every locale shaped like English. Missing translations warn.
+      - name: Translation keys (ADR 0055)
+        run: bun run i18n:check
+
       # The build does not typecheck: Metro/Babel bundles the app and strips
       # types. This is the only place `tsc` runs, and it is what reports invalid
       # regular expressions (bad group references, out-of-order quantifiers,
