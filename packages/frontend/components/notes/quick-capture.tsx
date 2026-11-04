@@ -12,7 +12,7 @@ import { applyTemplate } from '@/lib/notes/templates';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getNoteColorTint } from '@/lib/note-colors';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
+import { usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/hooks/useTranslation';
 import { DEFAULT_NEW_NOTE_COLOR, type NoteColor } from '@noted/shared-types';
 import { newNoteId } from '@/lib/db/ids';
@@ -86,7 +86,7 @@ export function QuickCapture({
 }: QuickCaptureProps) {
   const { t } = useTranslation();
   const { colors, colorScheme } = useColorScheme();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const [expanded, setExpanded] = React.useState(false);
   const [title, setTitle] = React.useState('');
   const [body, setBody] = React.useState('');

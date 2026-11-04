@@ -1,6 +1,6 @@
 import { Button, GlyphButton } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
-import { useHaptics } from '@oxy.so/bloom/hooks';
+import { useHaptics, usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
 import React from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
@@ -20,7 +20,6 @@ import { LabelChips } from '@/components/notes/label-chips';
 import { AttachmentsRow } from '@/components/notes/attachments/AttachmentsRow';
 import { getNoteColorTint } from '@/lib/note-colors';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
 import { cn } from '@/lib/utils';
 import { plainText, todos } from '@/lib/notes/blocks';
 import type { Label } from '@noted/shared-types';
@@ -104,7 +103,7 @@ export const NoteCard = React.memo(function NoteCard({
   onDelete,
 }: NoteCardProps) {
   const { colorScheme, colors } = useColorScheme();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const haptic = useHaptics();
   const tint = getNoteColorTint(note.color, colorScheme);
 
