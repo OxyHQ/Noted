@@ -32,7 +32,7 @@
     "@lottiefiles/dotlottie-web": "0.80.0",
     "@noted/shared-types": "workspace:*",
     "@oxy.so/app-preset": "5.3.0",
-    "@oxy.so/bloom": "17.0.0",
+    "@oxy.so/bloom": "17.4.0",
     "@oxy.so/bloom-editor": "0.7.1",
     "@oxy.so/bloom-text": "0.1.6",
     "@oxy.so/contracts": "6.5.0",

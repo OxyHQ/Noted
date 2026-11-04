@@ -1,14 +1,11 @@
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  SelectItemText,
-} from '@oxy.so/bloom/select';
+  SettingsCard,
+  SettingsRow,
+  SettingsSection,
+  SettingsSelect,
+} from '@oxy.so/bloom/settings-modal';
 import { COLOR_PRESET_REGISTRY } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNativeLanguageName } from '@oxy.so/core';
@@ -56,47 +53,22 @@ export function GeneralSection() {
             </Button>
           </SettingsRow>
           <SettingsRow label={t('settings.appearance.title')}>
-            <Select
+            <SettingsSelect
+              label={t('settings.appearance.title')}
               value={mode}
-              onValueChange={(value) => {
-                if (value === 'light' || value === 'dark' || value === 'system')
-                  setColorScheme(value);
-              }}
-            >
-              <SelectTrigger label={t('settings.appearance.title')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent
-                items={modes}
-                renderItem={(item) => (
-                  <SelectItem value={item.value} label={item.label}>
-                    <SelectItemText>{item.label}</SelectItemText>
-                  </SelectItem>
-                )}
-              />
-            </Select>
+              onChange={setColorScheme}
+              items={modes}
+            />
           </SettingsRow>
           <SettingsRow label={t('settings.accentColor.title')}>
-            <Select
+            <SettingsSelect
+              label={t('settings.accentColor.title')}
               value={colorValue}
-              onValueChange={(value) => {
-                const next = colors.find((name) => name === value);
-                if (next)
-                  saveColor(next).catch(() => toast.error(t('settings.accentColor.saveFailed')));
+              onChange={(name) => {
+                saveColor(name).catch(() => toast.error(t('settings.accentColor.saveFailed')));
               }}
-            >
-              <SelectTrigger label={t('settings.accentColor.title')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent
-                items={colorOptions}
-                renderItem={(item) => (
-                  <SelectItem value={item.value} label={item.label}>
-                    <SelectItemText>{item.label}</SelectItemText>
-                  </SelectItem>
-                )}
-              />
-            </Select>
+              items={colorOptions}
+            />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
