@@ -16,6 +16,12 @@ bun run android
 
 `bun run test` runs the suite (vitest, scoped to the platform-free logic in `lib/`).
 
+## Releases
+
+- **Android binary.** `.github/workflows/android-release.yml` calls oxy's reusable release on Oxy's build machine on every push to main: a signed AAB + APK as the GitHub release `android-v<version>`, built only when that `version` has none yet. The build number is derived from `version` (`@oxy.so/app-preset` 6); never set `versionCode`/`buildNumber`.
+- **OTA updates.** `.github/workflows/publish-update.yml` publishes the JS bundle to channel `production` with `oxy-ship` over GitHub trusted publishing (no secret). Its file name is the registered trusted publisher: do not rename it.
+- **A native change is a `version` bump**; a JS-only change ships as OTA under the same version (runtime policy `appVersion`). Both workflows take the build env from `eas.json`'s `production` profile.
+
 ## Where things are
 
 | path | what lives there |
