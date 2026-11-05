@@ -61,11 +61,11 @@ export function useRealtimeRecorder(
   // the screen changes every time the recogniser re-reads the current span.
   const [partialText, setPartialText] = useState('');
 
-  const phaseRef = useRef(phase);
-  phaseRef.current = phase;
-
   const sessionRef = useRef<RealtimeSession | null>(null);
   const startRef = useRef<Promise<void> | null>(null);
+  const stoppingRef = useRef<{ generation: number; promise: Promise<StopOutcome> } | null>(null);
+  const generationRef = useRef(0);
+  const sessionGenerationRef = useRef(0);
   const startedAtRef = useRef<Date | null>(null);
   const latestDbRef = useRef<number | null>(null);
   // The same owner the phone uses. What differs between the two files is opening
@@ -79,7 +79,15 @@ export function useRealtimeRecorder(
     if (!enabled) return;
     const expectedViewerId = getActiveViewerId();
 
+    const generation = ++generationRef.current;
     let active = true;
+    let sessionForFailure: RealtimeSession | null = null;
+    let coordinatorForRun: CaptureCoordinator | null = null;
+    let audioStorageFailed = false;
+    const stopAfterStorageFailure = () => {
+      if (!active || !sessionForFailure || sessionRef.current !== sessionForFailure) return;
+      void stopRef.current();
+    };
     setPhase('starting');
     const startedAt = new Date();
     startedAtRef.current = startedAt;
@@ -90,6 +98,7 @@ export function useRealtimeRecorder(
         // a moment later, this row is the only record the recording existed.
         // The path is empty because a blob has no URL until it is finished.
         await beginCapture({ id: captureId, noteId, audioPath: '' }, expectedViewerId);
+        if (!active) return;
 
         const coordinator = createLiveCoordinator({
           expectedViewerId,
@@ -98,24 +107,30 @@ export function useRealtimeRecorder(
           startedAt,
           language: optionsRef.current.language,
         });
+        coordinatorForRun = coordinator;
         coordinatorRef.current = coordinator;
 
-        const session = await startRealtimeTranscription({
+        const rawSession = await startRealtimeTranscription({
           expectedViewerId,
           captureId,
           model: optionsRef.current.model,
           language: optionsRef.current.language,
           audioPath: '',
           onLevel: (db) => {
-            latestDbRef.current = db;
+            if (active) latestDbRef.current = db;
           },
           onPartial: (text) => {
-            setPartialText(text);
+            if (active) setPartialText(text);
           },
           onTranscriptChanged: () => {
+            if (!active) return;
             void coordinator.transcriptChanged().catch((error: unknown) => {
               logger.error('Could not queue the transcript revision', { error: String(error) });
             });
+          },
+          onAudioStorageFailure: () => {
+            audioStorageFailed = true;
+            stopAfterStorageFailure();
           },
           onError: (message) => {
             // The recording continues: losing transcription is not losing the
@@ -124,30 +139,41 @@ export function useRealtimeRecorder(
           },
         });
 
+        let stopped: Promise<string | null> | null = null;
+        const session: RealtimeSession = { stop: () => (stopped ??= rawSession.stop()) };
+        sessionForFailure = session;
         if (!active) {
           await session.stop();
-          await coordinator.markFailed('capture_cancelled').catch(() => undefined);
           return;
         }
         sessionRef.current = session;
+        sessionGenerationRef.current = generation;
         await coordinator.markRecording();
+        if (!active) {
+          await session.stop();
+          return;
+        }
         setPhase('recording');
+        if (audioStorageFailed) stopAfterStorageFailure();
       } catch (error) {
-        await sessionRef.current?.stop().catch(() => undefined);
-        sessionRef.current = null;
+        await sessionForFailure?.stop().catch(() => undefined);
+        if (sessionRef.current === sessionForFailure) sessionRef.current = null;
         // The usual cause is the user declining the microphone, which the
         // browser reports as a `NotAllowedError` rather than a permission API.
         const denied = error instanceof DOMException && error.name === 'NotAllowedError';
         logger.error('Could not start recording', { error: String(error) });
-        await coordinatorRef.current
-          ?.markFailed(denied ? 'permission' : 'capture_start')
-          .catch(() => undefined);
-        if (active) setPhase(denied ? 'denied' : 'error');
+        if (active) {
+          await coordinatorForRun
+            ?.markFailed(denied ? 'permission' : 'capture_start')
+            .catch(() => undefined);
+          if (active) setPhase(denied ? 'denied' : 'error');
+        }
       }
     })();
 
     return () => {
       active = false;
+      if (generationRef.current === generation) generationRef.current += 1;
     };
   }, [captureId, noteId, enabled]);
 
@@ -167,34 +193,46 @@ export function useRealtimeRecorder(
   const durationRef = useRef(durationMs);
   durationRef.current = durationMs;
 
-  const stop = useCallback(async (): Promise<StopOutcome> => {
-    if (phaseRef.current !== 'recording' && phaseRef.current !== 'starting') return 'noop';
+  const stop = useCallback((): Promise<StopOutcome> => {
+    const requestedGeneration = generationRef.current;
+    if (stoppingRef.current?.generation === requestedGeneration) return stoppingRef.current.promise;
+    const started = startRef.current;
+    const run = async (): Promise<StopOutcome> => {
+      await started?.catch(() => undefined);
+      if (generationRef.current !== requestedGeneration || !sessionRef.current) return 'noop';
 
-    await startRef.current?.catch(() => undefined);
-    if (phaseRef.current !== 'recording') return 'noop';
-
-    setPhase('saving');
-    try {
+      const session = sessionRef.current;
+      const generation = sessionGenerationRef.current;
       const coordinator = coordinatorRef.current;
-      await coordinator?.markStopping().catch(() => undefined);
-
-      // The session finishes its last slice before returning, so the audio and
-      // the transcript end at the same moment.
-      const audioPath = (await sessionRef.current?.stop()) ?? '';
-      sessionRef.current = null;
-
-      // Returns once the recording is safe. The final pass runs afterwards, on
-      // its own, exactly as on the phone.
-      await coordinator?.markStopped(durationRef.current, audioPath);
-
-      setPhase('saved');
-      return 'saved';
-    } catch (error) {
-      logger.error('Could not save the recording', { error: String(error) });
-      await coordinatorRef.current?.markFailed('persist_audio').catch(() => undefined);
-      setPhase('error');
-      return 'failed';
-    }
+      const isCurrent = () =>
+        generationRef.current === generation && sessionRef.current === session;
+      if (isCurrent()) setPhase('saving');
+      try {
+        if (isCurrent()) await coordinator?.markStopping().catch(() => undefined);
+        const audioPath = (await session.stop()) ?? '';
+        if (!isCurrent()) return 'noop';
+        await coordinator?.markStopped(durationRef.current, audioPath);
+        if (!isCurrent()) return 'noop';
+        sessionRef.current = null;
+        setPhase('saved');
+        return 'saved';
+      } catch (error) {
+        logger.error('Could not save the recording', { error: String(error) });
+        if (!isCurrent()) return 'failed';
+        await coordinator?.markFailed('persist_audio').catch(() => undefined);
+        if (isCurrent()) {
+          sessionRef.current = null;
+          setPhase('error');
+        }
+        return 'failed';
+      }
+    };
+    const pending = run();
+    stoppingRef.current = { generation: requestedGeneration, promise: pending };
+    void pending.then(() => {
+      if (stoppingRef.current?.promise === pending) stoppingRef.current = null;
+    });
+    return pending;
   }, []);
 
   // Navigating away unmounts this without reaching the stop button, and a tab

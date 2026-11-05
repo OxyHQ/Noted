@@ -56,6 +56,7 @@ export interface RealtimeOptions {
   /** Loudness in dBFS, for the waveform. Called on the audio stream's schedule. */
   onLevel?: (db: number) => void;
   onError?: (message: string) => void;
+  onAudioStorageFailure?: () => void;
 }
 
 export function startRealtimeTranscription(_options: RealtimeOptions): Promise<RealtimeSession> {
