@@ -1,0 +1,126 @@
+name: Opt-in Whisper CPU dispatch native package proof
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-whisper-dispatch-native-proof.yml'
+      - 'desktop/src-tauri/src/stt.rs'
+      - 'desktop/src-tauri/Cargo.toml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    name: Package opt-in shell (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos, os: macos-latest, bundles: 'app,dmg' }
+          - { name: windows, os: windows-latest, bundles: 'nsis,msi' }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.20.0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Restore whisper source without saving
+        uses: actions/cache/restore@v4
+        with:
+          path: whisper.cpp
+          key: whisper-cpp-v1.9.5-${{ matrix.name }}
+          fail-on-cache-miss: true
+      - name: Fetch and verify tiny model
+        run: node desktop/sidecar/fetch-model.mjs tiny "$RUNNER_TEMP/model"
+      - name: Build isolated sidecars
+        run: |
+          set -euo pipefail
+          echo "runner_arch=$(uname -m)"
+          rustc -vV
+          case "${{ matrix.name }}" in windows) suffix=.exe;; *) suffix=;; esac
+          case "$(uname -m)" in
+            x86_64|AMD64|amd64)
+              cmake -S whisper.cpp -B "$RUNNER_TEMP/baseline" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_BMI2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF ;;
+            *)
+              # Preserve the current ARM build configuration, including Metal.
+              cmake -S whisper.cpp -B "$RUNNER_TEMP/baseline" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF ;;
+          esac
+          cmake --build "$RUNNER_TEMP/baseline" --config Release -j 2 --target whisper-cli
+          base=$(find "$RUNNER_TEMP/baseline" -type f \( -name whisper-cli -o -name whisper-cli.exe \) | head -1)
+          test -n "$base"
+          node desktop/sidecar/stage.mjs "$base"
+          triple=$(rustc -vV | sed -n 's/^host: //p')
+          echo 'DIAG_INCLUDE_AVX2=0' >> "$GITHUB_ENV"
+          case "$(uname -m)" in
+            x86_64|AMD64|amd64)
+              cmake -S whisper.cpp -B "$RUNNER_TEMP/avx2" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DGGML_METAL=OFF -DGGML_NATIVE=OFF -DGGML_SSE42=ON -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_BMI2=ON -DGGML_FMA=ON -DGGML_F16C=ON
+              cmake --build "$RUNNER_TEMP/avx2" --config Release -j 2 --target whisper-cli
+              fast=$(find "$RUNNER_TEMP/avx2" -type f \( -name whisper-cli -o -name whisper-cli.exe \) | head -1)
+              test -n "$fast"
+              cp "$fast" "desktop/src-tauri/binaries/whisper-avx2-$triple$suffix"
+              echo 'DIAG_INCLUDE_AVX2=1' >> "$GITHUB_ENV"
+              ;;
+            *) echo 'No x86 AVX2 binary built for this architecture.' ;;
+          esac
+          chmod +x desktop/src-tauri/binaries/whisper-*
+          mkdir -p packages/frontend/dist
+          echo '<!doctype html><title>Noted diagnostic</title>' > packages/frontend/dist/index.html
+      - name: Generate temporary diagnostic bundle configuration
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const path='desktop/src-tauri/tauri.conf.json';
+          const config=JSON.parse(fs.readFileSync(path,'utf8'));
+          config.bundle.externalBin=['binaries/whisper-cli'];
+          if(process.env.DIAG_INCLUDE_AVX2==='1') config.bundle.externalBin.push('binaries/whisper-avx2');
+          fs.writeFileSync(path,JSON.stringify(config,null,2)+'\n');
+          NODE
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          key: static-native-package-diagnostic-${{ matrix.name }}
+      - name: Test Rust transcription path with dispatch enabled
+        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --features whisper-cpu-dispatch stt::tests
+      - name: Build diagnostic package
+        working-directory: desktop/src-tauri
+        run: npx --yes @tauri-apps/cli@2.12.2 build --bundles ${{ matrix.bundles }} --ci -- --locked --features whisper-cpu-dispatch
+      - name: Extract or inspect temporary package
+        run: |
+          set -euo pipefail
+          case "${{ matrix.name }}" in
+            macos)
+              app=$(find desktop/src-tauri/target/release/bundle -type d -name '*.app' | head -1)
+              test -n "$app"
+              bindir="$app/Contents/MacOS"
+              codesign -dv "$app" 2>&1 || true
+              codesign --verify --deep --strict --verbose=2 "$app" 2>&1 || true
+              codesign -dv "$bindir/whisper-cli" 2>&1 || true
+              otool -L "$bindir/whisper-cli"
+              ;;
+            windows)
+              setup=$(find desktop/src-tauri/target/release/bundle -name '*-setup.exe' | head -1)
+              test -n "$setup"
+              7z x "$setup" -o"$RUNNER_TEMP/unpacked" >/dev/null
+              selector=$(find "$RUNNER_TEMP/unpacked" -type f -iname 'whisper-cli.exe' | head -1)
+              test -n "$selector"
+              bindir=$(dirname "$selector")
+              WIN_BIN=$(cygpath -w "$bindir/whisper-cli.exe") powershell -NoProfile -Command 'Get-AuthenticodeSignature $env:WIN_BIN | Format-List Status,StatusMessage,SignerCertificate'
+              ;;
+          esac
+          test -f "$bindir/whisper-cli${{ matrix.name == 'windows' && '.exe' || '' }}"
+          if [ "$DIAG_INCLUDE_AVX2" = 1 ]; then test -f "$bindir/whisper-avx2${{ matrix.name == 'windows' && '.exe' || '' }}"; fi
+          echo "DIAG_BINDIR=$bindir" >> "$GITHUB_ENV"
+          for file in "$bindir"/whisper-*; do printf '%s: ' "$file"; wc -c < "$file"; done
+      - name: Transcribe using each packaged sidecar directly
+        run: |
+          set -euo pipefail
+          case "${{ matrix.name }}" in windows) suffix=.exe;; *) suffix=;; esac
+          node desktop/sidecar/verify.mjs "$DIAG_BINDIR/whisper-cli$suffix" whisper.cpp/samples/jfk.wav "$RUNNER_TEMP/model"
+          if [ "$DIAG_INCLUDE_AVX2" = 1 ]; then
+            node desktop/sidecar/verify.mjs "$DIAG_BINDIR/whisper-avx2$suffix" whisper.cpp/samples/jfk.wav "$RUNNER_TEMP/model"
+          fi
