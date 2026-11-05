@@ -8,12 +8,14 @@
  * trace of one. That is what routing native audio through the same store buys.
  *
  * Chunks are separate files under the capture's own directory, so deleting a
- * recording remains one recursive remove.
+ * recording remains one recursive remove. The recorder's own file lives in a
+ * sibling directory keyed by the same id, which `remove` clears too.
  */
 
 import { Directory, File, Paths } from 'expo-file-system';
 
 import type { ChunkBackend } from '@/lib/audio/artifact-store';
+import { captureDirectorySegments } from '@/lib/audio/capture-directory';
 
 const ROOT = 'audio';
 const MANIFEST = 'manifest.json';
@@ -83,9 +85,13 @@ export class FileSystemChunkBackend implements ChunkBackend {
   }
 
   remove(captureId: string): Promise<void> {
-    const directory = captureDirectory(captureId);
-    // Deleting a recording twice is not an error.
-    if (directory.exists) directory.delete();
+    // Both places a capture's audio can be: its chunks, and the file the native
+    // recorder wrote into `captures/<id>`. Each is the capture's own directory, so
+    // each is one recursive delete. Deleting twice is not an error.
+    const recording = new Directory(Paths.document, ...captureDirectorySegments(captureId));
+    const chunks = captureDirectory(captureId);
+    if (chunks.exists) chunks.delete();
+    if (recording.exists) recording.delete();
     return Promise.resolve();
   }
 }

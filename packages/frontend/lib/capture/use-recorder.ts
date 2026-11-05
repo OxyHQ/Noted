@@ -42,6 +42,7 @@ import {
   type RecorderPhase,
   type StopOutcome,
 } from '@/lib/capture/recording';
+import { captureDirectorySegments } from '@/lib/audio/capture-directory';
 import { isCaptureDurable } from '@/lib/capture/support';
 import { transcribeAfterStop } from '@/lib/capture/transcribe-after';
 import { startBackgroundCapture, stopBackgroundCapture } from '@/modules/noted-capture';
@@ -53,7 +54,7 @@ const STATE_POLL_MS = 50;
 
 /** Where a capture's audio lives. One directory per capture, so deleting it is one call. */
 export function captureDirectory(captureId: string): Directory {
-  return new Directory(Paths.document, 'captures', captureId);
+  return new Directory(Paths.document, ...captureDirectorySegments(captureId));
 }
 
 /**

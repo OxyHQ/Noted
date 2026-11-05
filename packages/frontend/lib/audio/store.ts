@@ -13,6 +13,7 @@
 
 import { AudioArtifactStore, captureIdOfRef } from '@/lib/audio/artifact-store';
 import { createChunkBackend } from '@/lib/audio/backend';
+import { captureIdOfAudioReference } from '@/lib/audio/capture-directory';
 
 let store: AudioArtifactStore | null = null;
 
@@ -53,7 +54,19 @@ export function releasePlaybackUrl(url: string | null): void {
   if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
 }
 
-/** Forget a recording's audio, wherever it is stored. */
+/**
+ * Forget a recording's audio, wherever it is stored.
+ *
+ * Removes the capture's own storage, identified by its id: the browser chunks and
+ * the native file directory `captures/<id>`. A reference that names a different
+ * capture is refused rather than followed, so a stored path can never widen the
+ * delete. A reference in a form this app did not write is not touched by name;
+ * the capture's own directory is removed regardless.
+ */
 export async function deleteCaptureAudio(reference: string, captureId: string): Promise<void> {
-  await getAudioStore().remove(captureIdOfRef(reference) ?? captureId);
+  const named = captureIdOfAudioReference(reference);
+  if (named !== null && named !== captureId) {
+    throw new Error('Stored audio belongs to another capture');
+  }
+  await getAudioStore().remove(captureId);
 }
