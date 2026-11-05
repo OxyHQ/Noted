@@ -1,16 +1,14 @@
 {
   "expo": {
     "owner": "oxyhq",
-    "name": "Noted",
     "slug": "noted",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon-512.png",
     "scheme": "noted",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "so.oxy.noted",
       "infoPlist": {
         "UIBackgroundModes": ["audio", "remote-notification"],
         "NSMicrophoneUsageDescription": "Noted uses the microphone to record meetings and voice notes. Recording only happens while you start it, and the audio is transcribed on this device."
@@ -23,7 +21,6 @@
         "backgroundColor": "#FFFFFF"
       },
       "googleServicesFile": "./google-services.json",
-      "package": "so.oxy.noted",
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
