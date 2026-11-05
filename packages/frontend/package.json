@@ -37,7 +37,7 @@
     "@oxy.so/bloom-text": "0.1.6",
     "@oxy.so/contracts": "6.9.0",
     "@oxy.so/core": "7.23.0",
-    "@oxy.so/nilo-contracts": "0.3.0",
+    "@oxy.so/nilo-contracts": "0.4.0",
     "@oxy.so/services": "14.4.0",
     "@oxy.so/stickers": "0.2.2",
     "@radix-ui/react-dropdown-menu": "^2.1.16",

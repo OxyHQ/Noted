@@ -20,6 +20,7 @@
     "start:frontend": "bun run --filter @noted/frontend start",
     "lint": "biome check .",
     "i18n:check": "oxy-doctor-i18n --ci",
+    "doctor:oxy": "oxy-doctor --ci",
     "typecheck": "bun run --filter @noted/frontend typecheck",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
