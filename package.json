@@ -15,6 +15,7 @@
     "dev:frontend": "bun run --filter @noted/frontend dev -- --clear --tunnel",
     "build": "bun run build:frontend",
     "build:types": "bun run --filter @noted/shared-types build",
+    "postinstall": "bun run build:types",
     "build:frontend": "bun run build:types && bun run --filter @noted/frontend build",
     "start:frontend": "bun run --filter @noted/frontend start",
     "lint": "biome check .",
