@@ -1,0 +1,68 @@
+# Realtime WAV writer experiment
+
+This branch is an isolated experiment. It does not connect the writer to the
+recording screen, provide a native file adapter, or make recording safe to ship.
+
+Noted's current `RealtimeTranscriber` call provides an output path but no `fs`
+dependency. In the locked whisper.rn 0.7.2 the writer is initialized only when
+both are present. The contract test runs the actual class and reproduces the
+missing writer. It also demonstrates that an injected adapter's append error is
+swallowed: stopping resolves with a 44-byte header and no error callback.
+Another controlled test against its actual WAV writer holds an append in flight
+and shows that a second append includes the first chunk again. Simply wiring an
+adapter into that writer would therefore risk duplicated audio.
+
+The experimental incremental writer writes one PCM chunk at a time into a
+caller-provided reserved handle, patches the header without reading the entire
+file, remembers errors and rejects a queue overflow or short write. The long
+test simulates three hours through an in-memory *counter*, not a native file or
+real-time device. Its storage keeps up by construction; it does not measure
+throughput, power, memory use on a phone, or actual session behavior.
+Another test uses an actual Linux file descriptor created with exclusive
+creation, checks the output header and PCM, and confirms a second exclusive
+creation fails. It does not exercise the Android or iOS filesystem adapters.
+
+Before adoption, the caller must provide a native no-symlink exclusive
+reservation, keep its descriptor across writes, bind it to an authenticated
+account and database operation, and recover interruptions without overwriting
+existing files. Confirm the recording stream stops before finalization and that
+all asynchronous chunks finish. Detect underlying failures, including partial
+writes and failure to close; validate the completed file before publishing the
+reference. Closing a file and checking its length do not themselves guarantee
+durability after a power loss: define and test the required file and directory
+sync policy together with the database journal. A callback that checks the account before and after close does not
+make the subsequent SQLite commit atomic with the identity lifecycle. Cancellation
+must preserve recoverable audio or safely remove only a file whose ownership is
+proven. Real Android and iOS builds, device tests and long-duration measurements
+remain necessary. Nothing here resolves legacy shared-file ownership or #248.
+
+The callback gate experiment drops and records callbacks after sealing so they do
+not invoke a closed writer. That is not a native drain guarantee: a callback may
+arrive after a final check or after a row is committed. The actual PCM dependency
+exposes Android `stop` as a void method that only clears a flag while its read
+thread may still emit; iOS also exposes a void bridge method. A promise and a
+cross-bridge event ordering guarantee must be demonstrated on both platforms
+before the final file can be considered complete. Checking just the viewer ID
+also misses A-to-B-to-A switches; the integration needs a captured session epoch
+and a commit coordinated with that lifecycle.
+
+The isolated session test uses an OxyServices 7.10.5 instance and synthetic
+tokens to exercise observed A-to-B-to-A transitions and same-session token
+rotation. Viewer and session projections in that test are controlled values,
+not the running React provider, and no live device or SQLite commit is involved.
+The identity guard therefore remains an experiment rather than a complete
+session or database barrier.
+
+One possible drain protocol is for the native recorder to tag each PCM event
+with a recording operation ID and a consecutive sequence, stop the microphone,
+wait for its producer to terminate, and return the last produced sequence. The
+JavaScript side would wait for every event through that sequence and fail on a
+gap, timeout, overflow, or an unexpected operation ID before sealing the gate.
+It must account for events arriving before or after the stop response; the
+response alone is not a bridge ordering guarantee. A bounded event flow and
+explicit error reporting are required, including when JavaScript cannot keep up.
+This is a proposed protocol, not behavior established by the current recorder.
+The unconnected `PcmSequenceDrain` experiment tests reordered delivery, gaps,
+duplicate or wrong-operation events, bounded buffering and delivery failures.
+It cannot prove that a native producer reports the correct last sequence; after
+its promise settles, a later invalid callback cannot retroactively reject it.
