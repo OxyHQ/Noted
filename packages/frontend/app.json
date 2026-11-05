@@ -49,6 +49,10 @@
       "expo-notifications",
       "llama.rn",
       "@oxy.so/services/plugins/withOxySharedPermissions",
+      [
+        "@oxy.so/app-preset/plugin/withOxyUpdates",
+        { "clientId": "oxy_dk_6850133a8633e1941722ad912766db4c60985f1102eaf658" }
+      ],
       "expo-sharing",
       "expo-sqlite",
       [
