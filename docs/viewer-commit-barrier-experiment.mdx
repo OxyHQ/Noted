@@ -45,6 +45,14 @@ this behavior with real SQLite; it is not an Expo runtime or device test. A safe
 recovery requires verified exclusive ownership or a different reviewed protocol.
 Rollback failures in the existing non-opt-in transaction path are unchanged.
 
+Expo's `useNewConnection: true` avoids the cached-connection lookup for that
+open, but a new handle does not make the database file or the account exclusive.
+Other existing handles may still operate on the same file, and a caller could
+retain a reference to the new handle. Closing, fast refresh, locking and failure
+behavior need real driver/platform tests, including retained references; the web
+OPFS broker has additional single-handle constraints. This option is not enabled
+by the experiment and is not proof that recovery is safe.
+
 The protection covers the *local* viewer lifecycle only. Oxy's session or epoch
 can change independently and before the React effect updates this viewer. It
 does not make filesystem writes atomic with SQLite, does not cover reads or
