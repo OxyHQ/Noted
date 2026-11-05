@@ -67,6 +67,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Fails on a second copy of a package the Oxy packages share (zod among
+      # them) or a native peer of the installed services the app does not declare.
+      - name: Oxy dependency health (oxy-doctor)
+        run: bun run doctor:oxy
+
       - name: Check Android device-session autolinking
         run: bun run check:android-autolinking
 
