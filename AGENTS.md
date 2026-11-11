@@ -1,6 +1,6 @@
 # Noted
 
-> Universal standards live in `~/AGENTS.md`; Oxy-wide architecture lives in
+> Universal standards and Oxy-wide architecture live in
 > `~/Oxy/AGENTS.md` and `~/Oxy/docs/`. Product documentation belongs in
 > `docs/`, history in git and current rollout status in issues. This file holds
 > only hard rules, commands and pointers. **Budget: under 8 KB.**
