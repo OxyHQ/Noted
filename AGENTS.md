@@ -1,77 +1,65 @@
 # Noted
 
-> Universal standards and Oxy-wide architecture live in
-> `~/Oxy/AGENTS.md` and `~/Oxy/docs/`. Product documentation belongs in
-> `docs/`, history in git and current rollout status in issues. This file holds
-> only hard rules, commands and pointers. **Budget: under 8 KB.**
-
-Noted is Oxy's local-first notes and meeting-capture app: an Expo frontend and
-its shared DTOs. Its server is Nilo; Noted has no backend of its own. This
-repository was forked from Clarity; a Clarity or retired hosting reference is a
-leftover unless a document explicitly marks it as migration history.
+Oxy's local-first notes and meeting-capture app: an Expo frontend (`packages/frontend`) and its shared DTOs (`packages/shared-types`). Its server is Nilo; Noted has no backend of its own.
 
 ## Commands
 
 ```bash
-bun install
-bun run dev
-bun run dev:frontend
-bun run lint            # Biome (lint + format check); bun run lint:fix to apply
+bun install                                # postinstall builds shared-types
+bun run dev                                # Expo app; bun run dev:frontend adds --clear --tunnel
+bun run lint                               # Biome check; bun run lint:fix to apply
 bun run typecheck
-bun run --filter @noted/frontend test
-bun run build:frontend
+bun run --filter @noted/frontend test      # Vitest
+bun run build:frontend                     # builds shared-types first
+bun run test:worker                        # scripts/frontend-worker.test.ts
 ```
 
-Use Bun only. Package order is `shared-types` before the frontend.
+Use Bun only (pinned in `packageManager`). Run `bun run build:types` after changing a shared type.
 
-## Hard boundaries
+## Map
 
-- The app's server is Nilo (`api.nilo.so`): notes are rows of the user's
-  personal-workspace `notes` database, served by Nilo's `/notes` (contract:
-  `@oxy.so/nilo-contracts` `notes.ts`). A note's content is Nilo blocks,
-  edited with Bloom's block editor (`@oxy.so/bloom-editor`), never Markdown;
-  the recorder's blocks are known by id (`lib/notes/blocks.ts`
-  `GeneratedMap`), never by text. Noted's own server (`api.noted.oxy.so`) is
-  retired; do not add a backend, database or server route back to this
-  repository. A server-side change belongs in Nilo.
-- The local SQLite database is the frontend's read source of truth. Screens use
-  `lib/db/live-query` only after `useLocalStore()` is ready; do not query the
-  remote API directly as a substitute.
-- Artifact DTOs live in `@noted/shared-types`; the note's wire shape is Nilo's.
-  Only `final` artifacts sync, inside the note's app data (written on its
-  revision; a stale one is refused), and omitted artifact fields mean
-  “unchanged” while empty arrays mean “clear”. Full contract: `docs/index.mdx`.
-- A note's attachments are Nilo page files. Noted links each one to Nilo with
-  the OWNER's session (`lib/files/attachment-links.ts`, Oxy ADR 0043) and never
-  unlinks; removing, reconciling and file events are Nilo's. Noted holds no
-  Oxy file reference of its own (`docs/index.mdx`).
-- Notes are private pages of the user's personal workspace, which takes no
-  members. Noted itself has no public, shared, collaborator or share-link
-  surface; Nilo can share a page, so if Noted ever offers that, revisit the
-  CrowdSource decision documented in `docs/index.mdx` before shipping.
+- `docs/index.mdx`: architecture, artifact invariants, AI routes, moderation boundary.
+- `packages/frontend/README.md`: local-first UI, capture, on-device models.
+- `docs/sync-reset-recovery.md`: client design for remote reset or erase (proposal, not implemented).
+- `docs/history/`: investigations; `docs/audits/`: dated audits.
 
-## AI and platform ownership
+## Conventions that differ from defaults
 
-- Speech transcription and transcript enhancement currently run on the user's
-  device. Model weights may be downloaded to that device; audio and transcript
-  content must not be uploaded as a hidden fallback.
-- Any future hosted point inference flows `Noted -> Oxy -> Kaana`. Any agent,
-  chat, tool or memory capability flows `Noted -> Alia -> Oxy -> Kaana`.
-  Publishing a signed Noted event to Alia is an agent-runtime integration, not
-  permission to call an inference provider.
-- Kaana is the sole hosted inference data plane and its only canonical signed
-  origin is `https://kaana.ai`. Never add a Kaana hostname under `oxy.so`, a
-  direct provider adapter, provider routing or an AI provider environment key.
-  Provider keys live only encrypted in Kaana PostgreSQL/KMS.
-- Own service calls use Oxy workload identity; customer API keys are external
-  credentials and never replace a human account. If a product/app/agent
-  binding is introduced, use the exact opaque primary key; never discover by
-  display name, sorted list, first result or fallback.
+- Server work belongs in Nilo (`api.nilo.so`, contract `@oxy.so/nilo-contracts` `notes.ts`). Noted's own server is retired, so do not add a backend, database or server route here.
+- A note's content is Nilo blocks edited with `@oxy.so/bloom-editor`, never Markdown. Recorder blocks are found by id (`lib/notes/blocks.ts` `GeneratedMap`), never by text, because text changes when the user edits.
+- The local SQLite database is the frontend's read source of truth. Screens use `lib/db/live-query` only after `useLocalStore()` is ready and never query the remote API as a substitute, so offline behaviour stays correct.
+- Artifact DTOs live in `@noted/shared-types`; the note's wire shape is Nilo's. Only `final` artifacts sync, inside the note's app data, written on its revision (a stale one is refused). An omitted artifact field means "unchanged" and an empty array means "clear". Contract: `docs/index.mdx`.
+- Attachments are Nilo page files. Link each one with the owner's session (`lib/files/attachment-links.ts`, Oxy ADR 0043) and never unlink; removal, reconciling and file events are Nilo's. Noted holds no Oxy file reference of its own.
+- Notes are private pages of the user's personal workspace, which takes no members. Offer no public, shared, collaborator or share-link surface; if that changes, revisit the CrowdSource decision in `docs/index.mdx` first.
+- Speech transcription and transcript enhancement run on the user's device. Model weights may be downloaded; audio and transcript content must not be uploaded as a hidden fallback (privacy).
+- Hosted point inference flows `Noted -> Oxy -> Kaana`. Agent, chat, tool or memory capability flows `Noted -> Alia -> Oxy -> Kaana`. Publishing a signed Noted event to Alia is not permission to call an inference provider.
+- Own service calls use Oxy workload identity; customer API keys are external credentials and never replace a human account. Bind a product, app or agent by its exact opaque primary key, never by display name, sorted list, first result or fallback.
+- This repository was forked from Clarity: a Clarity or retired-hosting reference is a leftover unless a document marks it as migration history. Fix it where you see it.
 
-## Pointers
+## Boundaries
 
-- `docs/index.mdx`: architecture, artifact invariants, AI routes and moderation
-  boundary.
-- `packages/frontend/README.md`: local-first UI, capture and on-device models.
-- `CONTRIBUTING.md`: setup and CI commands layered on the Oxy organization
-  guide.
+Never:
+- Add a Kaana hostname under `oxy.so`, a direct provider adapter, provider routing or an AI provider key. Kaana's only signed origin is `https://kaana.ai`, and provider keys live encrypted in Kaana PostgreSQL/KMS.
+- Add a backend, database or server route to this repo (see Conventions).
+- Use npm or yarn; the lockfile and CI assume Bun.
+
+Ask first: changing `.github/workflows/` (the owner reviews every workflow because they can build, push or deploy).
+
+## Testing
+
+Run lint, typecheck and the frontend tests for any frontend change, and `bun run build:frontend` when touching `shared-types` or build config. Done means the CI list in `CONTRIBUTING.md` passes locally (`bunx biome ci --error-on-warnings .` is the exact lint gate).
+
+## PR and commit rules
+
+Follow the [Oxy contribution guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md) and `CONTRIBUTING.md`. Merging to main deploys the web app to Cloudflare, so keep PRs small and CI green.
+
+## Secrets
+
+Local overrides go in `packages/frontend/.env` (copy `.env.example`); never print or commit values. Deploy and signing secrets live in GitHub Actions secrets.
+
+## Links
+
+- [Oxy engineering standards](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/standards.md), [lint and format](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/lint-and-format.md), [build and runtime traps](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/build-and-runtime-traps.md)
+- [npm releases](https://github.com/OxyHQ/oxy/blob/main/docs/npm-releases.md), [Bloom app conventions](https://github.com/OxyHQ/Bloom/blob/main/docs/app-conventions.mdx)
+
+Owner: @NateIsern (Oxy). Last reviewed: 2026-11-11.
