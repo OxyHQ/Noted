@@ -30,9 +30,7 @@ module.exports = (() => {
   // Add web-specific resolver settings to handle ESM modules
   config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
 
-  // No custom `babelTransformerPath` (e.g. an SVG transformer): it would keep
-  // every file on Babel, off Noxcturnal, Expo's oxc transformer. SVG files stay
-  // assets; draw an SVG as a react-native-svg component instead.
+  // SVG files stay assets; draw an SVG as a react-native-svg component.
   const { resolver } = config;
   config.resolver = {
     ...resolver,
