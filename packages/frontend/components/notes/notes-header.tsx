@@ -1,5 +1,5 @@
 import { AppShellMenuButton } from '@oxy.so/bloom/app-shell';
-import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
+import { GemieAvatarIcon } from '@gemies/sdk/avatar';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiLayoutGridLine } from '@oxy.so/bloom/icons/RiLayoutGridLine';
@@ -31,7 +31,7 @@ export function NotesHeader({ title }: NotesHeaderProps) {
           {isAuthenticated && (
             <ButtonGroupItem
               iconOnly
-              leadingIcon={AliaAvatarIcon}
+              leadingIcon={GemieAvatarIcon}
               onPress={openAliaChat}
               accessibilityLabel={t('alia.askAlia')}
             />
