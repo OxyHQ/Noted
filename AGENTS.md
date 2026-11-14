@@ -34,6 +34,7 @@ Use Bun only (pinned in `packageManager`). Run `bun run build:types` after chang
 - Speech transcription and transcript enhancement run on the user's device. Model weights may be downloaded; audio and transcript content must not be uploaded as a hidden fallback (privacy).
 - Hosted point inference flows `Noted -> Oxy -> Kaana`. Agent, chat, tool or memory capability flows `Noted -> Alia -> Oxy -> Kaana`. Publishing a signed Noted event to Alia is not permission to call an inference provider.
 - Own service calls use Oxy workload identity; customer API keys are external credentials and never replace a human account. Bind a product, app or agent by its exact opaque primary key, never by display name, sorted list, first result or fallback.
+- First-party never asks people for permissions: this app acts for a person with `actingFor` on what oxy's first-party registry declares (oxy ADR 0066); permissions, scopes and consent are only for third parties.
 - This repository was forked from Clarity: a Clarity or retired-hosting reference is a leftover unless a document marks it as migration history. Fix it where you see it.
 
 ## Boundaries
