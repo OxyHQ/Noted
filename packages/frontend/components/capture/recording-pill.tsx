@@ -57,7 +57,11 @@ export function RecordingPill() {
   // open with no reachable way to stop it.
   if (!isRecording && !showsRecordButton(pathname)) return null;
   const failure =
-    phase === 'denied' ? t('capture.denied') : phase === 'error' ? t('capture.failed') : null;
+    phase === 'denied'
+      ? t('capture.denied')
+      : phase === 'error'
+        ? t('capture.status.failed')
+        : null;
 
   return (
     <>
