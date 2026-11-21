@@ -23,6 +23,6 @@ export default defineConfig({
     // Scoped to the platform-free logic. Anything importing expo-sqlite, React
     // Native or a native module belongs in a device run, not here — a green
     // suite built on mocks of those would only be testing the mocks.
-    include: ['lib/**/__tests__/**/*.test.ts', 'lib/**/*.test.ts'],
+    include: ['lib/**/__tests__/**/*.test.ts', 'lib/**/*.test.ts', 'docs/research/**/*.test.ts'],
   },
 });
